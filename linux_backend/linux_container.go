@@ -15,12 +15,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/bandwidth_manager"
+	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/cgroups_manager"
+	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/process_tracker"
+	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/quota_manager"
 	"github.com/pivotal-cf-experimental/garden/backend"
 	"github.com/pivotal-cf-experimental/garden/command_runner"
-	"github.com/pivotal-cf-experimental/garden/linux_backend/bandwidth_manager"
-	"github.com/pivotal-cf-experimental/garden/linux_backend/cgroups_manager"
-	"github.com/pivotal-cf-experimental/garden/linux_backend/process_tracker"
-	"github.com/pivotal-cf-experimental/garden/linux_backend/quota_manager"
 )
 
 type LinuxContainer struct {

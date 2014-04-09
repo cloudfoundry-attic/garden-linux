@@ -16,15 +16,15 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	"github.com/cloudfoundry-incubator/warden-linux/linux_backend"
+	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/bandwidth_manager/fake_bandwidth_manager"
+	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/cgroups_manager/fake_cgroups_manager"
+	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/network_pool"
+	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/port_pool/fake_port_pool"
+	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/quota_manager/fake_quota_manager"
 	"github.com/pivotal-cf-experimental/garden/backend"
 	"github.com/pivotal-cf-experimental/garden/command_runner/fake_command_runner"
 	. "github.com/pivotal-cf-experimental/garden/command_runner/fake_command_runner/matchers"
-	"github.com/pivotal-cf-experimental/garden/linux_backend"
-	"github.com/pivotal-cf-experimental/garden/linux_backend/bandwidth_manager/fake_bandwidth_manager"
-	"github.com/pivotal-cf-experimental/garden/linux_backend/cgroups_manager/fake_cgroups_manager"
-	"github.com/pivotal-cf-experimental/garden/linux_backend/network_pool"
-	"github.com/pivotal-cf-experimental/garden/linux_backend/port_pool/fake_port_pool"
-	"github.com/pivotal-cf-experimental/garden/linux_backend/quota_manager/fake_quota_manager"
 )
 
 var fakeCgroups *fake_cgroups_manager.FakeCgroupsManager

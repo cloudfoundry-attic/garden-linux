@@ -9,10 +9,10 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	"github.com/cloudfoundry-incubator/warden-linux/linux_backend"
+	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool/fake_container_pool"
 	"github.com/pivotal-cf-experimental/garden/backend"
 	"github.com/pivotal-cf-experimental/garden/backend/fake_backend"
-	"github.com/pivotal-cf-experimental/garden/linux_backend"
-	"github.com/pivotal-cf-experimental/garden/linux_backend/container_pool/fake_container_pool"
 )
 
 var _ = Describe("Setup", func() {

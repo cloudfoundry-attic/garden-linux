@@ -11,10 +11,10 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/process_tracker"
 	"github.com/pivotal-cf-experimental/garden/backend"
 	"github.com/pivotal-cf-experimental/garden/command_runner/fake_command_runner"
 	. "github.com/pivotal-cf-experimental/garden/command_runner/fake_command_runner/matchers"
-	"github.com/pivotal-cf-experimental/garden/linux_backend/process_tracker"
 )
 
 var fakeRunner *fake_command_runner.FakeCommandRunner

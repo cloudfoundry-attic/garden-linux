@@ -8,7 +8,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/pivotal-cf-experimental/garden/linux_backend/cgroups_manager"
+	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/cgroups_manager"
 )
 
 var _ = Describe("Container cgroups", func() {
