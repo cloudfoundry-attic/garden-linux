@@ -1,5 +1,5 @@
 {
-	"ImportPath": "github.com/pivotal-cf-experimental/garden",
+	"ImportPath": "github.com/cloudfoundry-incubator/warden-linux",
 	"GoVersion": "go1.2.1",
 	"Packages": [
 		"./..."
@@ -7,11 +7,15 @@
 	"Deps": [
 		{
 			"ImportPath": "code.google.com/p/gogoprotobuf/proto",
-			"Rev": "2395ecf872ff63554aca750519f302cba92261d8"
+			"Rev": "dc9b8350fb4568b6562900df872672f378242552"
+		},
+		{
+			"ImportPath": "github.com/cloudfoundry/gunk/command_runner",
+			"Rev": "0ab08c4a0d1b32c0db1ecd53b55603662de9e767"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry/gunk/runner_support",
-			"Rev": "0dfce73f2060a23c01134f5880295b70cc325e14"
+			"Rev": "0ab08c4a0d1b32c0db1ecd53b55603662de9e767"
 		},
 		{
 			"ImportPath": "github.com/onsi/ginkgo",
@@ -19,7 +23,27 @@
 		},
 		{
 			"ImportPath": "github.com/onsi/gomega",
-			"Rev": "bad854a45453ec22d99c8bd982e2302f64d3fc37"
+			"Rev": "b017f5b84e91054313ed33ba2422e992c3b08626"
+		},
+		{
+			"ImportPath": "github.com/pivotal-cf-experimental/garden/backend",
+			"Rev": "770d5c1094a8b3f9042993abe86dfd645f3f565f"
+		},
+		{
+			"ImportPath": "github.com/pivotal-cf-experimental/garden/drain",
+			"Rev": "770d5c1094a8b3f9042993abe86dfd645f3f565f"
+		},
+		{
+			"ImportPath": "github.com/pivotal-cf-experimental/garden/message_reader",
+			"Rev": "770d5c1094a8b3f9042993abe86dfd645f3f565f"
+		},
+		{
+			"ImportPath": "github.com/pivotal-cf-experimental/garden/protocol",
+			"Rev": "770d5c1094a8b3f9042993abe86dfd645f3f565f"
+		},
+		{
+			"ImportPath": "github.com/pivotal-cf-experimental/garden/server",
+			"Rev": "770d5c1094a8b3f9042993abe86dfd645f3f565f"
 		},
 		{
 			"ImportPath": "github.com/vito/cmdtest",
@@ -27,7 +51,7 @@
 		},
 		{
 			"ImportPath": "github.com/vito/gordon",
-			"Rev": "abe24aba708d3b78e5a85b7d6da037a53ecebdcc"
+			"Rev": "471d65bf7e3da108f8367caa82b774cdea4309fa"
 		}
 	]
 }
