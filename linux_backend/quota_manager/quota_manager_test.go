@@ -9,8 +9,8 @@ import (
 
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/quota_manager"
 	"github.com/pivotal-cf-experimental/garden/backend"
-	"github.com/pivotal-cf-experimental/garden/command_runner/fake_command_runner"
-	. "github.com/pivotal-cf-experimental/garden/command_runner/fake_command_runner/matchers"
+	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
+	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
 )
 
 var _ = Describe("Linux Quota Manager initialization", func() {

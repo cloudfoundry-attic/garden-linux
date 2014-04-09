@@ -10,7 +10,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/pivotal-cf-experimental/garden/integration/garden_runner"
+	"github.com/cloudfoundry-incubator/warden-linux/integration/garden_runner"
 	"github.com/vito/cmdtest"
 	"github.com/vito/gordon"
 )
@@ -34,7 +34,7 @@ func TestMeasurements(t *testing.T) {
 		log.Fatalln("failed to make dir for socker:", err)
 	}
 
-	gardenPath, err := cmdtest.Build("github.com/pivotal-cf-experimental/garden", "-race")
+	gardenPath, err := cmdtest.Build("github.com/cloudfoundry-incubator/warden-linux", "-race")
 	if err != nil {
 		log.Fatalln("failed to compile garden:", err)
 	}

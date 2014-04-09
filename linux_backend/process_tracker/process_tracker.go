@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/pivotal-cf-experimental/garden/backend"
-	"github.com/pivotal-cf-experimental/garden/command_runner"
+	"github.com/cloudfoundry/gunk/command_runner"
 )
 
 type ProcessTracker struct {

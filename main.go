@@ -17,7 +17,7 @@ import (
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/uid_pool"
 	"github.com/pivotal-cf-experimental/garden/backend"
 	"github.com/pivotal-cf-experimental/garden/backend/fake_backend"
-	"github.com/pivotal-cf-experimental/garden/command_runner"
+	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/pivotal-cf-experimental/garden/server"
 )
 
