@@ -6,7 +6,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/vito/gordon"
+	"github.com/cloudfoundry-incubator/gordon"
 )
 
 var _ = Describe("A container with a grace time", func() {

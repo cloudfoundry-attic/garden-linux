@@ -9,8 +9,8 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/vito/gordon"
-	"github.com/vito/gordon/warden"
+	"github.com/cloudfoundry-incubator/gordon"
+	"github.com/cloudfoundry-incubator/gordon/warden"
 )
 
 func readUntilExit(stream <-chan *warden.ProcessPayload) (string, string, uint32) {

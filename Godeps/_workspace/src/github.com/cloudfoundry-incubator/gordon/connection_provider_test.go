@@ -3,7 +3,7 @@ package gordon_test
 import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/vito/gordon"
+	. "github.com/cloudfoundry-incubator/gordon"
 	"net"
 )
 

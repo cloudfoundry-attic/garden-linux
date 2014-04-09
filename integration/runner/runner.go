@@ -11,7 +11,7 @@ import (
 
 	"github.com/cloudfoundry/gunk/runner_support"
 	"github.com/vito/cmdtest"
-	"github.com/vito/gordon"
+	"github.com/cloudfoundry-incubator/gordon"
 )
 
 type Runner struct {

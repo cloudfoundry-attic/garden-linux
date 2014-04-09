@@ -7,7 +7,7 @@ opening new connections to support concurrent requests.
 
 ```bash
 cd $GOPATH
-go get github.com/vito/gordon
+go get github.com/cloudfoundry-incubator/gordon
 ```
 
 ## Usage
@@ -17,7 +17,7 @@ package main
 
 import (
   "fmt"
-  "github.com/vito/gordon"
+  "github.com/cloudfoundry-incubator/gordon"
   "os"
 )
 

@@ -4,13 +4,13 @@ import (
 	"bytes"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/vito/gordon/connection"
+	. "github.com/cloudfoundry-incubator/gordon/connection"
 	"math"
 	"time"
 
 	"code.google.com/p/gogoprotobuf/proto"
-	. "github.com/vito/gordon/test_helpers"
-	"github.com/vito/gordon/warden"
+	. "github.com/cloudfoundry-incubator/gordon/test_helpers"
+	"github.com/cloudfoundry-incubator/gordon/warden"
 )
 
 var _ = Describe("Connection", func() {

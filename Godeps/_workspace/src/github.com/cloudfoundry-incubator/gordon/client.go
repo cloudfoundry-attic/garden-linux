@@ -5,8 +5,8 @@ import (
 
 	"code.google.com/p/gogoprotobuf/proto"
 
-	"github.com/vito/gordon/connection"
-	"github.com/vito/gordon/warden"
+	"github.com/cloudfoundry-incubator/gordon/connection"
+	"github.com/cloudfoundry-incubator/gordon/warden"
 )
 
 type ResourceLimits struct {

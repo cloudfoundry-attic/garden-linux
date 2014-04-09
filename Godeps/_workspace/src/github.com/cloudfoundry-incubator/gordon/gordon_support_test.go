@@ -3,10 +3,10 @@ package gordon_test
 import (
 	"bytes"
 	"errors"
-	. "github.com/vito/gordon"
-	. "github.com/vito/gordon/test_helpers"
+	. "github.com/cloudfoundry-incubator/gordon"
+	. "github.com/cloudfoundry-incubator/gordon/test_helpers"
 
-	"github.com/vito/gordon/connection"
+	"github.com/cloudfoundry-incubator/gordon/connection"
 )
 
 type FailingConnectionProvider struct{}

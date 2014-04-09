@@ -30,6 +30,10 @@
 			"Rev": "afdb31483d741e2f737b4a06cfc6e1767bdace0c"
 		},
 		{
+			"ImportPath": "github.com/cloudfoundry-incubator/gordon",
+			"Rev": "0a7276b5a890d335729c1ca0c015278bc0ba4bea"
+		},
+		{
 			"ImportPath": "github.com/cloudfoundry/gunk/command_runner",
 			"Rev": "0dfce73f2060a23c01134f5880295b70cc325e14"
 		},
@@ -48,10 +52,6 @@
 		{
 			"ImportPath": "github.com/vito/cmdtest",
 			"Rev": "c56fe40f700cbe87257137c14ae739c59897fc6b"
-		},
-		{
-			"ImportPath": "github.com/vito/gordon",
-			"Rev": "c2c5f384bd1bc3c081e62f1401e688a1fe6ddac5"
 		}
 	]
 }

@@ -7,10 +7,10 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/vito/gordon"
+	. "github.com/cloudfoundry-incubator/gordon"
 
 	"code.google.com/p/gogoprotobuf/proto"
-	"github.com/vito/gordon/warden"
+	"github.com/cloudfoundry-incubator/gordon/warden"
 )
 
 var _ = Describe("Client", func() {

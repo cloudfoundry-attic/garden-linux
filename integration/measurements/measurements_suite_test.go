@@ -10,7 +10,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/vito/cmdtest"
-	"github.com/vito/gordon"
+	"github.com/cloudfoundry-incubator/gordon"
 
 	Runner "github.com/cloudfoundry-incubator/warden-linux/integration/runner"
 )

@@ -9,7 +9,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/vito/gordon"
+	"github.com/cloudfoundry-incubator/gordon"
 )
 
 var _ = Describe("Creating a container", func() {

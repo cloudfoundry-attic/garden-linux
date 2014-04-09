@@ -1,7 +1,7 @@
 package gordon
 
 import (
-	"github.com/vito/gordon/connection"
+	"github.com/cloudfoundry-incubator/gordon/connection"
 )
 
 type ConnectionProvider interface {

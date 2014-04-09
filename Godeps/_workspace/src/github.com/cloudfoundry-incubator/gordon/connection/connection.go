@@ -11,7 +11,7 @@ import (
 
 	"code.google.com/p/gogoprotobuf/proto"
 
-	"github.com/vito/gordon/warden"
+	"github.com/cloudfoundry-incubator/gordon/warden"
 )
 
 var DisconnectedError = errors.New("disconnected")
