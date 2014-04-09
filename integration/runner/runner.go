@@ -1,4 +1,4 @@
-package garden_runner
+package runner
 
 import (
 	"fmt"
@@ -14,7 +14,7 @@ import (
 	"github.com/vito/gordon"
 )
 
-type GardenRunner struct {
+type Runner struct {
 	Network string
 	Addr    string
 
@@ -23,29 +23,29 @@ type GardenRunner struct {
 	RootFSPath    string
 	SnapshotsPath string
 
-	gardenBin string
-	gardenCmd *exec.Cmd
+	wardenBin string
+	wardenCmd *exec.Cmd
 
 	tmpdir string
 }
 
-func New(gardenPath, binPath, rootFSPath, network, addr string) (*GardenRunner, error) {
-	runner := &GardenRunner{
+func New(wardenPath, binPath, rootFSPath, network, addr string) (*Runner, error) {
+	runner := &Runner{
 		Network:    network,
 		Addr:       addr,
 		BinPath:    binPath,
 		RootFSPath: rootFSPath,
 
-		gardenBin: gardenPath,
+		wardenBin: wardenPath,
 	}
 
 	return runner, runner.Prepare()
 }
 
-func (r *GardenRunner) Prepare() error {
+func (r *Runner) Prepare() error {
 	var err error
 
-	r.tmpdir, err = ioutil.TempDir(os.TempDir(), "garden-server")
+	r.tmpdir, err = ioutil.TempDir(os.TempDir(), "warden-linux-server")
 	if err != nil {
 		return err
 	}
@@ -64,10 +64,10 @@ func (r *GardenRunner) Prepare() error {
 	return nil
 }
 
-func (r *GardenRunner) Start(argv ...string) error {
-	gardenArgs := argv
-	gardenArgs = append(
-		gardenArgs,
+func (r *Runner) Start(argv ...string) error {
+	wardenArgs := argv
+	wardenArgs = append(
+		wardenArgs,
 		"--listenNetwork", r.Network,
 		"--listenAddr", r.Addr,
 		"--bin", r.BinPath,
@@ -78,13 +78,13 @@ func (r *GardenRunner) Start(argv ...string) error {
 		"--disableQuotas",
 	)
 
-	garden := exec.Command(r.gardenBin, gardenArgs...)
+	warden := exec.Command(r.wardenBin, wardenArgs...)
 
-	garden.Stdout = os.Stdout
-	garden.Stderr = os.Stderr
+	warden.Stdout = os.Stdout
+	warden.Stderr = os.Stderr
 
 	_, err := cmdtest.StartWrapped(
-		garden,
+		warden,
 		runner_support.TeeToGinkgoWriter,
 		runner_support.TeeToGinkgoWriter,
 	)
@@ -92,17 +92,17 @@ func (r *GardenRunner) Start(argv ...string) error {
 		return err
 	}
 
-	r.gardenCmd = garden
+	r.wardenCmd = warden
 
 	return r.WaitForStart()
 }
 
-func (r *GardenRunner) Stop() error {
-	if r.gardenCmd == nil {
+func (r *Runner) Stop() error {
+	if r.wardenCmd == nil {
 		return nil
 	}
 
-	err := r.gardenCmd.Process.Signal(os.Interrupt)
+	err := r.wardenCmd.Process.Signal(os.Interrupt)
 	if err != nil {
 		return err
 	}
@@ -116,15 +116,15 @@ func (r *GardenRunner) Stop() error {
 
 	select {
 	case <-stopped:
-		r.gardenCmd = nil
+		r.wardenCmd = nil
 		return nil
 	case <-time.After(timeout):
 		stop <- true
-		return fmt.Errorf("garden did not shut down within %s", timeout)
+		return fmt.Errorf("warden did not shut down within %s", timeout)
 	}
 }
 
-func (r *GardenRunner) DestroyContainers() error {
+func (r *Runner) DestroyContainers() error {
 	err := exec.Command(filepath.Join(r.BinPath, "clear.sh"), r.DepotPath).Run()
 	if err != nil {
 		return err
@@ -137,7 +137,7 @@ func (r *GardenRunner) DestroyContainers() error {
 	return nil
 }
 
-func (r *GardenRunner) TearDown() error {
+func (r *Runner) TearDown() error {
 	err := r.DestroyContainers()
 	if err != nil {
 		return err
@@ -146,14 +146,14 @@ func (r *GardenRunner) TearDown() error {
 	return os.RemoveAll(r.tmpdir)
 }
 
-func (r *GardenRunner) NewClient() gordon.Client {
+func (r *Runner) NewClient() gordon.Client {
 	return gordon.NewClient(&gordon.ConnectionInfo{
 		Network: r.Network,
 		Addr:    r.Addr,
 	})
 }
 
-func (r *GardenRunner) WaitForStart() error {
+func (r *Runner) WaitForStart() error {
 	timeout := 10 * time.Second
 	timeoutTimer := time.NewTimer(timeout)
 
@@ -168,12 +168,12 @@ func (r *GardenRunner) WaitForStart() error {
 		select {
 		case <-time.After(100 * time.Millisecond):
 		case <-timeoutTimer.C:
-			return fmt.Errorf("garden did not come up within %s", timeout)
+			return fmt.Errorf("warden did not come up within %s", timeout)
 		}
 	}
 }
 
-func (r *GardenRunner) WaitForStop(stopped chan<- bool, stop <-chan bool) {
+func (r *Runner) WaitForStop(stopped chan<- bool, stop <-chan bool) {
 	for {
 		var err error
 

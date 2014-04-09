@@ -133,7 +133,7 @@ function setup_fs() {
 setup_fs
 `), 0755)
 
-		setUpRoot := exec.Command(path.Join(libDir, "set-up-root.sh"), os.Getenv("GARDEN_TEST_ROOTFS"))
+		setUpRoot := exec.Command(path.Join(libDir, "set-up-root.sh"), os.Getenv("WARDEN_TEST_ROOTFS"))
 		setUpRoot.Dir = containerPath
 
 		setUpRootSession, err := cmdtest.StartWrapped(setUpRoot, outWrapper, outWrapper)

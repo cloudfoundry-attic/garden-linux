@@ -9,37 +9,37 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
-	"github.com/cloudfoundry-incubator/warden-linux/integration/garden_runner"
 	"github.com/vito/cmdtest"
 	"github.com/vito/gordon"
+
+	Runner "github.com/cloudfoundry-incubator/warden-linux/integration/runner"
 )
 
-var runner *garden_runner.GardenRunner
+var runner *Runner.Runner
 var client gordon.Client
 
 func TestLifecycle(t *testing.T) {
 	binPath := "../../linux_backend/bin"
-	rootFSPath := os.Getenv("GARDEN_TEST_ROOTFS")
+	rootFSPath := os.Getenv("WARDEN_TEST_ROOTFS")
 
 	if rootFSPath == "" {
-		log.Println("GARDEN_TEST_ROOTFS undefined; skipping")
+		log.Println("WARDEN_TEST_ROOTFS undefined; skipping")
 		return
 	}
 
 	var err error
 
-	tmpdir, err := ioutil.TempDir("", "garden-socket")
+	tmpdir, err := ioutil.TempDir("", "warden-socket")
 	if err != nil {
 		log.Fatalln("failed to make dir for socker:", err)
 	}
 
-	gardenPath, err := cmdtest.Build("github.com/cloudfoundry-incubator/warden-linux", "-race")
+	wardenPath, err := cmdtest.Build("github.com/cloudfoundry-incubator/warden-linux", "-race")
 	if err != nil {
-		log.Fatalln("failed to compile garden:", err)
+		log.Fatalln("failed to compile warden-linux:", err)
 	}
 
-	runner, err = garden_runner.New(gardenPath, binPath, rootFSPath, "unix", filepath.Join(tmpdir, "warden.sock"))
+	runner, err = Runner.New(wardenPath, binPath, rootFSPath, "unix", filepath.Join(tmpdir, "warden.sock"))
 	if err != nil {
 		log.Fatalln("failed to create runner:", err)
 	}
@@ -49,7 +49,7 @@ func TestLifecycle(t *testing.T) {
 
 	err = runner.Stop()
 	if err != nil {
-		log.Fatalln("garden failed to stop:", err)
+		log.Fatalln("warden failed to stop:", err)
 	}
 
 	err = runner.TearDown()
@@ -72,7 +72,7 @@ var _ = BeforeEach(func() {
 	didRunGarden = true
 	err := runner.Start()
 	if err != nil {
-		log.Fatalln("garden failed to start:", err)
+		log.Fatalln("warden failed to start:", err)
 	}
 
 	client = runner.NewClient()
