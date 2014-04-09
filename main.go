@@ -9,16 +9,14 @@ import (
 	"runtime"
 	"syscall"
 
+	"github.com/cloudfoundry-incubator/garden/server"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/network_pool"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/port_pool"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/quota_manager"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/uid_pool"
-	"github.com/cloudfoundry-incubator/garden/backend"
-	"github.com/cloudfoundry-incubator/garden/backend/fake_backend"
 	"github.com/cloudfoundry/gunk/command_runner"
-	"github.com/cloudfoundry-incubator/garden/server"
 )
 
 var listenNetwork = flag.String(
@@ -89,66 +87,59 @@ func main() {
 
 	log.Println("set GOMAXPROCS to", maxProcs, "was", prevMaxProcs)
 
-	var backend backend.Backend
-
-	switch *backendName {
-	case "linux":
-		if *binPath == "" {
-			log.Fatalln("must specify -bin with linux backend")
-		}
-
-		if *depotPath == "" {
-			log.Fatalln("must specify -depot with linux backend")
-		}
-
-		if *rootFSPath == "" {
-			log.Fatalln("must specify -rootfs with linux backend")
-		}
-
-		uidPool := uid_pool.New(10000, 256)
-
-		_, ipNet, err := net.ParseCIDR("10.254.0.0/22")
-		if err != nil {
-			log.Fatalln("error parsing CIDR:", err)
-		}
-
-		networkPool := network_pool.New(ipNet)
-
-		// TODO: base on ephemeral port range
-		portPool := port_pool.New(61000, 6501)
-
-		var runner command_runner.CommandRunner
-
-		runner = command_runner.New(*debug)
-
-		quotaManager, err := quota_manager.New(*depotPath, *binPath, runner)
-		if err != nil {
-			log.Fatalln("error creating quota manager:", err)
-		}
-
-		if *disableQuotas {
-			quotaManager.Disable()
-		}
-
-		pool := container_pool.New(
-			*binPath,
-			*depotPath,
-			*rootFSPath,
-			uidPool,
-			networkPool,
-			portPool,
-			runner,
-			quotaManager,
-		)
-
-		backend = linux_backend.New(pool, *snapshotsPath)
-	case "fake":
-		backend = fake_backend.New()
+	if *binPath == "" {
+		log.Fatalln("must specify -bin with linux backend")
 	}
+
+	if *depotPath == "" {
+		log.Fatalln("must specify -depot with linux backend")
+	}
+
+	if *rootFSPath == "" {
+		log.Fatalln("must specify -rootfs with linux backend")
+	}
+
+	uidPool := uid_pool.New(10000, 256)
+
+	_, ipNet, err := net.ParseCIDR("10.254.0.0/22")
+	if err != nil {
+		log.Fatalln("error parsing CIDR:", err)
+	}
+
+	networkPool := network_pool.New(ipNet)
+
+	// TODO: base on ephemeral port range
+	portPool := port_pool.New(61000, 6501)
+
+	var runner command_runner.CommandRunner
+
+	runner = command_runner.New(*debug)
+
+	quotaManager, err := quota_manager.New(*depotPath, *binPath, runner)
+	if err != nil {
+		log.Fatalln("error creating quota manager:", err)
+	}
+
+	if *disableQuotas {
+		quotaManager.Disable()
+	}
+
+	pool := container_pool.New(
+		*binPath,
+		*depotPath,
+		*rootFSPath,
+		uidPool,
+		networkPool,
+		portPool,
+		runner,
+		quotaManager,
+	)
+
+	backend := linux_backend.New(pool, *snapshotsPath)
 
 	log.Println("setting up backend")
 
-	err := backend.Setup()
+	err = backend.Setup()
 	if err != nil {
 		log.Fatalln("failed to set up backend:", err)
 	}
