@@ -52,17 +52,22 @@ type FakeGordon struct {
 	runReturnProcessPayloadChan <-chan *warden.ProcessPayload
 	runReturnError              error
 
-	copiedIn    []*CopiedIn
-	copyInError error
+	copiedIn        []*CopiedIn
+	copyInCallbacks map[*CopiedIn]CopyInCallback
+	copyInError     error
 
 	copiedOut                     []*CopiedOut
+	copyOutCallbacks              map[*CopiedOut]CopyOutCallback
 	fileContentToProvideOnCopyOut []byte
 	copyOutError                  error
 
-	lock *sync.Mutex
+	lock *sync.RWMutex
 }
 
 type RunCallback func() (uint32, <-chan *warden.ProcessPayload, error)
+
+type CopyInCallback func(CopiedIn) error
+type CopyOutCallback func(CopiedOut) error
 
 type RunningScript struct {
 	Handle         string
@@ -100,7 +105,7 @@ func New() *FakeGordon {
 }
 
 func (f *FakeGordon) Reset() {
-	f.lock = &sync.Mutex{}
+	f.lock = &sync.RWMutex{}
 	f.Connected = false
 	f.ConnectError = nil
 
@@ -137,6 +142,8 @@ func (f *FakeGordon) Reset() {
 	f.copyOutError = nil
 	f.copiedIn = []*CopiedIn{}
 	f.copiedOut = []*CopiedOut{}
+	f.copyInCallbacks = make(map[*CopiedIn]CopyInCallback)
+	f.copyOutCallbacks = make(map[*CopiedOut]CopyOutCallback)
 	f.fileContentToProvideOnCopyOut = []byte{}
 }
 
@@ -301,18 +308,34 @@ func (f *FakeGordon) SetInfoResponse(response *warden.InfoResponse) {
 }
 
 func (f *FakeGordon) CopyIn(handle, src, dst string) (*warden.CopyInResponse, error) {
-	f.lock.Lock()
-	defer f.lock.Unlock()
+	f.lock.RLock()
+	err := f.copyInError
+	f.lock.RUnlock()
 
-	if f.copyInError != nil {
-		return nil, f.copyInError
+	if err != nil {
+		return nil, err
 	}
 
-	f.copiedIn = append(f.copiedIn, &CopiedIn{
+	copiedIn := CopiedIn{
 		Handle: handle,
 		Src:    src,
 		Dst:    dst,
-	})
+	}
+
+	f.lock.Lock()
+
+	f.copiedIn = append(f.copiedIn, &copiedIn)
+
+	f.lock.Unlock()
+
+	for ci, cb := range f.copyInCallbacks {
+		if (ci.Handle == "" || ci.Handle == handle) && ci.Src == src {
+			err := cb(copiedIn)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
 
 	return &warden.CopyInResponse{}, nil
 }
@@ -332,22 +355,41 @@ func (f *FakeGordon) SetCopyInErr(err error) {
 }
 
 func (f *FakeGordon) CopyOut(handle, src, dst, owner string) (*warden.CopyOutResponse, error) {
-	f.lock.Lock()
-	defer f.lock.Unlock()
+	f.lock.RLock()
+	err := f.copyOutError
+	f.lock.RUnlock()
 
-	if f.copyOutError != nil {
-		return nil, f.copyOutError
+	if err != nil {
+		return nil, err
 	}
 
-	f.copiedOut = append(f.copiedOut, &CopiedOut{
+	copiedOut := CopiedOut{
 		Handle: handle,
 		Src:    src,
 		Dst:    dst,
 		Owner:  owner,
-	})
+	}
+
+	f.lock.Lock()
+
+	f.copiedOut = append(f.copiedOut, &copiedOut)
 
 	if len(f.fileContentToProvideOnCopyOut) > 0 {
-		ioutil.WriteFile(dst, f.fileContentToProvideOnCopyOut, os.ModePerm)
+		err := ioutil.WriteFile(dst, f.fileContentToProvideOnCopyOut, os.ModePerm)
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	f.lock.Unlock()
+
+	for co, cb := range f.copyOutCallbacks {
+		if (co.Handle == "" || co.Handle == handle) && co.Src == src {
+			err := cb(copiedOut)
+			if err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	return &warden.CopyOutResponse{}, nil
@@ -398,6 +440,20 @@ func (f *FakeGordon) WhenRunning(handle string, script string, resourceLimits go
 	defer f.lock.Unlock()
 
 	f.runCallbacks[&RunningScript{handle, script, resourceLimits}] = callback
+}
+
+func (f *FakeGordon) WhenCopyingOut(copiedOut CopiedOut, callback CopyOutCallback) {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+
+	f.copyOutCallbacks[&copiedOut] = callback
+}
+
+func (f *FakeGordon) WhenCopyingIn(copiedIn CopiedIn, callback CopyInCallback) {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+
+	f.copyInCallbacks[&copiedIn] = callback
 }
 
 func (f *FakeGordon) Run(handle string, script string, resourceLimits gordon.ResourceLimits) (uint32, <-chan *warden.ProcessPayload, error) {

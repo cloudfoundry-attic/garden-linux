@@ -9,7 +9,7 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/pivotal-cf-experimental/garden/backend"
+	"github.com/cloudfoundry-incubator/garden/backend"
 	"github.com/cloudfoundry/gunk/command_runner"
 )
 

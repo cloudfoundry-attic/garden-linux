@@ -267,7 +267,7 @@ var _ = Describe("Connection", func() {
 			)
 		})
 
-		It("should tell warden to copy", func() {
+		It("should tell garden to copy", func() {
 			_, err := connection.CopyIn("foo-handle", "/foo", "/bar")
 			Ω(err).ShouldNot(HaveOccurred())
 

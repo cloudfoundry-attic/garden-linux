@@ -9,7 +9,7 @@ import (
 	"path"
 	"sync"
 
-	"github.com/pivotal-cf-experimental/garden/backend"
+	"github.com/cloudfoundry-incubator/garden/backend"
 )
 
 type Container interface {

@@ -5,8 +5,8 @@ import (
 	"io"
 
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend"
-	"github.com/pivotal-cf-experimental/garden/backend"
-	"github.com/pivotal-cf-experimental/garden/backend/fake_backend"
+	"github.com/cloudfoundry-incubator/garden/backend"
+	"github.com/cloudfoundry-incubator/garden/backend/fake_backend"
 )
 
 type FakeContainerPool struct {

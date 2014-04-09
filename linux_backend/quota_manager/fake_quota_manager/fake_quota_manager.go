@@ -3,7 +3,7 @@ package fake_quota_manager
 import (
 	"sync"
 
-	"github.com/pivotal-cf-experimental/garden/backend"
+	"github.com/cloudfoundry-incubator/garden/backend"
 )
 
 type FakeQuotaManager struct {

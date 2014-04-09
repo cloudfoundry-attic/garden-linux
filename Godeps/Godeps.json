@@ -7,15 +7,35 @@
 	"Deps": [
 		{
 			"ImportPath": "code.google.com/p/gogoprotobuf/proto",
-			"Rev": "dc9b8350fb4568b6562900df872672f378242552"
+			"Rev": "0e301d071c68f427f50988c544009278edece86e"
+		},
+		{
+			"ImportPath": "github.com/cloudfoundry-incubator/garden/backend",
+			"Rev": "afdb31483d741e2f737b4a06cfc6e1767bdace0c"
+		},
+		{
+			"ImportPath": "github.com/cloudfoundry-incubator/garden/drain",
+			"Rev": "afdb31483d741e2f737b4a06cfc6e1767bdace0c"
+		},
+		{
+			"ImportPath": "github.com/cloudfoundry-incubator/garden/message_reader",
+			"Rev": "afdb31483d741e2f737b4a06cfc6e1767bdace0c"
+		},
+		{
+			"ImportPath": "github.com/cloudfoundry-incubator/garden/protocol",
+			"Rev": "afdb31483d741e2f737b4a06cfc6e1767bdace0c"
+		},
+		{
+			"ImportPath": "github.com/cloudfoundry-incubator/garden/server",
+			"Rev": "afdb31483d741e2f737b4a06cfc6e1767bdace0c"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry/gunk/command_runner",
-			"Rev": "0ab08c4a0d1b32c0db1ecd53b55603662de9e767"
+			"Rev": "0dfce73f2060a23c01134f5880295b70cc325e14"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry/gunk/runner_support",
-			"Rev": "0ab08c4a0d1b32c0db1ecd53b55603662de9e767"
+			"Rev": "0dfce73f2060a23c01134f5880295b70cc325e14"
 		},
 		{
 			"ImportPath": "github.com/onsi/ginkgo",
@@ -26,32 +46,12 @@
 			"Rev": "b017f5b84e91054313ed33ba2422e992c3b08626"
 		},
 		{
-			"ImportPath": "github.com/pivotal-cf-experimental/garden/backend",
-			"Rev": "770d5c1094a8b3f9042993abe86dfd645f3f565f"
-		},
-		{
-			"ImportPath": "github.com/pivotal-cf-experimental/garden/drain",
-			"Rev": "770d5c1094a8b3f9042993abe86dfd645f3f565f"
-		},
-		{
-			"ImportPath": "github.com/pivotal-cf-experimental/garden/message_reader",
-			"Rev": "770d5c1094a8b3f9042993abe86dfd645f3f565f"
-		},
-		{
-			"ImportPath": "github.com/pivotal-cf-experimental/garden/protocol",
-			"Rev": "770d5c1094a8b3f9042993abe86dfd645f3f565f"
-		},
-		{
-			"ImportPath": "github.com/pivotal-cf-experimental/garden/server",
-			"Rev": "770d5c1094a8b3f9042993abe86dfd645f3f565f"
-		},
-		{
 			"ImportPath": "github.com/vito/cmdtest",
 			"Rev": "c56fe40f700cbe87257137c14ae739c59897fc6b"
 		},
 		{
 			"ImportPath": "github.com/vito/gordon",
-			"Rev": "471d65bf7e3da108f8367caa82b774cdea4309fa"
+			"Rev": "c2c5f384bd1bc3c081e62f1401e688a1fe6ddac5"
 		}
 	]
 }
