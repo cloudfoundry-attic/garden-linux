@@ -1,7 +1,7 @@
 # vim: set ft=ruby
 
 Vagrant.configure("2") do |config|
-  config.vm.hostname = "garden"
+  config.vm.hostname = "warden"
 
   config.vm.box = "precise64"
   config.vm.box_url = "http://files.vagrantup.com/precise64.box"
@@ -31,12 +31,12 @@ Vagrant.configure("2") do |config|
   config.vm.provision :chef_solo do |chef|
     chef.cookbooks_path = ["cookbooks", "site-cookbooks"]
 
-    chef.add_recipe "garden::apt-update"
+    chef.add_recipe "warden::apt-update"
     chef.add_recipe "build-essential::default"
     chef.add_recipe "chef-golang"
-    chef.add_recipe "garden::warden"
-    chef.add_recipe "garden::rootfs"
-    chef.add_recipe "garden::dev"
+    chef.add_recipe "warden::warden"
+    chef.add_recipe "warden::rootfs"
+    chef.add_recipe "warden::dev"
 
     chef.json = {
       go: {

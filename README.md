@@ -1,22 +1,4 @@
-```
-                                                 ,-.
-                                                  ) \
-                                              .--'   |
-                                             /       /
-                                             |_______|
-                                            (  O   O  )
-                                             {'-(_)-'}
-                                           .-{   ^   }-.
-                                          /   '.___.'   \
-                                         /  |    o    |  \
-                                         |__|    o    |__|
-                                         (((\_________/)))
-                                             \___|___/
-                                        jgs.--' | | '--.
-                                           \__._| |_.__/
-```
-
-Warden in Go, because why not.
+Warden in Go, on linux
 
 * [![Build Status](https://travis-ci.org/pivotal-cf-experimental/garden.png?branch=master)](https://travis-ci.org/pivotal-cf-experimental/garden)
 * [![Coverage Status](https://coveralls.io/repos/pivotal-cf-experimental/garden/badge.png?branch=HEAD)](https://coveralls.io/r/pivotal-cf-experimental/garden?branch=HEAD)
@@ -38,13 +20,13 @@ vagrant up
 ssh-copy-id vagrant@192.168.50.5
 ssh vagrant@192.168.50.5 sudo cp -r .ssh/ /root/.ssh/
 ./bin/add-route
-./bin/run-garden-remote-linux
+./bin/run-warden-remote-linux
 
 # or run from inside the vm:
 vagrant ssh
 sudo su -
-goto garden
-./bin/run-garden-linux
+goto warden-linux
+./bin/run-warden-linux
 ```
 
 This runs the server locally and configures the Linux backend to do everything
@@ -55,7 +37,7 @@ over SSH to the Vagrant box.
 ## Pre-requisites
 
 * [Docker](https://www.docker.io/) v0.9.0 or later (for creating a root filesystem)
-* [git](http://git-scm.com/) (for garden and its dependencies on github)
+* [git](http://git-scm.com/) (for warden and its dependencies on github)
 * [mercurial](http://mercurial.selenic.com/) (for some dependencies not on github)
 
 Run **all** the following commands **as root**.
@@ -79,15 +61,15 @@ Extend `$GOPATH` and `$PATH`:
 # export PATH=$PATH:/root/go/bin
 ```
 
-Install [godep](https://github.com/kr/godep) (used to manage garden's dependencies):
+Install [godep](https://github.com/kr/godep) (used to manage warden's dependencies):
 ```
 # go get github.com/kr/godep
 ```
 
 Get garden and its dependencies:
 ```
-# go get github.com/pivotal-cf-experimental/garden
-# cd /root/go/src/github.com/pivotal-cf-experimental/garden
+# go get github.com/cloudfoundry-incubator/warden-linux
+# cd /root/go/src/github.com/cloudfoundry-incubator/warden-linux
 # godep restore
 ```
 
@@ -98,11 +80,11 @@ Make the C code:
 
 Create a root filesystem, extract it (still as root), and point to it:
 ```
-# make garden-test-rootfs.tar
-# gzip garden-test-rootfs.tar
+# make warden-test-rootfs.tar
+# gzip warden-test-rootfs.tar
 # mkdir -p /var/warden/rootfs
-# tar xzf garden-test-rootfs.tar.gz -C /var/warden/rootfs
-# export GARDEN_TEST_ROOTFS=/var/warden/rootfs
+# tar xzf warden-test-rootfs.tar.gz -C /var/warden/rootfs
+# export WARDEN_TEST_ROOTFS=/var/warden/rootfs
 ```
 (You may wish to save the root filesystem tar.gz file for future use.)
 

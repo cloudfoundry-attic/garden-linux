@@ -1,4 +1,4 @@
-# this builds the base image for Garden's CI
+# this builds the base image for Warden Linux's CI
 
 FROM mischief/docker-golang
 
@@ -6,7 +6,7 @@ FROM mischief/docker-golang
 RUN apt-get -y install iptables quota rsync net-tools protobuf-compiler
 
 # pull in the prebuilt rootfs
-ADD garden-test-rootfs.tar /opt/warden/rootfs
+ADD warden-test-rootfs.tar /opt/warden/rootfs
 
 # install the binary for generating the protocol
 RUN go get code.google.com/p/gogoprotobuf/protoc-gen-gogo

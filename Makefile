@@ -14,15 +14,15 @@ skeleton:
 	cp linux_backend/src/iomux/iomux-link linux_backend/skeleton/bin
 	cp linux_backend/src/repquota/repquota linux_backend/bin
 
-garden-test-rootfs.cid: integration/rootfs/Dockerfile
-	docker build -t cloudfoundry/garden-test-rootfs --rm integration/rootfs
-	docker run -cidfile=garden-test-rootfs.cid cloudfoundry/garden-test-rootfs echo
+warden-test-rootfs.cid: integration/rootfs/Dockerfile
+	docker build -t cloudfoundry/warden-test-rootfs --rm integration/rootfs
+	docker run -cidfile=warden-test-rootfs.cid cloudfoundry/warden-test-rootfs echo
 
-garden-test-rootfs.tar: garden-test-rootfs.cid
-	docker export `cat garden-test-rootfs.cid` > garden-test-rootfs.tar
-	docker rm `cat garden-test-rootfs.cid`
-	rm garden-test-rootfs.cid
+warden-test-rootfs.tar: warden-test-rootfs.cid
+	docker export `cat warden-test-rootfs.cid` > warden-test-rootfs.tar
+	docker rm `cat warden-test-rootfs.cid`
+	rm warden-test-rootfs.cid
 
-ci-image: garden-test-rootfs.tar
-	docker build -t cloudfoundry/garden-ci --rm .
-	rm garden-test-rootfs.tar
+ci-image: warden-test-rootfs.tar
+	docker build -t cloudfoundry/warden-ci --rm .
+	rm warden-test-rootfs.tar
