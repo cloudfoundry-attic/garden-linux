@@ -13,6 +13,8 @@ import (
 )
 
 type Container interface {
+	Start() error
+
 	Snapshot(io.Writer) error
 	Cleanup()
 
