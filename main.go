@@ -16,7 +16,7 @@ import (
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/port_pool"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/quota_manager"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/uid_pool"
-	"github.com/cloudfoundry/gunk/command_runner"
+	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
 )
 
 var listenNetwork = flag.String(
@@ -35,12 +35,6 @@ var snapshotsPath = flag.String(
 	"snapshots",
 	"",
 	"directory in which to store container state to persist through restarts",
-)
-
-var backendName = flag.String(
-	"backend",
-	"linux",
-	"which backend to use (linux or fake)",
 )
 
 var binPath = flag.String(
@@ -111,9 +105,7 @@ func main() {
 	// TODO: base on ephemeral port range
 	portPool := port_pool.New(61000, 6501)
 
-	var runner command_runner.CommandRunner
-
-	runner = command_runner.New(*debug)
+	runner := linux_command_runner.New(*debug)
 
 	quotaManager, err := quota_manager.New(*depotPath, *binPath, runner)
 	if err != nil {
