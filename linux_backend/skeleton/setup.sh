@@ -11,7 +11,6 @@ source ./lib/common.sh
 
 # Defaults for debugging the setup script
 id=${id:-test}
-network_netmask=${network_netmask:-255.255.255.252}
 network_host_ip=${network_host_ip:-10.0.0.1}
 network_host_iface="w-${id}-0"
 network_container_ip=${network_container_ip:-10.0.0.2}
@@ -23,7 +22,6 @@ allow_nested_warden=${allow_nested_warden:-false}
 # Write configuration
 cat > etc/config <<-EOS
 id=$id
-network_netmask=$network_netmask
 network_host_ip=$network_host_ip
 network_host_iface=$network_host_iface
 network_container_ip=$network_container_ip

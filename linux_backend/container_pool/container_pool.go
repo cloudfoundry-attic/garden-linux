@@ -12,13 +12,13 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/cloudfoundry-incubator/garden/backend"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/bandwidth_manager"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/cgroups_manager"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/network_pool"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/quota_manager"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/uid_pool"
-	"github.com/cloudfoundry-incubator/garden/backend"
 	"github.com/cloudfoundry/gunk/command_runner"
 )
 
@@ -183,7 +183,6 @@ func (p *LinuxContainerPool) Create(spec backend.ContainerSpec) (linux_backend.C
 			fmt.Sprintf("user_uid=%d", uid),
 			fmt.Sprintf("network_host_ip=%s", network.HostIP()),
 			fmt.Sprintf("network_container_ip=%s", network.ContainerIP()),
-			"network_netmask=255.255.255.252",
 
 			"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
 		},
