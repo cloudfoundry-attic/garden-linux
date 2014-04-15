@@ -8,7 +8,6 @@ cd $(dirname $0)/..
 go build -o out/warden
 
 sudo ./out/warden \
-  -backend=linux \
   -depot=/opt/warden/containers \
   -bin=$PWD/linux_backend/bin \
   -rootfs=/opt/warden/rootfs \
