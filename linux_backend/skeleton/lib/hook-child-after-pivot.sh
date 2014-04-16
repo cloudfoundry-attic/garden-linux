@@ -18,9 +18,13 @@ mount -t proc none /proc
 
 hostname $id
 
-ifconfig lo 127.0.0.1
-ifconfig $network_container_iface $network_container_ip netmask $network_netmask mtu $container_iface_mtu
-route add default gw $network_host_ip $network_container_iface
+ip address add 127.0.0.1/8 dev lo
+ip link set lo up
+
+ip address add $network_container_ip/30 dev $network_container_iface
+ip link set $network_container_iface mtu $container_iface_mtu up
+
+ip route add default via $network_host_ip dev $network_container_iface
 
 if [ -e /etc/seed ]; then
   . /etc/seed

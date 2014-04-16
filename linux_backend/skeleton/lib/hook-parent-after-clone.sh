@@ -60,6 +60,7 @@ ip link add name $network_host_iface type veth peer name $network_container_ifac
 ip link set $network_host_iface netns 1
 ip link set $network_container_iface netns $PID
 
-ifconfig $network_host_iface $network_host_ip netmask $network_netmask
+ip address add $network_host_ip/30 dev $network_host_iface
+ip link set $network_host_iface up
 
 exit 0

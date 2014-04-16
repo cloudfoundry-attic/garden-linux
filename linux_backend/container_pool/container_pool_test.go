@@ -12,6 +12,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	"github.com/cloudfoundry-incubator/garden/backend"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/network"
@@ -19,7 +20,6 @@ import (
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/port_pool/fake_port_pool"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/quota_manager/fake_quota_manager"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/uid_pool/fake_uid_pool"
-	"github.com/cloudfoundry-incubator/garden/backend"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
 )
@@ -134,7 +134,6 @@ var _ = Describe("Container pool", func() {
 						"user_uid=10000",
 						"network_host_ip=1.2.0.1",
 						"network_container_ip=1.2.0.2",
-						"network_netmask=255.255.255.252",
 
 						"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
 					},
