@@ -2,25 +2,27 @@ package fake_command_runner_matchers
 
 import (
 	"fmt"
+	"os/exec"
 
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 )
 
 func HaveExecutedSerially(specs ...fake_command_runner.CommandSpec) *HaveExecutedSeriallyMatcher {
-	return &HaveExecutedSeriallyMatcher{specs}
+	return &HaveExecutedSeriallyMatcher{Specs: specs}
 }
 
 type HaveExecutedSeriallyMatcher struct {
-	Specs []fake_command_runner.CommandSpec
+	Specs    []fake_command_runner.CommandSpec
+	executed []*exec.Cmd
 }
 
-func (m *HaveExecutedSeriallyMatcher) Match(actual interface{}) (bool, string, error) {
+func (m *HaveExecutedSeriallyMatcher) Match(actual interface{}) (bool, error) {
 	runner, ok := actual.(*fake_command_runner.FakeCommandRunner)
 	if !ok {
-		return false, "", fmt.Errorf("Not a fake command runner: %#v.", actual)
+		return false, fmt.Errorf("Not a fake command runner: %#v.", actual)
 	}
 
-	executed := runner.ExecutedCommands()
+	m.executed = runner.ExecutedCommands()
 
 	matched := false
 	startSearch := 0
@@ -28,10 +30,10 @@ func (m *HaveExecutedSeriallyMatcher) Match(actual interface{}) (bool, string, e
 	for _, spec := range m.Specs {
 		matched = false
 
-		for i := startSearch; i < len(executed); i++ {
+		for i := startSearch; i < len(m.executed); i++ {
 			startSearch++
 
-			if !spec.Matches(executed[i]) {
+			if !spec.Matches(m.executed[i]) {
 				continue
 			}
 
@@ -46,8 +48,16 @@ func (m *HaveExecutedSeriallyMatcher) Match(actual interface{}) (bool, string, e
 	}
 
 	if matched {
-		return true, fmt.Sprintf("Expected to not execute the following commands:%s", prettySpecs(m.Specs)), nil
+		return true, nil
 	} else {
-		return false, fmt.Sprintf("Expected to execute:%s\n\nActually executed:%s", prettySpecs(m.Specs), prettyCommands(executed)), nil
+		return false, nil
 	}
+}
+
+func (m *HaveExecutedSeriallyMatcher) FailureMessage(actual interface{}) (message string) {
+	return fmt.Sprintf("Expected to execute:%s\n\nActually executed:%s", prettySpecs(m.Specs), prettyCommands(m.executed))
+}
+
+func (m *HaveExecutedSeriallyMatcher) NegatedFailureMessage(actual interface{}) (message string) {
+	return fmt.Sprintf("Expected to not execute the following commands:%s", prettySpecs(m.Specs))
 }

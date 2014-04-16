@@ -5,10 +5,14 @@ import (
 	"sync"
 	"time"
 
+	"github.com/nu7hatch/gouuid"
+
 	"github.com/cloudfoundry-incubator/garden/backend"
 )
 
 type FakeContainer struct {
+	id string
+
 	Spec backend.ContainerSpec
 
 	StartError error
@@ -89,7 +93,20 @@ type StopSpec struct {
 }
 
 func NewFakeContainer(spec backend.ContainerSpec) *FakeContainer {
+	idUUID, err := uuid.NewV4()
+	if err != nil {
+		panic("could not create uuid: " + err.Error())
+	}
+
+	id := idUUID.String()[:11]
+
+	if spec.Handle == "" {
+		spec.Handle = id
+	}
+
 	return &FakeContainer{
+		id: id,
+
 		Spec: spec,
 
 		stopMutex:     new(sync.RWMutex),
@@ -144,9 +161,8 @@ func (c *FakeContainer) Stop(kill bool) error {
 	// stops can happen asynchronously in tests (i.e. StopRequest with
 	// Background: true), so we need a mutex here
 	c.stopMutex.Lock()
-	defer c.stopMutex.Unlock()
-
 	c.stopped = append(c.stopped, StopSpec{kill})
+	c.stopMutex.Unlock()
 
 	return nil
 }
@@ -155,7 +171,10 @@ func (c *FakeContainer) Stopped() []StopSpec {
 	c.stopMutex.RLock()
 	defer c.stopMutex.RUnlock()
 
-	return c.stopped
+	stopped := make([]StopSpec, len(c.stopped))
+	copy(stopped, c.stopped)
+
+	return stopped
 }
 
 func (c *FakeContainer) Info() (backend.ContainerInfo, error) {

@@ -9,18 +9,19 @@ import (
 )
 
 func HaveSignalled(spec fake_command_runner.CommandSpec, signal os.Signal) *HaveSignalledMatcher {
-	return &HaveSignalledMatcher{spec, signal}
+	return &HaveSignalledMatcher{Spec: spec, Signal: signal}
 }
 
 type HaveSignalledMatcher struct {
-	Spec   fake_command_runner.CommandSpec
-	Signal os.Signal
+	Spec              fake_command_runner.CommandSpec
+	Signal            os.Signal
+	actuallySignalled []*exec.Cmd
 }
 
-func (m *HaveSignalledMatcher) Match(actual interface{}) (bool, string, error) {
+func (m *HaveSignalledMatcher) Match(actual interface{}) (bool, error) {
 	runner, ok := actual.(*fake_command_runner.FakeCommandRunner)
 	if !ok {
-		return false, "", fmt.Errorf("Not a fake command runner: %#v.", actual)
+		return false, fmt.Errorf("Not a fake command runner: %#v.", actual)
 	}
 
 	signalled := runner.SignalledCommands()
@@ -33,14 +34,22 @@ func (m *HaveSignalledMatcher) Match(actual interface{}) (bool, string, error) {
 		}
 	}
 
-	actuallySignalled := []*exec.Cmd{}
+	m.actuallySignalled = []*exec.Cmd{}
 	for cmd, _ := range signalled {
-		actuallySignalled = append(actuallySignalled, cmd)
+		m.actuallySignalled = append(m.actuallySignalled, cmd)
 	}
 
 	if matched {
-		return true, fmt.Sprintf("Expected to not signal %s to the following commands:%s", m.Signal, prettySpec(m.Spec)), nil
+		return true, nil
 	} else {
-		return false, fmt.Sprintf("Expected to signal %s to:%s\n\nActually signalled:%s", m.Signal, prettySpec(m.Spec), prettyCommands(actuallySignalled)), nil
+		return false, nil
 	}
+}
+
+func (m *HaveSignalledMatcher) FailureMessage(actual interface{}) (message string) {
+	return fmt.Sprintf("Expected to signal %s to:%s\n\nActually signalled:%s", m.Signal, prettySpec(m.Spec), prettyCommands(m.actuallySignalled))
+}
+
+func (m *HaveSignalledMatcher) NegatedFailureMessage(actual interface{}) (message string) {
+	return fmt.Sprintf("Expected to not signal %s to the following commands:%s", m.Signal, prettySpec(m.Spec))
 }
