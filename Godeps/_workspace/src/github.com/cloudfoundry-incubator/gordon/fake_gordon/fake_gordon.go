@@ -1,21 +1,23 @@
 package fake_gordon
 
 import (
-	"code.google.com/p/gogoprotobuf/proto"
-	"github.com/nu7hatch/gouuid"
-	"github.com/cloudfoundry-incubator/gordon"
-	"github.com/cloudfoundry-incubator/gordon/warden"
 	"io/ioutil"
 	"os"
 	"sync"
+
+	"code.google.com/p/gogoprotobuf/proto"
+	"github.com/cloudfoundry-incubator/gordon"
+	"github.com/cloudfoundry-incubator/gordon/warden"
+	"github.com/nu7hatch/gouuid"
 )
 
 type FakeGordon struct {
 	Connected    bool
 	ConnectError error
 
-	createdHandles []string
-	CreateError    error
+	createdHandles    []string
+	createdProperties []map[string]string
+	CreateError       error
 
 	stoppedHandles []string
 	StopError      error
@@ -110,6 +112,7 @@ func (f *FakeGordon) Reset() {
 	f.ConnectError = nil
 
 	f.createdHandles = []string{}
+	f.createdProperties = []map[string]string{}
 	f.CreateError = nil
 
 	f.stoppedHandles = []string{}
@@ -154,7 +157,7 @@ func (f *FakeGordon) Connect() error {
 	return f.ConnectError
 }
 
-func (f *FakeGordon) Create() (*warden.CreateResponse, error) {
+func (f *FakeGordon) Create(properties map[string]string) (*warden.CreateResponse, error) {
 	f.lock.Lock()
 	defer f.lock.Unlock()
 	if f.CreateError != nil {
@@ -165,6 +168,7 @@ func (f *FakeGordon) Create() (*warden.CreateResponse, error) {
 	handle := handleUuid.String()[:11]
 
 	f.createdHandles = append(f.createdHandles, handle)
+	f.createdProperties = append(f.createdProperties, properties)
 
 	return &warden.CreateResponse{
 		Handle: proto.String(handle),
@@ -176,6 +180,13 @@ func (f *FakeGordon) CreatedHandles() []string {
 	defer f.lock.Unlock()
 
 	return f.createdHandles
+}
+
+func (f *FakeGordon) CreatedProperties() []map[string]string {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+
+	return f.createdProperties
 }
 
 func (f *FakeGordon) Stop(handle string, background, kill bool) (*warden.StopResponse, error) {
@@ -283,7 +294,7 @@ func (f *FakeGordon) GetDiskLimit(handle string) (uint64, error) {
 	return 0, f.GetDiskLimitError
 }
 
-func (f *FakeGordon) List() (*warden.ListResponse, error) {
+func (f *FakeGordon) List(filterProperties map[string]string) (*warden.ListResponse, error) {
 	panic("NOOP!")
 	return nil, f.ListError
 }

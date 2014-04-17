@@ -1,9 +1,9 @@
 package gordon_test
 
 import (
+	. "github.com/cloudfoundry-incubator/gordon"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/cloudfoundry-incubator/gordon"
 	"net"
 )
 

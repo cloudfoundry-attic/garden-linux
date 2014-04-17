@@ -5,9 +5,11 @@ import (
 	"errors"
 	"runtime"
 
+	"github.com/cloudfoundry-incubator/gordon/fake_gordon"
+
+	. "github.com/cloudfoundry-incubator/gordon"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	. "github.com/cloudfoundry-incubator/gordon"
 
 	"code.google.com/p/gogoprotobuf/proto"
 	"github.com/cloudfoundry-incubator/gordon/warden"
@@ -27,6 +29,10 @@ var _ = Describe("Client", func() {
 
 	stdout := warden.ProcessPayload_stdout
 	stderr := warden.ProcessPayload_stderr
+
+	It("should have a fake", func() {
+		client = fake_gordon.New()
+	})
 
 	Describe("Connect", func() {
 		Context("with a successful provider", func() {
@@ -69,7 +75,9 @@ var _ = Describe("Client", func() {
 		})
 
 		It("should be able to create, stop and destroy a container", func() {
-			res, err := client.Create()
+			res, err := client.Create(map[string]string{
+				"foo": "bar",
+			})
 			Ω(err).ShouldNot(HaveOccurred())
 			Ω(res.GetHandle()).Should(Equal("foo"))
 
@@ -80,7 +88,14 @@ var _ = Describe("Client", func() {
 			Ω(err).ShouldNot(HaveOccurred())
 
 			expectedWriteBufferContents := string(warden.Messages(
-				&warden.CreateRequest{},
+				&warden.CreateRequest{
+					Properties: []*warden.Property{
+						{
+							Key:   proto.String("foo"),
+							Value: proto.String("bar"),
+						},
+					},
+				},
 				&warden.StopRequest{
 					Handle:     proto.String("foo"),
 					Background: proto.Bool(true),
@@ -310,12 +325,19 @@ var _ = Describe("Client", func() {
 			})
 
 			It("should list the containers", func() {
-				res, err := client.List()
+				res, err := client.List(map[string]string{"foo": "bar"})
 				Ω(err).ShouldNot(HaveOccurred())
 				Ω(res.GetHandles()).Should(Equal([]string{"container1", "container6"}))
 
 				expectedWriteBufferContents := string(warden.Messages(
-					&warden.ListRequest{},
+					&warden.ListRequest{
+						Properties: []*warden.Property{
+							{
+								Key:   proto.String("foo"),
+								Value: proto.String("bar"),
+							},
+						},
+					},
 				).Bytes())
 
 				Ω(string(writeBuffer.Bytes())).Should(Equal(expectedWriteBufferContents))
@@ -390,13 +412,13 @@ var _ = Describe("Client", func() {
 			})
 
 			It("should attempt to reconnect when a disconnect occurs", func() {
-				c1, err := client.Create()
+				c1, err := client.Create(nil)
 				Ω(err).ShouldNot(HaveOccurred())
 
 				// let client notice disconnect
 				runtime.Gosched()
 
-				c2, err := client.Create()
+				c2, err := client.Create(nil)
 				Ω(err).ShouldNot(HaveOccurred())
 
 				_, err = client.Destroy(c1.GetHandle())

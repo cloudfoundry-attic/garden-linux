@@ -69,8 +69,18 @@ func (c *Connection) Close() {
 	c.conn.Close()
 }
 
-func (c *Connection) Create() (*warden.CreateResponse, error) {
-	res, err := c.RoundTrip(&warden.CreateRequest{}, &warden.CreateResponse{})
+func (c *Connection) Create(properties map[string]string) (*warden.CreateResponse, error) {
+	props := []*warden.Property{}
+	for key, val := range properties {
+		props = append(props, &warden.Property{
+			Key:   proto.String(key),
+			Value: proto.String(val),
+		})
+	}
+
+	req := &warden.CreateRequest{Properties: props}
+
+	res, err := c.RoundTrip(req, &warden.CreateResponse{})
 	if err != nil {
 		return nil, err
 	}
@@ -300,8 +310,18 @@ func (c *Connection) CopyOut(handle, src, dst, owner string) (*warden.CopyOutRes
 	return res.(*warden.CopyOutResponse), nil
 }
 
-func (c *Connection) List() (*warden.ListResponse, error) {
-	res, err := c.RoundTrip(&warden.ListRequest{}, &warden.ListResponse{})
+func (c *Connection) List(filterProperties map[string]string) (*warden.ListResponse, error) {
+	props := []*warden.Property{}
+	for key, val := range filterProperties {
+		props = append(props, &warden.Property{
+			Key:   proto.String(key),
+			Value: proto.String(val),
+		})
+	}
+
+	req := &warden.ListRequest{Properties: props}
+
+	res, err := c.RoundTrip(req, &warden.ListResponse{})
 	if err != nil {
 		return nil, err
 	}

@@ -31,7 +31,7 @@
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/gordon",
-			"Rev": "0a7276b5a890d335729c1ca0c015278bc0ba4bea"
+			"Rev": "805c94e3d342d90d0795afd0382c55f90741e310"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry/gunk/command_runner",
