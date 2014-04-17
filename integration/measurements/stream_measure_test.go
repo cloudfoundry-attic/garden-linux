@@ -20,7 +20,7 @@ var _ = Describe("The Warden server", func() {
 		var handle string
 
 		BeforeEach(func() {
-			res, err := client.Create()
+			res, err := client.Create(nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			handle = res.GetHandle()
@@ -84,7 +84,7 @@ var _ = Describe("The Warden server", func() {
 					var newHandle string
 
 					b.Time("creating another container", func() {
-						res, err := client.Create()
+						res, err := client.Create(nil)
 						Expect(err).ToNot(HaveOccurred())
 
 						newHandle = res.GetHandle()

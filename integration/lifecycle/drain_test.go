@@ -6,6 +6,8 @@ import (
 	"io"
 	"time"
 
+	"code.google.com/p/gogoprotobuf/proto"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
@@ -37,7 +39,7 @@ var _ = Describe("Through a restart", func() {
 	var handle string
 
 	BeforeEach(func() {
-		res, err := client.Create()
+		res, err := client.Create(nil)
 		Expect(err).ToNot(HaveOccurred())
 
 		handle = res.GetHandle()
@@ -65,7 +67,7 @@ var _ = Describe("Through a restart", func() {
 	It("retains the container list", func() {
 		restartServer()
 
-		res, err := client.List()
+		res, err := client.List(nil)
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(res.GetHandles()).To(ContainElement(handle))
@@ -200,6 +202,33 @@ var _ = Describe("Through a restart", func() {
 		})
 	})
 
+	Describe("a container's properties", func() {
+		It("are retained", func() {
+			createRes, err := client.Create(map[string]string{
+				"foo": "bar",
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			info, err := client.Info(createRes.GetHandle())
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(info.GetProperties()).To(ContainElement(&warden.Property{
+				Key:   proto.String("foo"),
+				Value: proto.String("bar"),
+			}))
+
+			restartServer()
+
+			info, err = client.Info(createRes.GetHandle())
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(info.GetProperties()).To(ContainElement(&warden.Property{
+				Key:   proto.String("foo"),
+				Value: proto.String("bar"),
+			}))
+		})
+	})
+
 	Describe("a container's state", func() {
 		It("is still reported", func() {
 			info, err := client.Info(handle)
@@ -233,7 +262,7 @@ var _ = Describe("Through a restart", func() {
 
 			restartServer()
 
-			res, err := client.Create()
+			res, err := client.Create(nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			infoB, err := client.Info(res.GetHandle())
@@ -251,7 +280,7 @@ var _ = Describe("Through a restart", func() {
 
 			restartServer()
 
-			createRes, err := client.Create()
+			createRes, err := client.Create(nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			netInB, err := client.NetIn(createRes.GetHandle())
@@ -276,7 +305,7 @@ var _ = Describe("Through a restart", func() {
 
 			restartServer()
 
-			createRes, err := client.Create()
+			createRes, err := client.Create(nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			_, streamB, err := client.Run(createRes.GetHandle(), "id -u", gordon.ResourceLimits{})
@@ -298,7 +327,7 @@ var _ = Describe("Through a restart", func() {
 			err = runner.Start("--containerGraceTime", "5s")
 			Expect(err).ToNot(HaveOccurred())
 
-			res, err := client.Create()
+			res, err := client.Create(nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			handle = res.GetHandle()
@@ -307,14 +336,14 @@ var _ = Describe("Through a restart", func() {
 		It("is still enforced", func() {
 			restartServer()
 
-			listRes, err := client.List()
+			listRes, err := client.List(nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(listRes.GetHandles()).To(ContainElement(handle))
 
 			time.Sleep(6 * time.Second)
 
-			listRes, err = client.List()
+			listRes, err = client.List(nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(listRes.GetHandles()).ToNot(ContainElement(handle))

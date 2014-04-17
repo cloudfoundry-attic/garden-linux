@@ -11,4 +11,5 @@ export PATH=$GODEPS_WORKSPACE/bin:$PATH
 make
 
 go install github.com/onsi/ginkgo/ginkgo
+
 ginkgo -r -v -skipMeasurements -keepGoing

@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/cloudfoundry-incubator/gordon"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/vito/cmdtest"
-	"github.com/cloudfoundry-incubator/gordon"
 
 	Runner "github.com/cloudfoundry-incubator/warden-linux/integration/runner"
 )

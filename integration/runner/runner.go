@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/cloudfoundry-incubator/gordon"
 	"github.com/cloudfoundry/gunk/runner_support"
 	"github.com/vito/cmdtest"
-	"github.com/cloudfoundry-incubator/gordon"
 )
 
 type Runner struct {

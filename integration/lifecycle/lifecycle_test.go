@@ -16,7 +16,7 @@ var _ = Describe("Creating a container", func() {
 	var handle string
 
 	BeforeEach(func() {
-		res, err := client.Create()
+		res, err := client.Create(nil)
 		Expect(err).ToNot(HaveOccurred())
 
 		handle = res.GetHandle()
@@ -44,7 +44,7 @@ var _ = Describe("Creating a container", func() {
 
 	Context("and sending a List request", func() {
 		It("includes the created container", func() {
-			res, err := client.List()
+			res, err := client.List(nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(res.GetHandles()).To(ContainElement(handle))

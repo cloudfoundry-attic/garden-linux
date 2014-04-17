@@ -19,7 +19,7 @@ var _ = Describe("A container with a grace time", func() {
 		err = runner.Start("--containerGraceTime", "5s")
 		Expect(err).ToNot(HaveOccurred())
 
-		res, err := client.Create()
+		res, err := client.Create(nil)
 		Expect(err).ToNot(HaveOccurred())
 
 		handle = res.GetHandle()

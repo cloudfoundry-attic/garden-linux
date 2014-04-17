@@ -15,11 +15,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cloudfoundry-incubator/garden/backend"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/bandwidth_manager"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/cgroups_manager"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/process_tracker"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/quota_manager"
-	"github.com/cloudfoundry-incubator/garden/backend"
 	"github.com/cloudfoundry/gunk/command_runner"
 )
 
@@ -27,6 +27,8 @@ type LinuxContainer struct {
 	id     string
 	handle string
 	path   string
+
+	properties backend.Properties
 
 	graceTime time.Duration
 
@@ -96,6 +98,7 @@ const (
 
 func NewLinuxContainer(
 	id, handle, path string,
+	properties backend.Properties,
 	graceTime time.Duration,
 	resources *Resources,
 	portPool PortPool,
@@ -108,6 +111,8 @@ func NewLinuxContainer(
 		id:     id,
 		handle: handle,
 		path:   path,
+
+		properties: properties,
 
 		graceTime: graceTime,
 
@@ -138,6 +143,10 @@ func (c *LinuxContainer) Handle() string {
 
 func (c *LinuxContainer) GraceTime() time.Duration {
 	return c.graceTime
+}
+
+func (c *LinuxContainer) Properties() backend.Properties {
+	return c.properties
 }
 
 func (c *LinuxContainer) State() State {
@@ -217,6 +226,8 @@ func (c *LinuxContainer) Snapshot(out io.Writer) error {
 			NetOuts: c.netOuts,
 
 			Processes: processSnapshots,
+
+			Properties: c.Properties(),
 		},
 	)
 }

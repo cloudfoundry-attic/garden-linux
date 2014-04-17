@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/cloudfoundry-incubator/warden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden/backend"
 	"github.com/cloudfoundry-incubator/garden/backend/fake_backend"
+	"github.com/cloudfoundry-incubator/warden-linux/linux_backend"
 )
 
 type FakeContainerPool struct {

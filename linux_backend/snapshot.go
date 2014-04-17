@@ -3,8 +3,9 @@ package linux_backend
 import (
 	"time"
 
-	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/network"
 	"github.com/cloudfoundry-incubator/garden/backend"
+
+	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/network"
 )
 
 type ContainerSnapshot struct {
@@ -24,6 +25,8 @@ type ContainerSnapshot struct {
 
 	NetIns  []NetInSpec
 	NetOuts []NetOutSpec
+
+	Properties backend.Properties
 }
 
 type LimitsSnapshot struct {

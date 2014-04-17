@@ -120,6 +120,19 @@ var _ = Describe("Container pool", func() {
 			Expect(container.GraceTime()).To(Equal(1 * time.Second))
 		})
 
+		It("creates containers with the correct properties", func() {
+			properties := backend.Properties(map[string]string{
+				"foo": "bar",
+			})
+
+			container, err := pool.Create(backend.ContainerSpec{
+				Properties: properties,
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(container.Properties()).To(Equal(properties))
+		})
+
 		It("executes create.sh with the correct args and environment", func() {
 			container, err := pool.Create(backend.ContainerSpec{})
 			Expect(err).ToNot(HaveOccurred())
@@ -374,6 +387,10 @@ var _ = Describe("Container pool", func() {
 						Network: restoredNetwork,
 						Ports:   []uint32{61001, 61002, 61003},
 					},
+
+					Properties: map[string]string{
+						"foo": "bar",
+					},
 				},
 			)
 			Expect(err).ToNot(HaveOccurred())
@@ -386,6 +403,9 @@ var _ = Describe("Container pool", func() {
 			Expect(container.ID()).To(Equal("some-restored-id"))
 			Expect(container.Handle()).To(Equal("some-restored-handle"))
 			Expect(container.GraceTime()).To(Equal(1 * time.Second))
+			Expect(container.Properties()).To(Equal(backend.Properties(map[string]string{
+				"foo": "bar",
+			})))
 
 			linuxContainer := container.(*linux_backend.LinuxContainer)
 
