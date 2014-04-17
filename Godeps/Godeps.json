@@ -11,23 +11,23 @@
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/backend",
-			"Rev": "7cd6b5c271fae19eb03beb3fa95f581ce5fd4b67"
+			"Rev": "073c86ce552614865022d0c846da8fa91d703f93"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/drain",
-			"Rev": "7cd6b5c271fae19eb03beb3fa95f581ce5fd4b67"
+			"Rev": "073c86ce552614865022d0c846da8fa91d703f93"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/message_reader",
-			"Rev": "7cd6b5c271fae19eb03beb3fa95f581ce5fd4b67"
+			"Rev": "073c86ce552614865022d0c846da8fa91d703f93"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/protocol",
-			"Rev": "7cd6b5c271fae19eb03beb3fa95f581ce5fd4b67"
+			"Rev": "073c86ce552614865022d0c846da8fa91d703f93"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/server",
-			"Rev": "7cd6b5c271fae19eb03beb3fa95f581ce5fd4b67"
+			"Rev": "073c86ce552614865022d0c846da8fa91d703f93"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/gordon",
@@ -51,7 +51,7 @@
 		},
 		{
 			"ImportPath": "github.com/onsi/gomega",
-			"Rev": "cec9a2f4c24dc8d549903020e347b70e1e314e1e"
+			"Rev": "6286f046a84f63920e8a10809447d9a6ac73cf7c"
 		},
 		{
 			"ImportPath": "github.com/vito/cmdtest",
