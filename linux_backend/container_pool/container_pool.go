@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden/backend"
@@ -27,6 +28,9 @@ type LinuxContainerPool struct {
 	depotPath  string
 	rootFSPath string
 
+	denyNetworks  []string
+	allowNetworks []string
+
 	uidPool     uid_pool.UIDPool
 	networkPool network_pool.NetworkPool
 	portPool    linux_backend.PortPool
@@ -43,6 +47,7 @@ func New(
 	uidPool uid_pool.UIDPool,
 	networkPool network_pool.NetworkPool,
 	portPool linux_backend.PortPool,
+	denyNetworks, allowNetworks []string,
 	runner command_runner.CommandRunner,
 	quotaManager quota_manager.QuotaManager,
 ) *LinuxContainerPool {
@@ -50,6 +55,9 @@ func New(
 		binPath:    binPath,
 		depotPath:  depotPath,
 		rootFSPath: rootFSPath,
+
+		allowNetworks: allowNetworks,
+		denyNetworks:  denyNetworks,
 
 		uidPool:     uidPool,
 		networkPool: networkPool,
@@ -72,8 +80,8 @@ func (p *LinuxContainerPool) Setup() error {
 		Path: path.Join(p.binPath, "setup.sh"),
 		Env: []string{
 			"POOL_NETWORK=" + p.networkPool.Network().String(),
-			"ALLOW_NETWORKS=",
-			"DENY_NETWORKS=",
+			"DENY_NETWORKS=" + formatNetworks(p.denyNetworks),
+			"ALLOW_NETWORKS=" + formatNetworks(p.allowNetworks),
 			"CONTAINER_ROOTFS_PATH=" + p.rootFSPath,
 			"CONTAINER_DEPOT_PATH=" + p.depotPath,
 			"CONTAINER_DEPOT_MOUNT_POINT_PATH=" + p.quotaManager.MountPoint(),
@@ -88,6 +96,10 @@ func (p *LinuxContainerPool) Setup() error {
 	}
 
 	return nil
+}
+
+func formatNetworks(networks []string) string {
+	return strings.Join(networks, " ")
 }
 
 func (p *LinuxContainerPool) Prune(keep map[string]bool) error {

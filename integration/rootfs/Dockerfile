@@ -4,6 +4,6 @@
 
 FROM cloudfoundry/lucid64:minbase
 
-RUN apt-get -y install ruby rsync
+RUN apt-get -y install ruby rsync netcat
 
 ADD seed /etc/seed

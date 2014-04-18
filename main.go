@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"runtime"
+	"strings"
 	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden/server"
@@ -73,6 +74,48 @@ var debug = flag.Bool(
 	"show low-level command output",
 )
 
+var networkPool = flag.String(
+	"networkPool",
+	"10.254.0.0/22",
+	"network pool CIDR for containers; each container will get a /30",
+)
+
+var portPoolStart = flag.Uint(
+	"portPoolStart",
+	61001,
+	"start of ephemeral port range used for mapped container ports",
+)
+
+var portPoolSize = flag.Uint(
+	"portPoolSize",
+	5000,
+	"size of port pool used for mapped container ports",
+)
+
+var uidPoolStart = flag.Uint(
+	"uidPoolStart",
+	10000,
+	"start of per-container user ids",
+)
+
+var uidPoolSize = flag.Uint(
+	"uidPoolSize",
+	256,
+	"size of the uid pool",
+)
+
+var denyNetworks = flag.String(
+	"denyNetworks",
+	"",
+	"CIDR blocks representing IPs to blacklist",
+)
+
+var allowNetworks = flag.String(
+	"allowNetworks",
+	"",
+	"CIDR blocks representing IPs to whitelist",
+)
+
 func main() {
 	flag.Parse()
 
@@ -93,17 +136,17 @@ func main() {
 		log.Fatalln("must specify -rootfs with linux backend")
 	}
 
-	uidPool := uid_pool.New(10000, 256)
+	uidPool := uid_pool.New(uint32(*uidPoolStart), uint32(*uidPoolSize))
 
-	_, ipNet, err := net.ParseCIDR("10.254.0.0/22")
+	_, ipNet, err := net.ParseCIDR(*networkPool)
 	if err != nil {
 		log.Fatalln("error parsing CIDR:", err)
 	}
 
 	networkPool := network_pool.New(ipNet)
 
-	// TODO: base on ephemeral port range
-	portPool := port_pool.New(61000, 6501)
+	// TODO: use /proc/sys/net/ipv4/ip_local_port_range by default (end + 1)
+	portPool := port_pool.New(uint32(*portPoolStart), uint32(*portPoolSize))
 
 	runner := linux_command_runner.New(*debug)
 
@@ -123,6 +166,8 @@ func main() {
 		uidPool,
 		networkPool,
 		portPool,
+		strings.Split(*denyNetworks, ","),
+		strings.Split(*allowNetworks, ","),
 		runner,
 		quotaManager,
 	)

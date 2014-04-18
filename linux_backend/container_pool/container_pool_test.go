@@ -50,6 +50,8 @@ var _ = Describe("Container pool", func() {
 			fakeUIDPool,
 			fakeNetworkPool,
 			fakePortPool,
+			[]string{"1.1.0.0/16", "2.2.0.0/16"},
+			[]string{"1.1.1.1/32", "2.2.2.2/32"},
 			fakeRunner,
 			fakeQuotaManager,
 		)
@@ -67,8 +69,8 @@ var _ = Describe("Container pool", func() {
 					Path: "/root/path/setup.sh",
 					Env: []string{
 						"POOL_NETWORK=1.2.0.0/20",
-						"ALLOW_NETWORKS=",
-						"DENY_NETWORKS=",
+						"DENY_NETWORKS=1.1.0.0/16 2.2.0.0/16",
+						"ALLOW_NETWORKS=1.1.1.1/32 2.2.2.2/32",
 						"CONTAINER_ROOTFS_PATH=/rootfs/path",
 						"CONTAINER_DEPOT_PATH=/depot/path",
 						"CONTAINER_DEPOT_MOUNT_POINT_PATH=/depot/mount/point",
