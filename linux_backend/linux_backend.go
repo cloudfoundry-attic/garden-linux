@@ -111,16 +111,17 @@ func (b *LinuxBackend) Create(spec backend.ContainerSpec) (backend.Container, er
 	}
 
 	b.containersMutex.Lock()
-
 	b.containers[container.Handle()] = container
-
 	b.containersMutex.Unlock()
 
 	return container, nil
 }
 
 func (b *LinuxBackend) Destroy(handle string) error {
+	b.containersMutex.RLock()
 	container, found := b.containers[handle]
+	b.containersMutex.RUnlock()
+
 	if !found {
 		return UnknownHandleError{handle}
 	}
@@ -131,9 +132,7 @@ func (b *LinuxBackend) Destroy(handle string) error {
 	}
 
 	b.containersMutex.Lock()
-
 	delete(b.containers, container.Handle())
-
 	b.containersMutex.Unlock()
 
 	return nil
@@ -231,9 +230,7 @@ func (b *LinuxBackend) restore(snapshot io.Reader) (backend.Container, error) {
 	}
 
 	b.containersMutex.Lock()
-
 	b.containers[container.Handle()] = container
-
 	b.containersMutex.Unlock()
 
 	return container, nil
