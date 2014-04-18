@@ -52,6 +52,7 @@ var _ = Describe("The Warden server", func() {
 								handle,
 								"cat /dev/zero",
 								gordon.ResourceLimits{},
+								[]gordon.EnvironmentVariable{},
 							)
 							Expect(err).ToNot(HaveOccurred())
 
@@ -99,7 +100,7 @@ var _ = Describe("The Warden server", func() {
 
 					for i := 0; i < 10; i++ {
 						b.Time("running a job (10x)", func() {
-							_, stream, err := client.Run(newHandle, "ls", gordon.ResourceLimits{})
+							_, stream, err := client.Run(newHandle, "ls", gordon.ResourceLimits{}, []gordon.EnvironmentVariable{})
 							Expect(err).ToNot(HaveOccurred())
 
 							for _ = range stream {

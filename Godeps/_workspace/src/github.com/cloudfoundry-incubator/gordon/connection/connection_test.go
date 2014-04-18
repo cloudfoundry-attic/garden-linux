@@ -341,7 +341,7 @@ var _ = Describe("Connection", func() {
 		})
 
 		It("should error", func() {
-			processID, resp, err := connection.Run("foo-handle", "echo hi", resourceLimits)
+			processID, resp, err := connection.Run("foo-handle", "echo hi", resourceLimits, nil)
 			Ω(processID).Should(BeZero())
 			Ω(resp).Should(BeNil())
 			Ω(err.Error()).Should(Equal("boo"))
@@ -381,7 +381,7 @@ var _ = Describe("Connection", func() {
 			})
 
 			It("should start the process and stream output", func(done Done) {
-				processID, resp, err := connection.Run("foo-handle", "lol", resourceLimits)
+				processID, resp, err := connection.Run("foo-handle", "lol", resourceLimits, nil)
 				Ω(processID).Should(BeNumerically("==", 42))
 				Ω(err).ShouldNot(HaveOccurred())
 
@@ -420,7 +420,7 @@ var _ = Describe("Connection", func() {
 			})
 
 			It("should be able to spawn multiple processes sequentially", func() {
-				processId, _, err := connection.Run("foo-handle", "echo hi", resourceLimits)
+				processId, _, err := connection.Run("foo-handle", "echo hi", resourceLimits, nil)
 				Ω(err).ShouldNot(HaveOccurred())
 				Ω(processId).Should(BeNumerically("==", 42))
 
@@ -434,7 +434,7 @@ var _ = Describe("Connection", func() {
 
 				time.Sleep(1 * time.Second)
 
-				processId, _, err = connection.Run("foo-handle", "echo bye", resourceLimits)
+				processId, _, err = connection.Run("foo-handle", "echo bye", resourceLimits, nil)
 				Ω(err).ShouldNot(HaveOccurred())
 				Ω(processId).Should(BeNumerically("==", 43))
 

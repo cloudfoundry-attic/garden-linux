@@ -553,8 +553,20 @@ func (c *LinuxContainer) CurrentCPULimits() (backend.CPULimits, error) {
 	return backend.CPULimits{uint64(numericLimit)}, nil
 }
 
+func exportCommand(env backend.EnvironmentVariable) string {
+	return fmt.Sprintf("export %s=%q\n", env.Key, env.Value)
+}
+
 func (c *LinuxContainer) Run(spec backend.ProcessSpec) (uint32, <-chan backend.ProcessStream, error) {
-	log.Println(c.id, "running process:", spec.Script)
+	script := ""
+
+	for _, env := range spec.EnvironmentVariables {
+		script += exportCommand(env)
+	}
+
+	script += spec.Script
+
+	log.Println(c.id, "running process:", script)
 
 	wshPath := path.Join(c.path, "bin", "wsh")
 	sockPath := path.Join(c.path, "run", "wshd.sock")
@@ -567,7 +579,7 @@ func (c *LinuxContainer) Run(spec backend.ProcessSpec) (uint32, <-chan backend.P
 	wsh := &exec.Cmd{
 		Path:  wshPath,
 		Args:  []string{"--socket", sockPath, "--user", user, "/bin/bash"},
-		Stdin: bytes.NewBufferString(spec.Script),
+		Stdin: bytes.NewBufferString(script),
 	}
 
 	setRLimitsEnv(wsh, spec.Limits)

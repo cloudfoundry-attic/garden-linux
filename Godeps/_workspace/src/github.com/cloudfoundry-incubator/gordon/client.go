@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"code.google.com/p/gogoprotobuf/proto"
-
 	"github.com/cloudfoundry-incubator/gordon/connection"
 	"github.com/cloudfoundry-incubator/gordon/warden"
 )
@@ -18,13 +17,18 @@ type DiskLimits struct {
 	InodeLimit uint64
 }
 
+type EnvironmentVariable struct {
+	Key   string
+	Value string
+}
+
 type Client interface {
 	Connect() error
 
 	Create(properties map[string]string) (*warden.CreateResponse, error)
 	Stop(handle string, background, kill bool) (*warden.StopResponse, error)
 	Destroy(handle string) (*warden.DestroyResponse, error)
-	Run(handle, script string, resourceLimits ResourceLimits) (uint32, <-chan *warden.ProcessPayload, error)
+	Run(handle, script string, resourceLimits ResourceLimits, environmentVariables []EnvironmentVariable) (uint32, <-chan *warden.ProcessPayload, error)
 	Attach(handle string, processID uint32) (<-chan *warden.ProcessPayload, error)
 	NetIn(handle string) (*warden.NetInResponse, error)
 	LimitMemory(handle string, limit uint64) (*warden.LimitMemoryResponse, error)
@@ -81,7 +85,20 @@ func (c *client) Destroy(handle string) (*warden.DestroyResponse, error) {
 	return conn.Destroy(handle)
 }
 
-func (c *client) Run(handle, script string, resourceLimits ResourceLimits) (uint32, <-chan *warden.ProcessPayload, error) {
+func convertEnvironmentVariables(environmentVariables []EnvironmentVariable) []*warden.EnvironmentVariable {
+	convertedEnvironmentVariables := []*warden.EnvironmentVariable{}
+	for _, env := range environmentVariables {
+		convertedEnvironmentVariable := &warden.EnvironmentVariable{
+			Key:   proto.String(env.Key),
+			Value: proto.String(env.Value),
+		}
+		convertedEnvironmentVariables = append(convertedEnvironmentVariables, convertedEnvironmentVariable)
+	}
+
+	return convertedEnvironmentVariables
+}
+
+func (c *client) Run(handle, script string, resourceLimits ResourceLimits, environmentVariables []EnvironmentVariable) (uint32, <-chan *warden.ProcessPayload, error) {
 	conn := c.acquireConnection()
 
 	wardenResourceLimits := &warden.ResourceLimits{}
@@ -90,7 +107,7 @@ func (c *client) Run(handle, script string, resourceLimits ResourceLimits) (uint
 		wardenResourceLimits.Nofile = proto.Uint64(resourceLimits.FileDescriptors)
 	}
 
-	processID, stream, err := conn.Run(handle, script, wardenResourceLimits)
+	processID, stream, err := conn.Run(handle, script, wardenResourceLimits, convertEnvironmentVariables(environmentVariables))
 
 	if err != nil {
 		c.release(conn)

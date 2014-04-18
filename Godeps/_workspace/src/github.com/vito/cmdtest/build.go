@@ -30,7 +30,7 @@ func BuildIn(gopath string, mainPath string, args ...string) (string, error) {
 	build.Stdout = os.Stdout
 	build.Stderr = os.Stderr
 	build.Stdin = os.Stdin
-	build.Env = []string{"GOPATH=" + gopath}
+	build.Env = append([]string{"GOPATH=" + gopath}, os.Environ()...)
 
 	err = build.Run()
 	if err != nil {

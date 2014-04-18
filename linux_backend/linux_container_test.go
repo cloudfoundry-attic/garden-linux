@@ -928,6 +928,10 @@ var _ = Describe("Linux containers", func() {
 					Sigpending: uint64ptr(14),
 					Stack:      uint64ptr(15),
 				},
+				EnvironmentVariables: []backend.EnvironmentVariable{
+					backend.EnvironmentVariable{Key: "ELEPHANT", Value: "charlie sheen"},
+					backend.EnvironmentVariable{Key: "AARDVARK", Value: "bartholomew"},
+				},
 			})
 
 			Expect(err).ToNot(HaveOccurred())
@@ -942,7 +946,7 @@ var _ = Describe("Linux containers", func() {
 						"--user", "vcap",
 						"/bin/bash",
 					},
-					Stdin: "/some/script",
+					Stdin: "export ELEPHANT=\"charlie sheen\"\nexport AARDVARK=\"bartholomew\"\n/some/script",
 					Env: []string{
 						"RLIMIT_AS=1",
 						"RLIMIT_CORE=2",

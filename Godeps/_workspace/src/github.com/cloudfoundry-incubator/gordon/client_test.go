@@ -134,7 +134,15 @@ var _ = Describe("Client", func() {
 		})
 
 		It("should spawn and stream succesfully", func(done Done) {
-			processID, responses, err := client.Run("foo", "echo some data for stdout", ResourceLimits{FileDescriptors: 72})
+			processID, responses, err := client.Run(
+				"foo",
+				"echo some data for stdout",
+				ResourceLimits{FileDescriptors: 72},
+				[]EnvironmentVariable{
+					EnvironmentVariable{Key: "BREAKFAST", Value: "Everything Bagel"},
+					EnvironmentVariable{Key: "LUNCH", Value: "BLT"},
+				},
+			)
 			Ω(err).ShouldNot(HaveOccurred())
 			Ω(processID).Should(BeNumerically("==", 1721))
 
@@ -143,6 +151,16 @@ var _ = Describe("Client", func() {
 					Handle:  proto.String("foo"),
 					Script:  proto.String("echo some data for stdout"),
 					Rlimits: &warden.ResourceLimits{Nofile: proto.Uint64(72)},
+					Env: []*warden.EnvironmentVariable{
+						&warden.EnvironmentVariable{
+							Key:   proto.String("BREAKFAST"),
+							Value: proto.String("Everything Bagel"),
+						},
+						&warden.EnvironmentVariable{
+							Key:   proto.String("LUNCH"),
+							Value: proto.String("BLT"),
+						},
+					},
 				},
 			).Bytes())
 
@@ -162,7 +180,7 @@ var _ = Describe("Client", func() {
 
 		Context("When resource limits are set to 0", func() {
 			It("should not populate the ResourceLimits in the protocol buffer", func() {
-				processID, _, err := client.Run("foo", "echo some data for stdout", ResourceLimits{FileDescriptors: 0})
+				processID, _, err := client.Run("foo", "echo some data for stdout", ResourceLimits{FileDescriptors: 0}, nil)
 				Ω(err).ShouldNot(HaveOccurred())
 				Ω(processID).Should(BeNumerically("==", 1721))
 

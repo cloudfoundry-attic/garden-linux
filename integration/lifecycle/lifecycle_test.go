@@ -32,6 +32,7 @@ var _ = Describe("Creating a container", func() {
 			handle,
 			"test -e /tmp/ran-seed",
 			gordon.ResourceLimits{},
+			[]gordon.EnvironmentVariable{},
 		)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -64,8 +65,12 @@ var _ = Describe("Creating a container", func() {
 		It("sends output back in chunks until stopped", func() {
 			_, stream, err := client.Run(
 				handle,
-				"sleep 0.5; echo hello; sleep 0.5; echo goodbye; sleep 0.5; exit 42",
+				"sleep 0.5; echo $FIRST; sleep 0.5; echo $SECOND; sleep 0.5; exit 42",
 				gordon.ResourceLimits{},
+				[]gordon.EnvironmentVariable{
+					gordon.EnvironmentVariable{Key: "FIRST", Value: "hello"},
+					gordon.EnvironmentVariable{Key: "SECOND", Value: "goodbye"},
+				},
 			)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -80,6 +85,7 @@ var _ = Describe("Creating a container", func() {
 					handle,
 					"sleep 2; echo hello; sleep 0.5; echo goodbye; sleep 0.5; exit 42",
 					gordon.ResourceLimits{},
+					[]gordon.EnvironmentVariable{},
 				)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -99,6 +105,7 @@ var _ = Describe("Creating a container", func() {
 					handle,
 					`exec ruby -e 'trap("TERM") { exit 42 }; while true; sleep 1; end'`,
 					gordon.ResourceLimits{},
+					[]gordon.EnvironmentVariable{},
 				)
 
 				Expect(err).ToNot(HaveOccurred())
@@ -138,6 +145,7 @@ var _ = Describe("Creating a container", func() {
 				handle,
 				`test -f /tmp/some-container-dir/some-temp-dir/some-temp-file && exit 42`,
 				gordon.ResourceLimits{},
+				[]gordon.EnvironmentVariable{},
 			)
 
 			Expect((<-stream).GetExitStatus()).To(Equal(uint32(42)))
@@ -152,6 +160,7 @@ var _ = Describe("Creating a container", func() {
 					handle,
 					`test -f /tmp/some-container-dir/some-temp-file && exit 42`,
 					gordon.ResourceLimits{},
+					[]gordon.EnvironmentVariable{},
 				)
 
 				Expect((<-stream).GetExitStatus()).To(Equal(uint32(42)))
@@ -164,6 +173,7 @@ var _ = Describe("Creating a container", func() {
 					handle,
 					`mkdir -p some-container-dir; touch some-container-dir/some-file;`,
 					gordon.ResourceLimits{},
+					[]gordon.EnvironmentVariable{},
 				)
 
 				Expect((<-stream).GetExitStatus()).To(Equal(uint32(0)))
