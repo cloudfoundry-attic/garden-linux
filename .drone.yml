@@ -1,4 +1,4 @@
-image: cloudfoundry/garden-ci
+image: cloudfoundry/warden-ci
 
 env:
   - GOROOT=/usr/local/go
