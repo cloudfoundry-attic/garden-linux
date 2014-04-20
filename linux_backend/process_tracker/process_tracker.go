@@ -5,7 +5,7 @@ import (
 	"os/exec"
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden/backend"
+	"github.com/cloudfoundry-incubator/garden/warden"
 	"github.com/cloudfoundry/gunk/command_runner"
 )
 
@@ -36,7 +36,7 @@ func New(containerPath string, runner command_runner.CommandRunner) *ProcessTrac
 	}
 }
 
-func (t *ProcessTracker) Run(cmd *exec.Cmd) (uint32, chan backend.ProcessStream, error) {
+func (t *ProcessTracker) Run(cmd *exec.Cmd) (uint32, chan warden.ProcessStream, error) {
 	t.processesMutex.Lock()
 
 	processID := t.nextProcessID
@@ -67,7 +67,7 @@ func (t *ProcessTracker) Run(cmd *exec.Cmd) (uint32, chan backend.ProcessStream,
 	return processID, processStream, nil
 }
 
-func (t *ProcessTracker) Attach(processID uint32) (chan backend.ProcessStream, error) {
+func (t *ProcessTracker) Attach(processID uint32) (chan warden.ProcessStream, error) {
 	t.processesMutex.RLock()
 	process, ok := t.processes[processID]
 	t.processesMutex.RUnlock()

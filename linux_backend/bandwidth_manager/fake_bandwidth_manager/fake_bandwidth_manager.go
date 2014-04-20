@@ -1,22 +1,22 @@
 package fake_bandwidth_manager
 
 import (
-	"github.com/cloudfoundry-incubator/garden/backend"
+	"github.com/cloudfoundry-incubator/garden/warden"
 )
 
 type FakeBandwidthManager struct {
 	SetLimitsError error
-	EnforcedLimits []backend.BandwidthLimits
+	EnforcedLimits []warden.BandwidthLimits
 
 	GetLimitsError  error
-	GetLimitsResult backend.ContainerBandwidthStat
+	GetLimitsResult warden.ContainerBandwidthStat
 }
 
 func New() *FakeBandwidthManager {
 	return &FakeBandwidthManager{}
 }
 
-func (m *FakeBandwidthManager) SetLimits(limits backend.BandwidthLimits) error {
+func (m *FakeBandwidthManager) SetLimits(limits warden.BandwidthLimits) error {
 	if m.SetLimitsError != nil {
 		return m.SetLimitsError
 	}
@@ -26,9 +26,9 @@ func (m *FakeBandwidthManager) SetLimits(limits backend.BandwidthLimits) error {
 	return nil
 }
 
-func (m *FakeBandwidthManager) GetLimits() (backend.ContainerBandwidthStat, error) {
+func (m *FakeBandwidthManager) GetLimits() (warden.ContainerBandwidthStat, error) {
 	if m.GetLimitsError != nil {
-		return backend.ContainerBandwidthStat{}, m.GetLimitsError
+		return warden.ContainerBandwidthStat{}, m.GetLimitsError
 	}
 
 	return m.GetLimitsResult, nil

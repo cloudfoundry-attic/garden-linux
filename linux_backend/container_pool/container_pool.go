@@ -13,7 +13,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cloudfoundry-incubator/garden/backend"
+	"github.com/cloudfoundry-incubator/garden/warden"
+	"github.com/cloudfoundry/gunk/command_runner"
+
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/bandwidth_manager"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/cgroups_manager"
@@ -148,7 +150,7 @@ func (p *LinuxContainerPool) Prune(keep map[string]bool) error {
 	return nil
 }
 
-func (p *LinuxContainerPool) Create(spec backend.ContainerSpec) (linux_backend.Container, error) {
+func (p *LinuxContainerPool) Create(spec warden.ContainerSpec) (linux_backend.Container, error) {
 	uid, err := p.uidPool.Acquire()
 	if err != nil {
 		return nil, err
@@ -336,7 +338,7 @@ func (p *LinuxContainerPool) generateContainerIDs() string {
 
 func (p *LinuxContainerPool) writeBindMounts(
 	containerPath string,
-	bindMounts []backend.BindMount,
+	bindMounts []warden.BindMount,
 ) error {
 	hook := path.Join(containerPath, "lib", "hook-child-before-pivot.sh")
 
@@ -344,12 +346,12 @@ func (p *LinuxContainerPool) writeBindMounts(
 		dstMount := path.Join(containerPath, "mnt", bm.DstPath)
 		srcPath := bm.SrcPath
 
-		if bm.Origin == backend.BindMountOriginContainer {
+		if bm.Origin == warden.BindMountOriginContainer {
 			srcPath = path.Join(containerPath, "tmp", "rootfs", srcPath)
 		}
 
 		mode := "ro"
-		if bm.Mode == backend.BindMountModeRW {
+		if bm.Mode == warden.BindMountModeRW {
 			mode = "rw"
 		}
 

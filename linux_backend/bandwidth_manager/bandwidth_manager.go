@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/cloudfoundry-incubator/garden/backend"
+	"github.com/cloudfoundry-incubator/garden/warden"
 	"github.com/cloudfoundry/gunk/command_runner"
 )
 
@@ -16,8 +16,8 @@ var IN_RATE_PATTERN = regexp.MustCompile(`qdisc tbf [0-9a-f]+: root refcnt \d+ r
 var OUT_RATE_PATTERN = regexp.MustCompile(`police 0x[0-9a-f]+ rate (\d+)([KMG]?)bit burst (\d+)([KMG]?)b`)
 
 type BandwidthManager interface {
-	SetLimits(backend.BandwidthLimits) error
-	GetLimits() (backend.ContainerBandwidthStat, error)
+	SetLimits(warden.BandwidthLimits) error
+	GetLimits() (warden.ContainerBandwidthStat, error)
 }
 
 type ContainerBandwidthManager struct {
@@ -36,7 +36,7 @@ func New(containerPath, containerID string, runner command_runner.CommandRunner)
 	}
 }
 
-func (m *ContainerBandwidthManager) SetLimits(limits backend.BandwidthLimits) error {
+func (m *ContainerBandwidthManager) SetLimits(limits warden.BandwidthLimits) error {
 	return m.runner.Run(&exec.Cmd{
 		Path: path.Join(m.containerPath, "net_rate.sh"),
 		Env: []string{
@@ -46,8 +46,8 @@ func (m *ContainerBandwidthManager) SetLimits(limits backend.BandwidthLimits) er
 	})
 }
 
-func (m *ContainerBandwidthManager) GetLimits() (backend.ContainerBandwidthStat, error) {
-	limits := backend.ContainerBandwidthStat{}
+func (m *ContainerBandwidthManager) GetLimits() (warden.ContainerBandwidthStat, error) {
+	limits := warden.ContainerBandwidthStat{}
 
 	egressOut := new(bytes.Buffer)
 

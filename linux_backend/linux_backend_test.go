@@ -5,12 +5,13 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/cloudfoundry-incubator/garden/backend"
-	"github.com/cloudfoundry-incubator/garden/backend/fake_backend"
+	"github.com/cloudfoundry-incubator/garden/warden"
+	"github.com/cloudfoundry-incubator/garden/warden/fake_backend"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool/fake_container_pool"
 )
@@ -139,7 +140,7 @@ var _ = Describe("Start", func() {
 			err := linuxBackend.Start()
 			Expect(err).ToNot(HaveOccurred())
 
-			containers, err := linuxBackend.Containers()
+			containers, err := linuxBackend.Containers(nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(containers).To(HaveLen(2))
@@ -216,10 +217,10 @@ var _ = Describe("Stop", func() {
 	})
 
 	It("takes a snapshot of each container", func() {
-		container1, err := linuxBackend.Create(backend.ContainerSpec{Handle: "some-handle"})
+		container1, err := linuxBackend.Create(warden.ContainerSpec{Handle: "some-handle"})
 		Expect(err).ToNot(HaveOccurred())
 
-		container2, err := linuxBackend.Create(backend.ContainerSpec{Handle: "some-other-handle"})
+		container2, err := linuxBackend.Create(warden.ContainerSpec{Handle: "some-other-handle"})
 		Expect(err).ToNot(HaveOccurred())
 
 		linuxBackend.Stop()
@@ -231,10 +232,10 @@ var _ = Describe("Stop", func() {
 	})
 
 	It("cleans up each container", func() {
-		container1, err := linuxBackend.Create(backend.ContainerSpec{Handle: "some-handle"})
+		container1, err := linuxBackend.Create(warden.ContainerSpec{Handle: "some-handle"})
 		Expect(err).ToNot(HaveOccurred())
 
-		container2, err := linuxBackend.Create(backend.ContainerSpec{Handle: "some-other-handle"})
+		container2, err := linuxBackend.Create(warden.ContainerSpec{Handle: "some-other-handle"})
 		Expect(err).ToNot(HaveOccurred())
 
 		linuxBackend.Stop()
@@ -258,20 +259,20 @@ var _ = Describe("Create", func() {
 	It("creates a container from the pool", func() {
 		Expect(fakeContainerPool.CreatedContainers).To(BeEmpty())
 
-		container, err := linuxBackend.Create(backend.ContainerSpec{})
+		container, err := linuxBackend.Create(warden.ContainerSpec{})
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(fakeContainerPool.CreatedContainers).To(ContainElement(container))
 	})
 
 	It("starts the container", func() {
-		container, err := linuxBackend.Create(backend.ContainerSpec{})
+		container, err := linuxBackend.Create(warden.ContainerSpec{})
 		Expect(err).ToNot(HaveOccurred())
 		Expect(container.(*fake_backend.FakeContainer).Started).To(BeTrue())
 	})
 
 	It("registers the container", func() {
-		container, err := linuxBackend.Create(backend.ContainerSpec{})
+		container, err := linuxBackend.Create(warden.ContainerSpec{})
 		Expect(err).ToNot(HaveOccurred())
 
 		foundContainer, err := linuxBackend.Lookup(container.Handle())
@@ -288,7 +289,7 @@ var _ = Describe("Create", func() {
 		})
 
 		It("returns the error", func() {
-			container, err := linuxBackend.Create(backend.ContainerSpec{})
+			container, err := linuxBackend.Create(warden.ContainerSpec{})
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(Equal(disaster))
 
@@ -306,7 +307,7 @@ var _ = Describe("Create", func() {
 		})
 
 		It("returns the error", func() {
-			container, err := linuxBackend.Create(backend.ContainerSpec{})
+			container, err := linuxBackend.Create(warden.ContainerSpec{})
 			Expect(err).To(HaveOccurred())
 			Expect(err).To(Equal(disaster))
 
@@ -314,10 +315,10 @@ var _ = Describe("Create", func() {
 		})
 
 		It("does not register the container", func() {
-			_, err := linuxBackend.Create(backend.ContainerSpec{})
+			_, err := linuxBackend.Create(warden.ContainerSpec{})
 			Expect(err).To(HaveOccurred())
 
-			containers, err := linuxBackend.Containers()
+			containers, err := linuxBackend.Containers(nil)
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(containers).To(BeEmpty())
@@ -329,13 +330,13 @@ var _ = Describe("Destroy", func() {
 	var fakeContainerPool *fake_container_pool.FakeContainerPool
 	var linuxBackend *linux_backend.LinuxBackend
 
-	var container backend.Container
+	var container warden.Container
 
 	BeforeEach(func() {
 		fakeContainerPool = fake_container_pool.New()
 		linuxBackend = linux_backend.New(fakeContainerPool, "")
 
-		newContainer, err := linuxBackend.Create(backend.ContainerSpec{})
+		newContainer, err := linuxBackend.Create(warden.ContainerSpec{})
 		Expect(err).ToNot(HaveOccurred())
 
 		container = newContainer
@@ -401,7 +402,7 @@ var _ = Describe("Lookup", func() {
 	})
 
 	It("returns the container", func() {
-		container, err := linuxBackend.Create(backend.ContainerSpec{})
+		container, err := linuxBackend.Create(warden.ContainerSpec{})
 		Expect(err).ToNot(HaveOccurred())
 
 		foundContainer, err := linuxBackend.Lookup(container.Handle())
@@ -431,16 +432,63 @@ var _ = Describe("Containers", func() {
 	})
 
 	It("returns a list of all existing containers", func() {
-		container1, err := linuxBackend.Create(backend.ContainerSpec{})
+		container1, err := linuxBackend.Create(warden.ContainerSpec{})
 		Expect(err).ToNot(HaveOccurred())
 
-		container2, err := linuxBackend.Create(backend.ContainerSpec{})
+		container2, err := linuxBackend.Create(warden.ContainerSpec{})
 		Expect(err).ToNot(HaveOccurred())
 
-		containers, err := linuxBackend.Containers()
+		containers, err := linuxBackend.Containers(nil)
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(containers).To(ContainElement(container1))
 		Expect(containers).To(ContainElement(container2))
+	})
+
+	Context("when given properties to filter by", func() {
+		It("returns only containers with matching properties", func() {
+			container1, err := linuxBackend.Create(warden.ContainerSpec{
+				Properties: warden.Properties{"a": "b"},
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			container2, err := linuxBackend.Create(warden.ContainerSpec{
+				Properties: warden.Properties{"a": "b"},
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			container3, err := linuxBackend.Create(warden.ContainerSpec{
+				Properties: warden.Properties{"a": "b", "c": "d", "e": "f"},
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			containers, err := linuxBackend.Containers(
+				warden.Properties{"a": "b", "e": "f"},
+			)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(containers).ToNot(ContainElement(container1))
+			Expect(containers).ToNot(ContainElement(container2))
+			Expect(containers).To(ContainElement(container3))
+		})
+	})
+})
+
+var _ = Describe("GraceTime", func() {
+	var fakeContainerPool *fake_container_pool.FakeContainerPool
+	var linuxBackend *linux_backend.LinuxBackend
+
+	BeforeEach(func() {
+		fakeContainerPool = fake_container_pool.New()
+		linuxBackend = linux_backend.New(fakeContainerPool, "")
+	})
+
+	It("returns the container's grace time", func() {
+		container, err := linuxBackend.Create(warden.ContainerSpec{
+			GraceTime: time.Second,
+		})
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(linuxBackend.GraceTime(container)).To(Equal(time.Second))
 	})
 })

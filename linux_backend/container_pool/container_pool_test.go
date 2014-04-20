@@ -12,7 +12,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/cloudfoundry-incubator/garden/backend"
+	"github.com/cloudfoundry-incubator/garden/warden"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/network"
@@ -104,17 +104,17 @@ var _ = Describe("Container pool", func() {
 
 	Describe("creating", func() {
 		It("returns containers with unique IDs", func() {
-			container1, err := pool.Create(backend.ContainerSpec{})
+			container1, err := pool.Create(warden.ContainerSpec{})
 			Expect(err).ToNot(HaveOccurred())
 
-			container2, err := pool.Create(backend.ContainerSpec{})
+			container2, err := pool.Create(warden.ContainerSpec{})
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(container1.ID()).ToNot(Equal(container2.ID()))
 		})
 
 		It("creates containers with the correct grace time", func() {
-			container, err := pool.Create(backend.ContainerSpec{
+			container, err := pool.Create(warden.ContainerSpec{
 				GraceTime: 1 * time.Second,
 			})
 			Expect(err).ToNot(HaveOccurred())
@@ -123,11 +123,11 @@ var _ = Describe("Container pool", func() {
 		})
 
 		It("creates containers with the correct properties", func() {
-			properties := backend.Properties(map[string]string{
+			properties := warden.Properties(map[string]string{
 				"foo": "bar",
 			})
 
-			container, err := pool.Create(backend.ContainerSpec{
+			container, err := pool.Create(warden.ContainerSpec{
 				Properties: properties,
 			})
 			Expect(err).ToNot(HaveOccurred())
@@ -136,7 +136,7 @@ var _ = Describe("Container pool", func() {
 		})
 
 		It("executes create.sh with the correct args and environment", func() {
-			container, err := pool.Create(backend.ContainerSpec{})
+			container, err := pool.Create(warden.ContainerSpec{})
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(fakeRunner).To(HaveExecutedSerially(
@@ -158,23 +158,23 @@ var _ = Describe("Container pool", func() {
 
 		Context("when bind mounts are specified", func() {
 			It("appends mount commands to hook-child-before-pivot.sh", func() {
-				container, err := pool.Create(backend.ContainerSpec{
-					BindMounts: []backend.BindMount{
+				container, err := pool.Create(warden.ContainerSpec{
+					BindMounts: []warden.BindMount{
 						{
 							SrcPath: "/src/path-ro",
 							DstPath: "/dst/path-ro",
-							Mode:    backend.BindMountModeRO,
+							Mode:    warden.BindMountModeRO,
 						},
 						{
 							SrcPath: "/src/path-rw",
 							DstPath: "/dst/path-rw",
-							Mode:    backend.BindMountModeRW,
+							Mode:    warden.BindMountModeRW,
 						},
 						{
 							SrcPath: "/src/path-rw",
 							DstPath: "/dst/path-rw",
-							Mode:    backend.BindMountModeRW,
-							Origin:  backend.BindMountOriginContainer,
+							Mode:    warden.BindMountModeRW,
+							Origin:  warden.BindMountOriginContainer,
 						},
 					},
 				})
@@ -285,17 +285,17 @@ var _ = Describe("Container pool", func() {
 				})
 
 				It("returns the error", func() {
-					_, err := pool.Create(backend.ContainerSpec{
-						BindMounts: []backend.BindMount{
+					_, err := pool.Create(warden.ContainerSpec{
+						BindMounts: []warden.BindMount{
 							{
 								SrcPath: "/src/path-ro",
 								DstPath: "/dst/path-ro",
-								Mode:    backend.BindMountModeRO,
+								Mode:    warden.BindMountModeRO,
 							},
 							{
 								SrcPath: "/src/path-rw",
 								DstPath: "/dst/path-rw",
-								Mode:    backend.BindMountModeRW,
+								Mode:    warden.BindMountModeRW,
 							},
 						},
 					})
@@ -313,7 +313,7 @@ var _ = Describe("Container pool", func() {
 			})
 
 			It("returns the error", func() {
-				_, err := pool.Create(backend.ContainerSpec{})
+				_, err := pool.Create(warden.ContainerSpec{})
 				Expect(err).To(Equal(nastyError))
 			})
 		})
@@ -326,7 +326,7 @@ var _ = Describe("Container pool", func() {
 			})
 
 			It("returns the error and releases the uid", func() {
-				_, err := pool.Create(backend.ContainerSpec{})
+				_, err := pool.Create(warden.ContainerSpec{})
 				Expect(err).To(Equal(nastyError))
 
 				Expect(fakeUIDPool.Released).To(ContainElement(uint32(10000)))
@@ -347,7 +347,7 @@ var _ = Describe("Container pool", func() {
 			})
 
 			It("returns the error and releases the uid and network", func() {
-				_, err := pool.Create(backend.ContainerSpec{})
+				_, err := pool.Create(warden.ContainerSpec{})
 				Expect(err).To(Equal(nastyError))
 
 				Expect(fakeUIDPool.Released).To(ContainElement(uint32(10000)))
@@ -405,7 +405,7 @@ var _ = Describe("Container pool", func() {
 			Expect(container.ID()).To(Equal("some-restored-id"))
 			Expect(container.Handle()).To(Equal("some-restored-handle"))
 			Expect(container.GraceTime()).To(Equal(1 * time.Second))
-			Expect(container.Properties()).To(Equal(backend.Properties(map[string]string{
+			Expect(container.Properties()).To(Equal(warden.Properties(map[string]string{
 				"foo": "bar",
 			})))
 
@@ -599,7 +599,7 @@ var _ = Describe("Container pool", func() {
 		var createdContainer *linux_backend.LinuxContainer
 
 		BeforeEach(func() {
-			container, err := pool.Create(backend.ContainerSpec{})
+			container, err := pool.Create(warden.ContainerSpec{})
 			Expect(err).ToNot(HaveOccurred())
 
 			createdContainer = container.(*linux_backend.LinuxContainer)

@@ -8,14 +8,14 @@ import (
 	"path"
 	"strings"
 
-	"github.com/cloudfoundry-incubator/garden/backend"
+	"github.com/cloudfoundry-incubator/garden/warden"
 	"github.com/cloudfoundry/gunk/command_runner"
 )
 
 type QuotaManager interface {
-	SetLimits(uid uint32, limits backend.DiskLimits) error
-	GetLimits(uid uint32) (backend.DiskLimits, error)
-	GetUsage(uid uint32) (backend.ContainerDiskStat, error)
+	SetLimits(uid uint32, limits warden.DiskLimits) error
+	GetLimits(uid uint32) (warden.DiskLimits, error)
+	GetUsage(uid uint32) (warden.ContainerDiskStat, error)
 	MountPoint() string
 	Disable()
 	IsEnabled() bool
@@ -63,7 +63,7 @@ func (m *LinuxQuotaManager) Disable() {
 	m.enabled = false
 }
 
-func (m *LinuxQuotaManager) SetLimits(uid uint32, limits backend.DiskLimits) error {
+func (m *LinuxQuotaManager) SetLimits(uid uint32, limits warden.DiskLimits) error {
 	if !m.enabled {
 		return nil
 	}
@@ -92,9 +92,9 @@ func (m *LinuxQuotaManager) SetLimits(uid uint32, limits backend.DiskLimits) err
 	)
 }
 
-func (m *LinuxQuotaManager) GetLimits(uid uint32) (backend.DiskLimits, error) {
+func (m *LinuxQuotaManager) GetLimits(uid uint32) (warden.DiskLimits, error) {
 	if !m.enabled {
-		return backend.DiskLimits{}, nil
+		return warden.DiskLimits{}, nil
 	}
 
 	repquota := &exec.Cmd{
@@ -102,7 +102,7 @@ func (m *LinuxQuotaManager) GetLimits(uid uint32) (backend.DiskLimits, error) {
 		Args: []string{m.mountPoint, fmt.Sprintf("%d", uid)},
 	}
 
-	limits := backend.DiskLimits{}
+	limits := warden.DiskLimits{}
 
 	repR, repW, err := os.Pipe()
 	if err != nil {
@@ -139,9 +139,9 @@ func (m *LinuxQuotaManager) GetLimits(uid uint32) (backend.DiskLimits, error) {
 	return limits, err
 }
 
-func (m *LinuxQuotaManager) GetUsage(uid uint32) (backend.ContainerDiskStat, error) {
+func (m *LinuxQuotaManager) GetUsage(uid uint32) (warden.ContainerDiskStat, error) {
 	if !m.enabled {
-		return backend.ContainerDiskStat{}, nil
+		return warden.ContainerDiskStat{}, nil
 	}
 
 	repquota := &exec.Cmd{
@@ -149,7 +149,7 @@ func (m *LinuxQuotaManager) GetUsage(uid uint32) (backend.ContainerDiskStat, err
 		Args: []string{m.mountPoint, fmt.Sprintf("%d", uid)},
 	}
 
-	usage := backend.ContainerDiskStat{}
+	usage := warden.ContainerDiskStat{}
 
 	repR, repW, err := os.Pipe()
 	if err != nil {

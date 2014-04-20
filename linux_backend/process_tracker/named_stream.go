@@ -1,15 +1,15 @@
 package process_tracker
 
 import (
-	"github.com/cloudfoundry-incubator/garden/backend"
+	"github.com/cloudfoundry-incubator/garden/warden"
 )
 
 type namedStream struct {
 	process *Process
-	source  backend.ProcessStreamSource
+	source  warden.ProcessStreamSource
 }
 
-func newNamedStream(process *Process, source backend.ProcessStreamSource) *namedStream {
+func newNamedStream(process *Process, source warden.ProcessStreamSource) *namedStream {
 	return &namedStream{
 		process: process,
 		source:  source,
@@ -19,7 +19,7 @@ func newNamedStream(process *Process, source backend.ProcessStreamSource) *named
 func (s *namedStream) Write(data []byte) (int, error) {
 	myBytes := make([]byte, len(data))
 	copy(myBytes, data)
-	s.process.sendToStreams(backend.ProcessStream{
+	s.process.sendToStreams(warden.ProcessStream{
 		Source: s.source,
 		Data:   myBytes,
 	})

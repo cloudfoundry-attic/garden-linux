@@ -8,7 +8,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/cloudfoundry-incubator/garden/backend"
+	"github.com/cloudfoundry-incubator/garden/warden"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/bandwidth_manager"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
@@ -24,7 +24,7 @@ var _ = Describe("setting rate limits", func() {
 	})
 
 	It("executes net_rate.sh with the appropriate environment", func() {
-		limits := backend.BandwidthLimits{
+		limits := warden.BandwidthLimits{
 			RateInBytesPerSecond:      128,
 			BurstRateInBytesPerSecond: 256,
 		}
@@ -57,7 +57,7 @@ var _ = Describe("setting rate limits", func() {
 		})
 
 		It("returns the error", func() {
-			err := bandwidthManager.SetLimits(backend.BandwidthLimits{
+			err := bandwidthManager.SetLimits(warden.BandwidthLimits{
 				RateInBytesPerSecond:      128,
 				BurstRateInBytesPerSecond: 256,
 			})

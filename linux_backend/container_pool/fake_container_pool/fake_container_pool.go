@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/cloudfoundry-incubator/garden/backend"
-	"github.com/cloudfoundry-incubator/garden/backend/fake_backend"
+	"github.com/cloudfoundry-incubator/garden/warden"
+	"github.com/cloudfoundry-incubator/garden/warden/fake_backend"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend"
 )
 
@@ -48,7 +48,7 @@ func (p *FakeContainerPool) Prune(keep map[string]bool) error {
 	return nil
 }
 
-func (p *FakeContainerPool) Create(spec backend.ContainerSpec) (linux_backend.Container, error) {
+func (p *FakeContainerPool) Create(spec warden.ContainerSpec) (linux_backend.Container, error) {
 	if p.CreateError != nil {
 		return nil, p.CreateError
 	}
@@ -77,7 +77,7 @@ func (p *FakeContainerPool) Restore(snapshot io.Reader) (linux_backend.Container
 	}
 
 	container := fake_backend.NewFakeContainer(
-		backend.ContainerSpec{
+		warden.ContainerSpec{
 			Handle: handle,
 		},
 	)
