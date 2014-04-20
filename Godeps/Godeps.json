@@ -10,24 +10,24 @@
 			"Rev": "dc9b8350fb4568b6562900df872672f378242552"
 		},
 		{
-			"ImportPath": "github.com/cloudfoundry-incubator/garden/backend",
-			"Rev": "abdd0114fcf41a3e42638f09a2d0e44206f70851"
-		},
-		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/drain",
-			"Rev": "abdd0114fcf41a3e42638f09a2d0e44206f70851"
+			"Rev": "9240f5f168b50c5051c07bc2d30ecb9de5e702ae"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/message_reader",
-			"Rev": "abdd0114fcf41a3e42638f09a2d0e44206f70851"
+			"Rev": "9240f5f168b50c5051c07bc2d30ecb9de5e702ae"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/protocol",
-			"Rev": "abdd0114fcf41a3e42638f09a2d0e44206f70851"
+			"Rev": "9240f5f168b50c5051c07bc2d30ecb9de5e702ae"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/server",
-			"Rev": "abdd0114fcf41a3e42638f09a2d0e44206f70851"
+			"Rev": "9240f5f168b50c5051c07bc2d30ecb9de5e702ae"
+		},
+		{
+			"ImportPath": "github.com/cloudfoundry-incubator/garden/warden",
+			"Rev": "9240f5f168b50c5051c07bc2d30ecb9de5e702ae"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/gordon",
@@ -47,11 +47,11 @@
 		},
 		{
 			"ImportPath": "github.com/onsi/ginkgo",
-			"Rev": "b0135c67a250bf7b1dee86389d2ba4bf6a579407"
+			"Rev": "462cb7e31b222093d2fd2f4f0cbbce324f6ab3be"
 		},
 		{
 			"ImportPath": "github.com/onsi/gomega",
-			"Rev": "b9dac53b079b83a8c6e741b8a721bb5f8457f927"
+			"Rev": "f1c0de3870567f8828e4d040e5a8aeed8afff3f5"
 		},
 		{
 			"ImportPath": "github.com/vito/cmdtest",
