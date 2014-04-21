@@ -74,7 +74,7 @@ var _ = Describe("Through a restart", func() {
 	})
 
 	Describe("a started job", func() {
-		It("continues to stream", func(done Done) {
+		It("continues to stream", func() {
 			processID, runStream, err := client.Run(
 				handle,
 				"while true; do echo hi; sleep 0.5; done",
@@ -91,10 +91,10 @@ var _ = Describe("Through a restart", func() {
 			stream, err := client.Attach(handle, processID)
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect((<-stream).GetData()).To(ContainSubstring("hi\n"))
-
-			close(done)
-		}, 10.0)
+			var chunk *warden.ProcessPayload
+			Eventually(stream).Should(Receive(&chunk))
+			Expect(chunk.GetData()).To(ContainSubstring("hi\n"))
+		})
 
 		It("does not have its job ID repeated", func() {
 			processID1, _, err := client.Run(handle, "while true; do echo hi; sleep 0.5; done", gordon.ResourceLimits{}, []gordon.EnvironmentVariable{})
