@@ -94,6 +94,8 @@ func (t *ProcessTracker) Restore(processID uint32) {
 		t.nextProcessID = processID + 1
 	}
 
+	go t.link(processID)
+
 	t.processesMutex.Unlock()
 }
 

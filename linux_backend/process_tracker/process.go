@@ -23,7 +23,9 @@ type Process struct {
 	completionLock *sync.Mutex
 	runningLink    *sync.Once
 	link           *exec.Cmd
-	unlinked       bool
+
+	linked   chan struct{}
+	unlinked <-chan struct{}
 
 	streams     []chan backend.ProcessStream
 	streamsLock *sync.RWMutex
@@ -40,6 +42,9 @@ func NewProcess(
 	containerPath string,
 	runner command_runner.CommandRunner,
 ) *Process {
+	unlinked := make(chan struct{}, 1)
+	unlinked <- struct{}{}
+
 	p := &Process{
 		ID: id,
 
@@ -51,6 +56,8 @@ func NewProcess(
 		waitingLinks:   &sync.Mutex{},
 		runningLink:    &sync.Once{},
 		completionLock: &sync.Mutex{},
+		linked:         make(chan struct{}),
+		unlinked:       unlinked,
 	}
 
 	p.stdout = newNamedStream(p, backend.ProcessStreamSourceStdout)
@@ -138,12 +145,16 @@ func (p *Process) Link() {
 }
 
 func (p *Process) Unlink() error {
-	if p.link != nil {
-		p.unlinked = true
-		return p.runner.Signal(p.link, os.Interrupt)
+	<-p.linked
+
+	select {
+	case <-p.unlinked:
+	default:
+		// link already exited
+		return nil
 	}
 
-	return nil
+	return p.runner.Signal(p.link, os.Interrupt)
 }
 
 func (p *Process) Stream() chan backend.ProcessStream {
@@ -161,13 +172,24 @@ func (p *Process) runLinker() {
 		Stderr: p.stderr,
 	}
 
-	p.runner.Run(p.link)
+	p.runner.Start(p.link)
 
-	if p.unlinked {
-		// iomux-link was killed on shutdown via .Unlink; command didn't
-		// actually exit, so just block forever until server dies and re-links
-		select {}
-	}
+	close(p.linked)
+
+	p.runner.Wait(p.link)
+
+	// if the process is explicitly .Unlinked, block forever; the fact that
+	// iomux-link exited should not bubble up to the caller as the linked
+	// process didn't actually exit.
+	//
+	// this is done by .Unlink reading the single value off of .unlinked before
+	// interrupting iomux-link, so this read should either block forever in this
+	// case or read the value off if the process exited naturally.
+	//
+	// if .Unlink is called and the value is pulled off, it then knows to not
+	// try to terminate the iomux-link, as this only happens if it already
+	// exited
+	<-p.unlinked
 
 	exitStatus := uint32(255)
 

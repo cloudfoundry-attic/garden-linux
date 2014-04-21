@@ -71,9 +71,11 @@ var _ = Describe("Running processes", func() {
 				Path: binPath("iomux-spawn"),
 			}, func(cmd *exec.Cmd) error {
 				go func() {
+					defer GinkgoRecover()
+
 					time.Sleep(100 * time.Millisecond)
 
-					Expect(fakeRunner).ToNot(HaveExecutedSerially(
+					Expect(fakeRunner).ToNot(HaveStartedExecuting(
 						fake_command_runner.CommandSpec{
 							Path: binPath("iomux-link"),
 						},
@@ -81,15 +83,23 @@ var _ = Describe("Running processes", func() {
 
 					Expect(cmd.Stdout).ToNot(BeNil())
 
+					fakeRunner.WhenWaitingFor(
+						fake_command_runner.CommandSpec{
+							Path: binPath("iomux-link"),
+						},
+						func(*exec.Cmd) error {
+							close(done)
+							return nil
+						},
+					)
+
 					cmd.Stdout.Write([]byte("xxx\n"))
 
-					Eventually(fakeRunner).Should(HaveExecutedSerially(
+					Eventually(fakeRunner).Should(HaveStartedExecuting(
 						fake_command_runner.CommandSpec{
 							Path: binPath("iomux-link"),
 						},
 					))
-
-					close(done)
 				}()
 
 				return nil
@@ -288,7 +298,7 @@ var _ = Describe("Attaching to running processes", func() {
 
 			processTracker.Restore(0)
 
-			Expect(fakeRunner).ToNot(HaveExecutedSerially(
+			Expect(fakeRunner).ToNot(HaveStartedExecuting(
 				fake_command_runner.CommandSpec{
 					Path: binPath("iomux-link"),
 				},
@@ -297,7 +307,7 @@ var _ = Describe("Attaching to running processes", func() {
 			_, err := processTracker.Attach(0)
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(fakeRunner).Should(HaveExecutedSerially(
+			Eventually(fakeRunner).Should(HaveStartedExecuting(
 				fake_command_runner.CommandSpec{
 					Path: binPath("iomux-link"),
 				},

@@ -683,7 +683,7 @@ var _ = Describe("Linux containers", func() {
 			BeforeEach(func() {
 				setupSuccessfulSpawn()
 
-				fakeRunner.WhenRunning(
+				fakeRunner.WhenWaitingFor(
 					fake_command_runner.CommandSpec{
 						Path: "/depot/some-id/bin/iomux-link",
 					}, func(*exec.Cmd) error {
