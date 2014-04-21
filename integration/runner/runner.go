@@ -23,8 +23,8 @@ type Runner struct {
 	RootFSPath    string
 	SnapshotsPath string
 
-	wardenBin string
-	wardenCmd *exec.Cmd
+	wardenBin     string
+	wardenSession *cmdtest.Session
 
 	tmpdir string
 }
@@ -83,7 +83,7 @@ func (r *Runner) Start(argv ...string) error {
 	warden.Stdout = os.Stdout
 	warden.Stderr = os.Stderr
 
-	_, err := cmdtest.StartWrapped(
+	session, err := cmdtest.StartWrapped(
 		warden,
 		runner_support.TeeToGinkgoWriter,
 		runner_support.TeeToGinkgoWriter,
@@ -92,36 +92,29 @@ func (r *Runner) Start(argv ...string) error {
 		return err
 	}
 
-	r.wardenCmd = warden
+	r.wardenSession = session
 
 	return r.WaitForStart()
 }
 
 func (r *Runner) Stop() error {
-	if r.wardenCmd == nil {
+	if r.wardenSession == nil {
 		return nil
 	}
 
-	err := r.wardenCmd.Process.Signal(os.Interrupt)
+	err := r.wardenSession.Cmd.Process.Signal(os.Interrupt)
 	if err != nil {
 		return err
 	}
 
-	stopped := make(chan bool, 1)
-	stop := make(chan bool, 1)
-
-	go r.WaitForStop(stopped, stop)
-
-	timeout := 10 * time.Second
-
-	select {
-	case <-stopped:
-		r.wardenCmd = nil
-		return nil
-	case <-time.After(timeout):
-		stop <- true
-		return fmt.Errorf("warden did not shut down within %s", timeout)
+	_, err = r.wardenSession.Wait(10 * time.Second)
+	if err != nil {
+		return err
 	}
+
+	r.wardenSession = nil
+
+	return nil
 }
 
 func (r *Runner) DestroyContainers() error {
@@ -169,31 +162,6 @@ func (r *Runner) WaitForStart() error {
 		case <-time.After(100 * time.Millisecond):
 		case <-timeoutTimer.C:
 			return fmt.Errorf("warden did not come up within %s", timeout)
-		}
-	}
-}
-
-func (r *Runner) WaitForStop(stopped chan<- bool, stop <-chan bool) {
-	for {
-		var err error
-
-		conn, dialErr := net.Dial(r.Network, r.Addr)
-
-		if dialErr == nil {
-			conn.Close()
-		}
-
-		err = dialErr
-
-		if err != nil {
-			stopped <- true
-			return
-		}
-
-		select {
-		case <-stop:
-			return
-		case <-time.After(100 * time.Millisecond):
 		}
 	}
 }
