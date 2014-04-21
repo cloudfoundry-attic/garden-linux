@@ -1,6 +1,7 @@
 package lifecycle_test
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"os/user"
@@ -41,6 +42,18 @@ var _ = Describe("Creating a container", func() {
 				Expect(chunk.GetExitStatus()).To(Equal(uint32(0)))
 			}
 		}
+	})
+
+	It("should provide 64k of /dev/shm within the container", func() {
+		command1 := "df|grep /dev/shm|grep 342678243768342867432"
+		command2 := "mount|grep /dev/shm|grep tmpfs"
+		_, _, err := client.Run(
+			handle,
+			fmt.Sprintf("%s && %s", command1, command2),
+			gordon.ResourceLimits{},
+			[]gordon.EnvironmentVariable{},
+		)
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	Context("and sending a List request", func() {
