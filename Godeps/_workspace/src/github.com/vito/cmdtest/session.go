@@ -58,9 +58,11 @@ func StartWrapped(cmd *exec.Cmd, outWrapper OutputWrapper, errWrapper OutputWrap
 	exited := make(chan int, 1)
 
 	go func() {
-		cmd.Wait()
+		state, err := cmd.Process.Wait()
+		if err == nil {
+			exited <- state.Sys().(syscall.WaitStatus).ExitStatus()
+		}
 
-		exited <- cmd.ProcessState.Sys().(syscall.WaitStatus).ExitStatus()
 		close(exited)
 
 		stdoutIn.Close()
