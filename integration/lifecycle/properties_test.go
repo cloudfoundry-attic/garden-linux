@@ -46,7 +46,7 @@ var _ = Describe("A container with properties", func() {
 		})
 	})
 
-	Describe("when listing contianer info", func() {
+	Describe("when listing container info", func() {
 		var undesiredHandles []string
 		BeforeEach(func() {
 			res, err := client.Create(map[string]string{
