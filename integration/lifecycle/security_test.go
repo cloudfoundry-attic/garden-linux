@@ -90,7 +90,7 @@ var _ = Describe("Placing limits on containers", func() {
 		}
 
 		runWithHandle := func(handle, script string) <-chan *warden.ProcessPayload {
-			_, stream, err := client.Run(handle, script, gordon.ResourceLimits{})
+			_, stream, err := client.Run(handle, script, gordon.ResourceLimits{}, nil)
 			Expect(err).ToNot(HaveOccurred())
 			return stream
 		}
