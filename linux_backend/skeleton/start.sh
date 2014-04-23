@@ -17,6 +17,4 @@ fi
 
 ./net.sh setup
 
-./bin/wshd --run ./run --lib ./lib --root ./mnt --title "wshd: $id" \
-  1> >(tee ./run/wshd.out.log) \
-  2> >(tee ./run/wshd.err.log)
+./bin/wshd --run ./run --lib ./lib --root ./mnt --title "wshd: $id"
