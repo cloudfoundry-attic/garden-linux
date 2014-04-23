@@ -9,8 +9,8 @@ import (
 	. "github.com/onsi/gomega"
 
 	"code.google.com/p/gogoprotobuf/proto"
+	warden "github.com/cloudfoundry-incubator/garden/protocol"
 	. "github.com/cloudfoundry-incubator/gordon/test_helpers"
-	"github.com/cloudfoundry-incubator/gordon/warden"
 )
 
 var _ = Describe("Connection", func() {

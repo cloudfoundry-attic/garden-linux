@@ -10,8 +10,7 @@ import (
 	"sync"
 
 	"code.google.com/p/gogoprotobuf/proto"
-
-	"github.com/cloudfoundry-incubator/gordon/warden"
+	warden "github.com/cloudfoundry-incubator/garden/protocol"
 )
 
 var DisconnectedError = errors.New("disconnected")

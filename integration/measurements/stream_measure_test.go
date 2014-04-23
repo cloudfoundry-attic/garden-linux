@@ -9,8 +9,8 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	warden "github.com/cloudfoundry-incubator/garden/protocol"
 	"github.com/cloudfoundry-incubator/gordon"
-	"github.com/cloudfoundry-incubator/gordon/warden"
 )
 
 var _ = Describe("The Warden server", func() {

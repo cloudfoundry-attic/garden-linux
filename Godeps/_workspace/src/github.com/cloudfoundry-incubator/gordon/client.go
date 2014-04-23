@@ -4,8 +4,8 @@ import (
 	"time"
 
 	"code.google.com/p/gogoprotobuf/proto"
+	warden "github.com/cloudfoundry-incubator/garden/protocol"
 	"github.com/cloudfoundry-incubator/gordon/connection"
-	"github.com/cloudfoundry-incubator/gordon/warden"
 )
 
 type ResourceLimits struct {

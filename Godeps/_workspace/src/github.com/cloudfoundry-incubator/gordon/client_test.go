@@ -12,7 +12,7 @@ import (
 	. "github.com/onsi/gomega"
 
 	"code.google.com/p/gogoprotobuf/proto"
-	"github.com/cloudfoundry-incubator/gordon/warden"
+	warden "github.com/cloudfoundry-incubator/garden/protocol"
 )
 
 var _ = Describe("Client", func() {
