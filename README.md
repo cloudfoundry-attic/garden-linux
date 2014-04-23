@@ -1,6 +1,7 @@
 Warden in Go, on linux
 
 * [![Build Status](http://drone.diego-ci.cf-app.com/github.com/cloudfoundry-incubator/warden-linux/status.svg?branch=master)](http://drone.diego-ci.cf-app.com/github.com/cloudfoundry-incubator/warden-linux)
+* [![Coverage Status](https://coveralls.io/repos/cloudfoundry-incubator/warden-linux/badge.png)](https://coveralls.io/r/cloudfoundry-incubator/warden-linux)
 * [Tracker](https://www.pivotaltracker.com/s/projects/962374)
 * [Warden](https://github.com/cloudfoundry/warden)
 

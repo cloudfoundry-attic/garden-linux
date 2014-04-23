@@ -10,6 +10,21 @@ export PATH=$GODEPS_WORKSPACE/bin:$PATH
 
 make
 
+go get github.com/dustin/goveralls
+
 go install github.com/onsi/ginkgo/ginkgo
 
-ginkgo -r -v -skipMeasurements -keepGoing
+ginkgo -r -v -cover -skipMeasurements -keepGoing
+
+# don't leak coveralls token
+set +x
+
+if [ -n "$COVERALLS_TOKEN" ]; then
+  profiles=$(find . -name '*.coverprofile' | grep -v fake | grep -v Godeps )
+
+  echo mode: set > all.coverprofile
+  cat $profiles | grep -v mode: >> all.coverprofile
+
+  goveralls -service drone.io -coverprofile=all.coverprofile $COVERALLS_TOKEN || \
+    echo "Coveralls failed. :("
+fi
