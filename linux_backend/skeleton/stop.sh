@@ -50,8 +50,6 @@ pid=$(cat ./run/wshd.pid)
 path=/tmp/warden/cgroup/cpu/instance-$id
 tasks=$path/tasks
 
-set -x
-
 while true
 do
   if ! pgrep -c -P $pid; then
