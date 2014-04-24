@@ -10,8 +10,7 @@ import (
 	"time"
 
 	"github.com/cloudfoundry-incubator/gordon"
-	"github.com/cloudfoundry/gunk/runner_support"
-	"github.com/vito/cmdtest"
+	"github.com/onsi/gomega/gexec"
 )
 
 type Runner struct {
@@ -24,7 +23,7 @@ type Runner struct {
 	SnapshotsPath string
 
 	wardenBin     string
-	wardenSession *cmdtest.Session
+	wardenSession *gexec.Session
 
 	tmpdir string
 }
@@ -83,11 +82,7 @@ func (r *Runner) Start(argv ...string) error {
 	warden.Stdout = os.Stdout
 	warden.Stderr = os.Stderr
 
-	session, err := cmdtest.StartWrapped(
-		warden,
-		runner_support.TeeToGinkgoWriter,
-		runner_support.TeeToGinkgoWriter,
-	)
+	session, err := gexec.Start(warden, GinkgoWriter, GinkgoWriter)
 	if err != nil {
 		return err
 	}

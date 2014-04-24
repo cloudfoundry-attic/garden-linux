@@ -10,7 +10,7 @@ import (
 	"github.com/cloudfoundry-incubator/gordon"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/vito/cmdtest"
+	"github.com/onsi/gomega/gexec"
 
 	Runner "github.com/cloudfoundry-incubator/warden-linux/integration/runner"
 )
@@ -34,7 +34,7 @@ func TestMeasurements(t *testing.T) {
 		log.Fatalln("failed to make dir for socker:", err)
 	}
 
-	wardenPath, err := cmdtest.Build("github.com/cloudfoundry-incubator/warden-linux", "-race")
+	wardenPath, err := gexec.Build("github.com/cloudfoundry-incubator/warden-linux", "-race")
 	if err != nil {
 		log.Fatalln("failed to compile warden-linux:", err)
 	}
