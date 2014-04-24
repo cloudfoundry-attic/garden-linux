@@ -11,12 +11,11 @@ import (
 	"path"
 	"path/filepath"
 	"syscall"
-	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/vito/cmdtest"
-	. "github.com/vito/cmdtest/matchers"
+	. "github.com/onsi/gomega/gbytes"
+	. "github.com/onsi/gomega/gexec"
 )
 
 var _ = Describe("Running wshd", func() {
@@ -24,7 +23,7 @@ var _ = Describe("Running wshd", func() {
 
 	wsh := "../../linux_backend/skeleton/bin/wsh"
 
-	shmTest, err := cmdtest.Build("github.com/cloudfoundry-incubator/warden-linux/integration/wshd/shm_test")
+	shmTest, err := Build("github.com/cloudfoundry-incubator/warden-linux/integration/wshd/shm_test")
 	if err != nil {
 		panic(err)
 	}
@@ -136,9 +135,9 @@ setup_fs
 		setUpRoot := exec.Command(path.Join(libDir, "set-up-root.sh"), os.Getenv("WARDEN_TEST_ROOTFS"))
 		setUpRoot.Dir = containerPath
 
-		setUpRootSession, err := cmdtest.StartWrapped(setUpRoot, outWrapper, outWrapper)
+		setUpRootSession, err := Start(setUpRoot, GinkgoWriter, GinkgoWriter)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(setUpRootSession).To(ExitWith(0))
+		Eventually(setUpRootSession).Should(Exit(0))
 	})
 
 	startWSHD := func() {
@@ -152,13 +151,10 @@ setup_fs
 
 		socketPath = path.Join(runDir, "wshd.sock")
 
-		wshdSession, err := cmdtest.StartWrapped(wshdCommand, outWrapper, outWrapper)
+		wshdSession, err := Start(wshdCommand, GinkgoWriter, GinkgoWriter)
 		Expect(err).ToNot(HaveOccurred())
 
-		status, err := wshdSession.Wait(30 * time.Second)
-		Expect(err).ToNot(HaveOccurred())
-
-		Expect(status).To(Equal(0))
+		Eventually(wshdSession, 30).Should(Exit(0))
 
 		createdContainers = append(createdContainers, containerPath)
 
@@ -170,71 +166,71 @@ setup_fs
 
 		ps := exec.Command(wsh, "--socket", socketPath, "/bin/ps", "-o", "pid,command")
 
-		psSession, err := cmdtest.StartWrapped(ps, outWrapper, outWrapper)
+		psSession, err := Start(ps, GinkgoWriter, GinkgoWriter)
 		Expect(err).ToNot(HaveOccurred())
 
-		Expect(psSession).To(Say(`  PID COMMAND
+		Eventually(psSession).Should(Say(`  PID COMMAND
     1 test wshd\s+
    \d+ /bin/ps -o pid,command
 `))
 
-		Expect(psSession).ToNot(Say(`.`))
+		Eventually(psSession).Should(Exit(0))
 
-		Expect(psSession).To(ExitWith(0))
+		Expect(psSession).ShouldNot(Say("."))
 	})
 
 	It("starts the daemon with mount space isolation", func() {
 		startWSHD()
 
 		mkdir := exec.Command(wsh, "--socket", socketPath, "/bin/mkdir", "/home/vcap/lawn")
-		mkdirSession, err := cmdtest.StartWrapped(mkdir, outWrapper, outWrapper)
+		mkdirSession, err := Start(mkdir, GinkgoWriter, GinkgoWriter)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(mkdirSession).To(ExitWith(0))
+		Eventually(mkdirSession).Should(Exit(0))
 
 		mkdir = exec.Command(wsh, "--socket", socketPath, "/bin/mkdir", "/home/vcap/gnome")
-		mkdirSession, err = cmdtest.StartWrapped(mkdir, outWrapper, outWrapper)
+		mkdirSession, err = Start(mkdir, GinkgoWriter, GinkgoWriter)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(mkdirSession).To(ExitWith(0))
+		Eventually(mkdirSession).Should(Exit(0))
 
 		mount := exec.Command(wsh, "--socket", socketPath, "/bin/mount", "--bind", "/home/vcap/lawn", "/home/vcap/gnome")
-		mountSession, err := cmdtest.StartWrapped(mount, outWrapper, outWrapper)
+		mountSession, err := Start(mount, GinkgoWriter, GinkgoWriter)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(mountSession).To(ExitWith(0))
+		Eventually(mountSession).Should(Exit(0))
 
 		cat := exec.Command("/bin/cat", "/proc/mounts")
-		catSession, err := cmdtest.StartWrapped(cat, outWrapper, outWrapper)
+		catSession, err := Start(cat, GinkgoWriter, GinkgoWriter)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(catSession).ToNot(Say("gnome"))
-		Expect(catSession).To(ExitWith(0))
+		Eventually(catSession).Should(Exit(0))
 	})
 
 	It("places the daemon in each cgroup subsystem", func() {
 		startWSHD()
 
 		cat := exec.Command(wsh, "--socket", socketPath, "bash", "-c", "cat /proc/$$/cgroup")
-		catSession, err := cmdtest.StartWrapped(cat, outWrapper, outWrapper)
+		catSession, err := Start(cat, GinkgoWriter, GinkgoWriter)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(catSession).To(ExitWith(0))
-		Expect(catSession.FullOutput()).To(MatchRegexp(`\bcpu\b`))
-		Expect(catSession.FullOutput()).To(MatchRegexp(`\bcpuacct\b`))
-		Expect(catSession.FullOutput()).To(MatchRegexp(`\bcpuset\b`))
-		Expect(catSession.FullOutput()).To(MatchRegexp(`\bdevices\b`))
-		Expect(catSession.FullOutput()).To(MatchRegexp(`\bmemory\b`))
+		Eventually(catSession).Should(Exit(0))
+		Expect(catSession.Out.Contents()).To(MatchRegexp(`\bcpu\b`))
+		Expect(catSession.Out.Contents()).To(MatchRegexp(`\bcpuacct\b`))
+		Expect(catSession.Out.Contents()).To(MatchRegexp(`\bcpuset\b`))
+		Expect(catSession.Out.Contents()).To(MatchRegexp(`\bdevices\b`))
+		Expect(catSession.Out.Contents()).To(MatchRegexp(`\bmemory\b`))
 	})
 
 	It("starts the daemon with network namespace isolation", func() {
 		startWSHD()
 
 		ifconfig := exec.Command(wsh, "--socket", socketPath, "/sbin/ifconfig", "lo:0", "1.2.3.4", "up")
-		ifconfigSession, err := cmdtest.StartWrapped(ifconfig, outWrapper, outWrapper)
+		ifconfigSession, err := Start(ifconfig, GinkgoWriter, GinkgoWriter)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(ifconfigSession).To(ExitWith(0))
+		Eventually(ifconfigSession).Should(Exit(0))
 
 		localIfconfig := exec.Command("ifconfig")
-		localIfconfigSession, err := cmdtest.StartWrapped(localIfconfig, outWrapper, outWrapper)
+		localIfconfigSession, err := Start(localIfconfig, GinkgoWriter, GinkgoWriter)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(localIfconfigSession).ToNot(Say("lo:0"))
-		Expect(localIfconfigSession).To(ExitWith(0))
+		Eventually(localIfconfigSession).Should(Exit(0))
 	})
 
 	It("starts the daemon with a new IPC namespace", func() {
@@ -244,49 +240,49 @@ setup_fs
 		startWSHD()
 
 		localSHM := exec.Command(shmTest)
-		createLocal, err := cmdtest.StartWrapped(
+		createLocal, err := Start(
 			localSHM,
-			outWrapper,
-			outWrapper,
+			GinkgoWriter,
+			GinkgoWriter,
 		)
 		Expect(err).ToNot(HaveOccurred())
 
-		Expect(createLocal).To(Say("ok"))
+		Eventually(createLocal).Should(Say("ok"))
 
-		createRemote, err := cmdtest.StartWrapped(
+		createRemote, err := Start(
 			exec.Command(wsh, "--socket", socketPath, "/sbin/shmtest", "create"),
-			outWrapper,
-			outWrapper,
+			GinkgoWriter,
+			GinkgoWriter,
 		)
 		Expect(err).ToNot(HaveOccurred())
-		Expect(createRemote).To(Say("ok"))
+		Eventually(createRemote).Should(Say("ok"))
 
 		localSHM.Process.Signal(syscall.SIGUSR2)
 
-		Expect(createLocal).To(ExitWith(0))
+		Eventually(createLocal).Should(Exit(0))
 	})
 
 	It("starts the daemon with a new UTS namespace", func() {
 		startWSHD()
 
 		hostname := exec.Command(wsh, "--socket", socketPath, "/bin/hostname", "newhostname")
-		hostnameSession, err := cmdtest.StartWrapped(hostname, outWrapper, outWrapper)
+		hostnameSession, err := Start(hostname, GinkgoWriter, GinkgoWriter)
 		Expect(err).ToNot(HaveOccurred())
 
-		Expect(hostnameSession).To(ExitWith(0))
+		Eventually(hostnameSession).Should(Exit(0))
 
 		localHostname := exec.Command("hostname")
-		localHostnameSession, err := cmdtest.StartWrapped(localHostname, outWrapper, outWrapper)
+		localHostnameSession, err := Start(localHostname, GinkgoWriter, GinkgoWriter)
 		Expect(localHostnameSession).ToNot(Say("newhostname"))
 	})
 
 	It("does not leak any shared memory to the child", func() {
 		startWSHD()
 
-		createRemote, err := cmdtest.StartWrapped(
+		createRemote, err := Start(
 			exec.Command(wsh, "--socket", socketPath, "ipcs"),
-			outWrapper,
-			outWrapper,
+			GinkgoWriter,
+			GinkgoWriter,
 		)
 		Expect(err).ToNot(HaveOccurred())
 		Expect(createRemote).ToNot(Say("deadbeef"))
@@ -297,11 +293,11 @@ setup_fs
 
 		cat := exec.Command(wsh, "--socket", socketPath, "/bin/cat", "/proc/mounts")
 
-		catSession, err := cmdtest.StartWrapped(cat, outWrapper, outWrapper)
+		catSession, err := Start(cat, GinkgoWriter, GinkgoWriter)
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(catSession).ToNot(Say(" /tmp/warden-host"))
-		Expect(catSession).To(ExitWith(0))
+		Eventually(catSession).Should(Exit(0))
 	})
 
 	Context("when mount points on the host are deleted", func() {
@@ -319,18 +315,18 @@ setup_fs
 			Expect(err).ToNot(HaveOccurred())
 
 			mount := exec.Command("mount", "--bind", fooDir, barDir)
-			mountSession, err := cmdtest.StartWrapped(mount, outWrapper, outWrapper)
+			mountSession, err := Start(mount, GinkgoWriter, GinkgoWriter)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(mountSession).To(ExitWith(0))
+			Eventually(mountSession).Should(Exit(0))
 
 			err = os.RemoveAll(fooDir)
 			Expect(err).ToNot(HaveOccurred())
 
 			cat := exec.Command("/bin/cat", "/proc/mounts")
-			catSession, err := cmdtest.StartWrapped(cat, outWrapper, outWrapper)
+			catSession, err := Start(cat, GinkgoWriter, GinkgoWriter)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(catSession).To(Say("(deleted)"))
-			Expect(catSession).To(ExitWith(0))
+			Eventually(catSession).Should(Say("(deleted)"))
+			Eventually(catSession).Should(Exit(0))
 		})
 
 		It("unmounts the un-mangled mount point name", func() {
@@ -338,11 +334,11 @@ setup_fs
 
 			cat := exec.Command(wsh, "--socket", socketPath, "/bin/cat", "/proc/mounts")
 
-			catSession, err := cmdtest.StartWrapped(cat, outWrapper, outWrapper)
+			catSession, err := Start(cat, GinkgoWriter, GinkgoWriter)
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(catSession).ToNot(Say("(deleted)"))
-			Expect(catSession).To(ExitWith(0))
+			Eventually(catSession).Should(Exit(0))
 		})
 	})
 
@@ -352,12 +348,12 @@ setup_fs
 
 			bash := exec.Command(wsh, "--socket", socketPath, "--user", "vcap", "/bin/bash", "-c", "id -u; id -g")
 
-			bashSession, err := cmdtest.StartWrapped(bash, outWrapper, outWrapper)
+			bashSession, err := Start(bash, GinkgoWriter, GinkgoWriter)
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(bashSession).To(Say("^10000\n"))
-			Expect(bashSession).To(Say("^10000\n"))
-			Expect(bashSession).To(ExitWith(0))
+			Eventually(bashSession).Should(Say("^10000\n"))
+			Eventually(bashSession).Should(Say("^10000\n"))
+			Eventually(bashSession).Should(Exit(0))
 		})
 
 		It("sets $HOME, $USER, and $PATH", func() {
@@ -365,13 +361,13 @@ setup_fs
 
 			bash := exec.Command(wsh, "--socket", socketPath, "--user", "vcap", "/bin/bash", "-c", "env | sort")
 
-			bashSession, err := cmdtest.StartWrapped(bash, outWrapper, outWrapper)
+			bashSession, err := Start(bash, GinkgoWriter, GinkgoWriter)
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(bashSession).To(Say("HOME=/home/vcap\n"))
-			Expect(bashSession).To(Say("PATH=/bin:/usr/bin\n"))
-			Expect(bashSession).To(Say("USER=vcap\n"))
-			Expect(bashSession).To(ExitWith(0))
+			Eventually(bashSession).Should(Say("HOME=/home/vcap\n"))
+			Eventually(bashSession).Should(Say("PATH=/bin:/usr/bin\n"))
+			Eventually(bashSession).Should(Say("USER=vcap\n"))
+			Eventually(bashSession).Should(Exit(0))
 		})
 
 		It("executes in their home directory", func() {
@@ -379,11 +375,11 @@ setup_fs
 
 			pwd := exec.Command(wsh, "--socket", socketPath, "--user", "vcap", "/bin/pwd")
 
-			pwdSession, err := cmdtest.StartWrapped(pwd, outWrapper, outWrapper)
+			pwdSession, err := Start(pwd, GinkgoWriter, GinkgoWriter)
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(pwdSession).To(Say("/home/vcap\n"))
-			Expect(pwdSession).To(ExitWith(0))
+			Eventually(pwdSession).Should(Say("/home/vcap\n"))
+			Eventually(pwdSession).Should(Exit(0))
 		})
 	})
 
@@ -393,12 +389,12 @@ setup_fs
 
 			bash := exec.Command(wsh, "--socket", socketPath, "--user", "root", "/bin/bash", "-c", "id -u; id -g")
 
-			bashSession, err := cmdtest.StartWrapped(bash, outWrapper, outWrapper)
+			bashSession, err := Start(bash, GinkgoWriter, GinkgoWriter)
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(bashSession).To(Say("^0\n"))
-			Expect(bashSession).To(Say("^0\n"))
-			Expect(bashSession).To(ExitWith(0))
+			Eventually(bashSession).Should(Say("^0\n"))
+			Eventually(bashSession).Should(Say("^0\n"))
+			Eventually(bashSession).Should(Exit(0))
 		})
 
 		It("sets $HOME, $USER, and a $PATH with sbin dirs", func() {
@@ -406,13 +402,13 @@ setup_fs
 
 			bash := exec.Command(wsh, "--socket", socketPath, "--user", "root", "/bin/bash", "-c", "env | sort")
 
-			bashSession, err := cmdtest.StartWrapped(bash, outWrapper, outWrapper)
+			bashSession, err := Start(bash, GinkgoWriter, GinkgoWriter)
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(bashSession).To(Say("HOME=/root\n"))
-			Expect(bashSession).To(Say("PATH=/sbin:/bin:/usr/sbin:/usr/bin\n"))
-			Expect(bashSession).To(Say("USER=root\n"))
-			Expect(bashSession).To(ExitWith(0))
+			Eventually(bashSession).Should(Say("HOME=/root\n"))
+			Eventually(bashSession).Should(Say("PATH=/sbin:/bin:/usr/sbin:/usr/bin\n"))
+			Eventually(bashSession).Should(Say("USER=root\n"))
+			Eventually(bashSession).Should(Exit(0))
 		})
 
 		It("executes in their home directory", func() {
@@ -420,11 +416,11 @@ setup_fs
 
 			pwd := exec.Command(wsh, "--socket", socketPath, "--user", "root", "/bin/pwd")
 
-			pwdSession, err := cmdtest.StartWrapped(pwd, outWrapper, outWrapper)
+			pwdSession, err := Start(pwd, GinkgoWriter, GinkgoWriter)
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(pwdSession).To(Say("/root\n"))
-			Expect(pwdSession).To(ExitWith(0))
+			Eventually(pwdSession).Should(Say("/root\n"))
+			Eventually(pwdSession).Should(Exit(0))
 		})
 	})
 
@@ -434,14 +430,17 @@ setup_fs
 
 			bash := exec.Command(wsh, "--socket", socketPath, "/bin/bash")
 
-			bashSession, err := cmdtest.StartWrapped(bash, outWrapper, outWrapper)
+			stdin, err := bash.StdinPipe()
 			Expect(err).ToNot(HaveOccurred())
 
-			bashSession.Stdin.Write([]byte("echo hello"))
-			bashSession.Stdin.Close()
+			bashSession, err := Start(bash, GinkgoWriter, GinkgoWriter)
+			Expect(err).ToNot(HaveOccurred())
 
-			Expect(bashSession).To(SayWithTimeout("hello\n", 1*time.Second))
-			Expect(bashSession).To(ExitWith(0))
+			stdin.Write([]byte("echo hello"))
+			stdin.Close()
+
+			Eventually(bashSession).Should(Say("hello\n"))
+			Eventually(bashSession).Should(Exit(0))
 		})
 	})
 
@@ -464,11 +463,11 @@ setup_fs
 				"/bin/pwd",
 			)
 
-			pwdSession, err := cmdtest.StartWrapped(pwd, outWrapper, outWrapper)
+			pwdSession, err := Start(pwd, GinkgoWriter, GinkgoWriter)
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(pwdSession).To(Say("/home/vcap\n"))
-			Expect(pwdSession).To(ExitWith(0))
+			Eventually(pwdSession).Should(Say("/home/vcap\n"))
+			Eventually(pwdSession).Should(Exit(0))
 		})
 
 		It("doesn't cause rsh-like flags to be consumed", func() {
@@ -488,11 +487,11 @@ setup_fs
 				"somehost",
 			)
 
-			cmdSession, err := cmdtest.StartWrapped(cmd, outWrapper, outWrapper)
+			cmdSession, err := Start(cmd, GinkgoWriter, GinkgoWriter)
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(cmdSession).To(Say("-l vcap -t 1 -4 -6 -d -n somehost\n"))
-			Expect(cmdSession).To(ExitWith(0))
+			Eventually(cmdSession).Should(Say("-l vcap -t 1 -4 -6 -d -n somehost\n"))
+			Eventually(cmdSession).Should(Exit(0))
 		})
 
 		It("can be used to rsync files", func() {
@@ -509,10 +508,10 @@ setup_fs
 				"vcap@container:wsh",
 			)
 
-			cmdSession, err := cmdtest.StartWrapped(cmd, outWrapper, outWrapper)
+			cmdSession, err := Start(cmd, GinkgoWriter, GinkgoWriter)
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(cmdSession).To(ExitWith(0))
+			Eventually(cmdSession).Should(Exit(0))
 		})
 	})
 })
@@ -537,10 +536,6 @@ func copyFile(src, dst string) error {
 	}
 
 	return d.Close()
-}
-
-func outWrapper(out io.Writer) io.Writer {
-	return io.MultiWriter(out, os.Stdout)
 }
 
 func ErrorDialingUnix(socketPath string) func() error {
