@@ -19,14 +19,14 @@ librarian-chef install
 vagrant up
 ssh-copy-id vagrant@192.168.50.5
 ssh vagrant@192.168.50.5 sudo cp -r .ssh/ /root/.ssh/
-./bin/add-route
-./bin/run-warden-remote-linux
+./scripts/add-route
+./scripts/run-warden-remote-linux
 
 # or run from inside the vm:
 vagrant ssh
 sudo su -
 goto warden-linux
-./bin/run-warden-linux
+./scripts/run-warden-linux
 ```
 
 This runs the server locally and configures the Linux backend to do everything
