@@ -254,6 +254,35 @@ var _ = Describe("Client", func() {
 		})
 	})
 
+	Describe("LimitingCPU", func() {
+		BeforeEach(func() {
+			provider = NewFakeConnectionProvider(
+				warden.Messages(
+					&warden.LimitCpuResponse{},
+				),
+				writeBuffer,
+			)
+
+			client = NewClient(provider)
+			err := client.Connect()
+			Ω(err).ShouldNot(HaveOccurred())
+		})
+
+		It("limits CPU shares", func() {
+			_, err := client.LimitCPU("foo", 10)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			expectedWriteBufferContents := string(warden.Messages(
+				&warden.LimitCpuRequest{
+					Handle:        proto.String("foo"),
+					LimitInShares: proto.Uint64(10),
+				},
+			).Bytes())
+
+			Ω(string(writeBuffer.Bytes())).Should(Equal(expectedWriteBufferContents))
+		})
+	})
+
 	Describe("LimitingDisk", func() {
 		BeforeEach(func() {
 			provider = NewFakeConnectionProvider(

@@ -1,8 +1,5 @@
 /*
 Package gexec provides support for testing external processes.
-
-Documentation coming soon!
-
 */
 package gexec
 
@@ -17,16 +14,47 @@ import (
 )
 
 type Session struct {
-	command  *exec.Cmd
-	Out      *gbytes.Buffer
-	Err      *gbytes.Buffer
+	//The wrapped command
+	Command *exec.Cmd
+
+	//A *gbytes.Buffer connected to the command's stdout
+	Out *gbytes.Buffer
+
+	//A *gbytes.Buffer connected to the command's stderr
+	Err *gbytes.Buffer
+
 	lock     *sync.Mutex
 	exitCode int
 }
 
+/*
+Start starts the passed-in *exec.Cmd command.  It wraps the command in a *gexec.Session.
+
+The session pipes the command's stdout and stderr to two *gbytes.Buffers available as properties on the session: session.Out and session.Err.
+These buffers can be used with the gbytes.Say matcher to match against unread output:
+
+	Ω(session.Out).Should(gbytes.Say("foo-out"))
+	Ω(session.Err).Should(gbytes.Say("foo-err"))
+
+In addition, Session satisfies the gbytes.BufferProvider interface and provides the stdout *gbytes.Buffer.  This allows you to replace the first line, above, with:
+
+	Ω(session).Should(gbytes.Say("foo-out"))
+
+When outWriter and/or errWriter are non-nil, the session will pipe stdout and/or stderr output both into the session *gybtes.Buffers and to the passed-in outWriter/errWriter.
+This is useful for capturing the process's output or logging it to screen.  In particular, when using Ginkgo it can be convenient to direct output to the GinkgoWriter:
+
+	session, err := Start(command, GinkgoWriter, GinkgoWriter)
+
+This will log output when running tests in verbose mode, but - otherwise - will only log output when a test fails.
+
+The session wrapper is responsible for waiting on the *exec.Cmd command.  You *should not* call command.Wait() yourself.
+Instead, to assert that the command has exited you can use the gexec.Exit matcher:
+
+	Ω(session).Should(gexec.Exit())
+*/
 func Start(command *exec.Cmd, outWriter io.Writer, errWriter io.Writer) (*Session, error) {
 	session := &Session{
-		command:  command,
+		Command:  command,
 		Out:      gbytes.NewBuffer(),
 		Err:      gbytes.NewBuffer(),
 		lock:     &sync.Mutex{},
@@ -56,16 +84,32 @@ func Start(command *exec.Cmd, outWriter io.Writer, errWriter io.Writer) (*Sessio
 	return session, err
 }
 
-func (s *Session) monitorForExit() {
-	s.command.Wait()
-	s.lock.Lock()
-	s.exitCode = s.command.ProcessState.Sys().(syscall.WaitStatus).ExitStatus()
-	s.lock.Unlock()
+/*
+Buffer implements the gbytes.BufferProvider interface and returns s.Out
+This allows you to make gbytes.Say matcher assertions against stdout without having to reference .Out:
+
+	Eventually(session).Should(gbytes.Say("foo"))
+*/
+func (s *Session) Buffer() *gbytes.Buffer {
+	return s.Out
 }
 
-func (s *Session) getExitCode() int {
+/*
+ExitCode returns the wrapped command's exit code.  If the command hasn't exited yet, ExitCode returns -1.
+
+To assert that the command has exited it is more convenient to use the Exit matcher:
+
+	Eventually(s).Should(gexec.Exit())
+*/
+func (s *Session) ExitCode() int {
 	s.lock.Lock()
 	defer s.lock.Unlock()
-
 	return s.exitCode
+}
+
+func (s *Session) monitorForExit() {
+	s.Command.Wait()
+	s.lock.Lock()
+	s.exitCode = s.Command.ProcessState.Sys().(syscall.WaitStatus).ExitStatus()
+	s.lock.Unlock()
 }

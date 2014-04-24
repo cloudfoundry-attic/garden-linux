@@ -31,7 +31,7 @@
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/gordon",
-			"Rev": "d048c4da2686b39fe6c912dfa2273eb934cd7d7b"
+			"Rev": "ad178ab9a752cd85c4f3bb5a9a138d6961df68d5"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry/gunk/command_runner",
@@ -51,7 +51,7 @@
 		},
 		{
 			"ImportPath": "github.com/onsi/gomega",
-			"Rev": "4fbbd0c858838cb79f21ce9da9dbb4129fcce862"
+			"Rev": "279e5de4c983fa56295a595cff6d4c26501c59de"
 		},
 		{
 			"ImportPath": "github.com/vito/cmdtest",

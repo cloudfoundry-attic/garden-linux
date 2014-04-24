@@ -247,6 +247,19 @@ func (c *Connection) GetMemoryLimit(handle string) (uint64, error) {
 	return limit, nil
 }
 
+func (c *Connection) LimitCPU(request *warden.LimitCpuRequest) (*warden.LimitCpuResponse, error) {
+	res, err := c.RoundTrip(
+		request,
+		&warden.LimitCpuResponse{},
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	return res.(*warden.LimitCpuResponse), nil
+}
+
 func (c *Connection) LimitDisk(request *warden.LimitDiskRequest) (*warden.LimitDiskResponse, error) {
 	res, err := c.RoundTrip(
 		request,

@@ -39,6 +39,9 @@ type FakeGordon struct {
 	diskLimits     []DiskLimit
 	limitDiskError error
 
+	cpuLimits     []Limit
+	limitCPUError error
+
 	GetDiskLimitError error
 
 	listCallback ListCallback
@@ -280,6 +283,25 @@ func (f *FakeGordon) SetLimitDiskError(err error) {
 	f.limitDiskError = err
 }
 
+func (f *FakeGordon) SetLimitCPUError(err error) {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+
+	f.limitCPUError = err
+}
+
+func (f *FakeGordon) LimitCPU(handle string, limitInShares uint64) (*warden.LimitCpuResponse, error) {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+
+	f.cpuLimits = append(f.cpuLimits, Limit{
+		Handle: handle,
+		Limit:  limitInShares,
+	})
+
+	return nil, f.limitCPUError
+}
+
 func (f *FakeGordon) LimitDisk(handle string, limits gordon.DiskLimits) (*warden.LimitDiskResponse, error) {
 	f.lock.Lock()
 	defer f.lock.Unlock()
@@ -290,6 +312,13 @@ func (f *FakeGordon) LimitDisk(handle string, limits gordon.DiskLimits) (*warden
 	})
 
 	return nil, f.limitDiskError
+}
+
+func (f *FakeGordon) CPULimits() []Limit {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+
+	return f.cpuLimits
 }
 
 func (f *FakeGordon) GetDiskLimit(handle string) (uint64, error) {

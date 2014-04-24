@@ -163,6 +163,29 @@ var _ = Describe("Connection", func() {
 		})
 	})
 
+	Describe("Limiting CPU", func() {
+		BeforeEach(func() {
+			wardenMessages = append(wardenMessages,
+				&warden.LimitCpuResponse{LimitInShares: proto.Uint64(40)},
+			)
+		})
+
+		It("should limit cpu", func() {
+			res, err := connection.LimitCPU(&warden.LimitCpuRequest{
+				Handle:        proto.String("foo"),
+				LimitInShares: proto.Uint64(42),
+			})
+
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(res.GetLimitInShares()).Should(BeNumerically("==", 40))
+
+			assertWriteBufferContains(&warden.LimitCpuRequest{
+				Handle:        proto.String("foo"),
+				LimitInShares: proto.Uint64(42),
+			})
+		})
+	})
+
 	Describe("Limiting Disk", func() {
 		Describe("Setting the disk limit", func() {
 			BeforeEach(func() {
