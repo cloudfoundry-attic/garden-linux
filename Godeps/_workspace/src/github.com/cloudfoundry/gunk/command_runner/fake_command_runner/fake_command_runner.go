@@ -9,11 +9,12 @@ import (
 )
 
 type FakeCommandRunner struct {
-	executedCommands  []*exec.Cmd
-	startedCommands   []*exec.Cmd
-	waitedCommands    []*exec.Cmd
-	killedCommands    []*exec.Cmd
-	signalledCommands map[*exec.Cmd]os.Signal
+	executedCommands     []*exec.Cmd
+	startedCommands      []*exec.Cmd
+	backgroundedCommands []*exec.Cmd
+	waitedCommands       []*exec.Cmd
+	killedCommands       []*exec.Cmd
+	signalledCommands    map[*exec.Cmd]os.Signal
 
 	commandCallbacks map[*CommandSpec]func(*exec.Cmd) error
 	waitingCallbacks map[*CommandSpec]func(*exec.Cmd) error
@@ -105,6 +106,24 @@ func (r *FakeCommandRunner) Start(cmd *exec.Cmd) error {
 	return nil
 }
 
+func (r *FakeCommandRunner) Background(cmd *exec.Cmd) error {
+	r.RLock()
+	callbacks := r.commandCallbacks
+	r.RUnlock()
+
+	r.Lock()
+	r.backgroundedCommands = append(r.backgroundedCommands, cmd)
+	r.Unlock()
+
+	for spec, callback := range callbacks {
+		if spec.Matches(cmd) {
+			return callback(cmd)
+		}
+	}
+
+	return nil
+}
+
 func (r *FakeCommandRunner) Wait(cmd *exec.Cmd) error {
 	r.RLock()
 	callbacks := r.waitingCallbacks
@@ -167,6 +186,13 @@ func (r *FakeCommandRunner) StartedCommands() []*exec.Cmd {
 	defer r.RUnlock()
 
 	return r.startedCommands
+}
+
+func (r *FakeCommandRunner) BackgroundedCommands() []*exec.Cmd {
+	r.RLock()
+	defer r.RUnlock()
+
+	return r.backgroundedCommands
 }
 
 func (r *FakeCommandRunner) KilledCommands() []*exec.Cmd {

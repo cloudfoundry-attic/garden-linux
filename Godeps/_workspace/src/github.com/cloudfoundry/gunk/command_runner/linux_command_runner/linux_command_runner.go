@@ -79,6 +79,32 @@ func (r *RealCommandRunner) Start(cmd *exec.Cmd) error {
 	return err
 }
 
+func (r *RealCommandRunner) Background(cmd *exec.Cmd) error {
+	if cmd.SysProcAttr == nil {
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			Setpgid: true,
+		}
+	} else {
+		cmd.SysProcAttr.Setpgid = true
+	}
+
+	if r.debug {
+		log.Printf("\x1b[40;36mbackgrounding: %s\x1b[0m\n", prettyCommand(cmd))
+	}
+
+	err := r.resolve(cmd).Start()
+
+	if r.debug {
+		if err != nil {
+			log.Printf("\x1b[40;31mbackgrounding failed: %s\x1b[0m\n", err)
+		} else {
+			log.Printf("\x1b[40;32mbackgrounding succeeded\x1b[0m\n")
+		}
+	}
+
+	return err
+}
+
 func (r *RealCommandRunner) Wait(cmd *exec.Cmd) error {
 	return cmd.Wait()
 }

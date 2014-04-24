@@ -24,6 +24,21 @@ var _ = Describe("Running commands", func() {
 		Expect(cmd.ProcessState).ToNot(BeNil())
 	})
 
+	It("wires in debugging to stdout/stderr", func() {
+		runner := linux_command_runner.New(true)
+
+		cmd := &exec.Cmd{
+			Path: "/bin/bash",
+			Args: []string{"-c", "exit 0"},
+		}
+
+		err := runner.Run(cmd)
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(cmd.Stdout).ToNot(BeNil())
+		Expect(cmd.Stderr).ToNot(BeNil())
+	})
+
 	Context("when the command fails", func() {
 		It("returns an error", func() {
 			runner := linux_command_runner.New(false)
@@ -35,21 +50,6 @@ var _ = Describe("Running commands", func() {
 
 			Expect(err).To(HaveOccurred())
 		})
-	})
-
-	It("does not propagate signals to the child", func() {
-		runner := linux_command_runner.New(false)
-
-		cmd := &exec.Cmd{
-			Path: "/bin/bash",
-			Args: []string{"-c", "exit 0"},
-		}
-
-		err := runner.Run(cmd)
-		Expect(err).ToNot(HaveOccurred())
-
-		Expect(cmd.SysProcAttr).ToNot(BeNil())
-		Expect(cmd.SysProcAttr.Setpgid).To(BeTrue())
 	})
 })
 
@@ -75,6 +75,23 @@ var _ = Describe("Starting commands", func() {
 		Expect(cmd.ProcessState).ToNot(BeNil())
 	})
 
+	It("wires in debugging to stdout/stderr", func() {
+		runner := linux_command_runner.New(true)
+
+		cmd := &exec.Cmd{
+			Path: "/bin/bash",
+			Args: []string{"-c", "exit 0"},
+		}
+
+		err := runner.Start(cmd)
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(cmd.Stdout).ToNot(BeNil())
+		Expect(cmd.Stderr).ToNot(BeNil())
+	})
+})
+
+var _ = Describe("Spawning background processes", func() {
 	It("does not propagate signals to the child", func() {
 		runner := linux_command_runner.New(false)
 
@@ -88,6 +105,21 @@ var _ = Describe("Starting commands", func() {
 
 		Expect(cmd.SysProcAttr).ToNot(BeNil())
 		Expect(cmd.SysProcAttr.Setpgid).To(BeTrue())
+	})
+
+	It("does not wire in debugging to stdout/stderr", func() {
+		runner := linux_command_runner.New(true)
+
+		cmd := &exec.Cmd{
+			Path: "/bin/bash",
+			Args: []string{"-c", "exit 0"},
+		}
+
+		err := runner.Background(cmd)
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(cmd.Stdout).To(BeNil())
+		Expect(cmd.Stderr).To(BeNil())
 	})
 })
 

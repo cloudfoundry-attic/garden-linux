@@ -62,6 +62,24 @@ func (r *WindowsCommandRunner) Start(cmd *exec.Cmd) error {
 	return err
 }
 
+func (r *WindowsCommandRunner) Background(cmd *exec.Cmd) error {
+	if r.debug {
+		log.Printf("backgrounding: %s\n", prettyCommand(cmd))
+	}
+
+	err := r.resolve(cmd).Start()
+
+	if r.debug {
+		if err != nil {
+			log.Printf("backgrounding failed: %s\n", err)
+		} else {
+			log.Printf("backgrounding succeeded\n")
+		}
+	}
+
+	return err
+}
+
 func (r *WindowsCommandRunner) Wait(cmd *exec.Cmd) error {
 	return cmd.Wait()
 }
