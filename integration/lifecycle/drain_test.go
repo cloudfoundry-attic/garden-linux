@@ -181,11 +181,11 @@ var _ = Describe("Through a restart", func() {
 
 	Describe("a container's list of events", func() {
 		It("is still reported", func() {
-			_, err := client.LimitMemory(handle, 64*1024*1024)
+			_, err := client.LimitMemory(handle, 4*1024*1024)
 			Expect(err).ToNot(HaveOccurred())
 
 			// trigger 'out of memory' event
-			_, stream, err := client.Run(handle, "exec ruby -e '$stdout.sync = true; puts :hello; puts (\"x\" * 64 * 1024 * 1024).size; puts :goodbye; exit 42'", gordon.ResourceLimits{}, []gordon.EnvironmentVariable{})
+			_, stream, err := client.Run(handle, "exec ruby -e '$stdout.sync = true; puts :hello; puts (\"x\" * 5 * 1024 * 1024).size; puts :goodbye; exit 42'", gordon.ResourceLimits{}, []gordon.EnvironmentVariable{})
 			Expect(err).ToNot(HaveOccurred())
 
 			for _ = range stream {

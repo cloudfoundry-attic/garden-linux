@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -113,7 +114,7 @@ var _ = Describe("Creating a container", func() {
 		})
 
 		Context("and then sending a Stop request", func() {
-			It("kills the job", func(done Done) {
+			It("terminates all running processes", func() {
 				_, stream, err := client.Run(
 					handle,
 					`exec ruby -e 'trap("TERM") { exit 42 }; while true; sleep 1; end'`,
@@ -127,9 +128,73 @@ var _ = Describe("Creating a container", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect((<-stream).GetExitStatus()).To(Equal(uint32(42)))
+			})
 
-				close(done)
-			}, 10.0)
+			It("recursively terminates all child processes", func(done Done) {
+				defer close(done)
+
+				_, stream, err := client.Run(
+					handle,
+					`
+# don't die until child processes die
+trap wait SIGTERM
+
+# spawn child that exits when it receives TERM
+bash -c 'sleep 100 & wait' &
+
+# wait on children
+wait
+`,
+					gordon.ResourceLimits{},
+					[]gordon.EnvironmentVariable{},
+				)
+
+				Expect(err).ToNot(HaveOccurred())
+
+				stoppedAt := time.Now()
+
+				_, err = client.Stop(handle, true, false)
+				Expect(err).ToNot(HaveOccurred())
+
+				for chunk := range stream {
+					if chunk.ExitStatus != nil {
+						// should have sigtermmed
+						Ω(chunk.GetExitStatus()).Should(Equal(uint32(143)))
+					}
+				}
+
+				Ω(time.Since(stoppedAt)).Should(BeNumerically("<=", 5*time.Second))
+			}, 15.0)
+
+			Context("when a process does not die 10 seconds after receiving SIGTERM", func() {
+				It("is forcibly killed", func() {
+					_, stream, err := client.Run(
+						handle,
+						`exec ruby -e 'trap("TERM") { puts "cant touch this" }; sleep 1000'`,
+						gordon.ResourceLimits{},
+						[]gordon.EnvironmentVariable{},
+					)
+
+					Expect(err).ToNot(HaveOccurred())
+
+					stoppedAt := time.Now()
+
+					_, err = client.Stop(handle, false, false)
+					Expect(err).ToNot(HaveOccurred())
+
+					Eventually(func() *uint32 {
+						select {
+						case chunk := <-stream:
+							return chunk.ExitStatus
+						default:
+						}
+
+						return nil
+					}, 11.0).ShouldNot(BeNil())
+
+					Ω(time.Since(stoppedAt)).Should(BeNumerically(">=", 10*time.Second))
+				})
+			})
 		})
 	})
 
