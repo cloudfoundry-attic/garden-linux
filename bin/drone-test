@@ -10,8 +10,6 @@ export PATH=$GODEPS_WORKSPACE/bin:$PATH
 
 make
 
-go get github.com/dustin/goveralls
-
 go install github.com/onsi/ginkgo/ginkgo
 
 ginkgo -r -v -cover -skipMeasurements -keepGoing
@@ -19,7 +17,9 @@ ginkgo -r -v -cover -skipMeasurements -keepGoing
 # don't leak coveralls token
 set +x
 
-if [ -n "$COVERALLS_TOKEN" ]; then
+if [ -n "$COVERALLS_TOKEN" ] && [ "$COVERALLS_TOKEN" != "{{coveralls_token}}" ] ; then
+  go get github.com/dustin/goveralls
+
   profiles=$(find . -name '*.coverprofile' | grep -v fake | grep -v Godeps )
 
   echo mode: set > all.coverprofile
