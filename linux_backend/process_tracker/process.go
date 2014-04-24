@@ -104,7 +104,7 @@ func (p *Process) Spawn(cmd *exec.Cmd) (ready, active chan error) {
 
 	spawnOut := bufio.NewReader(spawnR)
 
-	err = p.runner.Start(spawn)
+	err = p.runner.Background(spawn)
 	if err != nil {
 		ready <- err
 		return

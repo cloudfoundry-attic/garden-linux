@@ -53,7 +53,7 @@ var _ = Describe("Running processes", func() {
 		processID, _, err := processTracker.Run(cmd)
 		Expect(err).NotTo(HaveOccurred())
 
-		Eventually(fakeRunner).Should(HaveStartedExecuting(
+		Eventually(fakeRunner).Should(HaveBackgrounded(
 			fake_command_runner.CommandSpec{
 				Path: binPath("iomux-spawn"),
 				Args: []string{

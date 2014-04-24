@@ -936,7 +936,7 @@ var _ = Describe("Linux containers", func() {
 
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(fakeRunner).Should(HaveStartedExecuting(
+			Eventually(fakeRunner).Should(HaveBackgrounded(
 				fake_command_runner.CommandSpec{
 					Path: "/depot/some-id/bin/iomux-spawn",
 					Args: []string{
@@ -1042,7 +1042,7 @@ var _ = Describe("Linux containers", func() {
 
 				Expect(err).ToNot(HaveOccurred())
 
-				Eventually(fakeRunner).Should(HaveStartedExecuting(
+				Eventually(fakeRunner).Should(HaveBackgrounded(
 					fake_command_runner.CommandSpec{
 						Path: "/depot/some-id/bin/iomux-spawn",
 						Args: []string{
@@ -1095,7 +1095,7 @@ var _ = Describe("Linux containers", func() {
 
 				Expect(err).ToNot(HaveOccurred())
 
-				Eventually(fakeRunner).Should(HaveStartedExecuting(
+				Eventually(fakeRunner).Should(HaveBackgrounded(
 					fake_command_runner.CommandSpec{
 						Path: "/depot/some-id/bin/iomux-spawn",
 						Args: []string{
