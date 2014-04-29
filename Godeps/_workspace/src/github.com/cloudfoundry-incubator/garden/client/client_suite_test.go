@@ -1,4 +1,4 @@
-package gordon_test
+package client_test
 
 import (
 	. "github.com/onsi/ginkgo"
@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestGordon(t *testing.T) {
+func TestClient(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Gordon Suite")
+	RunSpecs(t, "Client Suite")
 }
