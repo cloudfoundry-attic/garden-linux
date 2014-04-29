@@ -1857,6 +1857,13 @@ var _ = Describe("Linux containers", func() {
 			Expect(info.Events).To(Equal([]string{}))
 		})
 
+		It("returns the container's properties", func() {
+			info, err := container.Info()
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(info.Properties).To(Equal(container.Properties()))
+		})
+
 		It("returns the container's network info", func() {
 			info, err := container.Info()
 			Expect(err).ToNot(HaveOccurred())

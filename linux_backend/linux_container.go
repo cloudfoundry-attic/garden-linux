@@ -366,6 +366,7 @@ func (c *LinuxContainer) Info() (warden.ContainerInfo, error) {
 	return warden.ContainerInfo{
 		State:         string(c.State()),
 		Events:        c.Events(),
+		Properties:    c.Properties(),
 		HostIP:        c.resources.Network.HostIP().String(),
 		ContainerIP:   c.resources.Network.ContainerIP().String(),
 		ContainerPath: c.path,
