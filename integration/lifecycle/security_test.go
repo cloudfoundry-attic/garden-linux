@@ -28,7 +28,7 @@ var _ = Describe("Placing limits on containers", func() {
 			var err error
 
 			// create a listener to which we deny network access
-			blockedListener, err := client.Create(warden.ContainerSpec{})
+			blockedListener, err = client.Create(warden.ContainerSpec{})
 			Expect(err).ToNot(HaveOccurred())
 			info, err := blockedListener.Info()
 			Expect(err).ToNot(HaveOccurred())
