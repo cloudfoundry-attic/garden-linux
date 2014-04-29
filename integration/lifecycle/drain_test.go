@@ -6,43 +6,42 @@ import (
 	"io"
 	"time"
 
-	"code.google.com/p/gogoprotobuf/proto"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	warden "github.com/cloudfoundry-incubator/garden/protocol"
-	"github.com/cloudfoundry-incubator/gordon"
+	"github.com/cloudfoundry-incubator/garden/warden"
 )
 
-func readUntilExit(stream <-chan *warden.ProcessPayload) (string, string, uint32) {
+func readUntilExit(stream <-chan warden.ProcessStream) (string, string, uint32) {
 	stdout := ""
 	stderr := ""
 	exitStatus := uint32(12234)
 
 	for payload := range stream {
-		switch payload.GetSource() {
-		case warden.ProcessPayload_stdout:
-			stdout += payload.GetData()
+		switch payload.Source {
+		case warden.ProcessStreamSourceStdout:
+			stdout += string(payload.Data)
 
-		case warden.ProcessPayload_stderr:
-			stderr += payload.GetData()
+		case warden.ProcessStreamSourceStderr:
+			stderr += string(payload.Data)
 		}
 
-		exitStatus = payload.GetExitStatus()
+		if payload.ExitStatus != nil {
+			exitStatus = *payload.ExitStatus
+		}
 	}
 
 	return stdout, stderr, exitStatus
 }
 
 var _ = Describe("Through a restart", func() {
-	var handle string
+	var container warden.Container
 
 	BeforeEach(func() {
-		res, err := client.Create(nil)
-		Expect(err).ToNot(HaveOccurred())
+		var err error
 
-		handle = res.GetHandle()
+		container, err = client.Create(warden.ContainerSpec{})
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	AfterEach(func() {
@@ -67,20 +66,15 @@ var _ = Describe("Through a restart", func() {
 	It("retains the container list", func() {
 		restartServer()
 
-		res, err := client.List(nil)
-		Expect(err).ToNot(HaveOccurred())
-
-		Expect(res.GetHandles()).To(ContainElement(handle))
+		handles := getContainerHandles()
+		Expect(handles).To(ContainElement(container.Handle()))
 	})
 
 	Describe("a started job", func() {
 		It("continues to stream", func() {
-			processID, runStream, err := client.Run(
-				handle,
-				"while true; do echo hi; sleep 0.5; done",
-				gordon.ResourceLimits{},
-				[]gordon.EnvironmentVariable{},
-			)
+			processID, runStream, err := container.Run(warden.ProcessSpec{
+				Script: "while true; do echo hi; sleep 0.5; done",
+			})
 
 			Expect(err).ToNot(HaveOccurred())
 
@@ -88,21 +82,25 @@ var _ = Describe("Through a restart", func() {
 
 			Eventually(runStream).Should(BeClosed())
 
-			stream, err := client.Attach(handle, processID)
+			stream, err := container.Attach(processID)
 			Expect(err).ToNot(HaveOccurred())
 
-			var chunk *warden.ProcessPayload
+			var chunk warden.ProcessStream
 			Eventually(stream).Should(Receive(&chunk))
-			Expect(chunk.GetData()).To(ContainSubstring("hi\n"))
+			Expect(chunk.Data).To(ContainSubstring("hi\n"))
 		})
 
 		It("does not have its job ID repeated", func() {
-			processID1, _, err := client.Run(handle, "while true; do echo hi; sleep 0.5; done", gordon.ResourceLimits{}, []gordon.EnvironmentVariable{})
+			processID1, _, err := container.Run(warden.ProcessSpec{
+				Script: "while true; do echo hi; sleep 0.5; done",
+			})
 			Expect(err).ToNot(HaveOccurred())
 
 			restartServer()
 
-			processID2, _, err := client.Run(handle, "while true; do echo hi; sleep 0.5; done", gordon.ResourceLimits{}, []gordon.EnvironmentVariable{})
+			processID2, _, err := container.Run(warden.ProcessSpec{
+				Script: "while true; do echo hi; sleep 0.5; done",
+			})
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(processID1).ToNot(Equal(processID2))
@@ -112,15 +110,12 @@ var _ = Describe("Through a restart", func() {
 			It("does not duplicate its output on reconnect", func(done Done) {
 				receivedNumbers := make(chan int, 2048)
 
-				processID, _, err := client.Run(
-					handle,
-					"for i in $(seq 10); do echo $i; sleep 0.5; done; echo goodbye; while true; do sleep 1; done",
-					gordon.ResourceLimits{},
-					[]gordon.EnvironmentVariable{},
-				)
+				processID, _, err := container.Run(warden.ProcessSpec{
+					Script: "for i in $(seq 10); do echo $i; sleep 0.5; done; echo goodbye; while true; do sleep 1; done",
+				})
 				Expect(err).ToNot(HaveOccurred())
 
-				stream, err := client.Attach(handle, processID)
+				stream, err := container.Attach(processID)
 				Expect(err).ToNot(HaveOccurred())
 
 				go streamNumbersTo(receivedNumbers, stream)
@@ -129,7 +124,7 @@ var _ = Describe("Through a restart", func() {
 
 				restartServer()
 
-				stream, err = client.Attach(handle, processID)
+				stream, err = container.Attach(processID)
 				Expect(err).ToNot(HaveOccurred())
 
 				go streamNumbersTo(receivedNumbers, stream)
@@ -147,12 +142,14 @@ var _ = Describe("Through a restart", func() {
 
 	Describe("a memory limit", func() {
 		It("is still enforced", func() {
-			_, err := client.LimitMemory(handle, 32*1024*1024)
+			err := container.LimitMemory(warden.MemoryLimits{32 * 1024 * 1024})
 			Expect(err).ToNot(HaveOccurred())
 
 			restartServer()
 
-			_, stream, err := client.Run(handle, "exec ruby -e '$stdout.sync = true; puts :hello; puts (\"x\" * 64 * 1024 * 1024).size; puts :goodbye; exit 42'", gordon.ResourceLimits{}, []gordon.EnvironmentVariable{})
+			_, stream, err := container.Run(warden.ProcessSpec{
+				Script: "exec ruby -e '$stdout.sync = true; puts :hello; puts (\"x\" * 64 * 1024 * 1024).size; puts :goodbye; exit 42'",
+			})
 			Expect(err).ToNot(HaveOccurred())
 
 			// cgroups OOM killer seems to leave no trace of the process;
@@ -167,25 +164,29 @@ var _ = Describe("Through a restart", func() {
 
 	Describe("a container's active job", func() {
 		It("is still tracked", func() {
-			processID, _, err := client.Run(handle, "while true; do echo hi; sleep 0.5; done", gordon.ResourceLimits{}, []gordon.EnvironmentVariable{})
+			processID, _, err := container.Run(warden.ProcessSpec{
+				Script: "while true; do echo hi; sleep 0.5; done",
+			})
 			Expect(err).ToNot(HaveOccurred())
 
 			restartServer()
 
-			info, err := client.Info(handle)
+			info, err := container.Info()
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(info.GetProcessIds()).To(ContainElement(uint64(processID)))
+			Expect(info.ProcessIDs).To(ContainElement(uint32(processID)))
 		})
 	})
 
 	Describe("a container's list of events", func() {
 		It("is still reported", func() {
-			_, err := client.LimitMemory(handle, 4*1024*1024)
+			err := container.LimitMemory(warden.MemoryLimits{4 * 1024 * 1024})
 			Expect(err).ToNot(HaveOccurred())
 
 			// trigger 'out of memory' event
-			_, stream, err := client.Run(handle, "exec ruby -e '$stdout.sync = true; puts :hello; puts (\"x\" * 5 * 1024 * 1024).size; puts :goodbye; exit 42'", gordon.ResourceLimits{}, []gordon.EnvironmentVariable{})
+			_, stream, err := container.Run(warden.ProcessSpec{
+				Script: "exec ruby -e '$stdout.sync = true; puts :hello; puts (\"x\" * 5 * 1024 * 1024).size; puts :goodbye; exit 42'",
+			})
 			Expect(err).ToNot(HaveOccurred())
 
 			for _ = range stream {
@@ -193,107 +194,103 @@ var _ = Describe("Through a restart", func() {
 			}
 
 			Eventually(func() []string {
-				info, err := client.Info(handle)
+				info, err := container.Info()
 				Expect(err).ToNot(HaveOccurred())
 
-				return info.GetEvents()
+				return info.Events
 			}).Should(ContainElement("out of memory"))
 
 			restartServer()
 
-			info, err := client.Info(handle)
+			info, err := container.Info()
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(info.GetEvents()).To(ContainElement("out of memory"))
+			Expect(info.Events).To(ContainElement("out of memory"))
 		})
 	})
 
 	Describe("a container's properties", func() {
 		It("are retained", func() {
-			createRes, err := client.Create(map[string]string{
-				"foo": "bar",
+			containerWithProperties, err := client.Create(warden.ContainerSpec{
+				Properties: warden.Properties{
+					"foo": "bar",
+				},
 			})
 			Expect(err).ToNot(HaveOccurred())
 
-			info, err := client.Info(createRes.GetHandle())
+			info, err := containerWithProperties.Info()
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(info.GetProperties()).To(ContainElement(&warden.Property{
-				Key:   proto.String("foo"),
-				Value: proto.String("bar"),
-			}))
+			Expect(info.Properties["foo"]).To(Equal("bar"))
 
 			restartServer()
 
-			info, err = client.Info(createRes.GetHandle())
+			info, err = containerWithProperties.Info()
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(info.GetProperties()).To(ContainElement(&warden.Property{
-				Key:   proto.String("foo"),
-				Value: proto.String("bar"),
-			}))
+			Expect(info.Properties["foo"]).To(Equal("bar"))
 		})
 	})
 
 	Describe("a container's state", func() {
 		It("is still reported", func() {
-			info, err := client.Info(handle)
+			info, err := container.Info()
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(info.GetState()).To(Equal("active"))
+			Expect(info.State).To(Equal("active"))
 
 			restartServer()
 
-			info, err = client.Info(handle)
+			info, err = container.Info()
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(info.GetState()).To(Equal("active"))
+			Expect(info.State).To(Equal("active"))
 
-			_, err = client.Stop(handle, false, false)
+			err = container.Stop(false)
 			Expect(err).ToNot(HaveOccurred())
 
 			restartServer()
 
-			info, err = client.Info(handle)
+			info, err = container.Info()
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(info.GetState()).To(Equal("stopped"))
+			Expect(info.State).To(Equal("stopped"))
 		})
 	})
 
 	Describe("a container's network", func() {
 		It("does not get reused", func() {
-			infoA, err := client.Info(handle)
+			infoA, err := container.Info()
 			Expect(err).ToNot(HaveOccurred())
 
 			restartServer()
 
-			res, err := client.Create(nil)
+			newContainer, err := client.Create(warden.ContainerSpec{})
 			Expect(err).ToNot(HaveOccurred())
 
-			infoB, err := client.Info(res.GetHandle())
+			infoB, err := newContainer.Info()
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(infoA.GetHostIp()).ToNot(Equal(infoB.GetHostIp()))
-			Expect(infoA.GetContainerIp()).ToNot(Equal(infoB.GetContainerIp()))
+			Expect(infoA.HostIP).ToNot(Equal(infoB.HostIP))
+			Expect(infoA.ContainerIP).ToNot(Equal(infoB.ContainerIP))
 		})
 	})
 
 	Describe("a container's mapped port", func() {
 		It("does not get reused", func() {
-			netInA, err := client.NetIn(handle)
+			netInAHost, netInAContainer, err := container.NetIn(0, 0)
 			Expect(err).ToNot(HaveOccurred())
 
 			restartServer()
 
-			createRes, err := client.Create(nil)
+			containerB, err := client.Create(warden.ContainerSpec{})
 			Expect(err).ToNot(HaveOccurred())
 
-			netInB, err := client.NetIn(createRes.GetHandle())
+			netInBHost, netInBContainer, err := containerB.NetIn(0, 0)
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(netInA.GetHostPort()).ToNot(Equal(netInB.GetHostPort()))
-			Expect(netInA.GetContainerPort()).ToNot(Equal(netInB.GetContainerPort()))
+			Expect(netInAHost).ToNot(Equal(netInBHost))
+			Expect(netInAContainer).ToNot(Equal(netInBContainer))
 		})
 	})
 
@@ -302,23 +299,27 @@ var _ = Describe("Through a restart", func() {
 			idA := ""
 			idB := ""
 
-			_, streamA, err := client.Run(handle, "id -u", gordon.ResourceLimits{}, []gordon.EnvironmentVariable{})
+			_, streamA, err := container.Run(warden.ProcessSpec{
+				Script: "id -u",
+			})
 			Expect(err).ToNot(HaveOccurred())
 
 			for chunk := range streamA {
-				idA += chunk.GetData()
+				idA += string(chunk.Data)
 			}
 
 			restartServer()
 
-			createRes, err := client.Create(nil)
+			otherContainer, err := client.Create(warden.ContainerSpec{})
 			Expect(err).ToNot(HaveOccurred())
 
-			_, streamB, err := client.Run(createRes.GetHandle(), "id -u", gordon.ResourceLimits{}, []gordon.EnvironmentVariable{})
+			_, streamB, err := otherContainer.Run(warden.ProcessSpec{
+				Script: "id -u",
+			})
 			Expect(err).ToNot(HaveOccurred())
 
 			for chunk := range streamB {
-				idB += chunk.GetData()
+				idB += string(chunk.Data)
 			}
 
 			Expect(idA).ToNot(Equal(idB))
@@ -332,34 +333,38 @@ var _ = Describe("Through a restart", func() {
 
 			err = runner.Start("--containerGraceTime", "5s")
 			Expect(err).ToNot(HaveOccurred())
-
-			res, err := client.Create(nil)
-			Expect(err).ToNot(HaveOccurred())
-
-			handle = res.GetHandle()
 		})
 
 		It("is still enforced", func() {
-			restartServer()
-
-			listRes, err := client.List(nil)
+			container, err := client.Create(warden.ContainerSpec{})
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(listRes.GetHandles()).To(ContainElement(handle))
+			restartServer()
+
+			Expect(getContainerHandles()).To(ContainElement(container.Handle()))
 
 			time.Sleep(6 * time.Second)
 
-			listRes, err = client.List(nil)
-			Expect(err).ToNot(HaveOccurred())
-
-			Expect(listRes.GetHandles()).ToNot(ContainElement(handle))
+			Expect(getContainerHandles()).ToNot(ContainElement(container.Handle()))
 		})
 	})
 })
 
-func streamNumbersTo(destination chan<- int, source <-chan *warden.ProcessPayload) {
+func getContainerHandles() []string {
+	containers, err := client.Containers(nil)
+	Ω(err).ShouldNot(HaveOccurred())
+
+	handles := make([]string, len(containers))
+	for i, c := range containers {
+		handles[i] = c.Handle()
+	}
+
+	return handles
+}
+
+func streamNumbersTo(destination chan<- int, source <-chan warden.ProcessStream) {
 	for out := range source {
-		buf := bytes.NewBufferString(out.GetData())
+		buf := bytes.NewBuffer(out.Data)
 
 		var num int
 

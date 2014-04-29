@@ -3,14 +3,13 @@ package lifecycle_test
 import (
 	"time"
 
+	"github.com/cloudfoundry-incubator/garden/warden"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
-	"github.com/cloudfoundry-incubator/gordon"
 )
 
 var _ = Describe("A container with a grace time", func() {
-	var handle string
+	var container warden.Container
 
 	BeforeEach(func() {
 		err := runner.Stop()
@@ -19,10 +18,8 @@ var _ = Describe("A container with a grace time", func() {
 		err = runner.Start("--containerGraceTime", "5s")
 		Expect(err).ToNot(HaveOccurred())
 
-		res, err := client.Create(nil)
+		container, err = client.Create(warden.ContainerSpec{})
 		Expect(err).ToNot(HaveOccurred())
-
-		handle = res.GetHandle()
 	})
 
 	AfterEach(func() {
@@ -35,10 +32,10 @@ var _ = Describe("A container with a grace time", func() {
 
 	Context("when a request takes longer than the grace time", func() {
 		It("is not destroyed after the request is over", func() {
-			_, _, err := client.Run(handle, "sleep 6", gordon.ResourceLimits{}, []gordon.EnvironmentVariable{})
+			_, _, err := container.Run(warden.ProcessSpec{Script: "sleep 6"})
 			Expect(err).ToNot(HaveOccurred())
 
-			_, err = client.Info(handle)
+			_, err = container.Info()
 			Expect(err).ToNot(HaveOccurred())
 		})
 	})
@@ -47,7 +44,7 @@ var _ = Describe("A container with a grace time", func() {
 		It("is destroyed", func() {
 			time.Sleep(6 * time.Second)
 
-			_, err := client.Info(handle)
+			_, err := container.Info()
 			Expect(err).To(HaveOccurred())
 		})
 	})

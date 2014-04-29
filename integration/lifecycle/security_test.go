@@ -2,10 +2,9 @@ package lifecycle_test
 
 import (
 	"fmt"
+	"github.com/cloudfoundry-incubator/garden/warden"
 	"strings"
 
-	warden "github.com/cloudfoundry-incubator/garden/protocol"
-	"github.com/cloudfoundry-incubator/gordon"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -13,44 +12,41 @@ import (
 var _ = Describe("Placing limits on containers", func() {
 	Describe("denying access to network ranges", func() {
 		var (
-			blockedListenerHandle string
-			blockedListenerIP     string
+			blockedListener   warden.Container
+			blockedListenerIP string
 
-			unblockedListenerHandle string
-			unblockedListenerIP     string
+			unblockedListener   warden.Container
+			unblockedListenerIP string
 
-			allowedListenerHandle string
-			allowedListenerIP     string
+			allowedListener   warden.Container
+			allowedListenerIP string
 
-			senderHandle string
+			sender warden.Container
 		)
 
 		BeforeEach(func() {
 			var err error
 
 			// create a listener to which we deny network access
-			res, err := client.Create(nil)
+			blockedListener, err := client.Create(warden.ContainerSpec{})
 			Expect(err).ToNot(HaveOccurred())
-			blockedListenerHandle = res.GetHandle()
-			infoRes, err := client.Info(blockedListenerHandle)
+			info, err := blockedListener.Info()
 			Expect(err).ToNot(HaveOccurred())
-			blockedListenerIP = infoRes.GetContainerIp()
+			blockedListenerIP = info.ContainerIP
 
 			// create a listener to which we do not deny access
-			res, err = client.Create(nil)
+			unblockedListener, err = client.Create(warden.ContainerSpec{})
 			Expect(err).ToNot(HaveOccurred())
-			unblockedListenerHandle = res.GetHandle()
-			infoRes, err = client.Info(unblockedListenerHandle)
+			info, err = unblockedListener.Info()
 			Expect(err).ToNot(HaveOccurred())
-			unblockedListenerIP = infoRes.GetContainerIp()
+			unblockedListenerIP = info.ContainerIP
 
 			// create a listener to which we exclicitly allow access
-			res, err = client.Create(nil)
+			allowedListener, err = client.Create(warden.ContainerSpec{})
 			Expect(err).ToNot(HaveOccurred())
-			allowedListenerHandle = res.GetHandle()
-			infoRes, err = client.Info(allowedListenerHandle)
+			info, err = allowedListener.Info()
 			Expect(err).ToNot(HaveOccurred())
-			allowedListenerIP = infoRes.GetContainerIp()
+			allowedListenerIP = info.ContainerIP
 
 			runner.Stop()
 			runner.Start(
@@ -62,51 +58,51 @@ var _ = Describe("Placing limits on containers", func() {
 			)
 
 			// create a container with the new deny network configuration
-			res, err = client.Create(nil)
+			sender, err = client.Create(warden.ContainerSpec{})
 			Expect(err).ToNot(HaveOccurred())
-			senderHandle = res.GetHandle()
 		})
 
 		AfterEach(func() {
-			_, err := client.Destroy(senderHandle)
+			err := client.Destroy(sender.Handle())
 			Expect(err).ToNot(HaveOccurred())
 
-			_, err = client.Destroy(blockedListenerHandle)
+			err = client.Destroy(blockedListener.Handle())
 			Expect(err).ToNot(HaveOccurred())
 
-			_, err = client.Destroy(unblockedListenerHandle)
+			err = client.Destroy(unblockedListener.Handle())
 			Expect(err).ToNot(HaveOccurred())
 
-			_, err = client.Destroy(allowedListenerHandle)
+			err = client.Destroy(allowedListener.Handle())
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		expectStreamToExitWith := func(stream <-chan *warden.ProcessPayload, status int) {
+		expectStreamToExitWith := func(stream <-chan warden.ProcessStream, status int) {
 			for chunk := range stream {
 				if chunk.ExitStatus != nil {
-					Expect(chunk.GetExitStatus()).To(Equal(uint32(status)))
+					Expect(*chunk.ExitStatus).To(Equal(uint32(status)))
 				}
 			}
 		}
 
-		runWithHandle := func(handle, script string) <-chan *warden.ProcessPayload {
-			_, stream, err := client.Run(handle, script, gordon.ResourceLimits{}, nil)
+		runInContainer := func(container warden.Container, script string) <-chan warden.ProcessStream {
+			_, stream, err := container.Run(warden.ProcessSpec{Script: script})
 			Expect(err).ToNot(HaveOccurred())
+
 			return stream
 		}
 
 		It("makes that block of ip addresses inaccessible to the container", func() {
-			runWithHandle(blockedListenerHandle, "nc -l 12345")
-			runWithHandle(unblockedListenerHandle, "nc -l 12345")
-			runWithHandle(allowedListenerHandle, "nc -l 12345")
+			runInContainer(blockedListener, "nc -l 12345")
+			runInContainer(unblockedListener, "nc -l 12345")
+			runInContainer(allowedListener, "nc -l 12345")
 
-			senderStream := runWithHandle(senderHandle, fmt.Sprintf("echo hello | nc -w 1 %s 12345", blockedListenerIP))
+			senderStream := runInContainer(sender, fmt.Sprintf("echo hello | nc -w 1 %s 12345", blockedListenerIP))
 			expectStreamToExitWith(senderStream, 1)
 
-			senderStream = runWithHandle(senderHandle, fmt.Sprintf("echo hello | nc -w 1 %s 12345", unblockedListenerIP))
+			senderStream = runInContainer(sender, fmt.Sprintf("echo hello | nc -w 1 %s 12345", unblockedListenerIP))
 			expectStreamToExitWith(senderStream, 0)
 
-			senderStream = runWithHandle(senderHandle, fmt.Sprintf("echo hello | nc -w 1 %s 12345", allowedListenerIP))
+			senderStream = runInContainer(sender, fmt.Sprintf("echo hello | nc -w 1 %s 12345", allowedListenerIP))
 			expectStreamToExitWith(senderStream, 0)
 		})
 	})

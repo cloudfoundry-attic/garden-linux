@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/cloudfoundry-incubator/gordon"
+	"github.com/cloudfoundry-incubator/garden/warden"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
@@ -16,7 +16,7 @@ import (
 )
 
 var runner *Runner.Runner
-var client gordon.Client
+var client warden.Client
 
 func TestLifecycle(t *testing.T) {
 	binPath := "../../linux_backend/bin"

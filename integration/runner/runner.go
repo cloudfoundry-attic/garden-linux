@@ -9,7 +9,9 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/cloudfoundry-incubator/gordon"
+	"github.com/cloudfoundry-incubator/garden/client"
+	"github.com/cloudfoundry-incubator/garden/client/connection"
+	"github.com/cloudfoundry-incubator/garden/warden"
 	"github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
@@ -133,8 +135,8 @@ func (r *Runner) TearDown() error {
 	return os.RemoveAll(r.tmpdir)
 }
 
-func (r *Runner) NewClient() gordon.Client {
-	return gordon.NewClient(&gordon.ConnectionInfo{
+func (r *Runner) NewClient() warden.Client {
+	return client.New(&connection.Info{
 		Network: r.Network,
 		Addr:    r.Addr,
 	})

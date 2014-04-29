@@ -8,39 +8,35 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/cloudfoundry-incubator/garden/warden"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
-	"github.com/cloudfoundry-incubator/gordon"
 )
 
 var _ = Describe("Creating a container", func() {
-	var handle string
+	var container warden.Container
 
 	BeforeEach(func() {
-		res, err := client.Create(nil)
-		Expect(err).ToNot(HaveOccurred())
+		var err error
 
-		handle = res.GetHandle()
+		container, err = client.Create(warden.ContainerSpec{})
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	AfterEach(func() {
-		_, err := client.Destroy(handle)
+		err := client.Destroy(container.Handle())
 		Expect(err).ToNot(HaveOccurred())
 	})
 
 	It("sources /etc/seed", func() {
-		_, stream, err := client.Run(
-			handle,
-			"test -e /tmp/ran-seed",
-			gordon.ResourceLimits{},
-			[]gordon.EnvironmentVariable{},
-		)
+		_, stream, err := container.Run(warden.ProcessSpec{
+			Script: "test -e /tmp/ran-seed",
+		})
 		Expect(err).ToNot(HaveOccurred())
 
 		for chunk := range stream {
 			if chunk.ExitStatus != nil {
-				Expect(chunk.GetExitStatus()).To(Equal(uint32(0)))
+				Expect(*chunk.ExitStatus).To(Equal(uint32(0)))
 			}
 		}
 	})
@@ -48,66 +44,55 @@ var _ = Describe("Creating a container", func() {
 	It("should provide 64k of /dev/shm within the container", func() {
 		command1 := "df|grep /dev/shm|grep 342678243768342867432"
 		command2 := "mount|grep /dev/shm|grep tmpfs"
-		_, _, err := client.Run(
-			handle,
-			fmt.Sprintf("%s && %s", command1, command2),
-			gordon.ResourceLimits{},
-			[]gordon.EnvironmentVariable{},
-		)
+		_, _, err := container.Run(warden.ProcessSpec{
+			Script: fmt.Sprintf("%s && %s", command1, command2),
+		})
 		Expect(err).ToNot(HaveOccurred())
 	})
 
 	Context("and sending a List request", func() {
 		It("includes the created container", func() {
-			res, err := client.List(nil)
-			Expect(err).ToNot(HaveOccurred())
-
-			Expect(res.GetHandles()).To(ContainElement(handle))
+			Expect(getContainerHandles()).To(ContainElement(container.Handle()))
 		})
 	})
 
 	Context("and sending an Info request", func() {
 		It("returns the container's info", func() {
-			res, err := client.Info(handle)
+			info, err := container.Info()
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(res.GetState()).To(Equal("active"))
+			Expect(info.State).To(Equal("active"))
 		})
 	})
 
 	Context("and running a job", func() {
 		It("sends output back in chunks until stopped", func() {
-			_, stream, err := client.Run(
-				handle,
-				"sleep 0.5; echo $FIRST; sleep 0.5; echo $SECOND; sleep 0.5; exit 42",
-				gordon.ResourceLimits{},
-				[]gordon.EnvironmentVariable{
-					gordon.EnvironmentVariable{Key: "FIRST", Value: "hello"},
-					gordon.EnvironmentVariable{Key: "SECOND", Value: "goodbye"},
+			_, stream, err := container.Run(warden.ProcessSpec{
+				Script: "sleep 0.5; echo $FIRST; sleep 0.5; echo $SECOND; sleep 0.5; exit 42",
+				EnvironmentVariables: []warden.EnvironmentVariable{
+					warden.EnvironmentVariable{Key: "FIRST", Value: "hello"},
+					warden.EnvironmentVariable{Key: "SECOND", Value: "goodbye"},
 				},
-			)
+			})
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect((<-stream).GetData()).To(Equal("hello\n"))
-			Expect((<-stream).GetData()).To(Equal("goodbye\n"))
-			Expect((<-stream).GetExitStatus()).To(Equal(uint32(42)))
+			Expect(string((<-stream).Data)).To(Equal("hello\n"))
+			Expect(string((<-stream).Data)).To(Equal("goodbye\n"))
+			Expect(*(<-stream).ExitStatus).To(Equal(uint32(42)))
 		})
 
 		Context("and then attaching to it", func() {
 			It("sends output back in chunks until stopped", func(done Done) {
-				processID, _, err := client.Run(
-					handle,
-					"sleep 2; echo hello; sleep 0.5; echo goodbye; sleep 0.5; exit 42",
-					gordon.ResourceLimits{},
-					[]gordon.EnvironmentVariable{},
-				)
+				processID, _, err := container.Run(warden.ProcessSpec{
+					Script: "sleep 2; echo hello; sleep 0.5; echo goodbye; sleep 0.5; exit 42",
+				})
 				Expect(err).ToNot(HaveOccurred())
 
-				stream, err := client.Attach(handle, processID)
+				stream, err := container.Attach(processID)
 
-				Expect((<-stream).GetData()).To(Equal("hello\n"))
-				Expect((<-stream).GetData()).To(Equal("goodbye\n"))
-				Expect((<-stream).GetExitStatus()).To(Equal(uint32(42)))
+				Expect(string((<-stream).Data)).To(Equal("hello\n"))
+				Expect(string((<-stream).Data)).To(Equal("goodbye\n"))
+				Expect(*(<-stream).ExitStatus).To(Equal(uint32(42)))
 
 				close(done)
 			}, 10.0)
@@ -115,27 +100,23 @@ var _ = Describe("Creating a container", func() {
 
 		Context("and then sending a Stop request", func() {
 			It("terminates all running processes", func() {
-				_, stream, err := client.Run(
-					handle,
-					`exec ruby -e 'trap("TERM") { exit 42 }; while true; sleep 1; end'`,
-					gordon.ResourceLimits{},
-					[]gordon.EnvironmentVariable{},
-				)
+				_, stream, err := container.Run(warden.ProcessSpec{
+					Script: `exec ruby -e 'trap("TERM") { exit 42 }; while true; sleep 1; end'`,
+				})
 
 				Expect(err).ToNot(HaveOccurred())
 
-				_, err = client.Stop(handle, false, false)
+				err = container.Stop(false)
 				Expect(err).ToNot(HaveOccurred())
 
-				Expect((<-stream).GetExitStatus()).To(Equal(uint32(42)))
+				Expect(*(<-stream).ExitStatus).To(Equal(uint32(42)))
 			})
 
 			It("recursively terminates all child processes", func(done Done) {
 				defer close(done)
 
-				_, stream, err := client.Run(
-					handle,
-					`
+				_, stream, err := container.Run(warden.ProcessSpec{
+					Script: `
 # don't die until child processes die
 trap wait SIGTERM
 
@@ -145,21 +126,19 @@ bash -c 'sleep 100 & wait' &
 # wait on children
 wait
 `,
-					gordon.ResourceLimits{},
-					[]gordon.EnvironmentVariable{},
-				)
+				})
 
 				Expect(err).ToNot(HaveOccurred())
 
 				stoppedAt := time.Now()
 
-				_, err = client.Stop(handle, true, false)
+				err = container.Stop(false)
 				Expect(err).ToNot(HaveOccurred())
 
 				for chunk := range stream {
 					if chunk.ExitStatus != nil {
 						// should have sigtermmed
-						Ω(chunk.GetExitStatus()).Should(Equal(uint32(143)))
+						Ω(*chunk.ExitStatus).Should(Equal(uint32(143)))
 					}
 				}
 
@@ -168,18 +147,15 @@ wait
 
 			Context("when a process does not die 10 seconds after receiving SIGTERM", func() {
 				It("is forcibly killed", func() {
-					_, stream, err := client.Run(
-						handle,
-						`exec ruby -e 'trap("TERM") { puts "cant touch this" }; sleep 1000'`,
-						gordon.ResourceLimits{},
-						[]gordon.EnvironmentVariable{},
-					)
+					_, stream, err := container.Run(warden.ProcessSpec{
+						Script: `exec ruby -e 'trap("TERM") { puts "cant touch this" }; sleep 1000'`,
+					})
 
 					Expect(err).ToNot(HaveOccurred())
 
 					stoppedAt := time.Now()
 
-					_, err = client.Stop(handle, false, false)
+					err = container.Stop(false)
 					Expect(err).ToNot(HaveOccurred())
 
 					Eventually(func() *uint32 {
@@ -216,45 +192,36 @@ wait
 		})
 
 		It("creates the files in the container", func() {
-			_, err := client.CopyIn(handle, path, "/tmp/some-container-dir")
+			err := container.CopyIn(path, "/tmp/some-container-dir")
 			Ω(err).ShouldNot(HaveOccurred())
 
-			_, stream, err := client.Run(
-				handle,
-				`test -f /tmp/some-container-dir/some-temp-dir/some-temp-file && exit 42`,
-				gordon.ResourceLimits{},
-				[]gordon.EnvironmentVariable{},
-			)
+			_, stream, err := container.Run(warden.ProcessSpec{
+				Script: `test -f /tmp/some-container-dir/some-temp-dir/some-temp-file && exit 42`,
+			})
 
-			Expect((<-stream).GetExitStatus()).To(Equal(uint32(42)))
+			Expect(*(<-stream).ExitStatus).To(Equal(uint32(42)))
 		})
 
 		Context("with a strailing slash on the destination", func() {
 			It("does what rsync does (syncs contents)", func() {
-				_, err := client.CopyIn(handle, path+"/", "/tmp/some-container-dir/")
+				err := container.CopyIn(path+"/", "/tmp/some-container-dir/")
 				Ω(err).ShouldNot(HaveOccurred())
 
-				_, stream, err := client.Run(
-					handle,
-					`test -f /tmp/some-container-dir/some-temp-file && exit 42`,
-					gordon.ResourceLimits{},
-					[]gordon.EnvironmentVariable{},
-				)
+				_, stream, err := container.Run(warden.ProcessSpec{
+					Script: `test -f /tmp/some-container-dir/some-temp-file && exit 42`,
+				})
 
-				Expect((<-stream).GetExitStatus()).To(Equal(uint32(42)))
+				Expect(*(<-stream).ExitStatus).To(Equal(uint32(42)))
 			})
 		})
 
 		Context("and then copying them out", func() {
 			It("copies the files to the host", func() {
-				_, stream, err := client.Run(
-					handle,
-					`mkdir -p some-container-dir; touch some-container-dir/some-file;`,
-					gordon.ResourceLimits{},
-					[]gordon.EnvironmentVariable{},
-				)
+				_, stream, err := container.Run(warden.ProcessSpec{
+					Script: `mkdir -p some-container-dir; touch some-container-dir/some-file;`,
+				})
 
-				Expect((<-stream).GetExitStatus()).To(Equal(uint32(0)))
+				Expect(*(<-stream).ExitStatus).To(Equal(uint32(0)))
 
 				tmpdir, err := ioutil.TempDir("", "copy-out-temp-dir-parent")
 				Ω(err).ShouldNot(HaveOccurred())
@@ -262,7 +229,7 @@ wait
 				user, err := user.Current()
 				Ω(err).ShouldNot(HaveOccurred())
 
-				_, err = client.CopyOut(handle, "some-container-dir", tmpdir, user.Username)
+				err = container.CopyOut("some-container-dir", tmpdir, user.Username)
 				Ω(err).ShouldNot(HaveOccurred())
 
 				_, err = os.Stat(filepath.Join(tmpdir, "some-container-dir", "some-file"))
@@ -273,13 +240,13 @@ wait
 
 	Context("and sending a Stop request", func() {
 		It("changes the container's state to 'stopped'", func() {
-			_, err := client.Stop(handle, false, false)
+			err := container.Stop(false)
 			Expect(err).ToNot(HaveOccurred())
 
-			info, err := client.Info(handle)
+			info, err := container.Info()
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(info.GetState()).To(Equal("stopped"))
+			Expect(info.State).To(Equal("stopped"))
 		})
 	})
 })
