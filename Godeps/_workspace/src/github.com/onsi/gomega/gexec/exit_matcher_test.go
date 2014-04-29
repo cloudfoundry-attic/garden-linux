@@ -1,8 +1,9 @@
 package gexec_test
 
 import (
-	"os/exec"
 	. "github.com/onsi/gomega/gexec"
+	"os/exec"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -79,6 +80,18 @@ var _ = Describe("ExitMatcher", func() {
 			})
 
 			Ω(failures[0]).Should(ContainSubstring("not to match exit code:"))
+		})
+	})
+
+	Describe("bailing out early", func() {
+		It("should bail out early once the process exits", func() {
+			t := time.Now()
+
+			failures := interceptFailures(func() {
+				Eventually(session).Should(Exit(1))
+			})
+			Ω(time.Since(t)).Should(BeNumerically("<=", 500*time.Millisecond))
+			Ω(failures).Should(HaveLen(1))
 		})
 	})
 })

@@ -1,8 +1,8 @@
 package gbytes_test
 
 import (
-	"time"
 	. "github.com/onsi/gomega/gbytes"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -84,6 +84,28 @@ var _ = Describe("Buffer", func() {
 			Ω(buffer).Should(Say("bcde"))
 			<-buffer.Detect("f")
 			close(done)
+		})
+	})
+
+	Describe("closing the buffer", func() {
+		It("should error when further write attempts are made", func() {
+			_, err := buffer.Write([]byte("abc"))
+			Ω(err).ShouldNot(HaveOccurred())
+
+			buffer.Close()
+
+			_, err = buffer.Write([]byte("def"))
+			Ω(err).Should(HaveOccurred())
+
+			Ω(buffer.Contents()).Should(Equal([]byte("abc")))
+		})
+
+		It("should be closed", func() {
+			Ω(buffer.Closed()).Should(BeFalse())
+
+			buffer.Close()
+
+			Ω(buffer.Closed()).Should(BeTrue())
 		})
 	})
 })

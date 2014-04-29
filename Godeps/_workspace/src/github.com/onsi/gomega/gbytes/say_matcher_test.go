@@ -1,8 +1,8 @@
 package gbytes_test
 
 import (
-	"time"
 	. "github.com/onsi/gomega/gbytes"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -51,6 +51,43 @@ var _ = Describe("SayMatcher", func() {
 			Ω(buffer).Should(Say("abcd"))
 			Ω(buffer).Should(Say("ef"))
 			Ω(buffer).ShouldNot(Say("[a-z]"))
+		})
+	})
+
+	Context("when no match is found", func() {
+		It("should not error", func() {
+			Ω(buffer).ShouldNot(Say("def"))
+		})
+
+		Context("when the buffer is closed", func() {
+			BeforeEach(func() {
+				buffer.Close()
+			})
+
+			It("should abort an eventually", func() {
+				t := time.Now()
+				failures := interceptFailures(func() {
+					Eventually(buffer).Should(Say("def"))
+				})
+				Eventually(buffer).ShouldNot(Say("def"))
+				Ω(time.Since(t)).Should(BeNumerically("<", 500*time.Millisecond))
+				Ω(failures).Should(HaveLen(1))
+
+				t = time.Now()
+				Eventually(buffer).Should(Say("abc"))
+				Ω(time.Since(t)).Should(BeNumerically("<", 500*time.Millisecond))
+			})
+
+			It("should abort a consistently", func() {
+				t := time.Now()
+				Consistently(buffer, 2.0).ShouldNot(Say("def"))
+				Ω(time.Since(t)).Should(BeNumerically("<", 500*time.Millisecond))
+			})
+
+			It("should not error with a synchronous matcher", func() {
+				Ω(buffer).ShouldNot(Say("def"))
+				Ω(buffer).Should(Say("abc"))
+			})
 		})
 	})
 

@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/cloudfoundry-incubator/garden/backend"
+	"github.com/cloudfoundry-incubator/garden/warden"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/quota_manager"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
@@ -63,7 +63,7 @@ var _ = Describe("Linux Quota manager", func() {
 	})
 
 	Describe("setting quotas", func() {
-		limits := backend.DiskLimits{
+		limits := warden.DiskLimits{
 			BlockSoft: 1,
 			BlockHard: 2,
 
@@ -89,7 +89,7 @@ var _ = Describe("Linux Quota manager", func() {
 		})
 
 		Context("when bytes are given", func() {
-			limits := backend.DiskLimits{
+			limits := warden.DiskLimits{
 				InodeSoft: 11,
 				InodeHard: 12,
 

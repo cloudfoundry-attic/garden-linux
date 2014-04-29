@@ -9,7 +9,7 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/cloudfoundry-incubator/garden/backend"
+	"github.com/cloudfoundry-incubator/garden/warden"
 	"github.com/cloudfoundry/gunk/command_runner"
 )
 
@@ -27,7 +27,7 @@ type Process struct {
 	linked   chan struct{}
 	unlinked <-chan struct{}
 
-	streams     []chan backend.ProcessStream
+	streams     []chan warden.ProcessStream
 	streamsLock *sync.RWMutex
 
 	completed bool
@@ -60,8 +60,8 @@ func NewProcess(
 		unlinked:       unlinked,
 	}
 
-	p.stdout = newNamedStream(p, backend.ProcessStreamSourceStdout)
-	p.stderr = newNamedStream(p, backend.ProcessStreamSourceStderr)
+	p.stdout = newNamedStream(p, warden.ProcessStreamSourceStdout)
+	p.stderr = newNamedStream(p, warden.ProcessStreamSourceStderr)
 
 	return p
 }
@@ -157,7 +157,7 @@ func (p *Process) Unlink() error {
 	return p.runner.Signal(p.link, os.Interrupt)
 }
 
-func (p *Process) Stream() chan backend.ProcessStream {
+func (p *Process) Stream() chan warden.ProcessStream {
 	return p.registerStream()
 }
 
@@ -202,11 +202,11 @@ func (p *Process) runLinker() {
 	p.closeStreams()
 }
 
-func (p *Process) registerStream() chan backend.ProcessStream {
+func (p *Process) registerStream() chan warden.ProcessStream {
 	p.streamsLock.Lock()
 	defer p.streamsLock.Unlock()
 
-	stream := make(chan backend.ProcessStream, 1000)
+	stream := make(chan warden.ProcessStream, 1000)
 
 	p.streams = append(p.streams, stream)
 
@@ -217,7 +217,7 @@ func (p *Process) registerStream() chan backend.ProcessStream {
 	return stream
 }
 
-func (p *Process) sendToStreams(chunk backend.ProcessStream) {
+func (p *Process) sendToStreams(chunk warden.ProcessStream) {
 	p.streamsLock.RLock()
 	defer p.streamsLock.RUnlock()
 
@@ -234,7 +234,7 @@ func (p *Process) closeStreams() {
 	defer p.streamsLock.RUnlock()
 
 	for _, stream := range p.streams {
-		stream <- backend.ProcessStream{ExitStatus: &(p.exitStatus)}
+		stream <- warden.ProcessStream{ExitStatus: &(p.exitStatus)}
 		close(stream)
 	}
 

@@ -11,7 +11,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/cloudfoundry-incubator/garden/backend"
+	"github.com/cloudfoundry-incubator/garden/warden"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/process_tracker"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
@@ -168,12 +168,12 @@ var _ = Describe("Running processes", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		chunk1 := <-processStreamChannel
-		Expect(chunk1.Source).To(Equal(backend.ProcessStreamSourceStdout))
+		Expect(chunk1.Source).To(Equal(warden.ProcessStreamSourceStdout))
 		Expect(string(chunk1.Data)).To(Equal("hi out\n"))
 		Expect(chunk1.ExitStatus).To(BeNil())
 
 		chunk2 := <-processStreamChannel
-		Expect(chunk2.Source).To(Equal(backend.ProcessStreamSourceStderr))
+		Expect(chunk2.Source).To(Equal(warden.ProcessStreamSourceStderr))
 		Expect(string(chunk2.Data)).To(Equal("hi err\n"))
 		Expect(chunk2.ExitStatus).To(BeNil())
 
@@ -280,12 +280,12 @@ var _ = Describe("Attaching to running processes", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		chunk1 := <-processStreamChannel
-		Expect(chunk1.Source).To(Equal(backend.ProcessStreamSourceStdout))
+		Expect(chunk1.Source).To(Equal(warden.ProcessStreamSourceStdout))
 		Expect(string(chunk1.Data)).To(Equal("hi out\n"))
 		Expect(chunk1.ExitStatus).To(BeNil())
 
 		chunk2 := <-processStreamChannel
-		Expect(chunk2.Source).To(Equal(backend.ProcessStreamSourceStderr))
+		Expect(chunk2.Source).To(Equal(warden.ProcessStreamSourceStderr))
 		Expect(string(chunk2.Data)).To(Equal("hi err\n"))
 		Expect(chunk2.ExitStatus).To(BeNil())
 
