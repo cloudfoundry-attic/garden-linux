@@ -554,10 +554,6 @@ func (c *LinuxContainer) CurrentCPULimits() (warden.CPULimits, error) {
 	return warden.CPULimits{uint64(numericLimit)}, nil
 }
 
-func exportCommand(env warden.EnvironmentVariable) string {
-	return fmt.Sprintf("export %s=%q\n", env.Key, env.Value)
-}
-
 func (c *LinuxContainer) Run(spec warden.ProcessSpec) (uint32, <-chan warden.ProcessStream, error) {
 	script := ""
 
@@ -939,4 +935,12 @@ func setRLimitsEnv(cmd *exec.Cmd, rlimits warden.ResourceLimits) {
 	if rlimits.Stack != nil {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("RLIMIT_STACK=%d", *rlimits.Stack))
 	}
+}
+
+func exportCommand(env warden.EnvironmentVariable) string {
+	return fmt.Sprintf("export %s=\"%s\"\n", env.Key, escapeQuotes(env.Value))
+}
+
+func escapeQuotes(value string) string {
+	return strings.Replace(value, `"`, `\"`, -1)
 }

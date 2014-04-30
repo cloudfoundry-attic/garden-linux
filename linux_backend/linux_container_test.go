@@ -928,10 +928,6 @@ var _ = Describe("Linux containers", func() {
 					Sigpending: uint64ptr(14),
 					Stack:      uint64ptr(15),
 				},
-				EnvironmentVariables: []warden.EnvironmentVariable{
-					warden.EnvironmentVariable{Key: "ELEPHANT", Value: "charlie sheen"},
-					warden.EnvironmentVariable{Key: "AARDVARK", Value: "bartholomew"},
-				},
 			})
 
 			Expect(err).ToNot(HaveOccurred())
@@ -946,7 +942,7 @@ var _ = Describe("Linux containers", func() {
 						"--user", "vcap",
 						"/bin/bash",
 					},
-					Stdin: "export ELEPHANT=\"charlie sheen\"\nexport AARDVARK=\"bartholomew\"\n/some/script",
+					Stdin: "/some/script",
 					Env: []string{
 						"RLIMIT_AS=1",
 						"RLIMIT_CORE=2",
@@ -964,6 +960,39 @@ var _ = Describe("Linux containers", func() {
 						"RLIMIT_SIGPENDING=14",
 						"RLIMIT_STACK=15",
 					},
+				},
+			))
+		})
+
+		It("runs the script with escaped environment variables", func() {
+			setupSuccessfulSpawn()
+
+			processID, _, err := container.Run(warden.ProcessSpec{
+				Script: "/some/script",
+				EnvironmentVariables: []warden.EnvironmentVariable{
+					warden.EnvironmentVariable{Key: "ESCAPED", Value: "kurt \"russell\""},
+					warden.EnvironmentVariable{Key: "INTERPOLATED", Value: "snake $PLISSKEN"},
+					warden.EnvironmentVariable{Key: "UNESCAPED", Value: "isaac\nhayes"},
+				},
+			})
+
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(fakeRunner).Should(HaveBackgrounded(
+				fake_command_runner.CommandSpec{
+					Path: "/depot/some-id/bin/iomux-spawn",
+					Args: []string{
+						fmt.Sprintf("/depot/some-id/processes/%d", processID),
+						"/depot/some-id/bin/wsh",
+						"--socket", "/depot/some-id/run/wshd.sock",
+						"--user", "vcap",
+						"/bin/bash",
+					},
+					Stdin: `export ESCAPED="kurt \"russell\""
+export INTERPOLATED="snake $PLISSKEN"
+export UNESCAPED="isaac
+hayes"
+/some/script`,
 				},
 			))
 		})
