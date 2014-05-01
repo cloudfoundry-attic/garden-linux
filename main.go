@@ -17,6 +17,7 @@ import (
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/port_pool"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/quota_manager"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/uid_pool"
+	"github.com/cloudfoundry-incubator/warden-linux/system_info"
 	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
 )
 
@@ -172,7 +173,9 @@ func main() {
 		quotaManager,
 	)
 
-	backend := linux_backend.New(pool, *snapshotsPath)
+	systemInfo := system_info.NewProvider(*depotPath)
+
+	backend := linux_backend.New(pool, systemInfo, *snapshotsPath)
 
 	log.Println("setting up backend")
 

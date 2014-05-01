@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden/warden"
+	"github.com/cloudfoundry-incubator/warden-linux/system_info"
 )
 
 type Container interface {
@@ -36,6 +37,7 @@ type ContainerPool interface {
 
 type LinuxBackend struct {
 	containerPool ContainerPool
+	systemInfo    system_info.Provider
 	snapshotsPath string
 
 	containers      map[string]Container
@@ -58,9 +60,10 @@ func (e FailedToSnapshotError) Error() string {
 	return fmt.Sprintf("failed to save snapshot: %s", e.OriginalError)
 }
 
-func New(containerPool ContainerPool, snapshotsPath string) *LinuxBackend {
+func New(containerPool ContainerPool, systemInfo system_info.Provider, snapshotsPath string) *LinuxBackend {
 	return &LinuxBackend{
 		containerPool: containerPool,
+		systemInfo:    systemInfo,
 		snapshotsPath: snapshotsPath,
 
 		containers:      make(map[string]Container),
@@ -101,6 +104,23 @@ func (b *LinuxBackend) Start() error {
 	}
 
 	return b.containerPool.Prune(keep)
+}
+
+func (b *LinuxBackend) Capacity() (warden.Capacity, error) {
+	totalMemory, err := b.systemInfo.TotalMemory()
+	if err != nil {
+		return warden.Capacity{}, err
+	}
+
+	totalDisk, err := b.systemInfo.TotalDisk()
+	if err != nil {
+		return warden.Capacity{}, err
+	}
+
+	return warden.Capacity{
+		MemoryInBytes: totalMemory,
+		DiskInBytes:   totalDisk,
+	}, nil
 }
 
 func (b *LinuxBackend) Create(spec warden.ContainerSpec) (warden.Container, error) {
