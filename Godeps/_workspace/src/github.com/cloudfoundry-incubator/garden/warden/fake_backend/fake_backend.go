@@ -23,6 +23,9 @@ type FakeBackend struct {
 
 	ContainersFilters []warden.Properties
 
+	CapacityError  error
+	CapacityResult warden.Capacity
+
 	sync.RWMutex
 }
 
@@ -52,6 +55,14 @@ func (b *FakeBackend) Start() error {
 
 func (b *FakeBackend) Stop() {
 	b.Stopped = true
+}
+
+func (b *FakeBackend) Capacity() (warden.Capacity, error) {
+	if b.CapacityError != nil {
+		return warden.Capacity{}, b.CapacityError
+	}
+
+	return b.CapacityResult, nil
 }
 
 func (b *FakeBackend) Create(spec warden.ContainerSpec) (warden.Container, error) {
@@ -102,7 +113,9 @@ func (b *FakeBackend) Containers(properties warden.Properties) ([]warden.Contain
 
 	containers := []warden.Container{}
 	for _, c := range b.CreatedContainers {
-		containers = append(containers, c)
+		if containerHasProperties(c, properties) {
+			containers = append(containers, c)
+		}
 	}
 
 	return containers, nil
@@ -122,4 +135,21 @@ func (b *FakeBackend) Lookup(handle string) (warden.Container, error) {
 
 func (b *FakeBackend) GraceTime(container warden.Container) time.Duration {
 	return container.(*FakeContainer).GraceTime()
+}
+
+func containerHasProperties(container *FakeContainer, properties warden.Properties) bool {
+	containerProps := container.Properties()
+
+	for key, val := range properties {
+		cval, ok := containerProps[key]
+		if !ok {
+			return false
+		}
+
+		if cval != val {
+			return false
+		}
+	}
+
+	return true
 }
