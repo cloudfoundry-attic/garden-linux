@@ -6,11 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -429,47 +429,47 @@ func (c *LinuxContainer) CopyOut(src, dst, owner string) error {
 func (c *LinuxContainer) StreamIn(src io.Reader, dstPath string) error {
 	log.Println(c.id, "writing data to: ", dstPath)
 
-	tempfile, err := ioutil.TempFile("", "stream-in")
-	if err != nil {
-		return err
-	}
-
-	_, err = io.Copy(tempfile, src)
-	if err != nil {
-		return err
-	}
-
 	wshPath := path.Join(c.path, "bin", "wsh")
 	sockPath := path.Join(c.path, "run", "wshd.sock")
 
-	wsh := &exec.Cmd{
+	tar := &exec.Cmd{
 		Path: wshPath,
-		Args: []string{"--socket", sockPath, "--user", "vcap", "mkdir", "-p", path.Dir(dstPath)},
+		Args: []string{
+			"--socket", sockPath,
+			"--user", "vcap",
+			"bash", "-c",
+			fmt.Sprintf("mkdir -p %s && tar xf - -C %s", dstPath, dstPath),
+		},
+		Stdin: src,
 	}
 
-	err = c.runner.Run(wsh)
-	if err != nil {
-		return err
-	}
-
-	return c.rsync(tempfile.Name(), "vcap@container:"+dstPath)
+	return c.runner.Run(tar)
 }
 
 func (c *LinuxContainer) StreamOut(srcPath string, dst io.Writer) error {
 	log.Println(c.id, "reading data from: ", srcPath)
 
-	tempfile, err := ioutil.TempFile("", "stream-out")
-	if err != nil {
-		return err
+	wshPath := path.Join(c.path, "bin", "wsh")
+	sockPath := path.Join(c.path, "run", "wshd.sock")
+
+	workingDir := filepath.Dir(srcPath)
+	compressArg := filepath.Base(srcPath)
+	if strings.HasSuffix(srcPath, "/") {
+		workingDir = srcPath
+		compressArg = "."
 	}
 
-	err = c.rsync("vcap@container:"+srcPath, tempfile.Name())
-	if err != nil {
-		return err
+	tar := &exec.Cmd{
+		Path: wshPath,
+		Args: []string{
+			"--socket", sockPath,
+			"--user", "vcap",
+			"tar", "cf", "-", "-C", workingDir, compressArg,
+		},
+		Stdout: dst,
 	}
 
-	_, err = io.Copy(dst, tempfile)
-	return err
+	return c.runner.Run(tar)
 }
 
 func (c *LinuxContainer) LimitBandwidth(limits warden.BandwidthLimits) error {

@@ -1,16 +1,20 @@
 package lifecycle_test
 
 import (
+	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
-	"os/user"
 	"path/filepath"
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden/warden"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	archiver "github.com/pivotal-golang/archiver/extractor/test_helper"
 )
 
 var _ = Describe("Creating a container", func() {
@@ -174,25 +178,38 @@ wait
 		})
 	})
 
-	Context("and copying files in", func() {
-		var path string
+	Context("and streaming files in", func() {
+		var tarStream io.Reader
 
 		BeforeEach(func() {
 			tmpdir, err := ioutil.TempDir("", "some-temp-dir-parent")
 			Ω(err).ShouldNot(HaveOccurred())
 
-			path = filepath.Join(tmpdir, "some-temp-dir")
+			tgzPath := filepath.Join(tmpdir, "some.tgz")
 
-			err = os.MkdirAll(path, 0755)
+			archiver.CreateTarGZArchive(
+				tgzPath,
+				[]archiver.ArchiveFile{
+					{
+						Name: "./some-temp-dir",
+						Dir:  true,
+					},
+					{
+						Name: "./some-temp-dir/some-temp-file",
+						Body: "some-body",
+					},
+				},
+			)
+
+			tgz, err := os.Open(tgzPath)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			err = ioutil.WriteFile(filepath.Join(path, "some-temp-file"), []byte("HGJMT<"), 0755)
+			tarStream, err = gzip.NewReader(tgz)
 			Ω(err).ShouldNot(HaveOccurred())
-
 		})
 
 		It("creates the files in the container", func() {
-			err := container.CopyIn(path, "/tmp/some-container-dir")
+			err := container.StreamIn(tarStream, "/tmp/some-container-dir")
 			Ω(err).ShouldNot(HaveOccurred())
 
 			_, stream, err := container.Run(warden.ProcessSpec{
@@ -202,38 +219,53 @@ wait
 			Expect(*(<-stream).ExitStatus).To(Equal(uint32(42)))
 		})
 
-		Context("with a strailing slash on the destination", func() {
-			It("does what rsync does (syncs contents)", func() {
-				err := container.CopyIn(path+"/", "/tmp/some-container-dir/")
-				Ω(err).ShouldNot(HaveOccurred())
-
-				_, stream, err := container.Run(warden.ProcessSpec{
-					Script: `test -f /tmp/some-container-dir/some-temp-file && exit 42`,
-				})
-
-				Expect(*(<-stream).ExitStatus).To(Equal(uint32(42)))
-			})
-		})
-
 		Context("and then copying them out", func() {
-			It("copies the files to the host", func() {
+			It("streams the directory", func() {
 				_, stream, err := container.Run(warden.ProcessSpec{
-					Script: `mkdir -p some-container-dir; touch some-container-dir/some-file;`,
+					Script: `mkdir -p some-outer-dir/some-inner-dir; touch some-outer-dir/some-inner-dir/some-file;`,
 				})
 
 				Expect(*(<-stream).ExitStatus).To(Equal(uint32(0)))
 
-				tmpdir, err := ioutil.TempDir("", "copy-out-temp-dir-parent")
+				tarBuffer := new(bytes.Buffer)
+
+				err = container.StreamOut("some-outer-dir/some-inner-dir", tarBuffer)
 				Ω(err).ShouldNot(HaveOccurred())
 
-				user, err := user.Current()
-				Ω(err).ShouldNot(HaveOccurred())
+				tarReader := tar.NewReader(tarBuffer)
 
-				err = container.CopyOut("some-container-dir", tmpdir, user.Username)
+				header, err := tarReader.Next()
 				Ω(err).ShouldNot(HaveOccurred())
+				Ω(header.Name).Should(Equal("some-inner-dir/"))
 
-				_, err = os.Stat(filepath.Join(tmpdir, "some-container-dir", "some-file"))
+				header, err = tarReader.Next()
 				Ω(err).ShouldNot(HaveOccurred())
+				Ω(header.Name).Should(Equal("some-inner-dir/some-file"))
+			})
+
+			Context("with a trailing slash", func() {
+				It("streams the contents of the directory", func() {
+					_, stream, err := container.Run(warden.ProcessSpec{
+						Script: `mkdir -p some-container-dir; touch some-container-dir/some-file;`,
+					})
+
+					Expect(*(<-stream).ExitStatus).To(Equal(uint32(0)))
+
+					tarBuffer := new(bytes.Buffer)
+
+					err = container.StreamOut("some-container-dir/", tarBuffer)
+					Ω(err).ShouldNot(HaveOccurred())
+
+					tarReader := tar.NewReader(tarBuffer)
+
+					header, err := tarReader.Next()
+					Ω(err).ShouldNot(HaveOccurred())
+					Ω(header.Name).Should(Equal("./"))
+
+					header, err = tarReader.Next()
+					Ω(err).ShouldNot(HaveOccurred())
+					Ω(header.Name).Should(Equal("./some-file"))
+				})
 			})
 		})
 	})

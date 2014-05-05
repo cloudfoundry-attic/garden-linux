@@ -911,57 +911,42 @@ var _ = Describe("Linux containers", func() {
 		var source io.Reader
 
 		BeforeEach(func() {
-			source = strings.NewReader("the-file-content")
+			source = strings.NewReader("the-tar-content")
 		})
 
-		It("executes rsync from src into dst via wsh --rsh", func() {
-			err := container.StreamIn(source, "/some/directory/dst")
-			Expect(err).ToNot(HaveOccurred())
-
-			Expect(fakeRunner).To(HaveExecutedSerially(
+		It("streams the input to tar xf in the container", func(done Done) {
+			fakeRunner.WhenRunning(
 				fake_command_runner.CommandSpec{
 					Path: "/depot/some-id/bin/wsh",
 					Args: []string{
 						"--socket", "/depot/some-id/run/wshd.sock",
 						"--user", "vcap",
-						"mkdir", "-p", "/some/directory",
+						"bash", "-c", `mkdir -p /some/directory/dst && tar xf - -C /some/directory/dst`,
 					},
 				},
-			))
+				func(cmd *exec.Cmd) error {
+					bytes, err := ioutil.ReadAll(cmd.Stdin)
+					Expect(err).ToNot(HaveOccurred())
 
-			commands := fakeRunner.ExecutedCommands()
-			Expect(commands[1].Path).To(Equal("rsync"))
-			Expect(commands[1].Args[0:5]).To(Equal([]string{
-				"-e",
-				"/depot/some-id/bin/wsh --socket /depot/some-id/run/wshd.sock --rsh",
-				"-r",
-				"-p",
-				"--links",
-			}))
+					Expect(string(bytes)).To(Equal("the-tar-content"))
 
-			sourceArg := commands[1].Args[5]
-			destinationArg := commands[1].Args[6]
-			Expect(destinationArg).To(Equal("vcap@container:/some/directory/dst"))
+					close(done)
 
-			sourceFile, err := os.Open(sourceArg)
-			Expect(err).NotTo(HaveOccurred())
-			sourceBytes, err := ioutil.ReadAll(sourceFile)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(string(sourceBytes)).To(Equal("the-file-content"))
+					return nil
+				},
+			)
+
+			err := container.StreamIn(source, "/some/directory/dst")
+			Expect(err).ToNot(HaveOccurred())
 		})
 
-		Context("when making the parent directory fails", func() {
+		Context("when executing the command fails", func() {
 			disaster := errors.New("oh no!")
 
 			BeforeEach(func() {
 				fakeRunner.WhenRunning(
 					fake_command_runner.CommandSpec{
 						Path: "/depot/some-id/bin/wsh",
-						Args: []string{
-							"--socket", "/depot/some-id/run/wshd.sock",
-							"--user", "vcap",
-							"mkdir", "-p", "/some",
-						},
 					}, func(*exec.Cmd) error {
 						return disaster
 					},
@@ -973,78 +958,73 @@ var _ = Describe("Linux containers", func() {
 				Expect(err).To(Equal(disaster))
 			})
 		})
-
-		Context("when rsync fails", func() {
-			nastyError := errors.New("oh no!")
-
-			BeforeEach(func() {
-				fakeRunner.WhenRunning(
-					fake_command_runner.CommandSpec{
-						Path: "rsync",
-					}, func(*exec.Cmd) error {
-						return nastyError
-					},
-				)
-			})
-
-			It("returns the error", func() {
-				err := container.StreamIn(source, "/dst")
-				Expect(err).To(Equal(nastyError))
-			})
-		})
 	})
 
 	Describe("Streaming out", func() {
-		It("reads from the source directory and streams the file", func() {
+		var destination *bytes.Buffer
+
+		BeforeEach(func() {
+			destination = new(bytes.Buffer)
+		})
+
+		It("streams the output of tar cf to the destination", func() {
 			fakeRunner.WhenRunning(
 				fake_command_runner.CommandSpec{
-					Path: "rsync",
+					Path: "/depot/some-id/bin/wsh",
+					Args: []string{
+						"--socket", "/depot/some-id/run/wshd.sock",
+						"--user", "vcap",
+						"tar", "cf", "-", "-C", "/some/directory", "dst",
+					},
 				},
 				func(cmd *exec.Cmd) error {
-					Expect(cmd.Args[0:5]).To(Equal([]string{
-						"-e",
-						"/depot/some-id/bin/wsh --socket /depot/some-id/run/wshd.sock --rsh",
-						"-r",
-						"-p",
-						"--links",
-					}))
-
-					sourceArg := cmd.Args[5]
-					destinationArg := cmd.Args[6]
-					Expect(sourceArg).To(Equal("vcap@container:/src/some-file"))
-
-					file, err := os.Create(destinationArg)
+					_, err := cmd.Stdout.Write([]byte("the-compressed-content"))
 					Expect(err).ToNot(HaveOccurred())
-					_, err = file.Write([]byte("random-file-content"))
-					Expect(err).ToNot(HaveOccurred())
+
 					return nil
 				},
 			)
 
-			writer := bytes.NewBuffer([]byte{})
-			err := container.StreamOut("/src/some-file", writer)
+			err := container.StreamOut("/some/directory/dst", destination)
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(string(writer.Bytes())).To(Equal("random-file-content"))
+			Expect(destination.String()).To(Equal("the-compressed-content"))
 		})
 
-		Context("when rsync fails", func() {
-			nastyError := errors.New("oh no!")
+		Context("when there's a trailing slash", func() {
+			It("compresses the directory's contents", func() {
+				err := container.StreamOut("/some/directory/dst/", destination)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(fakeRunner).To(HaveExecutedSerially(
+					fake_command_runner.CommandSpec{
+						Path: "/depot/some-id/bin/wsh",
+						Args: []string{
+							"--socket", "/depot/some-id/run/wshd.sock",
+							"--user", "vcap",
+							"tar", "cf", "-", "-C", "/some/directory/dst/", ".",
+						},
+					},
+				))
+			})
+		})
+
+		Context("when executing the command fails", func() {
+			disaster := errors.New("oh no!")
 
 			BeforeEach(func() {
 				fakeRunner.WhenRunning(
 					fake_command_runner.CommandSpec{
-						Path: "rsync",
+						Path: "/depot/some-id/bin/wsh",
 					}, func(*exec.Cmd) error {
-						return nastyError
+						return disaster
 					},
 				)
 			})
 
 			It("returns the error", func() {
-				writer := bytes.NewBuffer([]byte{})
-				err := container.StreamOut("/src/some-file", writer)
-				Expect(err).To(Equal(nastyError))
+				err := container.StreamOut("/some/dst", destination)
+				Expect(err).To(Equal(disaster))
 			})
 		})
 	})
