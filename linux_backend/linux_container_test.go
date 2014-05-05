@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"math"
 	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -900,6 +902,148 @@ var _ = Describe("Linux containers", func() {
 
 			It("returns the error", func() {
 				err := container.CopyOut("/src", destination, "some-user")
+				Expect(err).To(Equal(nastyError))
+			})
+		})
+	})
+
+	Describe("Streaming data in", func() {
+		var source io.Reader
+
+		BeforeEach(func() {
+			source = strings.NewReader("the-file-content")
+		})
+
+		It("executes rsync from src into dst via wsh --rsh", func() {
+			err := container.StreamIn(source, "/some/directory/dst")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(fakeRunner).To(HaveExecutedSerially(
+				fake_command_runner.CommandSpec{
+					Path: "/depot/some-id/bin/wsh",
+					Args: []string{
+						"--socket", "/depot/some-id/run/wshd.sock",
+						"--user", "vcap",
+						"mkdir", "-p", "/some/directory",
+					},
+				},
+			))
+
+			commands := fakeRunner.ExecutedCommands()
+			Expect(commands[1].Path).To(Equal("rsync"))
+			Expect(commands[1].Args[0:5]).To(Equal([]string{
+				"-e",
+				"/depot/some-id/bin/wsh --socket /depot/some-id/run/wshd.sock --rsh",
+				"-r",
+				"-p",
+				"--links",
+			}))
+
+			sourceArg := commands[1].Args[5]
+			destinationArg := commands[1].Args[6]
+			Expect(destinationArg).To(Equal("vcap@container:/some/directory/dst"))
+
+			sourceFile, err := os.Open(sourceArg)
+			Expect(err).NotTo(HaveOccurred())
+			sourceBytes, err := ioutil.ReadAll(sourceFile)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(string(sourceBytes)).To(Equal("the-file-content"))
+		})
+
+		Context("when making the parent directory fails", func() {
+			disaster := errors.New("oh no!")
+
+			BeforeEach(func() {
+				fakeRunner.WhenRunning(
+					fake_command_runner.CommandSpec{
+						Path: "/depot/some-id/bin/wsh",
+						Args: []string{
+							"--socket", "/depot/some-id/run/wshd.sock",
+							"--user", "vcap",
+							"mkdir", "-p", "/some",
+						},
+					}, func(*exec.Cmd) error {
+						return disaster
+					},
+				)
+			})
+
+			It("returns the error", func() {
+				err := container.StreamIn(source, "/some/dst")
+				Expect(err).To(Equal(disaster))
+			})
+		})
+
+		Context("when rsync fails", func() {
+			nastyError := errors.New("oh no!")
+
+			BeforeEach(func() {
+				fakeRunner.WhenRunning(
+					fake_command_runner.CommandSpec{
+						Path: "rsync",
+					}, func(*exec.Cmd) error {
+						return nastyError
+					},
+				)
+			})
+
+			It("returns the error", func() {
+				err := container.StreamIn(source, "/dst")
+				Expect(err).To(Equal(nastyError))
+			})
+		})
+	})
+
+	Describe("Streaming out", func() {
+		It("reads from the source directory and streams the file", func() {
+			fakeRunner.WhenRunning(
+				fake_command_runner.CommandSpec{
+					Path: "rsync",
+				},
+				func(cmd *exec.Cmd) error {
+					Expect(cmd.Args[0:5]).To(Equal([]string{
+						"-e",
+						"/depot/some-id/bin/wsh --socket /depot/some-id/run/wshd.sock --rsh",
+						"-r",
+						"-p",
+						"--links",
+					}))
+
+					sourceArg := cmd.Args[5]
+					destinationArg := cmd.Args[6]
+					Expect(sourceArg).To(Equal("vcap@container:/src/some-file"))
+
+					file, err := os.Create(destinationArg)
+					Expect(err).ToNot(HaveOccurred())
+					_, err = file.Write([]byte("random-file-content"))
+					Expect(err).ToNot(HaveOccurred())
+					return nil
+				},
+			)
+
+			writer := bytes.NewBuffer([]byte{})
+			err := container.StreamOut("/src/some-file", writer)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(string(writer.Bytes())).To(Equal("random-file-content"))
+		})
+
+		Context("when rsync fails", func() {
+			nastyError := errors.New("oh no!")
+
+			BeforeEach(func() {
+				fakeRunner.WhenRunning(
+					fake_command_runner.CommandSpec{
+						Path: "rsync",
+					}, func(*exec.Cmd) error {
+						return nastyError
+					},
+				)
+			})
+
+			It("returns the error", func() {
+				writer := bytes.NewBuffer([]byte{})
+				err := container.StreamOut("/src/some-file", writer)
 				Expect(err).To(Equal(nastyError))
 			})
 		})

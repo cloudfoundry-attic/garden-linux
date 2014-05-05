@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -423,6 +424,52 @@ func (c *LinuxContainer) CopyOut(src, dst, owner string) error {
 	}
 
 	return nil
+}
+
+func (c *LinuxContainer) StreamIn(src io.Reader, dstPath string) error {
+	log.Println(c.id, "writing data to: ", dstPath)
+
+	tempfile, err := ioutil.TempFile("", "stream-in")
+	if err != nil {
+		return err
+	}
+
+	_, err = io.Copy(tempfile, src)
+	if err != nil {
+		return err
+	}
+
+	wshPath := path.Join(c.path, "bin", "wsh")
+	sockPath := path.Join(c.path, "run", "wshd.sock")
+
+	wsh := &exec.Cmd{
+		Path: wshPath,
+		Args: []string{"--socket", sockPath, "--user", "vcap", "mkdir", "-p", path.Dir(dstPath)},
+	}
+
+	err = c.runner.Run(wsh)
+	if err != nil {
+		return err
+	}
+
+	return c.rsync(tempfile.Name(), "vcap@container:"+dstPath)
+}
+
+func (c *LinuxContainer) StreamOut(srcPath string, dst io.Writer) error {
+	log.Println(c.id, "reading data from: ", srcPath)
+
+	tempfile, err := ioutil.TempFile("", "stream-out")
+	if err != nil {
+		return err
+	}
+
+	err = c.rsync("vcap@container:"+srcPath, tempfile.Name())
+	if err != nil {
+		return err
+	}
+
+	_, err = io.Copy(dst, tempfile)
+	return err
 }
 
 func (c *LinuxContainer) LimitBandwidth(limits warden.BandwidthLimits) error {
