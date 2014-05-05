@@ -4,9 +4,9 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	. "github.com/onsi/gomega"
 	"io/ioutil"
 	"net/http"
+	. "github.com/onsi/gomega"
 )
 
 //CombineHandler takes variadic list of handlers and produces one handler
@@ -93,42 +93,93 @@ func VerifyJSONRepresenting(object interface{}) http.HandlerFunc {
 	)
 }
 
-//RespondWith returns a handler that responds to a request with the specified status code and body
-func RespondWith(statusCode int, body string) http.HandlerFunc {
+func copyHeader(src http.Header, dst http.Header) {
+	for key, value := range src {
+		dst[key] = value
+	}
+}
+
+/*
+RespondWith returns a handler that responds to a request with the specified status code and body
+
+Body may be a string or []byte
+
+Also, RespondWith can be given an optional http.Header.  The headers defined therein will be added to the response headers.
+*/
+func RespondWith(statusCode int, body interface{}, optionalHeader ...http.Header) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
+		if len(optionalHeader) == 1 {
+			copyHeader(optionalHeader[0], w.Header())
+		}
 		w.WriteHeader(statusCode)
-		w.Write([]byte(body))
+		switch x := body.(type) {
+		case string:
+			w.Write([]byte(x))
+		case []byte:
+			w.Write(x)
+		default:
+			Ω(body).Should(BeNil(), "Invalid type for body.  Should be string or []byte.")
+		}
 	}
 }
 
-//RespondWithPtr returns a handler that responds to a request with the specified status code and body
-//
-//Unlike RespondWith, you pass RepondWithPtr a pointer to the status code and body allowing different tests
-//to share the same setup but specify different status codes and bodies.
-func RespondWithPtr(statusCode *int, body *string) http.HandlerFunc {
+/*
+RespondWithPtr returns a handler that responds to a request with the specified status code and body
+
+Unlike RespondWith, you pass RepondWithPtr a pointer to the status code and body allowing different tests
+to share the same setup but specify different status codes and bodies.
+
+Also, RespondWithPtr can be given an optional http.Header.  The headers defined therein will be added to the response headers.
+Since the http.Header can be mutated after the fact you don't need to pass in a pointer.
+*/
+func RespondWithPtr(statusCode *int, body interface{}, optionalHeader ...http.Header) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
+		if len(optionalHeader) == 1 {
+			copyHeader(optionalHeader[0], w.Header())
+		}
 		w.WriteHeader(*statusCode)
-		w.Write([]byte(*body))
+		if body != nil {
+			switch x := (body).(type) {
+			case *string:
+				w.Write([]byte(*x))
+			case *[]byte:
+				w.Write(*x)
+			default:
+				Ω(body).Should(BeNil(), "Invalid type for body.  Should be string or []byte.")
+			}
+		}
 	}
 }
 
-//RespondWithJSONEncoded returns a handler that responds to a request with the specified status code and a body
-//containing the JSON-encoding of the passed in object
-func RespondWithJSONEncoded(statusCode int, object interface{}) http.HandlerFunc {
+/*
+RespondWithJSONEncoded returns a handler that responds to a request with the specified status code and a body
+containing the JSON-encoding of the passed in object
+
+Also, RespondWithJSONEncoded can be given an optional http.Header.  The headers defined therein will be added to the response headers.
+*/
+func RespondWithJSONEncoded(statusCode int, object interface{}, optionalHeader ...http.Header) http.HandlerFunc {
 	data, err := json.Marshal(object)
 	Ω(err).ShouldNot(HaveOccurred())
-	return RespondWith(statusCode, string(data))
+	return RespondWith(statusCode, string(data), optionalHeader...)
 }
 
-//RespondWithJSONEncodedPtr behaves like RespondWithJSONEncoded but takes a pointer
-//to a status code and object.
-//
-//This allows different tests to share the same setup but specify different status codes and JSON-encoded
-//objects.
-func RespondWithJSONEncodedPtr(statusCode *int, object *interface{}) http.HandlerFunc {
+/*
+RespondWithJSONEncodedPtr behaves like RespondWithJSONEncoded but takes a pointer
+to a status code and object.
+
+This allows different tests to share the same setup but specify different status codes and JSON-encoded
+objects.
+
+Also, RespondWithJSONEncodedPtr can be given an optional http.Header.  The headers defined therein will be added to the response headers.
+Since the http.Header can be mutated after the fact you don't need to pass in a pointer.
+*/
+func RespondWithJSONEncodedPtr(statusCode *int, object *interface{}, optionalHeader ...http.Header) http.HandlerFunc {
 	return func(w http.ResponseWriter, req *http.Request) {
 		data, err := json.Marshal(*object)
 		Ω(err).ShouldNot(HaveOccurred())
+		if len(optionalHeader) == 1 {
+			copyHeader(optionalHeader[0], w.Header())
+		}
 		w.WriteHeader(*statusCode)
 		w.Write(data)
 	}

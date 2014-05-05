@@ -24,7 +24,8 @@ func prettyCommands(commands []*exec.Cmd) string {
 		out += fmt.Sprintf(`
 	'%s'
 		with arguments %v
-		and environment %v`, command.Path, command.Args, command.Env)
+		and environment %v
+		in directory '%s'`, command.Path, command.Args, command.Env, command.Dir)
 	}
 
 	return out
@@ -35,5 +36,6 @@ func prettySpec(spec fake_command_runner.CommandSpec) string {
 	'%s'
 		with arguments %v
 		and environment %v
-		and input '%s'`, spec.Path, spec.Args, spec.Env, spec.Stdin)
+		and input '%s'
+		in directory '%s'`, spec.Path, spec.Args, spec.Env, spec.Stdin, spec.Dir)
 }

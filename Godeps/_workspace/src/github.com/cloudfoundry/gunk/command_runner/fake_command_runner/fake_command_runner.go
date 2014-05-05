@@ -27,10 +27,15 @@ type CommandSpec struct {
 	Args  []string
 	Env   []string
 	Stdin string
+	Dir   string
 }
 
 func (s CommandSpec) Matches(cmd *exec.Cmd) bool {
 	if s.Path != "" && s.Path != cmd.Path {
+		return false
+	}
+
+	if s.Dir != "" && s.Dir != cmd.Dir {
 		return false
 	}
 

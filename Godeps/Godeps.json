@@ -16,27 +16,27 @@
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/client",
-			"Rev": "6520863bc8bc2e143a862023e3511b44af98aa1a"
+			"Rev": "60d4cd6bca97994ebf190e37b9b0cda399616290"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/drain",
-			"Rev": "6520863bc8bc2e143a862023e3511b44af98aa1a"
+			"Rev": "60d4cd6bca97994ebf190e37b9b0cda399616290"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/message_reader",
-			"Rev": "6520863bc8bc2e143a862023e3511b44af98aa1a"
+			"Rev": "60d4cd6bca97994ebf190e37b9b0cda399616290"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/protocol",
-			"Rev": "6520863bc8bc2e143a862023e3511b44af98aa1a"
+			"Rev": "60d4cd6bca97994ebf190e37b9b0cda399616290"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/server",
-			"Rev": "6520863bc8bc2e143a862023e3511b44af98aa1a"
+			"Rev": "60d4cd6bca97994ebf190e37b9b0cda399616290"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/warden",
-			"Rev": "6520863bc8bc2e143a862023e3511b44af98aa1a"
+			"Rev": "60d4cd6bca97994ebf190e37b9b0cda399616290"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry/gosigar",
@@ -45,7 +45,7 @@
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry/gunk/command_runner",
-			"Rev": "93aaeec320a837a8d6b47ecbb4b4eab957a3e1de"
+			"Rev": "21adc866d245fff747352415cc036b5ec3c3d4f5"
 		},
 		{
 			"ImportPath": "github.com/nu7hatch/gouuid",
@@ -53,11 +53,15 @@
 		},
 		{
 			"ImportPath": "github.com/onsi/ginkgo",
-			"Rev": "1e48048b2e01c7f1830144e30eea21db3cd3b574"
+			"Rev": "51ddbbc2ace9f9ad4cf06ba63442ea2ef2019837"
 		},
 		{
 			"ImportPath": "github.com/onsi/gomega",
-			"Rev": "e287925a206d2f7cf070e08c082ed93dd38fcecc"
+			"Rev": "d53f20ed6065e75dd459ceb4904b3e0a5cadbf0d"
+		},
+		{
+			"ImportPath": "github.com/pivotal-golang/archiver/extractor/test_helper",
+			"Rev": "a6611a7bea4a1e54692b873837bb8ca4a30bdb91"
 		}
 	]
 }
