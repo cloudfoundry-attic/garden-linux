@@ -27,53 +27,37 @@ func TestLifecycle(t *testing.T) {
 		return
 	}
 
-	var err error
+	var tmpdir string
 
-	tmpdir, err := ioutil.TempDir("", "warden-socket")
-	if err != nil {
-		log.Fatalln("failed to make dir for socker:", err)
-	}
+	BeforeSuite(func() {
+		var err error
 
-	wardenPath, err := gexec.Build("github.com/cloudfoundry-incubator/warden-linux", "-race")
-	if err != nil {
-		log.Fatalln("failed to compile warden-linux:", err)
-	}
+		tmpdir, err = ioutil.TempDir("", "warden-socket")
+		Ω(err).ShouldNot(HaveOccurred())
 
-	runner, err = Runner.New(wardenPath, binPath, rootFSPath, "unix", filepath.Join(tmpdir, "warden.sock"))
-	if err != nil {
-		log.Fatalln("failed to create runner:", err)
-	}
+		wardenPath, err := gexec.Build("github.com/cloudfoundry-incubator/warden-linux", "-race")
+		Ω(err).ShouldNot(HaveOccurred())
+
+		runner, err = Runner.New(wardenPath, binPath, rootFSPath, "unix", filepath.Join(tmpdir, "warden.sock"))
+		Ω(err).ShouldNot(HaveOccurred())
+
+		err = runner.Start()
+		Ω(err).ShouldNot(HaveOccurred())
+
+		client = runner.NewClient()
+	})
+
+	AfterSuite(func() {
+		err := runner.Stop()
+		Ω(err).ShouldNot(HaveOccurred())
+
+		err = runner.TearDown()
+		Ω(err).ShouldNot(HaveOccurred())
+
+		err = os.RemoveAll(tmpdir)
+		Ω(err).ShouldNot(HaveOccurred())
+	})
 
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Lifecycle Suite")
-
-	err = runner.Stop()
-	if err != nil {
-		log.Fatalln("warden failed to stop:", err)
-	}
-
-	err = runner.TearDown()
-	if err != nil {
-		log.Fatalln("failed to tear down server:", err)
-	}
-
-	err = os.RemoveAll(tmpdir)
-	if err != nil {
-		log.Fatalln("failed to clean up socket dir:", err)
-	}
 }
-
-var didRunGarden bool
-
-var _ = BeforeEach(func() {
-	if didRunGarden {
-		return
-	}
-	didRunGarden = true
-	err := runner.Start()
-	if err != nil {
-		log.Fatalln("warden failed to start:", err)
-	}
-
-	client = runner.NewClient()
-})
