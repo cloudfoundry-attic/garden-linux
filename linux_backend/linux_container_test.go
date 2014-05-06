@@ -925,18 +925,26 @@ var _ = Describe("Linux containers", func() {
 					},
 				},
 				func(cmd *exec.Cmd) error {
-					bytes, err := ioutil.ReadAll(cmd.Stdin)
-					Expect(err).ToNot(HaveOccurred())
+					go func() {
+						defer GinkgoRecover()
 
-					Expect(string(bytes)).To(Equal("the-tar-content"))
+						bytes, err := ioutil.ReadAll(cmd.Stdin)
+						Expect(err).ToNot(HaveOccurred())
 
-					close(done)
+						Expect(string(bytes)).To(Equal("the-tar-content"))
+
+						close(done)
+					}()
 
 					return nil
 				},
 			)
 
-			err := container.StreamIn(source, "/some/directory/dst")
+			writer, err := container.StreamIn("/some/directory/dst")
+
+			writer.Write([]byte("the-tar-content"))
+			writer.Close()
+
 			Expect(err).ToNot(HaveOccurred())
 		})
 
@@ -954,7 +962,7 @@ var _ = Describe("Linux containers", func() {
 			})
 
 			It("returns the error", func() {
-				err := container.StreamIn(source, "/some/dst")
+				_, err := container.StreamIn("/some/dst")
 				Expect(err).To(Equal(disaster))
 			})
 		})
@@ -978,25 +986,25 @@ var _ = Describe("Linux containers", func() {
 					},
 				},
 				func(cmd *exec.Cmd) error {
-					_, err := cmd.Stdout.Write([]byte("the-compressed-content"))
-					Expect(err).ToNot(HaveOccurred())
-
+					go cmd.Stdout.Write([]byte("the-compressed-content"))
 					return nil
 				},
 			)
 
-			err := container.StreamOut("/some/directory/dst", destination)
+			reader, err := container.StreamOut("/some/directory/dst")
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(destination.String()).To(Equal("the-compressed-content"))
+			bytes, err := ioutil.ReadAll(reader)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(string(bytes)).To(Equal("the-compressed-content"))
 		})
 
 		Context("when there's a trailing slash", func() {
 			It("compresses the directory's contents", func() {
-				err := container.StreamOut("/some/directory/dst/", destination)
+				_, err := container.StreamOut("/some/directory/dst/")
 				Expect(err).ToNot(HaveOccurred())
 
-				Expect(fakeRunner).To(HaveExecutedSerially(
+				Expect(fakeRunner).To(HaveBackgrounded(
 					fake_command_runner.CommandSpec{
 						Path: "/depot/some-id/bin/wsh",
 						Args: []string{
@@ -1023,7 +1031,7 @@ var _ = Describe("Linux containers", func() {
 			})
 
 			It("returns the error", func() {
-				err := container.StreamOut("/some/dst", destination)
+				_, err := container.StreamOut("/some/dst")
 				Expect(err).To(Equal(disaster))
 			})
 		})

@@ -2,7 +2,6 @@ package lifecycle_test
 
 import (
 	"archive/tar"
-	"bytes"
 	"compress/gzip"
 	"fmt"
 	"io"
@@ -209,8 +208,13 @@ wait
 		})
 
 		It("creates the files in the container", func() {
-			err := container.StreamIn(tarStream, "/tmp/some-container-dir")
+			tarInput, err := container.StreamIn("/tmp/some-container-dir")
 			Ω(err).ShouldNot(HaveOccurred())
+
+			_, err = io.Copy(tarInput, tarStream)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			tarInput.Close()
 
 			_, stream, err := container.Run(warden.ProcessSpec{
 				Script: `test -f /tmp/some-container-dir/some-temp-dir/some-temp-file && exit 42`,
@@ -227,12 +231,10 @@ wait
 
 				Expect(*(<-stream).ExitStatus).To(Equal(uint32(0)))
 
-				tarBuffer := new(bytes.Buffer)
-
-				err = container.StreamOut("some-outer-dir/some-inner-dir", tarBuffer)
+				tarOutput, err := container.StreamOut("some-outer-dir/some-inner-dir")
 				Ω(err).ShouldNot(HaveOccurred())
 
-				tarReader := tar.NewReader(tarBuffer)
+				tarReader := tar.NewReader(tarOutput)
 
 				header, err := tarReader.Next()
 				Ω(err).ShouldNot(HaveOccurred())
@@ -251,12 +253,10 @@ wait
 
 					Expect(*(<-stream).ExitStatus).To(Equal(uint32(0)))
 
-					tarBuffer := new(bytes.Buffer)
-
-					err = container.StreamOut("some-container-dir/", tarBuffer)
+					tarOutput, err := container.StreamOut("some-container-dir/")
 					Ω(err).ShouldNot(HaveOccurred())
 
-					tarReader := tar.NewReader(tarBuffer)
+					tarReader := tar.NewReader(tarOutput)
 
 					header, err := tarReader.Next()
 					Ω(err).ShouldNot(HaveOccurred())

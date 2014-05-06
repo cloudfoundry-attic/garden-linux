@@ -426,11 +426,13 @@ func (c *LinuxContainer) CopyOut(src, dst, owner string) error {
 	return nil
 }
 
-func (c *LinuxContainer) StreamIn(src io.Reader, dstPath string) error {
-	log.Println(c.id, "writing data to: ", dstPath)
+func (c *LinuxContainer) StreamIn(dstPath string) (io.WriteCloser, error) {
+	log.Println(c.id, "writing data to:", dstPath)
 
 	wshPath := path.Join(c.path, "bin", "wsh")
 	sockPath := path.Join(c.path, "run", "wshd.sock")
+
+	tarRead, tarWrite := io.Pipe()
 
 	tar := &exec.Cmd{
 		Path: wshPath,
@@ -440,14 +442,21 @@ func (c *LinuxContainer) StreamIn(src io.Reader, dstPath string) error {
 			"bash", "-c",
 			fmt.Sprintf("mkdir -p %s && tar xf - -C %s", dstPath, dstPath),
 		},
-		Stdin: src,
+		Stdin: tarRead,
 	}
 
-	return c.runner.Run(tar)
+	err := c.runner.Background(tar)
+	if err != nil {
+		return nil, err
+	}
+
+	go c.runner.Wait(tar)
+
+	return tarWrite, nil
 }
 
-func (c *LinuxContainer) StreamOut(srcPath string, dst io.Writer) error {
-	log.Println(c.id, "reading data from: ", srcPath)
+func (c *LinuxContainer) StreamOut(srcPath string) (io.Reader, error) {
+	log.Println(c.id, "reading data from:", srcPath)
 
 	wshPath := path.Join(c.path, "bin", "wsh")
 	sockPath := path.Join(c.path, "run", "wshd.sock")
@@ -459,6 +468,8 @@ func (c *LinuxContainer) StreamOut(srcPath string, dst io.Writer) error {
 		compressArg = "."
 	}
 
+	tarRead, tarWrite := io.Pipe()
+
 	tar := &exec.Cmd{
 		Path: wshPath,
 		Args: []string{
@@ -466,10 +477,22 @@ func (c *LinuxContainer) StreamOut(srcPath string, dst io.Writer) error {
 			"--user", "vcap",
 			"tar", "cf", "-", "-C", workingDir, compressArg,
 		},
-		Stdout: dst,
+		Stdout: tarWrite,
 	}
 
-	return c.runner.Run(tar)
+	log.Println("STARTING", tar)
+
+	err := c.runner.Background(tar)
+	if err != nil {
+		return nil, err
+	}
+
+	go func() {
+		c.runner.Wait(tar)
+		tarWrite.Close()
+	}()
+
+	return tarRead, nil
 }
 
 func (c *LinuxContainer) LimitBandwidth(limits warden.BandwidthLimits) error {
