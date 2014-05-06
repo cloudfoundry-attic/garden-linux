@@ -2,8 +2,9 @@ package lifecycle_test
 
 import (
 	"fmt"
-	"github.com/cloudfoundry-incubator/garden/warden"
 	"strings"
+
+	"github.com/cloudfoundry-incubator/garden/warden"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -96,13 +97,22 @@ var _ = Describe("Placing limits on containers", func() {
 			runInContainer(unblockedListener, "nc -l 12345")
 			runInContainer(allowedListener, "nc -l 12345")
 
-			senderStream := runInContainer(sender, fmt.Sprintf("echo hello | nc -w 1 %s 12345", blockedListenerIP))
+			senderStream := runInContainer(
+				sender,
+				fmt.Sprintf("echo hello | nc -w 1 %s 12345", blockedListenerIP),
+			)
 			expectStreamToExitWith(senderStream, 1)
 
-			senderStream = runInContainer(sender, fmt.Sprintf("echo hello | nc -w 1 %s 12345", unblockedListenerIP))
+			senderStream = runInContainer(
+				sender,
+				fmt.Sprintf("echo hello | nc -w 1 %s 12345", unblockedListenerIP),
+			)
 			expectStreamToExitWith(senderStream, 0)
 
-			senderStream = runInContainer(sender, fmt.Sprintf("echo hello | nc -w 1 %s 12345", allowedListenerIP))
+			senderStream = runInContainer(
+				sender,
+				fmt.Sprintf("echo hello | nc -w 1 %s 12345", allowedListenerIP),
+			)
 			expectStreamToExitWith(senderStream, 0)
 		})
 	})
