@@ -6,7 +6,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/cloudfoundry-incubator/garden/message_reader"
+	"github.com/cloudfoundry-incubator/garden/transport"
 
 	"code.google.com/p/gogoprotobuf/proto"
 
@@ -181,68 +181,7 @@ func (s *WardenServer) handleCopyIn(copyIn *protocol.CopyInRequest) (proto.Messa
 	return &protocol.CopyInResponse{}, nil
 }
 
-// TODO - move
-type protobufStreamReader struct {
-	reader *bufio.Reader
-	buffer []byte
-}
-
-func NewProtobufStreamReader(reader *bufio.Reader) *protobufStreamReader {
-	return &protobufStreamReader{
-		reader: reader,
-	}
-}
-
-type protobufStreamWriter struct {
-	conn net.Conn
-}
-
-func NewProtobufStreamWriter(conn net.Conn) protobufStreamWriter {
-	return protobufStreamWriter{
-		conn: conn,
-	}
-}
-
-func (w protobufStreamWriter) Write(buff []byte) (int, error) {
-	_, err := protocol.Messages(&protocol.StreamChunk{
-		Content: buff,
-	}).WriteTo(w.conn)
-	if err != nil {
-		return 0, err
-	}
-
-	return len(buff), nil
-}
-
-func (w protobufStreamWriter) Close() error {
-	_, err := protocol.Messages(&protocol.StreamChunk{
-		EOF: proto.Bool(true),
-	}).WriteTo(w.conn)
-	return err
-}
-
-func (r *protobufStreamReader) Read(buff []byte) (int, error) {
-	if len(r.buffer) > 0 {
-		n := copy(buff, r.buffer)
-		r.buffer = r.buffer[n:]
-		return n, nil
-	}
-
-	response := &protocol.StreamChunk{}
-	err := message_reader.ReadMessage(r.reader, response)
-	if err != nil {
-		return 0, err
-	}
-
-	if response.GetEOF() {
-		return 0, io.EOF
-	}
-
-	r.buffer = response.Content
-	return r.Read(buff)
-}
-
-func (s *WardenServer) handleStreamIn(reader *bufio.Reader, request *protocol.StreamInRequest) (proto.Message, error) {
+func (s *WardenServer) handleStreamIn(conn net.Conn, reader *bufio.Reader, request *protocol.StreamInRequest) (proto.Message, error) {
 	handle := request.GetHandle()
 	dstPath := request.GetDstPath()
 
@@ -254,14 +193,24 @@ func (s *WardenServer) handleStreamIn(reader *bufio.Reader, request *protocol.St
 	s.bomberman.Pause(container.Handle())
 	defer s.bomberman.Unpause(container.Handle())
 
-	streamReader := NewProtobufStreamReader(reader)
-
-	err = container.StreamIn(streamReader, dstPath)
+	streamWriter, err := container.StreamIn(dstPath)
 	if err != nil {
 		return nil, err
 	}
 
-	return &protocol.StreamInResponse{}, nil
+	_, err = protocol.Messages(&protocol.StreamInResponse{}).WriteTo(conn)
+	if err != nil {
+		return nil, err
+	}
+
+	streamReader := transport.NewProtobufStreamReader(reader)
+
+	_, err = io.Copy(streamWriter, streamReader)
+	if err != nil {
+		return nil, err
+	}
+
+	return nil, streamWriter.Close()
 }
 
 func (s *WardenServer) handleStreamOut(conn net.Conn, request *protocol.StreamOutRequest) (proto.Message, error) {
@@ -281,15 +230,19 @@ func (s *WardenServer) handleStreamOut(conn net.Conn, request *protocol.StreamOu
 		return nil, err
 	}
 
-	writer := NewProtobufStreamWriter(conn)
-	err = container.StreamOut(srcPath, writer)
+	writer := transport.NewProtobufStreamWriter(conn)
+
+	reader, err := container.StreamOut(srcPath)
 	if err != nil {
 		return nil, err
 	}
 
-	return &protocol.StreamChunk{
-		EOF: proto.Bool(true),
-	}, nil
+	_, err = io.Copy(writer, reader)
+	if err != nil {
+		return nil, err
+	}
+
+	return nil, writer.Close()
 }
 
 func (s *WardenServer) handleLimitBandwidth(request *protocol.LimitBandwidthRequest) (proto.Message, error) {

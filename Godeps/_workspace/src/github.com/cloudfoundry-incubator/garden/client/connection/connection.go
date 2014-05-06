@@ -6,16 +6,18 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"strconv"
 	"sync"
 
 	"code.google.com/p/goprotobuf/proto"
 
+	"github.com/cloudfoundry-incubator/garden/client/releasenotifier"
 	protocol "github.com/cloudfoundry-incubator/garden/protocol"
+	"github.com/cloudfoundry-incubator/garden/transport"
 	"github.com/cloudfoundry-incubator/garden/warden"
 )
 
-var DisconnectedError = errors.New("disconnected")
+var ErrDisconnected = errors.New("disconnected")
+var ErrInvalidMessage = errors.New("invalid message payload")
 
 type Connection interface {
 	Close()
@@ -35,8 +37,8 @@ type Connection interface {
 	CopyIn(handle string, src, dst string) error
 	CopyOut(handle string, src, dst, owner string) error
 
-	StreamIn(handle string, src io.Reader, dstPath string) error
-	StreamOut(handle string, srcPath string, dest io.Writer) error
+	StreamIn(handle string, dstPath string) (io.WriteCloser, error)
+	StreamOut(handle string, srcPath string) (io.Reader, error)
 
 	LimitBandwidth(handle string, limits warden.BandwidthLimits) (warden.BandwidthLimits, error)
 	LimitCPU(handle string, limits warden.CPULimits) (warden.CPULimits, error)
@@ -56,8 +58,10 @@ type connection struct {
 	disconnected   chan struct{}
 	disconnectOnce *sync.Once
 
-	conn      net.Conn
-	read      *bufio.Reader
+	conn net.Conn
+
+	read *bufio.Reader
+
 	writeLock sync.Mutex
 	readLock  sync.Mutex
 }
@@ -93,6 +97,8 @@ func Connect(network, addr string) (Connection, error) {
 func New(conn net.Conn) Connection {
 	messages := make(chan *protocol.Message)
 
+	messagesR, messagesW := io.Pipe()
+
 	connection := &connection{
 		messages: messages,
 
@@ -100,10 +106,11 @@ func New(conn net.Conn) Connection {
 		disconnectOnce: &sync.Once{},
 
 		conn: conn,
-		read: bufio.NewReader(conn),
+
+		read: bufio.NewReader(messagesR),
 	}
 
-	go connection.readMessages()
+	go connection.readMessages(messagesW)
 
 	return connection
 }
@@ -470,29 +477,28 @@ func (c *connection) CopyOut(handle, src, dst, owner string) error {
 	return nil
 }
 
-func (c *connection) StreamIn(handle string, src io.Reader, dstPath string) error {
-	err := c.sendMessage(&protocol.StreamInRequest{
-		Handle:  proto.String(handle),
-		DstPath: proto.String(dstPath),
-	})
+func (c *connection) StreamIn(handle string, dstPath string) (io.WriteCloser, error) {
+	err := c.roundTrip(
+		&protocol.StreamInRequest{
+			Handle:  proto.String(handle),
+			DstPath: proto.String(dstPath),
+		},
+		&protocol.StreamInResponse{},
+	)
+
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	messageWriter := NewProtobufStreamWriter(c)
-	_, err = io.Copy(messageWriter, src)
-	if err != nil {
-		return err
-	}
-	err = messageWriter.Close()
-	if err != nil {
-		return err
-	}
+	c.writeLock.Lock()
 
-	return c.readResponse(&protocol.StreamInResponse{})
+	return releasenotifier.ReleaseNotifier{
+		WriteCloser: transport.NewProtobufStreamWriter(c.conn),
+		Callback:    c.writeLock.Unlock,
+	}, nil
 }
 
-func (c *connection) StreamOut(handle string, srcPath string, dest io.Writer) error {
+func (c *connection) StreamOut(handle string, srcPath string) (io.Reader, error) {
 	err := c.roundTrip(
 		&protocol.StreamOutRequest{
 			Handle:  proto.String(handle),
@@ -502,16 +508,15 @@ func (c *connection) StreamOut(handle string, srcPath string, dest io.Writer) er
 	)
 
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	messageReader := NewProtobufStreamReader(c)
-	_, err = io.Copy(dest, messageReader)
-	if err != nil {
-		return err
-	}
+	c.readLock.Lock()
 
-	return nil
+	return releasenotifier.ReleaseNotifier{
+		Reader:   transport.NewProtobufStreamReader(c.read),
+		Callback: c.readLock.Unlock,
+	}, nil
 }
 
 func (c *connection) List(filterProperties warden.Properties) ([]string, error) {
@@ -668,23 +673,10 @@ func (c *connection) sendMessage(req proto.Message) error {
 	return nil
 }
 
-func (c *connection) readMessages() {
-	for {
-		payload, err := c.readPayload()
-		if err != nil {
-			c.notifyDisconnected()
-			close(c.messages)
-			break
-		}
-
-		message := &protocol.Message{}
-		err = proto.Unmarshal(payload, message)
-		if err != nil {
-			continue
-		}
-
-		c.messages <- message
-	}
+func (c *connection) readMessages(messagesIn io.WriteCloser) {
+	io.Copy(messagesIn, c.conn)
+	c.notifyDisconnected()
+	messagesIn.Close()
 }
 
 func (c *connection) notifyDisconnected() {
@@ -694,64 +686,9 @@ func (c *connection) notifyDisconnected() {
 }
 
 func (c *connection) readResponse(response proto.Message) error {
-	message, ok := <-c.messages
-	if !ok {
-		return DisconnectedError
-	}
-
-	if message.GetType() == protocol.Message_Error {
-		errorResponse := &protocol.ErrorResponse{}
-		err := proto.Unmarshal(message.Payload, errorResponse)
-		if err != nil {
-			return errors.New("error unmarshalling error!")
-		}
-
-		return &WardenError{
-			Message:   errorResponse.GetMessage(),
-			Data:      errorResponse.GetData(),
-			Backtrace: errorResponse.GetBacktrace(),
-		}
-	}
-
-	responseType := protocol.TypeForMessage(response)
-	if message.GetType() != responseType {
-		return errors.New(
-			fmt.Sprintf(
-				"expected message type %s, got %s\n",
-				responseType.String(),
-				message.GetType().String(),
-			),
-		)
-	}
-
-	return proto.Unmarshal(message.GetPayload(), response)
-}
-
-func (c *connection) readPayload() ([]byte, error) {
 	c.readLock.Lock()
 	defer c.readLock.Unlock()
-
-	msgHeader, err := c.read.ReadBytes('\n')
-	if err != nil {
-		return nil, err
-	}
-
-	msgLen, err := strconv.ParseUint(string(msgHeader[0:len(msgHeader)-2]), 10, 0)
-	if err != nil {
-		return nil, err
-	}
-
-	payload, err := readNBytes(int(msgLen), c.read)
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = readNBytes(2, c.read) // CRLN
-	if err != nil {
-		return nil, err
-	}
-
-	return payload, err
+	return transport.ReadMessage(c.read, response)
 }
 
 func readNBytes(payloadLen int, io *bufio.Reader) ([]byte, error) {
