@@ -432,8 +432,6 @@ func (c *LinuxContainer) StreamOut(srcPath string) (io.Reader, error) {
 		Stdout: tarWrite,
 	}
 
-	log.Println("STARTING", tar)
-
 	err := c.runner.Background(tar)
 	if err != nil {
 		return nil, err
