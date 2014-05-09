@@ -269,12 +269,14 @@ var _ = Describe("Capacity", func() {
 	It("returns the right capacity values", func() {
 		fakeSystemInfo.TotalMemoryResult = 1111
 		fakeSystemInfo.TotalDiskResult = 2222
+		fakeContainerPool.MaxContainersValue = 42
 
 		capacity, err := linuxBackend.Capacity()
 		Ω(err).ShouldNot(HaveOccurred())
 
 		Expect(capacity.MemoryInBytes).To(Equal(uint64(1111)))
 		Expect(capacity.DiskInBytes).To(Equal(uint64(2222)))
+		Expect(capacity.MaxContainers).To(Equal(uint64(42)))
 	})
 
 	Context("when getting memory info fails", func() {

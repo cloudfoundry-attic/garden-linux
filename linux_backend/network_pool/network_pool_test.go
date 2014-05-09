@@ -116,6 +116,15 @@ var _ = Describe("Network Pool", func() {
 		})
 	})
 
+	Describe("InitialSize", func() {
+		It("returns the count of maximum available networks", func() {
+			Expect(pool.InitialSize()).To(Equal(256))
+			_, err := pool.Acquire()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(pool.InitialSize()).To(Equal(256))
+		})
+	})
+
 	Describe("getting the network", func() {
 		It("returns the network's *net.IPNet", func() {
 			Expect(pool.Network().String()).To(Equal("10.254.0.0/22"))

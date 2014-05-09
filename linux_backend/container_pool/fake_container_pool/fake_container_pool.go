@@ -12,6 +12,8 @@ import (
 type FakeContainerPool struct {
 	DidSetup bool
 
+	MaxContainersValue int
+
 	Pruned         bool
 	PruneError     error
 	KeptContainers map[string]bool
@@ -29,6 +31,10 @@ type FakeContainerPool struct {
 
 func New() *FakeContainerPool {
 	return &FakeContainerPool{}
+}
+
+func (p *FakeContainerPool) MaxContainers() int {
+	return p.MaxContainersValue
 }
 
 func (p *FakeContainerPool) Setup() error {

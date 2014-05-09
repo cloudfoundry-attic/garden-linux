@@ -13,13 +13,15 @@ type NetworkPool interface {
 	Release(*network.Network)
 	Remove(*network.Network) error
 	Network() *net.IPNet
+	InitialSize() int
 }
 
 type RealNetworkPool struct {
 	ipNet *net.IPNet
 
-	pool      []*network.Network
-	poolMutex *sync.Mutex
+	pool            []*network.Network
+	poolMutex       *sync.Mutex
+	initialPoolSize int
 }
 
 type PoolExhaustedError struct{}
@@ -51,8 +53,9 @@ func New(ipNet *net.IPNet) *RealNetworkPool {
 	return &RealNetworkPool{
 		ipNet: ipNet,
 
-		pool:      pool,
-		poolMutex: new(sync.Mutex),
+		pool:            pool,
+		poolMutex:       new(sync.Mutex),
+		initialPoolSize: len(pool),
 	}
 }
 
@@ -103,6 +106,10 @@ func (p *RealNetworkPool) Release(network *network.Network) {
 	defer p.poolMutex.Unlock()
 
 	p.pool = append(p.pool, network)
+}
+
+func (p *RealNetworkPool) InitialSize() int {
+	return p.initialPoolSize
 }
 
 func (p *RealNetworkPool) Network() *net.IPNet {

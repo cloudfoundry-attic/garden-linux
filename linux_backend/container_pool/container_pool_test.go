@@ -57,6 +57,30 @@ var _ = Describe("Container pool", func() {
 		)
 	})
 
+	Describe("MaxContainer", func() {
+		Context("when constrained by network pool size", func() {
+			BeforeEach(func() {
+				fakeNetworkPool.InitialPoolSize = 5
+				fakeUIDPool.InitialPoolSize = 3000
+			})
+
+			It("returns the network pool size", func() {
+				Ω(pool.MaxContainers()).Should(Equal(5))
+			})
+		})
+		Context("when constrained by uid pool size", func() {
+			BeforeEach(func() {
+				fakeNetworkPool.InitialPoolSize = 666
+				fakeUIDPool.InitialPoolSize = 42
+			})
+
+			It("returns the uid pool size", func() {
+				Ω(pool.MaxContainers()).Should(Equal(42))
+			})
+		})
+
+	})
+
 	Describe("setup", func() {
 		It("executes setup.sh with the correct environment", func() {
 			fakeQuotaManager.MountPointResult = "/depot/mount/point"

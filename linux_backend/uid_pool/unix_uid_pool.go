@@ -9,8 +9,9 @@ type UnixUIDPool struct {
 	start uint32
 	size  uint32
 
-	pool      []uint32
-	poolMutex *sync.Mutex
+	pool            []uint32
+	poolMutex       *sync.Mutex
+	initialPoolSize int
 }
 
 type PoolExhaustedError struct{}
@@ -38,9 +39,14 @@ func New(start, size uint32) *UnixUIDPool {
 		start: start,
 		size:  size,
 
-		pool:      pool,
-		poolMutex: new(sync.Mutex),
+		pool:            pool,
+		poolMutex:       new(sync.Mutex),
+		initialPoolSize: len(pool),
 	}
+}
+
+func (p *UnixUIDPool) InitialSize() int {
+	return p.initialPoolSize
 }
 
 func (p *UnixUIDPool) Acquire() (uint32, error) {

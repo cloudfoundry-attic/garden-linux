@@ -3,6 +3,8 @@ package fake_uid_pool
 type FakeUIDPool struct {
 	nextUID uint32
 
+	InitialPoolSize int
+
 	AcquireError error
 	RemoveError  error
 
@@ -15,6 +17,10 @@ func New(start uint32) *FakeUIDPool {
 	return &FakeUIDPool{
 		nextUID: start,
 	}
+}
+
+func (p *FakeUIDPool) InitialSize() int {
+	return p.InitialPoolSize
 }
 
 func (p *FakeUIDPool) Acquire() (uint32, error) {

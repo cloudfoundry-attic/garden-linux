@@ -33,6 +33,7 @@ type ContainerPool interface {
 	Restore(io.Reader) (Container, error)
 	Destroy(Container) error
 	Prune(keep map[string]bool) error
+	MaxContainers() int
 }
 
 type LinuxBackend struct {
@@ -120,6 +121,7 @@ func (b *LinuxBackend) Capacity() (warden.Capacity, error) {
 	return warden.Capacity{
 		MemoryInBytes: totalMemory,
 		DiskInBytes:   totalDisk,
+		MaxContainers: uint64(b.containerPool.MaxContainers()),
 	}, nil
 }
 

@@ -10,6 +10,8 @@ type FakeNetworkPool struct {
 	ipNet       *net.IPNet
 	nextNetwork net.IP
 
+	InitialPoolSize int
+
 	AcquireError error
 	RemoveError  error
 
@@ -23,6 +25,10 @@ func New(ipNet *net.IPNet) *FakeNetworkPool {
 
 		nextNetwork: ipNet.IP,
 	}
+}
+
+func (p *FakeNetworkPool) InitialSize() int {
+	return p.InitialPoolSize
 }
 
 func (p *FakeNetworkPool) Acquire() (*network.Network, error) {
