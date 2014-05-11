@@ -378,6 +378,21 @@ func (c *LinuxContainer) Info() (warden.ContainerInfo, error) {
 	}, nil
 }
 
+type closeTracker struct {
+	io.WriteCloser
+
+	callback func() error
+}
+
+func (tracker closeTracker) Close() error {
+	err := tracker.WriteCloser.Close()
+	if err != nil {
+		return err
+	}
+
+	return tracker.callback()
+}
+
 func (c *LinuxContainer) StreamIn(dstPath string) (io.WriteCloser, error) {
 	log.Println(c.id, "writing data to:", dstPath)
 
@@ -402,9 +417,12 @@ func (c *LinuxContainer) StreamIn(dstPath string) (io.WriteCloser, error) {
 		return nil, err
 	}
 
-	go c.runner.Wait(tar)
-
-	return tarWrite, nil
+	return closeTracker{
+		WriteCloser: tarWrite,
+		callback: func() error {
+			return c.runner.Wait(tar)
+		},
+	}, nil
 }
 
 func (c *LinuxContainer) StreamOut(srcPath string) (io.Reader, error) {
