@@ -766,11 +766,60 @@ var _ = Describe("Linux containers", func() {
 			)
 
 			writer, err := container.StreamIn("/some/directory/dst")
+			Expect(err).ToNot(HaveOccurred())
 
 			writer.Write([]byte("the-tar-content"))
 			writer.Close()
+		})
 
-			Expect(err).ToNot(HaveOccurred())
+		Context("and closing the stream", func() {
+			It("closes the command's input and waits for tar to complete", func() {
+				waited := make(chan struct{})
+
+				fakeRunner.WhenWaitingFor(
+					fake_command_runner.CommandSpec{
+						Path: "/depot/some-id/bin/wsh",
+					},
+					func(cmd *exec.Cmd) error {
+						_, err := cmd.Stdin.Read(nil)
+						Ω(err).Should(Equal(io.EOF))
+
+						close(waited)
+						return nil
+					},
+				)
+
+				writer, err := container.StreamIn("/some/directory/dst")
+				Expect(err).ToNot(HaveOccurred())
+
+				err = writer.Close()
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Ω(waited).Should(BeClosed())
+			})
+
+			Context("when tar fails", func() {
+				disaster := errors.New("oh no!")
+
+				BeforeEach(func() {
+					fakeRunner.WhenWaitingFor(
+						fake_command_runner.CommandSpec{
+							Path: "/depot/some-id/bin/wsh",
+						},
+						func(cmd *exec.Cmd) error {
+							return disaster
+						},
+					)
+				})
+
+				It("returns the error", func() {
+					writer, err := container.StreamIn("/some/directory/dst")
+					Expect(err).ToNot(HaveOccurred())
+
+					err = writer.Close()
+					Ω(err).Should(Equal(disaster))
+				})
+			})
 		})
 
 		Context("when executing the command fails", func() {
