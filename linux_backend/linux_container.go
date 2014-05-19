@@ -497,6 +497,8 @@ func (c *LinuxContainer) CurrentBandwidthLimits() (warden.BandwidthLimits, error
 }
 
 func (c *LinuxContainer) LimitDisk(limits warden.DiskLimits) error {
+	log.Println(c.id, "limiting disk", limits)
+
 	err := c.quotaManager.SetLimits(c.resources.UID, limits)
 	if err != nil {
 		return err
