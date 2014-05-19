@@ -1913,6 +1913,21 @@ hayes"
 			Expect(info.ContainerPath).To(Equal("/depot/some-id"))
 		})
 
+		It("returns the container's mapped ports", func() {
+			_, _, err := container.NetIn(1234, 5678)
+			Expect(err).ToNot(HaveOccurred())
+
+			_, _, err = container.NetIn(1235, 5679)
+			Expect(err).ToNot(HaveOccurred())
+
+			info, err := container.Info()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(info.MappedPorts).To(Equal([]warden.PortMapping{
+				{HostPort: 1234, ContainerPort: 5678},
+				{HostPort: 1235, ContainerPort: 5679},
+			}))
+		})
+
 		Context("with running processes", func() {
 			BeforeEach(setupSuccessfulSpawn)
 

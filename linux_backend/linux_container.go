@@ -363,6 +363,19 @@ func (c *LinuxContainer) Info() (warden.ContainerInfo, error) {
 		processIDs = append(processIDs, process.ID)
 	}
 
+	mappedPorts := []warden.PortMapping{}
+
+	c.netInsMutex.RLock()
+
+	for _, spec := range c.netIns {
+		mappedPorts = append(mappedPorts, warden.PortMapping{
+			HostPort:      spec.HostPort,
+			ContainerPort: spec.ContainerPort,
+		})
+	}
+
+	c.netInsMutex.RUnlock()
+
 	return warden.ContainerInfo{
 		State:         string(c.State()),
 		Events:        c.Events(),
@@ -375,6 +388,7 @@ func (c *LinuxContainer) Info() (warden.ContainerInfo, error) {
 		CPUStat:       parseCPUStat(cpuUsage, cpuStat),
 		DiskStat:      diskStat,
 		BandwidthStat: bandwidthStat,
+		MappedPorts:   mappedPorts,
 	}, nil
 }
 
