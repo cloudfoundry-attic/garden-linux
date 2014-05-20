@@ -10,9 +10,16 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/dotcloud/docker/daemon/graphdriver"
+	_ "github.com/dotcloud/docker/daemon/graphdriver/aufs"
+	_ "github.com/dotcloud/docker/daemon/graphdriver/vfs"
+	"github.com/dotcloud/docker/graph"
+	"github.com/dotcloud/docker/registry"
+
 	"github.com/cloudfoundry-incubator/garden/server"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool"
+	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool/repository_fetcher"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/network_pool"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/port_pool"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/quota_manager"
@@ -117,6 +124,18 @@ var allowNetworks = flag.String(
 	"CIDR blocks representing IPs to whitelist",
 )
 
+var graphRoot = flag.String(
+	"graph",
+	"/var/lib/warden-docker-graph",
+	"docker image graph",
+)
+
+var dockerRegistry = flag.String(
+	"registry",
+	registry.IndexServerAddress(),
+	"docker registry API endpoint",
+)
+
 func main() {
 	flag.Parse()
 
@@ -160,10 +179,27 @@ func main() {
 		quotaManager.Disable()
 	}
 
+	graphDriver, err := graphdriver.New(*graphRoot)
+	if err != nil {
+		log.Fatalln("error constructing graph driver:", err)
+	}
+
+	graph, err := graph.NewGraph(*graphRoot, graphDriver)
+	if err != nil {
+		log.Fatalln("error constructing graph:", err)
+	}
+
+	reg, err := registry.NewRegistry(nil, nil, *dockerRegistry)
+	if err != nil {
+		log.Fatalln(err)
+	}
+
 	pool := container_pool.New(
 		*binPath,
 		*depotPath,
 		*rootFSPath,
+		repository_fetcher.Retryable{repository_fetcher.New(reg, graph)},
+		graphDriver,
 		uidPool,
 		networkPool,
 		portPool,

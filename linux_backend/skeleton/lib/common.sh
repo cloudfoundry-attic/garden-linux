@@ -93,10 +93,21 @@ function should_use_aufs() {
   grep -q aufs /proc/filesystems
 }
 
+function should_mount_raw() {
+  [ "$rootfs_raw" = "true" ]
+}
+
+function setup_fs_raw() {
+  rmdir tmp/rootfs
+  mount --bind $rootfs_path mnt
+}
+
 function setup_fs() {
   mkdir -p tmp/rootfs mnt
 
-  if should_use_aufs; then
+  if should_mount_raw; then
+    setup_fs_raw
+  elif should_use_aufs; then
     mount -n -t aufs -o br:tmp/rootfs=rw:$rootfs_path=ro+wh none mnt
   elif should_use_overlayfs; then
     mount -n -t overlayfs -o rw,upperdir=tmp/rootfs,lowerdir=$rootfs_path none mnt

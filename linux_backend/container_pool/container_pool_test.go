@@ -15,6 +15,8 @@ import (
 	"github.com/cloudfoundry-incubator/garden/warden"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool"
+	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool/fake_graph_driver"
+	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool/repository_fetcher/fake_repository_fetcher"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/network"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/network_pool/fake_network_pool"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/port_pool/fake_port_pool"
@@ -30,14 +32,17 @@ var _ = Describe("Container pool", func() {
 	var fakeNetworkPool *fake_network_pool.FakeNetworkPool
 	var fakeQuotaManager *fake_quota_manager.FakeQuotaManager
 	var fakePortPool *fake_port_pool.FakePortPool
+	var fakeRepositoryFetcher *fake_repository_fetcher.FakeRepositoryFetcher
+	var fakeGraphDriver *fake_graph_driver.FakeGraphDriver
 	var pool *container_pool.LinuxContainerPool
 
 	BeforeEach(func() {
 		_, ipNet, err := net.ParseCIDR("1.2.0.0/20")
 		Expect(err).ToNot(HaveOccurred())
 
+		fakeRepositoryFetcher = fake_repository_fetcher.New()
+		fakeGraphDriver = fake_graph_driver.New()
 		fakeUIDPool = fake_uid_pool.New(10000)
-
 		fakeNetworkPool = fake_network_pool.New(ipNet)
 		fakeRunner = fake_command_runner.New()
 		fakeQuotaManager = fake_quota_manager.New()
@@ -47,6 +52,8 @@ var _ = Describe("Container pool", func() {
 			"/root/path",
 			"/depot/path",
 			"/rootfs/path",
+			fakeRepositoryFetcher,
+			fakeGraphDriver,
 			fakeUIDPool,
 			fakeNetworkPool,
 			fakePortPool,
@@ -170,6 +177,7 @@ var _ = Describe("Container pool", func() {
 					Env: []string{
 						"id=" + container.ID(),
 						"rootfs_path=/rootfs/path",
+						"rootfs_raw=false",
 						"user_uid=10000",
 						"network_host_ip=1.2.0.1",
 						"network_container_ip=1.2.0.2",
@@ -178,6 +186,144 @@ var _ = Describe("Container pool", func() {
 					},
 				},
 			))
+		})
+
+		Context("when a rootfs path is specified", func() {
+			It("is passed as $rootfs_path to create.sh", func() {
+				container, err := pool.Create(warden.ContainerSpec{
+					RootFSPath: "/path/to/custom-rootfs",
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(fakeRunner).To(HaveExecutedSerially(
+					fake_command_runner.CommandSpec{
+						Path: "/root/path/create.sh",
+						Args: []string{"/depot/path/" + container.ID()},
+						Env: []string{
+							"id=" + container.ID(),
+							"rootfs_path=/path/to/custom-rootfs",
+							"rootfs_raw=false",
+							"user_uid=10000",
+							"network_host_ip=1.2.0.1",
+							"network_container_ip=1.2.0.2",
+
+							"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+						},
+					},
+				))
+			})
+		})
+
+		Context("when a rootfs image is specified", func() {
+			It("fetches it and creates a graph entry with it as the parent", func() {
+				fakeRepositoryFetcher.FetchResult = "some-image-id"
+
+				container, err := pool.Create(warden.ContainerSpec{
+					RootFSPath: "image:some-repository-name",
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(fakeGraphDriver.Created()).To(ContainElement(
+					fake_graph_driver.CreatedGraph{
+						ID:     container.Handle(),
+						Parent: "some-image-id",
+					},
+				))
+
+				Expect(fakeRepositoryFetcher.Fetched()).To(ContainElement(
+					fake_repository_fetcher.FetchSpec{
+						Repository: "some-repository-name",
+						Tag:        "latest",
+					},
+				))
+			})
+
+			It("passes $rootfs_path as the created rootfs and $rootfs_raw as true to create.sh", func() {
+				fakeGraphDriver.GetResult = "/path/to/created-rootfs"
+
+				container, err := pool.Create(warden.ContainerSpec{
+					RootFSPath: "image:some-repository-name",
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(fakeRunner).To(HaveExecutedSerially(
+					fake_command_runner.CommandSpec{
+						Path: "/root/path/create.sh",
+						Args: []string{"/depot/path/" + container.ID()},
+						Env: []string{
+							"id=" + container.ID(),
+							"rootfs_path=/path/to/created-rootfs",
+							"rootfs_raw=true",
+							"user_uid=10000",
+							"network_host_ip=1.2.0.1",
+							"network_container_ip=1.2.0.2",
+
+							"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+						},
+					},
+				))
+			})
+
+			Context("when a tag is specified", func() {
+				It("uses it when fetching the repository", func() {
+					_, err := pool.Create(warden.ContainerSpec{
+						RootFSPath: "image:some-repository-name:some-tag",
+					})
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(fakeRepositoryFetcher.Fetched()).To(ContainElement(
+						fake_repository_fetcher.FetchSpec{
+							Repository: "some-repository-name",
+							Tag:        "some-tag",
+						},
+					))
+				})
+			})
+
+			Context("but fetching it fails", func() {
+				disaster := errors.New("oh no!")
+
+				BeforeEach(func() {
+					fakeRepositoryFetcher.FetchError = disaster
+				})
+
+				It("returns the error", func() {
+					_, err := pool.Create(warden.ContainerSpec{
+						RootFSPath: "image:some-graph-id",
+					})
+					Expect(err).To(Equal(disaster))
+				})
+			})
+
+			Context("but creating the graph entry fails", func() {
+				disaster := errors.New("oh no!")
+
+				BeforeEach(func() {
+					fakeGraphDriver.CreateError = disaster
+				})
+
+				It("returns the error", func() {
+					_, err := pool.Create(warden.ContainerSpec{
+						RootFSPath: "image:some-graph-id",
+					})
+					Expect(err).To(Equal(disaster))
+				})
+			})
+
+			Context("but getting the graph entry fails", func() {
+				disaster := errors.New("oh no!")
+
+				BeforeEach(func() {
+					fakeGraphDriver.GetError = disaster
+				})
+
+				It("returns the error", func() {
+					_, err := pool.Create(warden.ContainerSpec{
+						RootFSPath: "image:some-graph-id",
+					})
+					Expect(err).To(Equal(disaster))
+				})
+			})
 		})
 
 		Context("when bind mounts are specified", func() {
@@ -654,6 +800,72 @@ var _ = Describe("Container pool", func() {
 			Expect(fakeUIDPool.Released).To(ContainElement(uint32(10000)))
 
 			Expect(fakeNetworkPool.Released).To(ContainElement("1.2.0.0/30"))
+		})
+
+		It("removes the container from the rootfs graph", func() {
+			err := pool.Destroy(createdContainer)
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(fakeGraphDriver.Putted()).To(ContainElement(createdContainer.ID()))
+			Expect(fakeGraphDriver.Removed()).To(ContainElement(createdContainer.ID()))
+		})
+
+		Context("when destroy.sh fails", func() {
+			disaster := errors.New("oh no!")
+
+			BeforeEach(func() {
+				fakeRunner.WhenRunning(
+					fake_command_runner.CommandSpec{
+						Path: "/root/path/destroy.sh",
+						Args: []string{"/depot/path/" + createdContainer.ID()},
+					},
+					func(*exec.Cmd) error {
+						return disaster
+					},
+				)
+			})
+
+			It("returns the error", func() {
+				err := pool.Destroy(createdContainer)
+				Expect(err).To(Equal(disaster))
+			})
+
+			It("does not release the container's resources", func() {
+				err := pool.Destroy(createdContainer)
+				Expect(err).To(HaveOccurred())
+
+				Expect(fakePortPool.Released).To(BeEmpty())
+				Expect(fakePortPool.Released).To(BeEmpty())
+
+				Expect(fakeUIDPool.Released).To(BeEmpty())
+
+				Expect(fakeNetworkPool.Released).To(BeEmpty())
+			})
+		})
+
+		Context("when removing the container from the graph fails", func() {
+			disaster := errors.New("oh no!")
+
+			BeforeEach(func() {
+				fakeGraphDriver.RemoveError = disaster
+			})
+
+			It("returns the error", func() {
+				err := pool.Destroy(createdContainer)
+				Expect(err).To(Equal(disaster))
+			})
+
+			It("does not release the container's resources", func() {
+				err := pool.Destroy(createdContainer)
+				Expect(err).To(HaveOccurred())
+
+				Expect(fakePortPool.Released).To(BeEmpty())
+				Expect(fakePortPool.Released).To(BeEmpty())
+
+				Expect(fakeUIDPool.Released).To(BeEmpty())
+
+				Expect(fakeNetworkPool.Released).To(BeEmpty())
+			})
 		})
 	})
 })
