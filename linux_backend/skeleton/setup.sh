@@ -17,7 +17,6 @@ network_container_ip=${network_container_ip:-10.0.0.2}
 network_container_iface="w-${id}-1"
 user_uid=${user_uid:-10000}
 rootfs_path=$(readlink -f $rootfs_path)
-allow_nested_warden=${allow_nested_warden:-false}
 
 # Write configuration
 cat > etc/config <<-EOS
@@ -28,7 +27,6 @@ network_container_ip=$network_container_ip
 network_container_iface=$network_container_iface
 user_uid=$user_uid
 rootfs_path=$rootfs_path
-allow_nested_warden=$allow_nested_warden
 EOS
 
 setup_fs
