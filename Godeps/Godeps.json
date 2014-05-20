@@ -93,6 +93,11 @@
 			"Rev": "47aa9f5a0e38f395cee7517720f8a80587bb911b"
 		},
 		{
+			"ImportPath": "github.com/dotcloud/docker/pkg/label",
+			"Comment": "v0.11.1-297-g47aa9f5",
+			"Rev": "47aa9f5a0e38f395cee7517720f8a80587bb911b"
+		},
+		{
 			"ImportPath": "github.com/dotcloud/docker/pkg/libcontainer/cgroups",
 			"Comment": "v0.11.1-297-g47aa9f5",
 			"Rev": "47aa9f5a0e38f395cee7517720f8a80587bb911b"
