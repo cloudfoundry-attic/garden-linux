@@ -26,15 +26,5 @@ then
     $target/destroy.sh
   fi
 
-  # Retry 5 times to avoid ocational device busy
-  count=0
-  until `rm -rf $target` || [ $count -eq 4 ]; do
-     ((count++))
-     sleep 0.3
-  done
-  if [ $count -eq 4 ]
-  then
-    exit 1
-  fi
-
+  rm -rf $target
 fi

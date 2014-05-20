@@ -44,17 +44,6 @@ var _ = Describe("Through a restart", func() {
 		Expect(err).ToNot(HaveOccurred())
 	})
 
-	AfterEach(func() {
-		err := runner.Stop()
-		Expect(err).ToNot(HaveOccurred())
-
-		err = runner.DestroyContainers()
-		Expect(err).ToNot(HaveOccurred())
-
-		err = runner.Start()
-		Expect(err).ToNot(HaveOccurred())
-	})
-
 	restartServer := func() {
 		err := runner.Stop()
 		Expect(err).ToNot(HaveOccurred())
@@ -62,6 +51,13 @@ var _ = Describe("Through a restart", func() {
 		err = runner.Start()
 		Expect(err).ToNot(HaveOccurred())
 	}
+
+	AfterEach(func() {
+		err := runner.DestroyContainers()
+		Expect(err).ToNot(HaveOccurred())
+
+		restartServer()
+	})
 
 	It("retains the container list", func() {
 		restartServer()

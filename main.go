@@ -20,6 +20,7 @@ import (
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool/repository_fetcher"
+	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool/rootfs_provider"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/network_pool"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/port_pool"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/quota_manager"
@@ -56,6 +57,12 @@ var depotPath = flag.String(
 	"depot",
 	"",
 	"directory in which to store containers",
+)
+
+var overlaysPath = flag.String(
+	"overlays",
+	"",
+	"directory in which to store containers mount points",
 )
 
 var rootFSPath = flag.String(
@@ -152,6 +159,10 @@ func main() {
 		log.Fatalln("must specify -depot with linux backend")
 	}
 
+	if *overlaysPath == "" {
+		log.Fatalln("must specify -overlays with linux backend")
+	}
+
 	if *rootFSPath == "" {
 		log.Fatalln("must specify -rootfs with linux backend")
 	}
@@ -194,12 +205,14 @@ func main() {
 		log.Fatalln(err)
 	}
 
+	overlayRootFSProvider := rootfs_provider.NewOverlay(*binPath, *overlaysPath, *rootFSPath, runner)
+	repoFetcher := repository_fetcher.Retryable{repository_fetcher.New(reg, graph)}
+	dockerRootFSProvider := rootfs_provider.NewDocker(repoFetcher, graphDriver, overlayRootFSProvider)
+
 	pool := container_pool.New(
 		*binPath,
 		*depotPath,
-		*rootFSPath,
-		repository_fetcher.Retryable{repository_fetcher.New(reg, graph)},
-		graphDriver,
+		dockerRootFSProvider,
 		uidPool,
 		networkPool,
 		portPool,

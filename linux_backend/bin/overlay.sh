@@ -1,29 +1,34 @@
 #!/bin/bash
 
-[ -f etc/config ] && source etc/config
+set -e
 
+action=$1
+container_path=$2
+overlay_path=$2/overlay
+rootfs_path=$2/rootfs
+base_path=$3
 
 function overlay_directory_in_rootfs() {
   # Skip if exists
-  if [ ! -d tmp/rootfs/$1 ]
+  if [ ! -d $overlay_path/$1 ]
   then
-    if [ -d mnt/$1 ]
+    if [ -d $rootfs_path/$1 ]
     then
-      cp -r mnt/$1 tmp/rootfs/
+      cp -r $rootfs_path/$1 $overlay_path/
     else
-      mkdir -p tmp/rootfs/$1
+      mkdir -p $overlay_path/$1
     fi
   fi
 
-  mount -n --bind tmp/rootfs/$1 mnt/$1
-  mount -n --bind -o remount,$2 tmp/rootfs/$1 mnt/$1
+  mount -n --bind $overlay_path/$1 $rootfs_path/$1
+  mount -n --bind -o remount,$2 $overlay_path/$1 $rootfs_path/$1
 }
 
 function setup_fs_other() {
-  mkdir -p $rootfs_path/proc
+  mkdir -p $base_path/proc
 
-  mount -n --bind $rootfs_path mnt
-  mount -n --bind -o remount,ro $rootfs_path mnt
+  mount -n --bind $base_path $rootfs_path
+  mount -n --bind -o remount,ro $base_path $rootfs_path
 
   overlay_directory_in_rootfs /dev rw
   overlay_directory_in_rootfs /etc rw
@@ -31,8 +36,8 @@ function setup_fs_other() {
   overlay_directory_in_rootfs /sbin rw
   overlay_directory_in_rootfs /var rw
 
-  mkdir -p tmp/rootfs/tmp
-  chmod 777 tmp/rootfs/tmp
+  mkdir -p $overlay_path/tmp
+  chmod 777 $overlay_path/tmp
   overlay_directory_in_rootfs /tmp rw
 }
 
@@ -62,12 +67,12 @@ function should_use_overlayfs() {
   modprobe -q overlayfs >/dev/null 2>&1 || true
 
   # cannot mount overlayfs in aufs
-  if [ "$(current_fs tmp/rootfs)" == "aufs" ]; then
+  if [ "$(current_fs $overlay_path)" == "aufs" ]; then
     return 1
   fi
 
   # cannot mount overlayfs in overlayfs; whiteout not supported
-  if [ "$(current_fs tmp/rootfs)" == "overlayfs" ]; then
+  if [ "$(current_fs $overlay_path)" == "overlayfs" ]; then
     return 1
   fi
 
@@ -80,12 +85,12 @@ function should_use_aufs() {
   modprobe -q aufs >/dev/null 2>&1 || true
 
   # cannot mount aufs in aufs
-  if [ "$(current_fs tmp/rootfs)" == "aufs" ]; then
+  if [ "$(current_fs $overlay_path)" == "aufs" ]; then
     return 1
   fi
 
   # cannot mount aufs in overlayfs
-  if [ "$(current_fs tmp/rootfs)" == "overlayfs" ]; then
+  if [ "$(current_fs $overlay_path)" == "overlayfs" ]; then
     return 1
   fi
 
@@ -93,29 +98,36 @@ function should_use_aufs() {
   grep -q aufs /proc/filesystems
 }
 
-function should_mount_raw() {
-  [ "$rootfs_raw" = "true" ]
-}
-
-function setup_fs_raw() {
-  rmdir tmp/rootfs
-  mount --bind $rootfs_path mnt
-}
-
 function setup_fs() {
-  mkdir -p tmp/rootfs mnt
+  mkdir -p $overlay_path
+  mkdir -p $rootfs_path
 
-  if should_mount_raw; then
-    setup_fs_raw
-  elif should_use_aufs; then
-    mount -n -t aufs -o br:tmp/rootfs=rw:$rootfs_path=ro+wh none mnt
+  if should_use_aufs; then
+    mount -n -t aufs -o br:$overlay_path=rw:$base_path=ro+wh none $rootfs_path
   elif should_use_overlayfs; then
-    mount -n -t overlayfs -o rw,upperdir=tmp/rootfs,lowerdir=$rootfs_path none mnt
+    mount -n -t overlayfs -o rw,upperdir=$overlay_path,lowerdir=$base_path none $rootfs_path
   else
     setup_fs_other
   fi
 }
 
-function teardown_fs() {
-  umount mnt
+function rootfs_mountpoints() {
+  cat /proc/mounts | grep $rootfs_path | awk '{print $2}'
 }
+
+function teardown_fs() {
+  umount $(rootfs_mountpoints) 2>/dev/null || true
+
+  leftover=$(rootfs_mountpoints)
+  if [ -n "$leftover" ]; then
+    umount $leftover
+  fi
+
+  rm -rf $container_path
+}
+
+if [ "$action" = "create" ]; then
+  setup_fs
+else
+  teardown_fs
+fi

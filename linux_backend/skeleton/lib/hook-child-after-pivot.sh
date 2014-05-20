@@ -7,7 +7,7 @@ shopt -s nullglob
 
 cd $(dirname $0)/../
 
-source ./lib/common.sh
+source etc/config
 
 mkdir -p /dev/pts
 mount -t devpts -o newinstance,ptmxmode=0666 devpts /dev/pts

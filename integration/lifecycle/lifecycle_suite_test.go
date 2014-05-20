@@ -48,10 +48,7 @@ func TestLifecycle(t *testing.T) {
 	})
 
 	AfterSuite(func() {
-		err := runner.Stop()
-		Ω(err).ShouldNot(HaveOccurred())
-
-		err = runner.TearDown()
+		err := runner.TearDown()
 		Ω(err).ShouldNot(HaveOccurred())
 
 		err = os.RemoveAll(tmpdir)

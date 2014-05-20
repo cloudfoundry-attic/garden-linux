@@ -15,27 +15,24 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden/warden"
 	"github.com/cloudfoundry/gunk/command_runner"
-	"github.com/dotcloud/docker/daemon/graphdriver"
 
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/bandwidth_manager"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/cgroups_manager"
-	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool/repository_fetcher"
+	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool/rootfs_provider"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/network_pool"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/quota_manager"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/uid_pool"
 )
 
 type LinuxContainerPool struct {
-	binPath    string
-	depotPath  string
-	rootFSPath string
+	binPath   string
+	depotPath string
 
 	denyNetworks  []string
 	allowNetworks []string
 
-	repoFetcher repository_fetcher.RepositoryFetcher
-	graphDriver graphdriver.Driver
+	rootfsProvider rootfs_provider.RootFSProvider
 
 	uidPool     uid_pool.UIDPool
 	networkPool network_pool.NetworkPool
@@ -48,12 +45,9 @@ type LinuxContainerPool struct {
 	containerIDs chan string
 }
 
-const imagePrefix = "image:"
-
 func New(
-	binPath, depotPath, rootFSPath string,
-	repoFetcher repository_fetcher.RepositoryFetcher,
-	graph graphdriver.Driver,
+	binPath, depotPath string,
+	rootfsProvider rootfs_provider.RootFSProvider,
 	uidPool uid_pool.UIDPool,
 	networkPool network_pool.NetworkPool,
 	portPool linux_backend.PortPool,
@@ -62,15 +56,13 @@ func New(
 	quotaManager quota_manager.QuotaManager,
 ) *LinuxContainerPool {
 	pool := &LinuxContainerPool{
-		binPath:    binPath,
-		depotPath:  depotPath,
-		rootFSPath: rootFSPath,
+		binPath:   binPath,
+		depotPath: depotPath,
+
+		rootfsProvider: rootfsProvider,
 
 		allowNetworks: allowNetworks,
 		denyNetworks:  denyNetworks,
-
-		repoFetcher: repoFetcher,
-		graphDriver: graph,
 
 		uidPool:     uidPool,
 		networkPool: networkPool,
@@ -104,7 +96,6 @@ func (p *LinuxContainerPool) Setup() error {
 			"POOL_NETWORK=" + p.networkPool.Network().String(),
 			"DENY_NETWORKS=" + formatNetworks(p.denyNetworks),
 			"ALLOW_NETWORKS=" + formatNetworks(p.allowNetworks),
-			"CONTAINER_ROOTFS_PATH=" + p.rootFSPath,
 			"CONTAINER_DEPOT_PATH=" + p.depotPath,
 			"CONTAINER_DEPOT_MOUNT_POINT_PATH=" + p.quotaManager.MountPoint(),
 			fmt.Sprintf("DISK_QUOTA_ENABLED=%v", p.quotaManager.IsEnabled()),
@@ -195,37 +186,9 @@ func (p *LinuxContainerPool) Create(spec warden.ContainerSpec) (linux_backend.Co
 		handle = spec.Handle
 	}
 
-	rootFSPath := p.rootFSPath
-	rootFSRaw := false
-
-	if strings.HasPrefix(spec.RootFSPath, imagePrefix) {
-		repoSegments := strings.SplitN(spec.RootFSPath[len(imagePrefix):], ":", 2)
-
-		repoName := repoSegments[0]
-
-		tag := "latest"
-		if len(repoSegments) >= 2 {
-			tag = repoSegments[1]
-		}
-
-		imageID, err := p.repoFetcher.Fetch(repoName, tag)
-		if err != nil {
-			return nil, err
-		}
-
-		err = p.graphDriver.Create(id, imageID)
-		if err != nil {
-			return nil, err
-		}
-
-		rootFSPath, err = p.graphDriver.Get(id, "")
-		if err != nil {
-			return nil, err
-		}
-
-		rootFSRaw = true
-	} else if spec.RootFSPath != "" {
-		rootFSPath = spec.RootFSPath
+	rootfsPath, err := p.rootfsProvider.ProvideRootFS(id, spec.RootFSPath)
+	if err != nil {
+		return nil, err
 	}
 
 	container := linux_backend.NewLinuxContainer(
@@ -247,8 +210,7 @@ func (p *LinuxContainerPool) Create(spec warden.ContainerSpec) (linux_backend.Co
 		Args: []string{containerPath},
 		Env: []string{
 			"id=" + container.ID(),
-			"rootfs_path=" + rootFSPath,
-			fmt.Sprintf("rootfs_raw=%v", rootFSRaw),
+			"rootfs_path=" + rootfsPath,
 			fmt.Sprintf("user_uid=%d", uid),
 			fmt.Sprintf("network_host_ip=%s", network.HostIP()),
 			fmt.Sprintf("network_container_ip=%s", network.ContainerIP()),
@@ -349,13 +311,6 @@ func (p *LinuxContainerPool) Destroy(container linux_backend.Container) error {
 		return err
 	}
 
-	p.graphDriver.Put(container.ID())
-
-	err = p.graphDriver.Remove(container.ID())
-	if err != nil {
-		return err
-	}
-
 	linuxContainer := container.(*linux_backend.LinuxContainer)
 
 	resources := linuxContainer.Resources()
@@ -377,7 +332,12 @@ func (p *LinuxContainerPool) destroy(id string) error {
 		Args: []string{path.Join(p.depotPath, id)},
 	}
 
-	return p.runner.Run(destroy)
+	err := p.runner.Run(destroy)
+	if err != nil {
+		return err
+	}
+
+	return p.rootfsProvider.CleanupRootFS(id)
 }
 
 func (p *LinuxContainerPool) generateContainerIDs() string {
