@@ -5,7 +5,6 @@ import (
 	"io"
 
 	"github.com/cloudfoundry-incubator/garden/warden"
-	"github.com/cloudfoundry-incubator/garden/warden/fake_backend"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend"
 )
 
@@ -22,7 +21,7 @@ type FakeContainerPool struct {
 	RestoreError error
 	DestroyError error
 
-	ContainerSetup func(*fake_backend.FakeContainer)
+	ContainerSetup func(*FakeContainer)
 
 	CreatedContainers   []linux_backend.Container
 	DestroyedContainers []linux_backend.Container
@@ -59,7 +58,7 @@ func (p *FakeContainerPool) Create(spec warden.ContainerSpec) (linux_backend.Con
 		return nil, p.CreateError
 	}
 
-	container := fake_backend.NewFakeContainer(spec)
+	container := NewFakeContainer(spec)
 
 	if p.ContainerSetup != nil {
 		p.ContainerSetup(container)
@@ -82,7 +81,7 @@ func (p *FakeContainerPool) Restore(snapshot io.Reader) (linux_backend.Container
 		return nil, err
 	}
 
-	container := fake_backend.NewFakeContainer(
+	container := NewFakeContainer(
 		warden.ContainerSpec{
 			Handle: handle,
 		},

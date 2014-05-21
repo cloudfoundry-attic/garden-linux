@@ -12,4 +12,5 @@ sudo ./out/warden \
   -bin=$PWD/linux_backend/bin \
   -rootfs=/opt/warden/rootfs \
   -snapshots=/opt/warden/snapshots \
+  -overlays=/opt/warden/overlays \
   "$@"

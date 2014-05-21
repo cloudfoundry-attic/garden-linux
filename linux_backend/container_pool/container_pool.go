@@ -1,12 +1,14 @@
 package container_pool
 
 import (
-	"bufio"
-	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
+	"net/url"
+	"os"
 	"os/exec"
 	"path"
 	"strconv"
@@ -19,18 +21,22 @@ import (
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/bandwidth_manager"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/cgroups_manager"
+	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool/rootfs_provider"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/network_pool"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/quota_manager"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/uid_pool"
 )
 
+var ErrUnknownRootFSProvider = errors.New("unknown rootfs provider")
+
 type LinuxContainerPool struct {
-	binPath    string
-	depotPath  string
-	rootFSPath string
+	binPath   string
+	depotPath string
 
 	denyNetworks  []string
 	allowNetworks []string
+
+	rootfsProviders map[string]rootfs_provider.RootFSProvider
 
 	uidPool     uid_pool.UIDPool
 	networkPool network_pool.NetworkPool
@@ -44,7 +50,8 @@ type LinuxContainerPool struct {
 }
 
 func New(
-	binPath, depotPath, rootFSPath string,
+	binPath, depotPath string,
+	rootfsProviders map[string]rootfs_provider.RootFSProvider,
 	uidPool uid_pool.UIDPool,
 	networkPool network_pool.NetworkPool,
 	portPool linux_backend.PortPool,
@@ -53,9 +60,10 @@ func New(
 	quotaManager quota_manager.QuotaManager,
 ) *LinuxContainerPool {
 	pool := &LinuxContainerPool{
-		binPath:    binPath,
-		depotPath:  depotPath,
-		rootFSPath: rootFSPath,
+		binPath:   binPath,
+		depotPath: depotPath,
+
+		rootfsProviders: rootfsProviders,
 
 		allowNetworks: allowNetworks,
 		denyNetworks:  denyNetworks,
@@ -92,7 +100,6 @@ func (p *LinuxContainerPool) Setup() error {
 			"POOL_NETWORK=" + p.networkPool.Network().String(),
 			"DENY_NETWORKS=" + formatNetworks(p.denyNetworks),
 			"ALLOW_NETWORKS=" + formatNetworks(p.allowNetworks),
-			"CONTAINER_ROOTFS_PATH=" + p.rootFSPath,
 			"CONTAINER_DEPOT_PATH=" + p.depotPath,
 			"CONTAINER_DEPOT_MOUNT_POINT_PATH=" + p.quotaManager.MountPoint(),
 			fmt.Sprintf("DISK_QUOTA_ENABLED=%v", p.quotaManager.IsEnabled()),
@@ -113,31 +120,13 @@ func formatNetworks(networks []string) string {
 }
 
 func (p *LinuxContainerPool) Prune(keep map[string]bool) error {
-	ls := &exec.Cmd{
-		Path: "ls",
-		Args: []string{p.depotPath},
-	}
-
-	out := new(bytes.Buffer)
-
-	ls.Stdout = out
-
-	err := p.runner.Run(ls)
+	entries, err := ioutil.ReadDir(p.depotPath)
 	if err != nil {
 		return err
 	}
 
-	reader := bufio.NewReader(out)
-
-	for {
-		container, err := reader.ReadString('\n')
-		if err != nil {
-			break
-		}
-
-		// trim linebreak
-		id := container[0 : len(container)-1]
-
+	for _, entry := range entries {
+		id := entry.Name()
 		if id == "tmp" {
 			continue
 		}
@@ -183,6 +172,21 @@ func (p *LinuxContainerPool) Create(spec warden.ContainerSpec) (linux_backend.Co
 		handle = spec.Handle
 	}
 
+	rootfsURL, err := url.Parse(spec.RootFSPath)
+	if err != nil {
+		return nil, err
+	}
+
+	provider, found := p.rootfsProviders[rootfsURL.Scheme]
+	if !found {
+		return nil, ErrUnknownRootFSProvider
+	}
+
+	rootfsPath, err := provider.ProvideRootFS(id, rootfsURL)
+	if err != nil {
+		return nil, err
+	}
+
 	container := linux_backend.NewLinuxContainer(
 		id,
 		handle,
@@ -202,7 +206,7 @@ func (p *LinuxContainerPool) Create(spec warden.ContainerSpec) (linux_backend.Co
 		Args: []string{containerPath},
 		Env: []string{
 			"id=" + container.ID(),
-			"rootfs_path=" + p.rootFSPath,
+			"rootfs_path=" + rootfsPath,
 			fmt.Sprintf("user_uid=%d", uid),
 			fmt.Sprintf("network_host_ip=%s", network.HostIP()),
 			fmt.Sprintf("network_container_ip=%s", network.ContainerIP()),
@@ -215,6 +219,11 @@ func (p *LinuxContainerPool) Create(spec warden.ContainerSpec) (linux_backend.Co
 	if err != nil {
 		p.uidPool.Release(uid)
 		p.networkPool.Release(network)
+		return nil, err
+	}
+
+	err = p.saveRootFSProvider(id, rootfsURL.Scheme)
+	if err != nil {
 		return nil, err
 	}
 
@@ -319,12 +328,27 @@ func (p *LinuxContainerPool) Destroy(container linux_backend.Container) error {
 }
 
 func (p *LinuxContainerPool) destroy(id string) error {
+	rootfsProvider, err := ioutil.ReadFile(path.Join(p.depotPath, id, "rootfs-provider"))
+	if err != nil {
+		rootfsProvider = []byte("")
+	}
+
+	provider, found := p.rootfsProviders[string(rootfsProvider)]
+	if !found {
+		return ErrUnknownRootFSProvider
+	}
+
 	destroy := &exec.Cmd{
 		Path: path.Join(p.binPath, "destroy.sh"),
 		Args: []string{path.Join(p.depotPath, id)},
 	}
 
-	return p.runner.Run(destroy)
+	err = p.runner.Run(destroy)
+	if err != nil {
+		return err
+	}
+
+	return provider.CleanupRootFS(id)
 }
 
 func (p *LinuxContainerPool) generateContainerIDs() string {
@@ -419,4 +443,15 @@ func (p *LinuxContainerPool) writeBindMounts(
 	}
 
 	return nil
+}
+
+func (p *LinuxContainerPool) saveRootFSProvider(id string, provider string) error {
+	providerFile := path.Join(p.depotPath, id, "rootfs-provider")
+
+	err := os.MkdirAll(path.Dir(providerFile), 0755)
+	if err != nil {
+		return err
+	}
+
+	return ioutil.WriteFile(providerFile, []byte(provider), 0644)
 }

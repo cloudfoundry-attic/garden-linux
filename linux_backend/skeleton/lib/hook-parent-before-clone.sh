@@ -7,9 +7,7 @@ shopt -s nullglob
 
 cd $(dirname $0)/../
 
-source ./lib/common.sh
+source ./etc/config
 
-setup_fs
-
-cp bin/wshd mnt/sbin/wshd
-chmod 700 mnt/sbin/wshd
+cp bin/wshd $rootfs_path/sbin/wshd
+chmod 700 $rootfs_path/sbin/wshd
