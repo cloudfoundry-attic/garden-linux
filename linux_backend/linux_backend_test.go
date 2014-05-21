@@ -11,7 +11,6 @@ import (
 	. "github.com/onsi/gomega"
 
 	"github.com/cloudfoundry-incubator/garden/warden"
-	"github.com/cloudfoundry-incubator/garden/warden/fake_backend"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool/fake_container_pool"
 	"github.com/cloudfoundry-incubator/warden-linux/system_info/fake_system_info"
@@ -233,8 +232,8 @@ var _ = Describe("Stop", func() {
 
 		linuxBackend.Stop()
 
-		fakeContainer1 := container1.(*fake_backend.FakeContainer)
-		fakeContainer2 := container2.(*fake_backend.FakeContainer)
+		fakeContainer1 := container1.(*fake_container_pool.FakeContainer)
+		fakeContainer2 := container2.(*fake_container_pool.FakeContainer)
 		Expect(fakeContainer1.SavedSnapshots).To(HaveLen(1))
 		Expect(fakeContainer2.SavedSnapshots).To(HaveLen(1))
 	})
@@ -248,8 +247,8 @@ var _ = Describe("Stop", func() {
 
 		linuxBackend.Stop()
 
-		fakeContainer1 := container1.(*fake_backend.FakeContainer)
-		fakeContainer2 := container2.(*fake_backend.FakeContainer)
+		fakeContainer1 := container1.(*fake_container_pool.FakeContainer)
+		fakeContainer2 := container2.(*fake_container_pool.FakeContainer)
 		Expect(fakeContainer1.CleanedUp).To(BeTrue())
 		Expect(fakeContainer2.CleanedUp).To(BeTrue())
 	})
@@ -328,7 +327,7 @@ var _ = Describe("Create", func() {
 	It("starts the container", func() {
 		container, err := linuxBackend.Create(warden.ContainerSpec{})
 		Expect(err).ToNot(HaveOccurred())
-		Expect(container.(*fake_backend.FakeContainer).Started).To(BeTrue())
+		Expect(container.(*fake_container_pool.FakeContainer).Started).To(BeTrue())
 	})
 
 	It("registers the container", func() {
@@ -361,7 +360,7 @@ var _ = Describe("Create", func() {
 		disaster := errors.New("failed to start")
 
 		BeforeEach(func() {
-			fakeContainerPool.ContainerSetup = func(c *fake_backend.FakeContainer) {
+			fakeContainerPool.ContainerSetup = func(c *fake_container_pool.FakeContainer) {
 				c.StartError = disaster
 			}
 		})

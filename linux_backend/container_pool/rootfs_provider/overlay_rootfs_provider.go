@@ -1,6 +1,7 @@
 package rootfs_provider
 
 import (
+	"net/url"
 	"os/exec"
 	"path"
 
@@ -28,10 +29,10 @@ func NewOverlay(
 	}
 }
 
-func (provider *overlayRootFSProvider) ProvideRootFS(id, rootfs string) (string, error) {
+func (provider *overlayRootFSProvider) ProvideRootFS(id string, rootfs *url.URL) (string, error) {
 	rootFSPath := provider.defaultRootFS
-	if rootfs != "" {
-		rootFSPath = rootfs
+	if rootfs.Path != "" {
+		rootFSPath = rootfs.Path
 	}
 
 	err := provider.runner.Run(&exec.Cmd{

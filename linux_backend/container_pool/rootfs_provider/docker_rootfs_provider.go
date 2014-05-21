@@ -1,62 +1,43 @@
 package rootfs_provider
 
 import (
-	"strings"
-	"sync"
+	"errors"
+	"net/url"
 
 	"github.com/dotcloud/docker/daemon/graphdriver"
 
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool/repository_fetcher"
 )
 
-const imagePrefix = "image:"
-
 type dockerRootFSProvider struct {
 	repoFetcher repository_fetcher.RepositoryFetcher
 	graphDriver graphdriver.Driver
 
-	providedAsImage      map[string]bool
-	providedAsImageMutex *sync.RWMutex
-
 	fallback RootFSProvider
 }
+
+var ErrInvalidDockerURL = errors.New("invalid docker url; must provide path")
 
 func NewDocker(
 	repoFetcher repository_fetcher.RepositoryFetcher,
 	graphDriver graphdriver.Driver,
-	fallback RootFSProvider,
 ) RootFSProvider {
 	return &dockerRootFSProvider{
 		repoFetcher: repoFetcher,
 		graphDriver: graphDriver,
-		fallback:    fallback,
-
-		providedAsImage:      map[string]bool{},
-		providedAsImageMutex: new(sync.RWMutex),
 	}
 }
 
-func (provider *dockerRootFSProvider) ProvideRootFS(id, path string) (string, error) {
-	if !strings.HasPrefix(path, imagePrefix) {
-		mountpoint, err := provider.fallback.ProvideRootFS(id, path)
-		if err != nil {
-			return "", err
-		}
-
-		provider.markProvidedAsImage(id, false)
-
-		return mountpoint, nil
+func (provider *dockerRootFSProvider) ProvideRootFS(id string, url *url.URL) (string, error) {
+	if len(url.Path) == 0 {
+		return "", ErrInvalidDockerURL
 	}
 
-	provider.markProvidedAsImage(id, true)
-
-	repoSegments := strings.SplitN(path[len(imagePrefix):], ":", 2)
-
-	repoName := repoSegments[0]
+	repoName := url.Path[1:]
 
 	tag := "latest"
-	if len(repoSegments) >= 2 {
-		tag = repoSegments[1]
+	if len(url.Fragment) > 0 {
+		tag = url.Fragment
 	}
 
 	imageID, err := provider.repoFetcher.Fetch(repoName, tag)
@@ -69,32 +50,11 @@ func (provider *dockerRootFSProvider) ProvideRootFS(id, path string) (string, er
 		return "", err
 	}
 
-	mountpoint, err := provider.graphDriver.Get(id, "")
-	if err != nil {
-		return "", err
-	}
-
-	provider.markProvidedAsImage(id, true)
-
-	return mountpoint, nil
+	return provider.graphDriver.Get(id, "")
 }
 
 func (provider *dockerRootFSProvider) CleanupRootFS(id string) error {
-	provider.providedAsImageMutex.RLock()
-	asImage := provider.providedAsImage[id]
-	provider.providedAsImageMutex.RUnlock()
+	provider.graphDriver.Put(id)
 
-	if asImage {
-		provider.graphDriver.Put(id)
-
-		return provider.graphDriver.Remove(id)
-	} else {
-		return provider.fallback.CleanupRootFS(id)
-	}
-}
-
-func (provider *dockerRootFSProvider) markProvidedAsImage(id string, asImage bool) {
-	provider.providedAsImageMutex.Lock()
-	provider.providedAsImage[id] = asImage
-	provider.providedAsImageMutex.Unlock()
+	return provider.graphDriver.Remove(id)
 }

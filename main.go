@@ -205,14 +205,17 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	overlayRootFSProvider := rootfs_provider.NewOverlay(*binPath, *overlaysPath, *rootFSPath, runner)
 	repoFetcher := repository_fetcher.Retryable{repository_fetcher.New(reg, graph)}
-	dockerRootFSProvider := rootfs_provider.NewDocker(repoFetcher, graphDriver, overlayRootFSProvider)
+
+	rootFSProviders := map[string]rootfs_provider.RootFSProvider{
+		"":       rootfs_provider.NewOverlay(*binPath, *overlaysPath, *rootFSPath, runner),
+		"docker": rootfs_provider.NewDocker(repoFetcher, graphDriver),
+	}
 
 	pool := container_pool.New(
 		*binPath,
 		*depotPath,
-		dockerRootFSProvider,
+		rootFSProviders,
 		uidPool,
 		networkPool,
 		portPool,
