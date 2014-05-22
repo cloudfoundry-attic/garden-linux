@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"sync"
 
 	"github.com/dotcloud/docker/archive"
 	"github.com/dotcloud/docker/image"
@@ -33,12 +34,18 @@ type Graph interface {
 type DockerRepositoryFetcher struct {
 	registry Registry
 	graph    Graph
+
+	fetchingLayers map[string]chan struct{}
+	fetchingMutex  *sync.Mutex
 }
 
 func New(registry Registry, graph Graph) RepositoryFetcher {
 	return &DockerRepositoryFetcher{
 		registry: registry,
 		graph:    graph,
+
+		fetchingLayers: map[string]chan struct{}{},
+		fetchingMutex:  new(sync.Mutex),
 	}
 }
 
@@ -80,37 +87,73 @@ func (fetcher *DockerRepositoryFetcher) fetchFromEndpoint(endpoint string, imgID
 	}
 
 	for i := len(history) - 1; i >= 0; i-- {
-		id := history[i]
-
-		if fetcher.graph.Exists(id) {
-			log.Println("already exists:", id)
-			continue
-		}
-
-		imgJSON, _, err := fetcher.registry.GetRemoteImageJSON(id, endpoint, token)
-		if err != nil {
-			return err
-		}
-
-		img, err := image.NewImgJSON(imgJSON)
-		if err != nil {
-			return err
-		}
-
-		layer, err := fetcher.registry.GetRemoteImageLayer(img.ID, endpoint, token)
-		if err != nil {
-			return err
-		}
-
-		defer layer.Close()
-
-		log.Println("downloading layer:", id)
-
-		err = fetcher.graph.Register(imgJSON, layer, img)
+		err := fetcher.fetchLayer(endpoint, history[i], token)
 		if err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+func (fetcher *DockerRepositoryFetcher) fetchLayer(endpoint string, layerID string, token []string) error {
+	for acquired := false; !acquired; acquired = fetcher.fetching(layerID) {
+	}
+
+	defer fetcher.doneFetching(layerID)
+
+	if fetcher.graph.Exists(layerID) {
+		log.Println("already exists:", layerID)
+		return nil
+	}
+
+	imgJSON, _, err := fetcher.registry.GetRemoteImageJSON(layerID, endpoint, token)
+	if err != nil {
+		return err
+	}
+
+	img, err := image.NewImgJSON(imgJSON)
+	if err != nil {
+		return err
+	}
+
+	layer, err := fetcher.registry.GetRemoteImageLayer(img.ID, endpoint, token)
+	if err != nil {
+		return err
+	}
+
+	defer layer.Close()
+
+	log.Println("downloading layer:", layerID)
+
+	err = fetcher.graph.Register(imgJSON, layer, img)
+	if err != nil {
+		return err
+	}
+
+	log.Println("finished downloading:", layerID)
+
+	return nil
+}
+
+func (fetcher *DockerRepositoryFetcher) fetching(layerID string) bool {
+	fetcher.fetchingMutex.Lock()
+
+	fetching, found := fetcher.fetchingLayers[layerID]
+	if !found {
+		fetcher.fetchingLayers[layerID] = make(chan struct{})
+		fetcher.fetchingMutex.Unlock()
+		return true
+	} else {
+		fetcher.fetchingMutex.Unlock()
+		<-fetching
+		return false
+	}
+}
+
+func (fetcher *DockerRepositoryFetcher) doneFetching(layerID string) {
+	fetcher.fetchingMutex.Lock()
+	close(fetcher.fetchingLayers[layerID])
+	delete(fetcher.fetchingLayers, layerID)
+	fetcher.fetchingMutex.Unlock()
 }
