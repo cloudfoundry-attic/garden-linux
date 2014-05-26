@@ -238,24 +238,19 @@ func (b *LinuxBackend) saveSnapshot(container Container) error {
 
 	log.Println("saving snapshot for", container.ID())
 
-	tmpfile, err := ioutil.TempFile(os.TempDir(), "snapshot-"+container.ID())
-	if err != nil {
-		return &FailedToSnapshotError{err}
-	}
-
-	err = container.Snapshot(tmpfile)
-	if err != nil {
-		return &FailedToSnapshotError{err}
-	}
-
 	snapshotPath := path.Join(b.snapshotsPath, container.ID())
 
-	err = os.Rename(tmpfile.Name(), snapshotPath)
+	snapshot, err := os.Create(snapshotPath)
 	if err != nil {
 		return &FailedToSnapshotError{err}
 	}
 
-	return nil
+	err = container.Snapshot(snapshot)
+	if err != nil {
+		return &FailedToSnapshotError{err}
+	}
+
+	return snapshot.Close()
 }
 
 func (b *LinuxBackend) restore(snapshot io.Reader) (warden.Container, error) {

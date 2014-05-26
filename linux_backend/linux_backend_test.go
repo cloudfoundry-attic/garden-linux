@@ -221,6 +221,9 @@ var _ = Describe("Stop", func() {
 			fakeSystemInfo,
 			path.Join(tmpdir, "snapshots"),
 		)
+
+		err = linuxBackend.Start()
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	It("takes a snapshot of each container", func() {
