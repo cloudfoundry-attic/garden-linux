@@ -80,11 +80,7 @@ func (b *LinuxBackend) Start() error {
 	if b.snapshotsPath != "" {
 		_, err := os.Stat(b.snapshotsPath)
 		if err == nil {
-			err = b.restoreSnapshots()
-			if err != nil {
-				return err
-			}
-
+			b.restoreSnapshots()
 			os.RemoveAll(b.snapshotsPath)
 		}
 
@@ -206,10 +202,10 @@ func (b *LinuxBackend) Stop() {
 	}
 }
 
-func (b *LinuxBackend) restoreSnapshots() error {
+func (b *LinuxBackend) restoreSnapshots() {
 	entries, err := ioutil.ReadDir(b.snapshotsPath)
 	if err != nil {
-		return err
+		log.Println("failed to read snapshots", b.snapshotsPath, err)
 	}
 
 	for _, entry := range entries {
@@ -219,16 +215,14 @@ func (b *LinuxBackend) restoreSnapshots() error {
 
 		file, err := os.Open(snapshot)
 		if err != nil {
-			return err
+			log.Println("failed to open", entry.Name(), err)
 		}
 
 		_, err = b.restore(file)
 		if err != nil {
-			return err
+			log.Println("failed to restore", entry.Name(), err)
 		}
 	}
-
-	return nil
 }
 
 func (b *LinuxBackend) saveSnapshot(container Container) error {

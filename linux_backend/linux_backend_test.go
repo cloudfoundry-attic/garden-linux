@@ -171,11 +171,11 @@ var _ = Describe("Start", func() {
 				fakeContainerPool.RestoreError = disaster
 			})
 
-			It("returns the error", func() {
+			It("successfully starts anyway", func() {
 				linuxBackend := linux_backend.New(fakeContainerPool, fakeSystemInfo, snapshotsPath)
 
 				err := linuxBackend.Start()
-				Expect(err).To(Equal(disaster))
+				Expect(err).ToNot(HaveOccurred())
 			})
 		})
 	})
