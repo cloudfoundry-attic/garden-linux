@@ -199,7 +199,10 @@ func (b *LinuxBackend) Stop() {
 
 	for _, container := range b.containers {
 		container.Cleanup()
-		b.saveSnapshot(container)
+		err := b.saveSnapshot(container)
+		if err != nil {
+			log.Println(err)
+		}
 	}
 }
 
