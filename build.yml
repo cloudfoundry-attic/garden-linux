@@ -1,0 +1,17 @@
+---
+image: cloudfoundry/warden-ci
+
+env:
+  - GOROOT=/usr/local/go
+  - PATH=$GOROOT/bin:$PATH
+  - GOPATH=/tmp/build/src
+  - PATH=/usr/local/bin:$PATH
+  - REPO_DIR=$GOPATH/src/github.com/cloudfoundry-incubator/warden-linux
+
+script: |
+  mkdir -p $(dirname $REPO_DIR)
+  ln -s $PWD/$(basename $REPO_DIR) $REPO_DIR
+
+  cd $REPO_DIR
+
+  ./scripts/drone-test
