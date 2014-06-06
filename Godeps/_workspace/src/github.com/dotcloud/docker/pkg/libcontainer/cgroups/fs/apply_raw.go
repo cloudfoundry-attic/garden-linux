@@ -26,7 +26,7 @@ var (
 type subsystem interface {
 	Set(*data) error
 	Remove(*data) error
-	Stats(*data) (map[string]float64, error)
+	Stats(*data) (map[string]int64, error)
 }
 
 type data struct {
@@ -74,7 +74,7 @@ func Apply(c *cgroups.Cgroup, pid int) (cgroups.ActiveCgroup, error) {
 	return d, nil
 }
 
-func GetStats(c *cgroups.Cgroup, subsystem string, pid int) (map[string]float64, error) {
+func GetStats(c *cgroups.Cgroup, subsystem string, pid int) (map[string]int64, error) {
 	cgroupRoot, err := cgroups.FindCgroupMountpoint("cpu")
 	if err != nil {
 		return nil, err
@@ -101,6 +101,36 @@ func GetStats(c *cgroups.Cgroup, subsystem string, pid int) (map[string]float64,
 		return nil, fmt.Errorf("subsystem %s does not exist", subsystem)
 	}
 	return sys.Stats(d)
+}
+
+func GetPids(c *cgroups.Cgroup) ([]int, error) {
+	cgroupRoot, err := cgroups.FindCgroupMountpoint("cpu")
+	if err != nil {
+		return nil, err
+	}
+	cgroupRoot = filepath.Dir(cgroupRoot)
+
+	if _, err := os.Stat(cgroupRoot); err != nil {
+		return nil, fmt.Errorf("cgroup root %s not found", cgroupRoot)
+	}
+
+	cgroup := c.Name
+	if c.Parent != "" {
+		cgroup = filepath.Join(c.Parent, cgroup)
+	}
+
+	d := &data{
+		root:   cgroupRoot,
+		cgroup: cgroup,
+		c:      c,
+	}
+
+	dir, err := d.path("devices")
+	if err != nil {
+		return nil, err
+	}
+
+	return cgroups.ReadProcsFile(dir)
 }
 
 func (raw *data) parent(subsystem string) (string, error) {

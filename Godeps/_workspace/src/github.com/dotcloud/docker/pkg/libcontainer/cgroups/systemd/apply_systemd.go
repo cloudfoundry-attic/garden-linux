@@ -3,6 +3,7 @@
 package systemd
 
 import (
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -78,7 +79,7 @@ type cgroupArg struct {
 
 func Apply(c *cgroups.Cgroup, pid int) (cgroups.ActiveCgroup, error) {
 	var (
-		unitName   = c.Parent + "-" + c.Name + ".scope"
+		unitName   = getUnitName(c)
 		slice      = "system.slice"
 		properties []systemd1.Property
 		cpuArgs    []cgroupArg
@@ -174,13 +175,22 @@ func Apply(c *cgroups.Cgroup, pid int) (cgroups.ActiveCgroup, error) {
 
 		path := filepath.Join(mountpoint, cgroup)
 
-		// /dev/pts/*
-		if err := ioutil.WriteFile(filepath.Join(path, "devices.allow"), []byte("c 136:* rwm"), 0700); err != nil {
-			return nil, err
+		allow := []string{
+			// allow mknod for any device
+			"c *:* m",
+			"b *:* m",
+
+			// /dev/pts/ - pts namespaces are "coming soon"
+			"c 136:* rwm",
+
+			// tuntap
+			"c 10:200 rwm",
 		}
-		// tuntap
-		if err := ioutil.WriteFile(filepath.Join(path, "devices.allow"), []byte("c 10:200 rwm"), 0700); err != nil {
-			return nil, err
+
+		for _, val := range allow {
+			if err := ioutil.WriteFile(filepath.Join(path, "devices.allow"), []byte(val), 0700); err != nil {
+				return nil, err
+			}
 		}
 	}
 
@@ -293,4 +303,25 @@ func (c *systemdCgroup) Cleanup() error {
 	}
 
 	return nil
+}
+
+func GetPids(c *cgroups.Cgroup) ([]int, error) {
+	unitName := getUnitName(c)
+
+	mountpoint, err := cgroups.FindCgroupMountpoint("cpu")
+	if err != nil {
+		return nil, err
+	}
+
+	props, err := theConn.GetUnitTypeProperties(unitName, getIfaceForUnit(unitName))
+	if err != nil {
+		return nil, err
+	}
+	cgroup := props["ControlGroup"].(string)
+
+	return cgroups.ReadProcsFile(filepath.Join(mountpoint, cgroup))
+}
+
+func getUnitName(c *cgroups.Cgroup) string {
+	return fmt.Sprintf("%s-%s.scope", c.Parent, c.Name)
 }

@@ -1,9 +1,5 @@
 package fs
 
-import (
-	"os"
-)
-
 type devicesGroup struct {
 }
 
@@ -12,11 +8,6 @@ func (s *devicesGroup) Set(d *data) error {
 	if err != nil {
 		return err
 	}
-	defer func() {
-		if err != nil {
-			os.RemoveAll(dir)
-		}
-	}()
 
 	if !d.c.DeviceAccess {
 		if err := writeFile(dir, "devices.deny", "a"); err != nil {
@@ -64,6 +55,6 @@ func (s *devicesGroup) Remove(d *data) error {
 	return removePath(d.path("devices"))
 }
 
-func (s *devicesGroup) Stats(d *data) (map[string]float64, error) {
+func (s *devicesGroup) Stats(d *data) (map[string]int64, error) {
 	return nil, ErrNotSupportStat
 }
