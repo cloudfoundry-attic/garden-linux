@@ -89,7 +89,11 @@ func (r *Runner) Start(argv ...string) error {
 	warden.Stdout = os.Stdout
 	warden.Stderr = os.Stderr
 
-	session, err := gexec.Start(warden, ginkgo.GinkgoWriter, ginkgo.GinkgoWriter)
+	session, err := gexec.Start(
+		warden,
+		gexec.NewPrefixedWriter("\x1b[32m[o]\x1b[96m[warden-linux]\x1b[0m ", ginkgo.GinkgoWriter),
+		gexec.NewPrefixedWriter("\x1b[91m[e]\x1b[96m[warden-linux]\x1b[0m ", ginkgo.GinkgoWriter),
+	)
 	if err != nil {
 		return err
 	}
