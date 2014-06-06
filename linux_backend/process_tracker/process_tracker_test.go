@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"path"
 	"time"
@@ -18,7 +19,7 @@ import (
 )
 
 var fakeRunner *fake_command_runner.FakeCommandRunner
-var processTracker *process_tracker.ProcessTracker
+var processTracker process_tracker.ProcessTracker
 
 func binPath(bin string) string {
 	return path.Join("/depot/some-id", "bin", bin)
@@ -27,7 +28,7 @@ func binPath(bin string) string {
 func setupSuccessfulSpawn() {
 	fakeRunner.WhenRunning(
 		fake_command_runner.CommandSpec{
-			Path: binPath("iomux-spawn"),
+			Path: "bash",
 		},
 		func(cmd *exec.Cmd) error {
 			cmd.Stdout.Write([]byte("ready\n"))
@@ -55,8 +56,11 @@ var _ = Describe("Running processes", func() {
 
 		Eventually(fakeRunner).Should(HaveBackgrounded(
 			fake_command_runner.CommandSpec{
-				Path: binPath("iomux-spawn"),
+				Path: "bash",
 				Args: []string{
+					"-c",
+					"cat | " + binPath("iomux-spawn") + ` "$@" &`,
+					binPath("iomux-spawn"),
 					fmt.Sprintf("/depot/some-id/processes/%d", processID),
 					"/bin/bash",
 				},
@@ -68,7 +72,7 @@ var _ = Describe("Running processes", func() {
 	It("initiates a link to the process after spawn is ready", func(done Done) {
 		fakeRunner.WhenRunning(
 			fake_command_runner.CommandSpec{
-				Path: binPath("iomux-spawn"),
+				Path: "bash",
 			}, func(cmd *exec.Cmd) error {
 				go func() {
 					defer GinkgoRecover()
@@ -186,7 +190,7 @@ var _ = Describe("Running processes", func() {
 		BeforeEach(func() {
 			fakeRunner.WhenRunning(
 				fake_command_runner.CommandSpec{
-					Path: binPath("iomux-spawn"),
+					Path: "bash",
 				}, func(*exec.Cmd) error {
 					return disaster
 				},
@@ -233,10 +237,9 @@ var _ = Describe("Restoring processes", func() {
 	It("tracks the restored process", func() {
 		processTracker.Restore(2)
 
-		activeProcesses := processTracker.ActiveProcesses()
+		activeProcesses := processTracker.ActiveProcessIDs()
 
-		Expect(activeProcesses).To(HaveLen(1))
-		Expect(activeProcesses[0].ID).To(Equal(uint32(2)))
+		Expect(activeProcesses).To(Equal([]uint32{2}))
 	})
 })
 
@@ -342,7 +345,64 @@ var _ = Describe("Attaching to running processes", func() {
 	})
 })
 
-var _ = Describe("Listing active processes", func() {
+var _ = Describe("Unlinking active processes", func() {
+	BeforeEach(func() {
+		fakeRunner = fake_command_runner.New()
+		processTracker = process_tracker.New("/depot/some-id", fakeRunner)
+	})
+
+	It("sends SIGINT to in-flight iomux-links", func() {
+		setupSuccessfulSpawn()
+
+		linked := make(chan bool, 2)
+
+		fakeRunner.WhenWaitingFor(
+			fake_command_runner.CommandSpec{
+				Path: binPath("iomux-link"),
+			},
+			func(cmd *exec.Cmd) error {
+				linked <- true
+				select {}
+				return nil
+			},
+		)
+
+		_, _, err := processTracker.Run(exec.Command("xxx"))
+		Expect(err).ToNot(HaveOccurred())
+
+		_, _, err = processTracker.Run(exec.Command("xxx"))
+		Expect(err).ToNot(HaveOccurred())
+
+		Eventually(linked).Should(Receive())
+		Eventually(linked).Should(Receive())
+
+		processTracker.UnlinkAll()
+
+		Expect(fakeRunner).To(HaveSignalled(
+			fake_command_runner.CommandSpec{
+				Path: "/depot/some-id/bin/iomux-link",
+				Args: []string{
+					"-w", "/depot/some-id/processes/0/cursors",
+					"/depot/some-id/processes/0",
+				},
+			},
+			os.Interrupt,
+		))
+
+		Expect(fakeRunner).To(HaveSignalled(
+			fake_command_runner.CommandSpec{
+				Path: "/depot/some-id/bin/iomux-link",
+				Args: []string{
+					"-w", "/depot/some-id/processes/1/cursors",
+					"/depot/some-id/processes/1",
+				},
+			},
+			os.Interrupt,
+		))
+	})
+})
+
+var _ = Describe("Listing active process IDs", func() {
 	BeforeEach(func() {
 		fakeRunner = fake_command_runner.New()
 		processTracker = process_tracker.New("/depot/some-id", fakeRunner)
@@ -351,14 +411,14 @@ var _ = Describe("Listing active processes", func() {
 	It("includes running process IDs", func() {
 		setupSuccessfulSpawn()
 
-		running := make(chan []*process_tracker.Process, 2)
+		running := make(chan []uint32, 2)
 
 		fakeRunner.WhenRunning(
 			fake_command_runner.CommandSpec{
 				Path: binPath("iomux-link"),
 			},
 			func(cmd *exec.Cmd) error {
-				running <- processTracker.ActiveProcesses()
+				running <- processTracker.ActiveProcessIDs()
 				return nil
 			},
 		)
@@ -369,12 +429,7 @@ var _ = Describe("Listing active processes", func() {
 		processID2, _, err := processTracker.Run(exec.Command("xxx"))
 		Expect(err).ToNot(HaveOccurred())
 
-		totalRunning := append(<-running, <-running...)
-
-		runningIDs := []uint32{}
-		for _, process := range totalRunning {
-			runningIDs = append(runningIDs, process.ID)
-		}
+		runningIDs := append(<-running, <-running...)
 
 		Expect(runningIDs).To(ContainElement(processID1))
 		Expect(runningIDs).To(ContainElement(processID2))

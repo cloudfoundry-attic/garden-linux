@@ -189,6 +189,11 @@ int main(int argc, char *argv[]) {
 
   DLOG("child exited, status = %d", WEXITSTATUS(child_status));
 
+  /* Close fds so that the parent can fully detach */
+  fclose(stdout);
+  fclose(stderr);
+  fclose(stdin);
+
   /* Wait for status writer */
   status_writer_finish(sw, child_status);
   pthread_join(sw_thread, NULL);

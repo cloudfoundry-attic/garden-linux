@@ -85,11 +85,11 @@ func (p *Process) Spawn(cmd *exec.Cmd) (ready, active chan error) {
 	}
 
 	spawn := &exec.Cmd{
-		Path:  spawnPath,
+		Path:  "bash",
 		Stdin: cmd.Stdin,
 	}
 
-	spawn.Args = append([]string{processDir}, cmd.Path)
+	spawn.Args = append([]string{"-c", "cat | " + spawnPath + ` "$@" &`, spawnPath, processDir}, cmd.Path)
 	spawn.Args = append(spawn.Args, cmd.Args...)
 
 	spawn.Env = cmd.Env
@@ -110,14 +110,15 @@ func (p *Process) Spawn(cmd *exec.Cmd) (ready, active chan error) {
 		return
 	}
 
+	go spawn.Wait()
+
 	go func() {
 		defer func() {
-			spawn.Wait()
 			spawnW.Close()
 			spawnR.Close()
 		}()
 
-		_, err = spawnOut.ReadBytes('\n')
+		_, err := spawnOut.ReadBytes('\n')
 		if err != nil {
 			ready <- err
 			return

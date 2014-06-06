@@ -48,7 +48,7 @@ type LinuxContainer struct {
 	quotaManager     quota_manager.QuotaManager
 	bandwidthManager bandwidth_manager.BandwidthManager
 
-	processTracker *process_tracker.ProcessTracker
+	processTracker process_tracker.ProcessTracker
 
 	oomMutex    sync.RWMutex
 	oomNotifier *exec.Cmd
@@ -106,6 +106,7 @@ func NewLinuxContainer(
 	cgroupsManager cgroups_manager.CgroupsManager,
 	quotaManager quota_manager.QuotaManager,
 	bandwidthManager bandwidth_manager.BandwidthManager,
+	processTracker process_tracker.ProcessTracker,
 ) *LinuxContainer {
 	return &LinuxContainer{
 		id:     id,
@@ -129,7 +130,7 @@ func NewLinuxContainer(
 		quotaManager:     quotaManager,
 		bandwidthManager: bandwidthManager,
 
-		processTracker: process_tracker.New(path, runner),
+		processTracker: processTracker, //process_tracker.New(path, runner),
 	}
 }
 
@@ -192,10 +193,10 @@ func (c *LinuxContainer) Snapshot(out io.Writer) error {
 
 	processSnapshots := []ProcessSnapshot{}
 
-	for _, process := range c.processTracker.ActiveProcesses() {
+	for _, id := range c.processTracker.ActiveProcessIDs() {
 		processSnapshots = append(
 			processSnapshots,
-			ProcessSnapshot{ID: process.ID},
+			ProcessSnapshot{ID: id},
 		)
 	}
 
@@ -325,9 +326,7 @@ func (c *LinuxContainer) Stop(kill bool) error {
 func (c *LinuxContainer) Cleanup() {
 	c.stopOomNotifier()
 
-	for _, process := range c.processTracker.ActiveProcesses() {
-		process.Unlink()
-	}
+	c.processTracker.UnlinkAll()
 }
 
 func (c *LinuxContainer) Info() (warden.ContainerInfo, error) {
@@ -358,11 +357,6 @@ func (c *LinuxContainer) Info() (warden.ContainerInfo, error) {
 		return warden.ContainerInfo{}, err
 	}
 
-	processIDs := []uint32{}
-	for _, process := range c.processTracker.ActiveProcesses() {
-		processIDs = append(processIDs, process.ID)
-	}
-
 	mappedPorts := []warden.PortMapping{}
 
 	c.netInsMutex.RLock()
@@ -383,7 +377,7 @@ func (c *LinuxContainer) Info() (warden.ContainerInfo, error) {
 		HostIP:        c.resources.Network.HostIP().String(),
 		ContainerIP:   c.resources.Network.ContainerIP().String(),
 		ContainerPath: c.path,
-		ProcessIDs:    processIDs,
+		ProcessIDs:    c.processTracker.ActiveProcessIDs(),
 		MemoryStat:    parseMemoryStat(memoryStat),
 		CPUStat:       parseCPUStat(cpuUsage, cpuStat),
 		DiskStat:      diskStat,

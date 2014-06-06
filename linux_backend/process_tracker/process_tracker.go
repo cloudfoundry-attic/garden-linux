@@ -9,7 +9,15 @@ import (
 	"github.com/cloudfoundry/gunk/command_runner"
 )
 
-type ProcessTracker struct {
+type ProcessTracker interface {
+	Run(*exec.Cmd) (uint32, chan warden.ProcessStream, error)
+	Attach(uint32) (chan warden.ProcessStream, error)
+	Restore(processID uint32)
+	ActiveProcessIDs() []uint32
+	UnlinkAll()
+}
+
+type processTracker struct {
 	containerPath string
 	runner        command_runner.CommandRunner
 
@@ -26,8 +34,8 @@ func (e UnknownProcessError) Error() string {
 	return fmt.Sprintf("unknown process: %d", e.ProcessID)
 }
 
-func New(containerPath string, runner command_runner.CommandRunner) *ProcessTracker {
-	return &ProcessTracker{
+func New(containerPath string, runner command_runner.CommandRunner) ProcessTracker {
+	return &processTracker{
 		containerPath: containerPath,
 		runner:        runner,
 
@@ -36,7 +44,7 @@ func New(containerPath string, runner command_runner.CommandRunner) *ProcessTrac
 	}
 }
 
-func (t *ProcessTracker) Run(cmd *exec.Cmd) (uint32, chan warden.ProcessStream, error) {
+func (t *processTracker) Run(cmd *exec.Cmd) (uint32, chan warden.ProcessStream, error) {
 	t.processesMutex.Lock()
 
 	processID := t.nextProcessID
@@ -67,7 +75,7 @@ func (t *ProcessTracker) Run(cmd *exec.Cmd) (uint32, chan warden.ProcessStream, 
 	return processID, processStream, nil
 }
 
-func (t *ProcessTracker) Attach(processID uint32) (chan warden.ProcessStream, error) {
+func (t *processTracker) Attach(processID uint32) (chan warden.ProcessStream, error) {
 	t.processesMutex.RLock()
 	process, ok := t.processes[processID]
 	t.processesMutex.RUnlock()
@@ -83,7 +91,7 @@ func (t *ProcessTracker) Attach(processID uint32) (chan warden.ProcessStream, er
 	return processStream, nil
 }
 
-func (t *ProcessTracker) Restore(processID uint32) {
+func (t *processTracker) Restore(processID uint32) {
 	t.processesMutex.Lock()
 
 	process := NewProcess(processID, t.containerPath, t.runner)
@@ -99,20 +107,29 @@ func (t *ProcessTracker) Restore(processID uint32) {
 	t.processesMutex.Unlock()
 }
 
-func (t *ProcessTracker) ActiveProcesses() []*Process {
+func (t *processTracker) ActiveProcessIDs() []uint32 {
 	t.processesMutex.RLock()
 	defer t.processesMutex.RUnlock()
 
-	processes := []*Process{}
+	processIDs := []uint32{}
 
 	for _, process := range t.processes {
-		processes = append(processes, process)
+		processIDs = append(processIDs, process.ID)
 	}
 
-	return processes
+	return processIDs
 }
 
-func (t *ProcessTracker) link(processID uint32) {
+func (t *processTracker) UnlinkAll() {
+	t.processesMutex.RLock()
+	defer t.processesMutex.RUnlock()
+
+	for _, process := range t.processes {
+		process.Unlink()
+	}
+}
+
+func (t *processTracker) link(processID uint32) {
 	t.processesMutex.RLock()
 	process, ok := t.processes[processID]
 	t.processesMutex.RUnlock()
@@ -128,7 +145,7 @@ func (t *ProcessTracker) link(processID uint32) {
 	return
 }
 
-func (t *ProcessTracker) unregister(processID uint32) {
+func (t *processTracker) unregister(processID uint32) {
 	t.processesMutex.Lock()
 	defer t.processesMutex.Unlock()
 

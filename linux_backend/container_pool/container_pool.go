@@ -23,6 +23,7 @@ import (
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/cgroups_manager"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool/rootfs_provider"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/network_pool"
+	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/process_tracker"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/quota_manager"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/uid_pool"
 )
@@ -199,6 +200,7 @@ func (p *LinuxContainerPool) Create(spec warden.ContainerSpec) (linux_backend.Co
 		cgroupsManager,
 		p.quotaManager,
 		bandwidthManager,
+		process_tracker.New(containerPath, p.runner),
 	)
 
 	create := &exec.Cmd{
@@ -296,6 +298,7 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 		cgroupsManager,
 		p.quotaManager,
 		bandwidthManager,
+		process_tracker.New(containerPath, p.runner),
 	)
 
 	err = container.Restore(containerSnapshot)
