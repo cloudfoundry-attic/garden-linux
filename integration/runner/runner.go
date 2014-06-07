@@ -121,6 +121,10 @@ func (r *Runner) Stop() error {
 }
 
 func (r *Runner) DestroyContainers() error {
+	if r.wardenSession == nil {
+		return nil
+	}
+
 	client := r.NewClient()
 
 	containers, err := client.Containers(nil)
