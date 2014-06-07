@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"math"
 	"net"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -508,7 +509,7 @@ var _ = Describe("Linux containers", func() {
 					Env: []string{
 						"id=some-id",
 						"container_iface_mtu=1500",
-						"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+						"PATH=" + os.Getenv("PATH"),
 					},
 				},
 			))

@@ -121,7 +121,7 @@ var _ = Describe("Container pool", func() {
 						"CONTAINER_DEPOT_MOUNT_POINT_PATH=/depot/mount/point",
 						"DISK_QUOTA_ENABLED=true",
 
-						"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+						"PATH=" + os.Getenv("PATH"),
 					},
 				},
 			))
@@ -195,7 +195,7 @@ var _ = Describe("Container pool", func() {
 						"network_host_ip=1.2.0.1",
 						"network_container_ip=1.2.0.2",
 
-						"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+						"PATH=" + os.Getenv("PATH"),
 					},
 				},
 			))
@@ -247,7 +247,7 @@ var _ = Describe("Container pool", func() {
 							"network_host_ip=1.2.0.1",
 							"network_container_ip=1.2.0.2",
 
-							"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+							"PATH=" + os.Getenv("PATH"),
 						},
 					},
 				))

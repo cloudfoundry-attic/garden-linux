@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
@@ -286,7 +287,7 @@ func (c *LinuxContainer) Start() error {
 		Env: []string{
 			"id=" + c.id,
 			"container_iface_mtu=1500",
-			"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+			"PATH=" + os.Getenv("PATH"),
 		},
 	}
 
