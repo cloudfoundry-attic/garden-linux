@@ -21,50 +21,50 @@ external_ip=$(ip route get 8.8.8.8 | sed 's/.*src\s\(.*\)\s/\1/;tx;d;:x')
 
 function teardown_filter() {
   # Prune forward chain
-  iptables -S ${filter_forward_chain} 2> /dev/null |
+  iptables -w -S ${filter_forward_chain} 2> /dev/null |
     grep "\-g ${filter_instance_chain}\b" |
     sed -e "s/-A/-D/" |
-    xargs --no-run-if-empty --max-lines=1 iptables
+    xargs --no-run-if-empty --max-lines=1 iptables -w
 
   # Flush and delete instance chain
-  iptables -F ${filter_instance_chain} 2> /dev/null || true
-  iptables -X ${filter_instance_chain} 2> /dev/null || true
+  iptables -w -F ${filter_instance_chain} 2> /dev/null || true
+  iptables -w -X ${filter_instance_chain} 2> /dev/null || true
 }
 
 function setup_filter() {
   teardown_filter
 
   # Create instance chain
-  iptables -N ${filter_instance_chain}
-  iptables -A ${filter_instance_chain} \
+  iptables -w -N ${filter_instance_chain}
+  iptables -w -A ${filter_instance_chain} \
     --goto ${filter_default_chain}
 
   # Bind instance chain to forward chain
-  iptables -I ${filter_forward_chain} 2 \
+  iptables -w -I ${filter_forward_chain} 2 \
     --in-interface ${network_host_iface} \
     --goto ${filter_instance_chain}
 }
 
 function teardown_nat() {
   # Prune prerouting chain
-  iptables -t nat -S ${nat_prerouting_chain} 2> /dev/null |
+  iptables -w -t nat -S ${nat_prerouting_chain} 2> /dev/null |
     grep "\-j ${nat_instance_chain}\b" |
     sed -e "s/-A/-D/" |
-    xargs --no-run-if-empty --max-lines=1 iptables -t nat
+    xargs --no-run-if-empty --max-lines=1 iptables -w -t nat
 
   # Flush and delete instance chain
-  iptables -t nat -F ${nat_instance_chain} 2> /dev/null || true
-  iptables -t nat -X ${nat_instance_chain} 2> /dev/null || true
+  iptables -w -t nat -F ${nat_instance_chain} 2> /dev/null || true
+  iptables -w -t nat -X ${nat_instance_chain} 2> /dev/null || true
 }
 
 function setup_nat() {
   teardown_nat
 
   # Create instance chain
-  iptables -t nat -N ${nat_instance_chain}
+  iptables -w -t nat -N ${nat_instance_chain}
 
   # Bind instance chain to prerouting chain
-  iptables -t nat -A ${nat_prerouting_chain} \
+  iptables -w -t nat -A ${nat_prerouting_chain} \
     --jump ${nat_instance_chain}
 }
 
@@ -97,7 +97,7 @@ case "${1}" in
       exit 1
     fi
 
-    iptables -t nat -A ${nat_instance_chain} \
+    iptables -w -t nat -A ${nat_instance_chain} \
       --protocol tcp \
       --destination "${external_ip}" \
       --destination-port "${HOST_PORT}" \
@@ -124,7 +124,7 @@ case "${1}" in
       opts="${opts} --destination-port ${PORT}"
     fi
 
-    iptables -I ${filter_instance_chain} 1 ${opts} --jump RETURN
+    iptables -w -I ${filter_instance_chain} 1 ${opts} --jump RETURN
 
     ;;
   "get_ingress_info")
