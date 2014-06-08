@@ -1,12 +1,10 @@
 package fs
 
 import (
-	"fmt"
 	"io/ioutil"
-	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
+	"time"
 
 	"github.com/dotcloud/docker/pkg/libcontainer/cgroups"
 )
@@ -15,19 +13,33 @@ type freezerGroup struct {
 }
 
 func (s *freezerGroup) Set(d *data) error {
-	dir, err := d.join("freezer")
-	if err != nil {
-		if err != cgroups.ErrNotFound {
+	switch d.c.Freezer {
+	case cgroups.Frozen, cgroups.Thawed:
+		dir, err := d.path("freezer")
+		if err != nil {
 			return err
 		}
-		return nil
+
+		if err := writeFile(dir, "freezer.state", string(d.c.Freezer)); err != nil {
+			return err
+		}
+
+		for {
+			state, err := readFile(dir, "freezer.state")
+			if err != nil {
+				return err
+			}
+			if strings.TrimSpace(state) == string(d.c.Freezer) {
+				break
+			}
+			time.Sleep(1 * time.Millisecond)
+		}
+	default:
+		if _, err := d.join("freezer"); err != nil && err != cgroups.ErrNotFound {
+			return err
+		}
 	}
 
-	if d.c.Freezer != "" {
-		if err := writeFile(dir, "freezer.state", d.c.Freezer); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
@@ -35,39 +47,25 @@ func (s *freezerGroup) Remove(d *data) error {
 	return removePath(d.path("freezer"))
 }
 
-func (s *freezerGroup) Stats(d *data) (map[string]int64, error) {
-	var (
-		paramData = make(map[string]int64)
-		params    = []string{
-			"parent_freezing",
-			"self_freezing",
-			// comment out right now because this is string "state",
-		}
-	)
+func getFreezerFileData(path string) (string, error) {
+	data, err := ioutil.ReadFile(path)
+	return strings.TrimSuffix(string(data), "\n"), err
+}
 
+func (s *freezerGroup) GetStats(d *data, stats *cgroups.Stats) error {
 	path, err := d.path("freezer")
 	if err != nil {
-		return nil, err
+		return err
 	}
-
-	// TODO(vmarmol): This currently outputs nothing since the output is a string, fix.
-	for _, param := range params {
-		f, err := os.Open(filepath.Join(path, fmt.Sprintf("freezer.%s", param)))
-		if err != nil {
-			return nil, err
-		}
-		defer f.Close()
-
-		data, err := ioutil.ReadAll(f)
-		if err != nil {
-			return nil, err
-		}
-
-		v, err := strconv.ParseInt(strings.TrimSuffix(string(data), "\n"), 10, 64)
-		if err != nil {
-			return nil, err
-		}
-		paramData[param] = v
+	var data string
+	if data, err = getFreezerFileData(filepath.Join(path, "freezer.parent_freezing")); err != nil {
+		return err
 	}
-	return paramData, nil
+	stats.FreezerStats.ParentState = data
+	if data, err = getFreezerFileData(filepath.Join(path, "freezer.self_freezing")); err != nil {
+		return err
+	}
+	stats.FreezerStats.SelfState = data
+
+	return nil
 }

@@ -32,7 +32,7 @@ var _ = Describe("RepositoryFetcher", func() {
 		endpoint1 = ghttp.NewServer()
 		endpoint2 = ghttp.NewServer()
 
-		registry, err := registry.NewRegistry(nil, nil, server.URL()+"/v1/")
+		registry, err := registry.NewRegistry(nil, nil, server.URL()+"/v1/", true)
 		Ω(err).ShouldNot(HaveOccurred())
 
 		fetcher = New(registry, graph)
@@ -47,6 +47,7 @@ var _ = Describe("RepositoryFetcher", func() {
 					w.Write([]byte(`{"id":"layer-3","parent":"parent-3"}`))
 				}),
 			),
+			ghttp.VerifyRequest("HEAD", "/v1/images/layer-3/layer"),
 			ghttp.CombineHandlers(
 				ghttp.VerifyRequest("GET", "/v1/images/layer-3/layer"),
 				http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -60,6 +61,7 @@ var _ = Describe("RepositoryFetcher", func() {
 					w.Write([]byte(`{"id":"layer-2","parent":"parent-2"}`))
 				}),
 			),
+			ghttp.VerifyRequest("HEAD", "/v1/images/layer-2/layer"),
 			ghttp.CombineHandlers(
 				ghttp.VerifyRequest("GET", "/v1/images/layer-2/layer"),
 				http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -73,6 +75,7 @@ var _ = Describe("RepositoryFetcher", func() {
 					w.Write([]byte(`{"id":"layer-1","parent":"parent-1"}`))
 				}),
 			),
+			ghttp.VerifyRequest("HEAD", "/v1/images/layer-1/layer"),
 			ghttp.CombineHandlers(
 				ghttp.VerifyRequest("GET", "/v1/images/layer-1/layer"),
 				http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -203,6 +206,7 @@ var _ = Describe("RepositoryFetcher", func() {
 							w.Write([]byte(`{"id":"layer-3","parent":"parent-3"}`))
 						}),
 					),
+					ghttp.VerifyRequest("HEAD", "/v1/images/layer-3/layer"),
 					ghttp.CombineHandlers(
 						ghttp.VerifyRequest("GET", "/v1/images/layer-3/layer"),
 						http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -216,6 +220,7 @@ var _ = Describe("RepositoryFetcher", func() {
 							w.Write([]byte(`{"id":"layer-1","parent":"parent-1"}`))
 						}),
 					),
+					ghttp.VerifyRequest("HEAD", "/v1/images/layer-1/layer"),
 					ghttp.CombineHandlers(
 						ghttp.VerifyRequest("GET", "/v1/images/layer-1/layer"),
 						http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {

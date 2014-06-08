@@ -26,7 +26,7 @@ var (
 type subsystem interface {
 	Set(*data) error
 	Remove(*data) error
-	Stats(*data) (map[string]int64, error)
+	GetStats(*data, *cgroups.Stats) error
 }
 
 type data struct {
@@ -37,92 +37,57 @@ type data struct {
 }
 
 func Apply(c *cgroups.Cgroup, pid int) (cgroups.ActiveCgroup, error) {
-	// We have two implementation of cgroups support, one is based on
-	// systemd and the dbus api, and one is based on raw cgroup fs operations
-	// following the pre-single-writer model docs at:
-	// http://www.freedesktop.org/wiki/Software/systemd/PaxControlGroups/
-	//
-	// we can pick any subsystem to find the root
-
-	cgroupRoot, err := cgroups.FindCgroupMountpoint("cpu")
+	d, err := getCgroupData(c, pid)
 	if err != nil {
 		return nil, err
 	}
-	cgroupRoot = filepath.Dir(cgroupRoot)
 
-	if _, err := os.Stat(cgroupRoot); err != nil {
-		return nil, fmt.Errorf("cgroups fs not found")
-	}
-
-	cgroup := c.Name
-	if c.Parent != "" {
-		cgroup = filepath.Join(c.Parent, cgroup)
-	}
-
-	d := &data{
-		root:   cgroupRoot,
-		cgroup: cgroup,
-		c:      c,
-		pid:    pid,
-	}
 	for _, sys := range subsystems {
 		if err := sys.Set(d); err != nil {
 			d.Cleanup()
 			return nil, err
 		}
 	}
+
 	return d, nil
 }
 
-func GetStats(c *cgroups.Cgroup, subsystem string, pid int) (map[string]int64, error) {
-	cgroupRoot, err := cgroups.FindCgroupMountpoint("cpu")
+func GetStats(c *cgroups.Cgroup) (*cgroups.Stats, error) {
+	stats := cgroups.NewStats()
+
+	d, err := getCgroupData(c, 0)
 	if err != nil {
 		return nil, err
 	}
-	cgroupRoot = filepath.Dir(cgroupRoot)
 
-	if _, err := os.Stat(cgroupRoot); err != nil {
-		return nil, fmt.Errorf("cgroups fs not found")
-	}
-
-	cgroup := c.Name
-	if c.Parent != "" {
-		cgroup = filepath.Join(c.Parent, cgroup)
+	for _, sys := range subsystems {
+		if err := sys.GetStats(d, stats); err != nil {
+			return nil, err
+		}
 	}
 
-	d := &data{
-		root:   cgroupRoot,
-		cgroup: cgroup,
-		c:      c,
-		pid:    pid,
+	return stats, nil
+}
+
+// Freeze toggles the container's freezer cgroup depending on the state
+// provided
+func Freeze(c *cgroups.Cgroup, state cgroups.FreezerState) error {
+	d, err := getCgroupData(c, 0)
+	if err != nil {
+		return err
 	}
-	sys, exists := subsystems[subsystem]
-	if !exists {
-		return nil, fmt.Errorf("subsystem %s does not exist", subsystem)
-	}
-	return sys.Stats(d)
+
+	c.Freezer = state
+
+	freezer := subsystems["freezer"]
+
+	return freezer.Set(d)
 }
 
 func GetPids(c *cgroups.Cgroup) ([]int, error) {
-	cgroupRoot, err := cgroups.FindCgroupMountpoint("cpu")
+	d, err := getCgroupData(c, 0)
 	if err != nil {
 		return nil, err
-	}
-	cgroupRoot = filepath.Dir(cgroupRoot)
-
-	if _, err := os.Stat(cgroupRoot); err != nil {
-		return nil, fmt.Errorf("cgroup root %s not found", cgroupRoot)
-	}
-
-	cgroup := c.Name
-	if c.Parent != "" {
-		cgroup = filepath.Join(c.Parent, cgroup)
-	}
-
-	d := &data{
-		root:   cgroupRoot,
-		cgroup: cgroup,
-		c:      c,
 	}
 
 	dir, err := d.path("devices")
@@ -131,6 +96,31 @@ func GetPids(c *cgroups.Cgroup) ([]int, error) {
 	}
 
 	return cgroups.ReadProcsFile(dir)
+}
+
+func getCgroupData(c *cgroups.Cgroup, pid int) (*data, error) {
+	// we can pick any subsystem to find the root
+	cgroupRoot, err := cgroups.FindCgroupMountpoint("cpu")
+	if err != nil {
+		return nil, err
+	}
+	cgroupRoot = filepath.Dir(cgroupRoot)
+
+	if _, err := os.Stat(cgroupRoot); err != nil {
+		return nil, fmt.Errorf("cgroups fs not found")
+	}
+
+	cgroup := c.Name
+	if c.Parent != "" {
+		cgroup = filepath.Join(c.Parent, cgroup)
+	}
+
+	return &data{
+		root:   cgroupRoot,
+		cgroup: cgroup,
+		c:      c,
+		pid:    pid,
+	}, nil
 }
 
 func (raw *data) parent(subsystem string) (string, error) {
@@ -172,6 +162,11 @@ func (raw *data) Cleanup() error {
 
 func writeFile(dir, file, data string) error {
 	return ioutil.WriteFile(filepath.Join(dir, file), []byte(data), 0700)
+}
+
+func readFile(dir, file string) (string, error) {
+	data, err := ioutil.ReadFile(filepath.Join(dir, file))
+	return string(data), err
 }
 
 func removePath(p string, err error) error {

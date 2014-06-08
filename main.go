@@ -190,7 +190,11 @@ func main() {
 		quotaManager.Disable()
 	}
 
-	graphDriver, err := graphdriver.New(*graphRoot)
+	if err := os.MkdirAll(*graphRoot, 0755); err != nil {
+		log.Fatalln("error creating graph directory:", err)
+	}
+
+	graphDriver, err := graphdriver.New(*graphRoot, nil)
 	if err != nil {
 		log.Fatalln("error constructing graph driver:", err)
 	}
@@ -200,7 +204,7 @@ func main() {
 		log.Fatalln("error constructing graph:", err)
 	}
 
-	reg, err := registry.NewRegistry(nil, nil, *dockerRegistry)
+	reg, err := registry.NewRegistry(nil, nil, *dockerRegistry, true)
 	if err != nil {
 		log.Fatalln(err)
 	}

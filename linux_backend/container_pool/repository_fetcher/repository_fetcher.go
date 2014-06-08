@@ -22,7 +22,7 @@ type Registry interface {
 	GetRemoteHistory(imageID string, registry string, token []string) ([]string, error)
 
 	GetRemoteImageJSON(imageID string, registry string, token []string) ([]byte, int, error)
-	GetRemoteImageLayer(imageID string, registry string, token []string) (io.ReadCloser, error)
+	GetRemoteImageLayer(imageID string, registry string, token []string, size int64) (io.ReadCloser, error)
 }
 
 // apes docker's *graph.Graph
@@ -107,7 +107,7 @@ func (fetcher *DockerRepositoryFetcher) fetchLayer(endpoint string, layerID stri
 		return nil
 	}
 
-	imgJSON, _, err := fetcher.registry.GetRemoteImageJSON(layerID, endpoint, token)
+	imgJSON, imgSize, err := fetcher.registry.GetRemoteImageJSON(layerID, endpoint, token)
 	if err != nil {
 		return err
 	}
@@ -117,7 +117,7 @@ func (fetcher *DockerRepositoryFetcher) fetchLayer(endpoint string, layerID stri
 		return err
 	}
 
-	layer, err := fetcher.registry.GetRemoteImageLayer(img.ID, endpoint, token)
+	layer, err := fetcher.registry.GetRemoteImageLayer(img.ID, endpoint, token, int64(imgSize))
 	if err != nil {
 		return err
 	}
