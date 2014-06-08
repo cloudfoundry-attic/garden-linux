@@ -247,9 +247,9 @@ char **child_setup_environment(struct passwd *pw) {
   envp = env__add(envp, "USER", pw->pw_name);
 
   if (pw->pw_uid == 0) {
-    envp = env__add(envp, "PATH", "/sbin:/bin:/usr/sbin:/usr/bin");
+    envp = env__add(envp, "PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
   } else {
-    envp = env__add(envp, "PATH", "/bin:/usr/bin");
+    envp = env__add(envp, "PATH", "/usr/local/bin:/usr/bin:/bin");
   }
 
   return envp;

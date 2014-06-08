@@ -365,7 +365,7 @@ setup_fs
 			Expect(err).ToNot(HaveOccurred())
 
 			Eventually(bashSession).Should(Say("HOME=/home/vcap\n"))
-			Eventually(bashSession).Should(Say("PATH=/bin:/usr/bin\n"))
+			Eventually(bashSession).Should(Say("PATH=/usr/local/bin:/usr/bin:/bin\n"))
 			Eventually(bashSession).Should(Say("USER=vcap\n"))
 			Eventually(bashSession).Should(Exit(0))
 		})
@@ -406,7 +406,7 @@ setup_fs
 			Expect(err).ToNot(HaveOccurred())
 
 			Eventually(bashSession).Should(Say("HOME=/root\n"))
-			Eventually(bashSession).Should(Say("PATH=/sbin:/bin:/usr/sbin:/usr/bin\n"))
+			Eventually(bashSession).Should(Say("PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n"))
 			Eventually(bashSession).Should(Say("USER=root\n"))
 			Eventually(bashSession).Should(Exit(0))
 		})
