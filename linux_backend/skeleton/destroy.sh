@@ -19,17 +19,11 @@ then
 
   if [ -d $path ]
   then
-    while true
-    do
-      kill -9 $pid 2> /dev/null || true
+    kill -9 $pid 2> /dev/null || true
 
-      # Wait while there are tasks in one of the instance's cgroups
-      if [ -f $tasks ] && [ -n "$(cat $tasks)" ]
-      then
-        sleep 0.1
-      else
-        break
-      fi
+    # Wait while there are tasks in one of the instance's cgroups
+    while [ -f $tasks ] && [ -n "$(cat $tasks)" ]; do
+      sleep 0.1
     done
   fi
 

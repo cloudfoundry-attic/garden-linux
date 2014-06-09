@@ -116,14 +116,18 @@ function rootfs_mountpoints() {
 }
 
 function teardown_fs() {
-  umount $(rootfs_mountpoints) 2>/dev/null || true
+  for i in $(seq 10); do
+    local mountpoints=$(rootfs_mountpoints)
+    if [ -z "$mountpoints" ] || umount $mountpoints; then
+      if rm -rf $container_path; then
+        return 0
+      fi
+    fi
 
-  leftover=$(rootfs_mountpoints)
-  if [ -n "$leftover" ]; then
-    umount $leftover
-  fi
+    sleep 0.5
+  done
 
-  rm -rf $container_path
+  return 1
 }
 
 if [ "$action" = "create" ]; then
