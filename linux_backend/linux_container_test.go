@@ -1548,6 +1548,7 @@ hayes"
 					Env: []string{
 						"HOST_PORT=123",
 						"CONTAINER_PORT=456",
+						"PATH=" + os.Getenv("PATH"),
 					},
 				},
 			))
@@ -1598,6 +1599,7 @@ hayes"
 						Env: []string{
 							"HOST_PORT=123",
 							"CONTAINER_PORT=123",
+							"PATH=" + os.Getenv("PATH"),
 						},
 					},
 				))
@@ -1618,6 +1620,7 @@ hayes"
 							Env: []string{
 								"HOST_PORT=1000",
 								"CONTAINER_PORT=1000",
+								"PATH=" + os.Getenv("PATH"),
 							},
 						},
 					))
@@ -1660,6 +1663,7 @@ hayes"
 					Env: []string{
 						"NETWORK=1.2.3.4/22",
 						"PORT=567",
+						"PATH=" + os.Getenv("PATH"),
 					},
 				},
 			))
@@ -1677,6 +1681,7 @@ hayes"
 						Env: []string{
 							"NETWORK=1.2.3.4/22",
 							"PORT=",
+							"PATH=" + os.Getenv("PATH"),
 						},
 					},
 				))

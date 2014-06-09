@@ -668,6 +668,7 @@ func (c *LinuxContainer) NetIn(hostPort uint32, containerPort uint32) (uint32, u
 		Env: []string{
 			fmt.Sprintf("HOST_PORT=%d", hostPort),
 			fmt.Sprintf("CONTAINER_PORT=%d", containerPort),
+			"PATH=" + os.Getenv("PATH"),
 		},
 	}
 
@@ -702,6 +703,7 @@ func (c *LinuxContainer) NetOut(network string, port uint32) error {
 		net.Env = []string{
 			"NETWORK=" + network,
 			fmt.Sprintf("PORT=%d", port),
+			"PATH=" + os.Getenv("PATH"),
 		}
 	} else {
 		if network == "" {
@@ -713,6 +715,7 @@ func (c *LinuxContainer) NetOut(network string, port uint32) error {
 		net.Env = []string{
 			"NETWORK=" + network,
 			"PORT=",
+			"PATH=" + os.Getenv("PATH"),
 		}
 	}
 
