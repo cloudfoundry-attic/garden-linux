@@ -9,6 +9,8 @@ env:
   - REPO_DIR=$GOPATH/src/github.com/cloudfoundry-incubator/warden-linux
 
 script: |
+  set -e
+
   mkdir -p $(dirname $REPO_DIR)
   ln -s $PWD/$(basename $REPO_DIR) $REPO_DIR
 
