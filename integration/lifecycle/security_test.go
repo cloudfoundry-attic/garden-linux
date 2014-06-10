@@ -80,7 +80,7 @@ var _ = Describe("Placing limits on containers", func() {
 		expectStreamToExitWith := func(stream <-chan warden.ProcessStream, status int) {
 			for chunk := range stream {
 				if chunk.ExitStatus != nil {
-					Expect(*chunk.ExitStatus).To(Equal(uint32(status)))
+					ExpectWithOffset(1, *chunk.ExitStatus).To(Equal(uint32(status)))
 				}
 			}
 		}
