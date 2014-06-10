@@ -1,10 +1,8 @@
 package measurements_test
 
 import (
-	"io/ioutil"
 	"log"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/cloudfoundry-incubator/garden/warden"
@@ -27,18 +25,13 @@ func TestMeasurements(t *testing.T) {
 		return
 	}
 
-	var tmpdir string
-
 	BeforeSuite(func() {
 		var err error
-
-		tmpdir, err = ioutil.TempDir("", "warden-socket")
-		Ω(err).ShouldNot(HaveOccurred())
 
 		wardenPath, err := gexec.Build("github.com/cloudfoundry-incubator/warden-linux", "-race")
 		Ω(err).ShouldNot(HaveOccurred())
 
-		runner, err = Runner.New(wardenPath, binPath, rootFSPath, "unix", filepath.Join(tmpdir, "warden.sock"))
+		runner, err = Runner.New(wardenPath, binPath, rootFSPath)
 		Ω(err).ShouldNot(HaveOccurred())
 
 		err = runner.Start()
@@ -49,9 +42,6 @@ func TestMeasurements(t *testing.T) {
 
 	AfterSuite(func() {
 		err := runner.TearDown()
-		Ω(err).ShouldNot(HaveOccurred())
-
-		err = os.RemoveAll(tmpdir)
 		Ω(err).ShouldNot(HaveOccurred())
 	})
 

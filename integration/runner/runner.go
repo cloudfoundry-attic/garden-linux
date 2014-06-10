@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden/client"
@@ -33,10 +34,8 @@ type Runner struct {
 	tmpdir string
 }
 
-func New(wardenPath, binPath, rootFSPath, network, addr string) (*Runner, error) {
+func New(wardenPath, binPath, rootFSPath string) (*Runner, error) {
 	runner := &Runner{
-		Network:    network,
-		Addr:       addr,
 		BinPath:    binPath,
 		RootFSPath: rootFSPath,
 
@@ -53,6 +52,9 @@ func (r *Runner) Prepare() error {
 	if err != nil {
 		return err
 	}
+
+	r.Network = "unix"
+	r.Addr = filepath.Join(r.tmpdir, "warden.sock")
 
 	r.DepotPath = filepath.Join(r.tmpdir, "containers")
 	r.OverlaysPath = filepath.Join(r.tmpdir, "overlays")
@@ -82,6 +84,11 @@ func (r *Runner) Start(argv ...string) error {
 		"--snapshots", r.SnapshotsPath,
 		"--debug",
 		"--disableQuotas",
+		"--networkPool", fmt.Sprintf("10.250.%d.0/24", ginkgo.GinkgoParallelNode()),
+		"--portPoolStart", strconv.Itoa(51000+(1000*ginkgo.GinkgoParallelNode())),
+		"--portPoolSize", "1000",
+		"--uidPoolStart", strconv.Itoa(10000*ginkgo.GinkgoParallelNode()),
+		"--uniquenessTag", strconv.Itoa(ginkgo.GinkgoParallelNode()),
 	)
 
 	warden := exec.Command(r.wardenBin, wardenArgs...)
