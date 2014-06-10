@@ -132,7 +132,7 @@ case "${1}" in
       echo "Please specify container ID..." 1>&2
       exit 1
     fi
-    tc filter show dev w-${ID}-0 parent ffff:
+    tc filter show dev ${network_host_iface} parent ffff:
 
     ;;
   "get_egress_info")
@@ -140,7 +140,7 @@ case "${1}" in
       echo "Please specify container ID..." 1>&2
       exit 1
     fi
-    tc qdisc show dev w-${ID}-0
+    tc qdisc show dev ${network_host_iface}
 
     ;;
   *)
