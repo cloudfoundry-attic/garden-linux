@@ -88,7 +88,7 @@ func (r *Runner) Start(argv ...string) error {
 		"--portPoolStart", strconv.Itoa(51000+(1000*ginkgo.GinkgoParallelNode())),
 		"--portPoolSize", "1000",
 		"--uidPoolStart", strconv.Itoa(10000*ginkgo.GinkgoParallelNode()),
-		"--uniquenessTag", strconv.Itoa(ginkgo.GinkgoParallelNode()),
+		"--tag", strconv.Itoa(ginkgo.GinkgoParallelNode()),
 	)
 
 	warden := exec.Command(r.wardenBin, wardenArgs...)

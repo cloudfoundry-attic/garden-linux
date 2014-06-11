@@ -26,6 +26,7 @@ import (
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/process_tracker"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/quota_manager"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/uid_pool"
+	"github.com/cloudfoundry-incubator/warden-linux/sysconfig"
 )
 
 var ErrUnknownRootFSProvider = errors.New("unknown rootfs provider")
@@ -33,6 +34,8 @@ var ErrUnknownRootFSProvider = errors.New("unknown rootfs provider")
 type LinuxContainerPool struct {
 	binPath   string
 	depotPath string
+
+	sysconfig sysconfig.Config
 
 	denyNetworks  []string
 	allowNetworks []string
@@ -52,6 +55,7 @@ type LinuxContainerPool struct {
 
 func New(
 	binPath, depotPath string,
+	sysconfig sysconfig.Config,
 	rootfsProviders map[string]rootfs_provider.RootFSProvider,
 	uidPool uid_pool.UIDPool,
 	networkPool network_pool.NetworkPool,
@@ -63,6 +67,8 @@ func New(
 	pool := &LinuxContainerPool{
 		binPath:   binPath,
 		depotPath: depotPath,
+
+		sysconfig: sysconfig,
 
 		rootfsProviders: rootfsProviders,
 
@@ -164,7 +170,7 @@ func (p *LinuxContainerPool) Create(spec warden.ContainerSpec) (linux_backend.Co
 
 	containerPath := path.Join(p.depotPath, id)
 
-	cgroupsManager := cgroups_manager.New("/tmp/warden/cgroup", id)
+	cgroupsManager := cgroups_manager.New(p.sysconfig.CgroupPath, id)
 
 	bandwidthManager := bandwidth_manager.New(containerPath, id, p.runner)
 
@@ -278,7 +284,7 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 
 	containerPath := path.Join(p.depotPath, id)
 
-	cgroupsManager := cgroups_manager.New("/tmp/warden/cgroup", id)
+	cgroupsManager := cgroups_manager.New(p.sysconfig.CgroupPath, id)
 
 	bandwidthManager := bandwidth_manager.New(containerPath, id, p.runner)
 

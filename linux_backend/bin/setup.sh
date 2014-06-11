@@ -18,7 +18,7 @@ then
   rmdir /dev/cgroup
 fi
 
-cgroup_path=/tmp/warden/cgroup
+cgroup_path="${WARDEN_CGROUP_PATH}"
 
 function mount_flat_cgroup() {
   cgroup_parent_path=$(dirname $1)
@@ -67,7 +67,7 @@ function mount_nested_cgroup() {
 if [ ! -d $cgroup_path ]
 then
   # temporarily mount a flat cgroup just to see if we can
-  cgroup_check_path=/tmp/warden_cgroup_check
+  cgroup_check_path=${WARDEN_CGROUP_PATH}_temporary_check
 
   mkdir -p $cgroup_check_path
 

@@ -338,10 +338,7 @@ var _ = Describe("Through a restart", func() {
 			restartServer()
 
 			Expect(getContainerHandles()).To(ContainElement(container.Handle()))
-
-			time.Sleep(6 * time.Second)
-
-			Expect(getContainerHandles()).ToNot(ContainElement(container.Handle()))
+			Eventually(getContainerHandles, 10*time.Second).ShouldNot(ContainElement(container.Handle()))
 		})
 	})
 })

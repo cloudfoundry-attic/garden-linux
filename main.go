@@ -25,6 +25,7 @@ import (
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/port_pool"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/quota_manager"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/uid_pool"
+	"github.com/cloudfoundry-incubator/warden-linux/sysconfig"
 	"github.com/cloudfoundry-incubator/warden-linux/system_info"
 	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
 )
@@ -143,6 +144,12 @@ var dockerRegistry = flag.String(
 	"docker registry API endpoint",
 )
 
+var tag = flag.String(
+	"tag",
+	"",
+	"server-wide identifier used for 'global' configuration",
+)
+
 func main() {
 	flag.Parse()
 
@@ -179,7 +186,9 @@ func main() {
 	// TODO: use /proc/sys/net/ipv4/ip_local_port_range by default (end + 1)
 	portPool := port_pool.New(uint32(*portPoolStart), uint32(*portPoolSize))
 
-	runner := linux_command_runner.New(*debug)
+	config := sysconfig.NewConfig(*tag)
+
+	runner := sysconfig.NewRunner(config, linux_command_runner.New(*debug))
 
 	quotaManager, err := quota_manager.New(*depotPath, *binPath, runner)
 	if err != nil {
@@ -219,6 +228,7 @@ func main() {
 	pool := container_pool.New(
 		*binPath,
 		*depotPath,
+		config,
 		rootFSProviders,
 		uidPool,
 		networkPool,

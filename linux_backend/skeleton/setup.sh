@@ -8,11 +8,14 @@ shopt -s nullglob
 cd $(dirname $0)
 
 # Defaults for debugging the setup script
+iface_name_prefix="${WARDEN_NETWORK_INTERFACE_PREFIX}"
+max_id_len=$(expr 16 - ${#iface_name_prefix} - 2)
+iface_name=$(tail -c ${max_id_len} <<< ${id})
 id=${id:-test}
 network_host_ip=${network_host_ip:-10.0.0.1}
-network_host_iface="w-${id}-0"
+network_host_iface="${iface_name_prefix}${iface_name}-0"
 network_container_ip=${network_container_ip:-10.0.0.2}
-network_container_iface="w-${id}-1"
+network_container_iface="${iface_name_prefix}${iface_name}-1"
 user_uid=${user_uid:-10000}
 rootfs_path=$(readlink -f $rootfs_path)
 

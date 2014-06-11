@@ -9,12 +9,15 @@ cd $(dirname "${0}")
 
 source ./etc/config
 
-filter_forward_chain="warden-forward"
-filter_default_chain="warden-default"
-filter_instance_prefix="warden-instance-"
+filter_forward_chain="${WARDEN_IPTABLES_FILTER_FORWARD_CHAIN}"
+filter_default_chain="${WARDEN_IPTABLES_FILTER_DEFAULT_CHAIN}"
+filter_instance_prefix="${WARDEN_IPTABLES_FILTER_INSTANCE_PREFIX}"
+nat_prerouting_chain="${WARDEN_IPTABLES_NAT_PREROUTING_CHAIN}"
+nat_postrouting_chain="${WARDEN_IPTABLES_NAT_POSTROUTING_CHAIN}"
+nat_instance_prefix="${WARDEN_IPTABLES_NAT_INSTANCE_PREFIX}"
+interface_name_prefix="${WARDEN_NETWORK_INTERFACE_PREFIX}"
+
 filter_instance_chain="${filter_instance_prefix}${id}"
-nat_prerouting_chain="warden-prerouting"
-nat_instance_prefix="warden-instance-"
 nat_instance_chain="${filter_instance_prefix}${id}"
 
 external_ip=$(ip route get 8.8.8.8 | sed 's/.*src\s\(.*\)\s/\1/;tx;d;:x')

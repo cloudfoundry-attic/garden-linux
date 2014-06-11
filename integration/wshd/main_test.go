@@ -137,7 +137,7 @@ setup_fs
 
 		setUpRootSession, err := Start(setUpRoot, GinkgoWriter, GinkgoWriter)
 		Expect(err).ToNot(HaveOccurred())
-		Eventually(setUpRootSession).Should(Exit(0))
+		Eventually(setUpRootSession, 5.0).Should(Exit(0))
 	})
 
 	startWSHD := func() {
