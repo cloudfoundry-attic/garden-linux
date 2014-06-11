@@ -12,21 +12,11 @@ var _ = Describe("A container with a grace time", func() {
 	var container warden.Container
 
 	BeforeEach(func() {
-		err := runner.Stop()
-		Expect(err).ToNot(HaveOccurred())
+		client = startWarden("--containerGraceTime", "5s")
 
-		err = runner.Start("--containerGraceTime", "5s")
-		Expect(err).ToNot(HaveOccurred())
+		var err error
 
 		container, err = client.Create(warden.ContainerSpec{})
-		Expect(err).ToNot(HaveOccurred())
-	})
-
-	AfterEach(func() {
-		err := runner.Stop()
-		Expect(err).ToNot(HaveOccurred())
-
-		err = runner.Start()
 		Expect(err).ToNot(HaveOccurred())
 	})
 

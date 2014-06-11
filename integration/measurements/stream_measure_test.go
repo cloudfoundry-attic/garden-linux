@@ -14,6 +14,10 @@ import (
 var _ = Describe("The Warden server", func() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
+	BeforeEach(func() {
+		client = startWarden()
+	})
+
 	Describe("streaming output from a chatty job", func() {
 		var container warden.Container
 

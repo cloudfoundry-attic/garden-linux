@@ -2,86 +2,70 @@ package runner
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strconv"
-	"time"
+	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden/client"
 	"github.com/cloudfoundry-incubator/garden/client/connection"
 	"github.com/cloudfoundry-incubator/garden/warden"
 	"github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
 )
 
 type Runner struct {
-	Network string
-	Addr    string
+	bin  string
+	argv []string
 
-	DepotPath     string
-	OverlaysPath  string
-	BinPath       string
-	RootFSPath    string
-	SnapshotsPath string
-
-	wardenBin     string
-	wardenSession *gexec.Session
+	binPath    string
+	rootFSPath string
 
 	tmpdir string
 }
 
-func New(wardenPath, binPath, rootFSPath string) (*Runner, error) {
-	runner := &Runner{
-		BinPath:    binPath,
-		RootFSPath: rootFSPath,
+func New(bin, binPath, rootFSPath string, argv ...string) *Runner {
+	return &Runner{
+		bin:  bin,
+		argv: argv,
 
-		wardenBin: wardenPath,
+		binPath:    binPath,
+		rootFSPath: rootFSPath,
+
+		tmpdir: fmt.Sprintf("/tmp/warden-%d", ginkgo.GinkgoParallelNode()),
 	}
-
-	return runner, runner.Prepare()
 }
 
-func (r *Runner) Prepare() error {
-	var err error
-
-	r.tmpdir, err = ioutil.TempDir(os.TempDir(), "warden-linux-server")
+func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
+	err := os.MkdirAll(r.tmpdir, 0755)
 	if err != nil {
 		return err
 	}
 
-	r.Network = "unix"
-	r.Addr = filepath.Join(r.tmpdir, "warden.sock")
+	depotPath := filepath.Join(r.tmpdir, "containers")
+	overlaysPath := filepath.Join(r.tmpdir, "overlays")
+	snapshotsPath := filepath.Join(r.tmpdir, "snapshots")
 
-	r.DepotPath = filepath.Join(r.tmpdir, "containers")
-	r.OverlaysPath = filepath.Join(r.tmpdir, "overlays")
-	r.SnapshotsPath = filepath.Join(r.tmpdir, "snapshots")
-
-	if err := os.Mkdir(r.DepotPath, 0755); err != nil {
+	if err := os.MkdirAll(depotPath, 0755); err != nil {
 		return err
 	}
 
-	if err := os.Mkdir(r.SnapshotsPath, 0755); err != nil {
+	if err := os.MkdirAll(snapshotsPath, 0755); err != nil {
 		return err
 	}
 
-	return nil
-}
-
-func (r *Runner) Start(argv ...string) error {
-	wardenArgs := argv
-	wardenArgs = append(
-		wardenArgs,
-		"--listenNetwork", r.Network,
-		"--listenAddr", r.Addr,
-		"--bin", r.BinPath,
-		"--depot", r.DepotPath,
-		"--overlays", r.OverlaysPath,
-		"--rootfs", r.RootFSPath,
-		"--snapshots", r.SnapshotsPath,
+	wardenArgs := append(
+		r.argv,
+		"--listenNetwork", r.network(),
+		"--listenAddr", r.addr(),
+		"--bin", r.binPath,
+		"--rootfs", r.rootFSPath,
+		"--depot", depotPath,
+		"--overlays", overlaysPath,
+		"--snapshots", snapshotsPath,
 		"--debug",
 		"--disableQuotas",
 		"--networkPool", fmt.Sprintf("10.250.%d.0/24", ginkgo.GinkgoParallelNode()),
@@ -91,47 +75,59 @@ func (r *Runner) Start(argv ...string) error {
 		"--tag", strconv.Itoa(ginkgo.GinkgoParallelNode()),
 	)
 
-	warden := exec.Command(r.wardenBin, wardenArgs...)
-
-	warden.Stdout = os.Stdout
-	warden.Stderr = os.Stderr
-
 	session, err := gexec.Start(
-		warden,
-		gexec.NewPrefixedWriter("\x1b[32m[o]\x1b[96m[warden-linux]\x1b[0m ", ginkgo.GinkgoWriter),
-		gexec.NewPrefixedWriter("\x1b[91m[e]\x1b[96m[warden-linux]\x1b[0m ", ginkgo.GinkgoWriter),
+		exec.Command(r.bin, wardenArgs...),
+		gexec.NewPrefixedWriter("\x1b[32m[o]\x1b[31m[warden-linux]\x1b[0m ", ginkgo.GinkgoWriter),
+		gexec.NewPrefixedWriter("\x1b[91m[e]\x1b[31m[warden-linux]\x1b[0m ", ginkgo.GinkgoWriter),
 	)
 	if err != nil {
 		return err
 	}
 
-	r.wardenSession = session
+	close(ready)
 
-	return r.WaitForStart()
-}
+	var signal os.Signal
+dance:
+	for {
+		select {
+		case signal = <-signals:
+			if signal == syscall.SIGKILL {
+				if err := r.destroyContainers(); err != nil {
+					return err
+				}
+			}
 
-func (r *Runner) Stop() error {
-	if r.wardenSession == nil {
+			session.Signal(signal)
+		case <-session.Exited:
+			break dance
+		}
+	}
+
+	if signal == syscall.SIGKILL {
+		if err := os.RemoveAll(r.tmpdir); err != nil {
+			return err
+		}
+	}
+
+	if session.ExitCode() == 0 {
 		return nil
 	}
 
-	err := r.wardenSession.Command.Process.Signal(os.Interrupt)
-	if err != nil {
-		return err
-	}
-
-	Eventually(r.wardenSession.ExitCode, 10).ShouldNot(Equal(-1))
-
-	r.wardenSession = nil
-
-	return nil
+	return fmt.Errorf("exit status %d", session.ExitCode())
 }
 
-func (r *Runner) DestroyContainers() error {
-	if r.wardenSession == nil {
+func (r *Runner) TryDial() error {
+	conn, dialErr := net.Dial(r.network(), r.addr())
+
+	if dialErr == nil {
+		conn.Close()
 		return nil
 	}
 
+	return dialErr
+}
+
+func (r *Runner) destroyContainers() error {
 	client := r.NewClient()
 
 	containers, err := client.Containers(nil)
@@ -146,50 +142,20 @@ func (r *Runner) DestroyContainers() error {
 		}
 	}
 
-	if err := os.RemoveAll(r.SnapshotsPath); err != nil {
-		return err
-	}
-
 	return nil
-}
-
-func (r *Runner) TearDown() error {
-	err := r.DestroyContainers()
-	if err != nil {
-		return err
-	}
-
-	err = r.Stop()
-	if err != nil {
-		return err
-	}
-
-	return os.RemoveAll(r.tmpdir)
 }
 
 func (r *Runner) NewClient() warden.Client {
 	return client.New(&connection.Info{
-		Network: r.Network,
-		Addr:    r.Addr,
+		Network: r.network(),
+		Addr:    r.addr(),
 	})
 }
 
-func (r *Runner) WaitForStart() error {
-	timeout := 10 * time.Second
-	timeoutTimer := time.NewTimer(timeout)
+func (r *Runner) network() string {
+	return "unix"
+}
 
-	for {
-		conn, dialErr := net.Dial(r.Network, r.Addr)
-
-		if dialErr == nil {
-			conn.Close()
-			return nil
-		}
-
-		select {
-		case <-time.After(100 * time.Millisecond):
-		case <-timeoutTimer.C:
-			return fmt.Errorf("warden did not come up within %s", timeout)
-		}
-	}
+func (r *Runner) addr() string {
+	return path.Join(r.tmpdir, "warden.sock")
 }

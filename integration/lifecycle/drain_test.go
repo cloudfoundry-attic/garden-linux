@@ -12,55 +12,20 @@ import (
 	"github.com/cloudfoundry-incubator/garden/warden"
 )
 
-func readUntilExit(stream <-chan warden.ProcessStream) (string, string, uint32) {
-	stdout := ""
-	stderr := ""
-	exitStatus := uint32(12234)
-
-	for payload := range stream {
-		switch payload.Source {
-		case warden.ProcessStreamSourceStdout:
-			stdout += string(payload.Data)
-
-		case warden.ProcessStreamSourceStderr:
-			stderr += string(payload.Data)
-		}
-
-		if payload.ExitStatus != nil {
-			exitStatus = *payload.ExitStatus
-		}
-	}
-
-	return stdout, stderr, exitStatus
-}
-
 var _ = Describe("Through a restart", func() {
 	var container warden.Container
 
 	BeforeEach(func() {
+		client = startWarden()
+
 		var err error
 
 		container, err = client.Create(warden.ContainerSpec{})
 		Expect(err).ToNot(HaveOccurred())
 	})
 
-	restartServer := func() {
-		err := runner.Stop()
-		Expect(err).ToNot(HaveOccurred())
-
-		err = runner.Start()
-		Expect(err).ToNot(HaveOccurred())
-	}
-
-	AfterEach(func() {
-		err := runner.DestroyContainers()
-		Expect(err).ToNot(HaveOccurred())
-
-		restartServer()
-	})
-
 	It("retains the container list", func() {
-		restartServer()
+		restartWarden()
 
 		handles := getContainerHandles()
 		Expect(handles).To(ContainElement(container.Handle()))
@@ -74,7 +39,7 @@ var _ = Describe("Through a restart", func() {
 
 			Expect(err).ToNot(HaveOccurred())
 
-			restartServer()
+			restartWarden()
 
 			Eventually(runStream).Should(BeClosed())
 
@@ -92,7 +57,7 @@ var _ = Describe("Through a restart", func() {
 			})
 			Expect(err).ToNot(HaveOccurred())
 
-			restartServer()
+			restartWarden()
 
 			processID2, _, err := container.Run(warden.ProcessSpec{
 				Script: "while true; do echo hi; sleep 0.5; done",
@@ -118,7 +83,7 @@ var _ = Describe("Through a restart", func() {
 
 				time.Sleep(500 * time.Millisecond)
 
-				restartServer()
+				restartWarden()
 
 				stream, err = container.Attach(processID)
 				Expect(err).ToNot(HaveOccurred())
@@ -132,7 +97,7 @@ var _ = Describe("Through a restart", func() {
 				}
 
 				close(done)
-			}, 10.0)
+			}, 30.0)
 		})
 	})
 
@@ -141,7 +106,7 @@ var _ = Describe("Through a restart", func() {
 			err := container.LimitMemory(warden.MemoryLimits{32 * 1024 * 1024})
 			Expect(err).ToNot(HaveOccurred())
 
-			restartServer()
+			restartWarden()
 
 			_, stream, err := container.Run(warden.ProcessSpec{
 				Script: "exec ruby -e '$stdout.sync = true; puts :hello; puts (\"x\" * 64 * 1024 * 1024).size; puts :goodbye; exit 42'",
@@ -165,7 +130,7 @@ var _ = Describe("Through a restart", func() {
 			})
 			Expect(err).ToNot(HaveOccurred())
 
-			restartServer()
+			restartWarden()
 
 			info, err := container.Info()
 			Expect(err).ToNot(HaveOccurred())
@@ -196,7 +161,7 @@ var _ = Describe("Through a restart", func() {
 				return info.Events
 			}).Should(ContainElement("out of memory"))
 
-			restartServer()
+			restartWarden()
 
 			info, err := container.Info()
 			Expect(err).ToNot(HaveOccurred())
@@ -219,7 +184,7 @@ var _ = Describe("Through a restart", func() {
 
 			Expect(info.Properties["foo"]).To(Equal("bar"))
 
-			restartServer()
+			restartWarden()
 
 			info, err = containerWithProperties.Info()
 			Expect(err).ToNot(HaveOccurred())
@@ -235,7 +200,7 @@ var _ = Describe("Through a restart", func() {
 
 			Expect(info.State).To(Equal("active"))
 
-			restartServer()
+			restartWarden()
 
 			info, err = container.Info()
 			Expect(err).ToNot(HaveOccurred())
@@ -245,7 +210,7 @@ var _ = Describe("Through a restart", func() {
 			err = container.Stop(false)
 			Expect(err).ToNot(HaveOccurred())
 
-			restartServer()
+			restartWarden()
 
 			info, err = container.Info()
 			Expect(err).ToNot(HaveOccurred())
@@ -259,7 +224,7 @@ var _ = Describe("Through a restart", func() {
 			infoA, err := container.Info()
 			Expect(err).ToNot(HaveOccurred())
 
-			restartServer()
+			restartWarden()
 
 			newContainer, err := client.Create(warden.ContainerSpec{})
 			Expect(err).ToNot(HaveOccurred())
@@ -277,7 +242,7 @@ var _ = Describe("Through a restart", func() {
 			netInAHost, netInAContainer, err := container.NetIn(0, 0)
 			Expect(err).ToNot(HaveOccurred())
 
-			restartServer()
+			restartWarden()
 
 			containerB, err := client.Create(warden.ContainerSpec{})
 			Expect(err).ToNot(HaveOccurred())
@@ -304,7 +269,7 @@ var _ = Describe("Through a restart", func() {
 				idA += string(chunk.Data)
 			}
 
-			restartServer()
+			restartWarden()
 
 			otherContainer, err := client.Create(warden.ContainerSpec{})
 			Expect(err).ToNot(HaveOccurred())
@@ -324,18 +289,14 @@ var _ = Describe("Through a restart", func() {
 
 	Describe("a container's grace time", func() {
 		BeforeEach(func() {
-			err := runner.Stop()
-			Expect(err).ToNot(HaveOccurred())
-
-			err = runner.Start("--containerGraceTime", "5s")
-			Expect(err).ToNot(HaveOccurred())
+			restartWarden("--containerGraceTime", "5s")
 		})
 
 		It("is still enforced", func() {
 			container, err := client.Create(warden.ContainerSpec{})
 			Expect(err).ToNot(HaveOccurred())
 
-			restartServer()
+			restartWarden()
 
 			Expect(getContainerHandles()).To(ContainElement(container.Handle()))
 			Eventually(getContainerHandles, 10*time.Second).ShouldNot(ContainElement(container.Handle()))
@@ -376,4 +337,26 @@ func streamNumbersTo(destination chan<- int, source <-chan warden.ProcessStream)
 			destination <- num
 		}
 	}
+}
+
+func readUntilExit(stream <-chan warden.ProcessStream) (string, string, uint32) {
+	stdout := ""
+	stderr := ""
+	exitStatus := uint32(12234)
+
+	for payload := range stream {
+		switch payload.Source {
+		case warden.ProcessStreamSourceStdout:
+			stdout += string(payload.Data)
+
+		case warden.ProcessStreamSourceStderr:
+			stderr += string(payload.Data)
+		}
+
+		if payload.ExitStatus != nil {
+			exitStatus = *payload.ExitStatus
+		}
+	}
+
+	return stdout, stderr, exitStatus
 }

@@ -20,6 +20,8 @@ var _ = Describe("Creating a container", func() {
 	var container warden.Container
 
 	BeforeEach(func() {
+		client = startWarden()
+
 		var err error
 
 		container, err = client.Create(warden.ContainerSpec{})

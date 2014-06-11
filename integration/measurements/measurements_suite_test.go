@@ -3,23 +3,45 @@ package measurements_test
 import (
 	"log"
 	"os"
+	"syscall"
 	"testing"
 
 	"github.com/cloudfoundry-incubator/garden/warden"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
+	"github.com/tedsuo/ifrit"
 
 	Runner "github.com/cloudfoundry-incubator/warden-linux/integration/runner"
 )
 
-var runner *Runner.Runner
+var binPath = "../../linux_backend/bin"
+var rootFSPath = os.Getenv("WARDEN_TEST_ROOTFS")
+
+var wardenBin string
+
+var wardenRunner *Runner.Runner
+var wardenProcess ifrit.Process
+
 var client warden.Client
 
-func TestMeasurements(t *testing.T) {
-	binPath := "../../linux_backend/bin"
-	rootFSPath := os.Getenv("WARDEN_TEST_ROOTFS")
+func startWarden(argv ...string) warden.Client {
+	wardenRunner = Runner.New(wardenBin, binPath, rootFSPath, argv...)
 
+	wardenProcess = ifrit.Envoke(wardenRunner)
+	Eventually(wardenRunner.TryDial, 10).ShouldNot(HaveOccurred())
+
+	return wardenRunner.NewClient()
+}
+
+func restartWarden(argv ...string) {
+	wardenProcess.Signal(syscall.SIGINT)
+	Eventually(wardenRunner.TryDial, 10).Should(HaveOccurred())
+
+	startWarden(argv...)
+}
+
+func TestLifecycle(t *testing.T) {
 	if rootFSPath == "" {
 		log.Println("WARDEN_TEST_ROOTFS undefined; skipping")
 		return
@@ -28,21 +50,13 @@ func TestMeasurements(t *testing.T) {
 	BeforeSuite(func() {
 		var err error
 
-		wardenPath, err := gexec.Build("github.com/cloudfoundry-incubator/warden-linux", "-race")
+		wardenBin, err = gexec.Build("github.com/cloudfoundry-incubator/warden-linux", "-race")
 		Ω(err).ShouldNot(HaveOccurred())
-
-		runner, err = Runner.New(wardenPath, binPath, rootFSPath)
-		Ω(err).ShouldNot(HaveOccurred())
-
-		err = runner.Start()
-		Ω(err).ShouldNot(HaveOccurred())
-
-		client = runner.NewClient()
 	})
 
-	AfterSuite(func() {
-		err := runner.TearDown()
-		Ω(err).ShouldNot(HaveOccurred())
+	AfterEach(func() {
+		wardenProcess.Signal(syscall.SIGKILL)
+		Eventually(wardenProcess.Wait(), 5).Should(Receive())
 	})
 
 	RegisterFailHandler(Fail)
