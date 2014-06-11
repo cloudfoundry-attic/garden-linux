@@ -2,10 +2,10 @@
 package fake_process_tracker
 
 import (
-	"os/exec"
-	"sync"
 	"github.com/cloudfoundry-incubator/garden/warden"
 	. "github.com/cloudfoundry-incubator/warden-linux/linux_backend/process_tracker"
+	"os/exec"
+	"sync"
 )
 
 type FakeProcessTracker struct {
@@ -36,7 +36,7 @@ type FakeProcessTracker struct {
 	ActiveProcessIDsStub        func() []uint32
 	activeProcessIDsMutex       sync.RWMutex
 	activeProcessIDsArgsForCall []struct{}
-	activeProcessIDsReturns struct {
+	activeProcessIDsReturns     struct {
 		result1 []uint32
 	}
 	UnlinkAllStub        func()

@@ -3,6 +3,7 @@
 package wshd_test
 
 import (
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
@@ -37,15 +38,15 @@ var _ = Describe("Running wshd", func() {
 	var mntDir string
 
 	BeforeEach(func() {
-		containerDir, err := ioutil.TempDir(os.TempDir(), "wshd-test-container")
+		var err error
+
+		containerPath, err = ioutil.TempDir(os.TempDir(), "wshd-test-container")
 		Expect(err).ToNot(HaveOccurred())
 
-		containerPath = containerDir
-
-		binDir = path.Join(containerDir, "bin")
-		libDir = path.Join(containerDir, "lib")
-		runDir = path.Join(containerDir, "run")
-		mntDir = path.Join(containerDir, "mnt")
+		binDir = path.Join(containerPath, "bin")
+		libDir = path.Join(containerPath, "lib")
+		runDir = path.Join(containerPath, "run")
+		mntDir = path.Join(containerPath, "mnt")
 
 		os.Mkdir(binDir, 0755)
 		os.Mkdir(libDir, 0755)
@@ -67,6 +68,13 @@ chmod 700 mnt/sbin/wshd
 `), 0755)
 
 		ioutil.WriteFile(path.Join(libDir, "hook-parent-after-clone.sh"), []byte(`#!/bin/bash
+set -o nounset
+set -o errexit
+shopt -s nullglob
+
+cd $(dirname $0)/../
+
+echo $PID > ./run/wshd.pid
 `), 0755)
 
 		ioutil.WriteFile(path.Join(libDir, "hook-child-before-pivot.sh"), []byte(`#!/bin/bash
@@ -140,7 +148,7 @@ setup_fs
 		Eventually(setUpRootSession, 5.0).Should(Exit(0))
 	})
 
-	startWSHD := func() {
+	JustBeforeEach(func() {
 		wshdCommand := exec.Command(
 			wshd,
 			"--run", runDir,
@@ -156,14 +164,39 @@ setup_fs
 
 		Eventually(wshdSession, 30).Should(Exit(0))
 
-		createdContainers = append(createdContainers, containerPath)
-
 		Eventually(ErrorDialingUnix(socketPath)).ShouldNot(HaveOccurred())
-	}
+	})
+
+	AfterEach(func() {
+		wshdPidfile, err := os.Open(path.Join(containerPath, "run", "wshd.pid"))
+		Ω(err).ShouldNot(HaveOccurred())
+
+		var wshdPid int
+		_, err = fmt.Fscanf(wshdPidfile, "%d", &wshdPid)
+		Ω(err).ShouldNot(HaveOccurred())
+
+		proc, err := os.FindProcess(wshdPid)
+		Ω(err).ShouldNot(HaveOccurred())
+
+		err = proc.Kill()
+		Ω(err).ShouldNot(HaveOccurred())
+
+		for _, submount := range []string{"dev", "etc", "home", "sbin", "var", "tmp"} {
+			mountPoint := path.Join(containerPath, "mnt", submount)
+
+			err := syscall.Unmount(mountPoint, 0)
+			Ω(err).ShouldNot(HaveOccurred())
+		}
+
+		err = syscall.Unmount(path.Join(containerPath, "mnt"), 0)
+		Ω(err).ShouldNot(HaveOccurred())
+
+		Eventually(func() error {
+			return os.RemoveAll(containerPath)
+		}, 10).ShouldNot(HaveOccurred())
+	})
 
 	It("starts the daemon as a session leader with process isolation and the given title", func() {
-		startWSHD()
-
 		ps := exec.Command(wsh, "--socket", socketPath, "/bin/ps", "-o", "pid,command")
 
 		psSession, err := Start(ps, GinkgoWriter, GinkgoWriter)
@@ -180,8 +213,6 @@ setup_fs
 	})
 
 	It("starts the daemon with mount space isolation", func() {
-		startWSHD()
-
 		mkdir := exec.Command(wsh, "--socket", socketPath, "/bin/mkdir", "/home/vcap/lawn")
 		mkdirSession, err := Start(mkdir, GinkgoWriter, GinkgoWriter)
 		Expect(err).ToNot(HaveOccurred())
@@ -205,8 +236,6 @@ setup_fs
 	})
 
 	It("places the daemon in each cgroup subsystem", func() {
-		startWSHD()
-
 		cat := exec.Command(wsh, "--socket", socketPath, "bash", "-c", "cat /proc/$$/cgroup")
 		catSession, err := Start(cat, GinkgoWriter, GinkgoWriter)
 		Expect(err).ToNot(HaveOccurred())
@@ -219,8 +248,6 @@ setup_fs
 	})
 
 	It("starts the daemon with network namespace isolation", func() {
-		startWSHD()
-
 		ifconfig := exec.Command(wsh, "--socket", socketPath, "/sbin/ifconfig", "lo:0", "1.2.3.4", "up")
 		ifconfigSession, err := Start(ifconfig, GinkgoWriter, GinkgoWriter)
 		Expect(err).ToNot(HaveOccurred())
@@ -236,8 +263,6 @@ setup_fs
 	It("starts the daemon with a new IPC namespace", func() {
 		err = copyFile(shmTest, path.Join(mntDir, "sbin", "shmtest"))
 		Expect(err).ToNot(HaveOccurred())
-
-		startWSHD()
 
 		localSHM := exec.Command(shmTest)
 		createLocal, err := Start(
@@ -263,8 +288,6 @@ setup_fs
 	})
 
 	It("starts the daemon with a new UTS namespace", func() {
-		startWSHD()
-
 		hostname := exec.Command(wsh, "--socket", socketPath, "/bin/hostname", "newhostname")
 		hostnameSession, err := Start(hostname, GinkgoWriter, GinkgoWriter)
 		Expect(err).ToNot(HaveOccurred())
@@ -277,8 +300,6 @@ setup_fs
 	})
 
 	It("does not leak any shared memory to the child", func() {
-		startWSHD()
-
 		createRemote, err := Start(
 			exec.Command(wsh, "--socket", socketPath, "ipcs"),
 			GinkgoWriter,
@@ -289,8 +310,6 @@ setup_fs
 	})
 
 	It("unmounts /tmp/warden-host* in the child", func() {
-		startWSHD()
-
 		cat := exec.Command(wsh, "--socket", socketPath, "/bin/cat", "/proc/mounts")
 
 		catSession, err := Start(cat, GinkgoWriter, GinkgoWriter)
@@ -330,8 +349,6 @@ setup_fs
 		})
 
 		It("unmounts the un-mangled mount point name", func() {
-			startWSHD()
-
 			cat := exec.Command(wsh, "--socket", socketPath, "/bin/cat", "/proc/mounts")
 
 			catSession, err := Start(cat, GinkgoWriter, GinkgoWriter)
@@ -344,8 +361,6 @@ setup_fs
 
 	Context("when running a command as a user", func() {
 		It("executes with setuid and setgid", func() {
-			startWSHD()
-
 			bash := exec.Command(wsh, "--socket", socketPath, "--user", "vcap", "/bin/bash", "-c", "id -u; id -g")
 
 			bashSession, err := Start(bash, GinkgoWriter, GinkgoWriter)
@@ -357,8 +372,6 @@ setup_fs
 		})
 
 		It("sets $HOME, $USER, and $PATH", func() {
-			startWSHD()
-
 			bash := exec.Command(wsh, "--socket", socketPath, "--user", "vcap", "/bin/bash", "-c", "env | sort")
 
 			bashSession, err := Start(bash, GinkgoWriter, GinkgoWriter)
@@ -371,8 +384,6 @@ setup_fs
 		})
 
 		It("executes in their home directory", func() {
-			startWSHD()
-
 			pwd := exec.Command(wsh, "--socket", socketPath, "--user", "vcap", "/bin/pwd")
 
 			pwdSession, err := Start(pwd, GinkgoWriter, GinkgoWriter)
@@ -385,8 +396,6 @@ setup_fs
 
 	Context("when running a command as root", func() {
 		It("executes with setuid and setgid", func() {
-			startWSHD()
-
 			bash := exec.Command(wsh, "--socket", socketPath, "--user", "root", "/bin/bash", "-c", "id -u; id -g")
 
 			bashSession, err := Start(bash, GinkgoWriter, GinkgoWriter)
@@ -398,8 +407,6 @@ setup_fs
 		})
 
 		It("sets $HOME, $USER, and a $PATH with sbin dirs", func() {
-			startWSHD()
-
 			bash := exec.Command(wsh, "--socket", socketPath, "--user", "root", "/bin/bash", "-c", "env | sort")
 
 			bashSession, err := Start(bash, GinkgoWriter, GinkgoWriter)
@@ -412,8 +419,6 @@ setup_fs
 		})
 
 		It("executes in their home directory", func() {
-			startWSHD()
-
 			pwd := exec.Command(wsh, "--socket", socketPath, "--user", "root", "/bin/pwd")
 
 			pwdSession, err := Start(pwd, GinkgoWriter, GinkgoWriter)
@@ -426,8 +431,6 @@ setup_fs
 
 	Context("when piping stdin", func() {
 		It("terminates when the input stream terminates", func() {
-			startWSHD()
-
 			bash := exec.Command(wsh, "--socket", socketPath, "/bin/bash")
 
 			stdin, err := bash.StdinPipe()
@@ -446,8 +449,6 @@ setup_fs
 
 	Context("when in rsh compatibility mode", func() {
 		It("respects -l, discards -t [X], -46dn, skips the host, and runs the command", func() {
-			startWSHD()
-
 			pwd := exec.Command(
 				wsh,
 				"--socket", socketPath,
@@ -471,8 +472,6 @@ setup_fs
 		})
 
 		It("doesn't cause rsh-like flags to be consumed", func() {
-			startWSHD()
-
 			cmd := exec.Command(
 				wsh,
 				"--socket", socketPath,
@@ -495,8 +494,6 @@ setup_fs
 		})
 
 		It("can be used to rsync files", func() {
-			startWSHD()
-
 			cmd := exec.Command(
 				"rsync",
 				"-e",
