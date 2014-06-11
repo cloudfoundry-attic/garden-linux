@@ -36,7 +36,7 @@ func startWarden(argv ...string) warden.Client {
 
 func restartWarden(argv ...string) {
 	wardenProcess.Signal(syscall.SIGINT)
-	Eventually(wardenRunner.TryDial, 10).Should(HaveOccurred())
+	Eventually(wardenProcess.Wait(), 10).Should(Receive())
 
 	startWarden(argv...)
 }

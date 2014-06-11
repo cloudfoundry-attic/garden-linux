@@ -87,6 +87,7 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 	close(ready)
 
 	var signal os.Signal
+
 dance:
 	for {
 		select {
