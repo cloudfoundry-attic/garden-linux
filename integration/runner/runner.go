@@ -35,7 +35,7 @@ func New(bin, binPath, rootFSPath string, argv ...string) *Runner {
 		binPath:    binPath,
 		rootFSPath: rootFSPath,
 
-		tmpdir: fmt.Sprintf("/tmp/warden-%d", ginkgo.GinkgoParallelNode()),
+		tmpdir: fmt.Sprintf("/tmp/test-warden-%d", ginkgo.GinkgoParallelNode()),
 	}
 }
 
