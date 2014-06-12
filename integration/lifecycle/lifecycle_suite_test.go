@@ -56,7 +56,7 @@ func TestLifecycle(t *testing.T) {
 
 	AfterEach(func() {
 		wardenProcess.Signal(syscall.SIGKILL)
-		Eventually(wardenProcess.Wait(), 5).Should(Receive())
+		Eventually(wardenProcess.Wait(), 10).Should(Receive())
 	})
 
 	RegisterFailHandler(Fail)
