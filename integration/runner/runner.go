@@ -98,7 +98,7 @@ dance:
 				}
 			}
 
-			session.Signal(signal)
+			session.Signal(syscall.SIGTERM)
 		case <-session.Exited:
 			break dance
 		}
