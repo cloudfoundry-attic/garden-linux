@@ -59,8 +59,8 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 
 	wardenArgs := append(
 		r.argv,
-		"--listenNetwork", r.network(),
-		"--listenAddr", r.addr(),
+		"--listenNetwork", r.Network(),
+		"--listenAddr", r.Addr(),
 		"--bin", r.binPath,
 		"--rootfs", r.rootFSPath,
 		"--depot", depotPath,
@@ -118,7 +118,7 @@ dance:
 }
 
 func (r *Runner) TryDial() error {
-	conn, dialErr := net.Dial(r.network(), r.addr())
+	conn, dialErr := net.Dial(r.Network(), r.Addr())
 
 	if dialErr == nil {
 		conn.Close()
@@ -126,6 +126,21 @@ func (r *Runner) TryDial() error {
 	}
 
 	return dialErr
+}
+
+func (r *Runner) NewClient() warden.Client {
+	return client.New(&connection.Info{
+		Network: r.Network(),
+		Addr:    r.Addr(),
+	})
+}
+
+func (r *Runner) Network() string {
+	return "unix"
+}
+
+func (r *Runner) Addr() string {
+	return path.Join(r.tmpdir, "warden.sock")
 }
 
 func (r *Runner) destroyContainers() error {
@@ -144,19 +159,4 @@ func (r *Runner) destroyContainers() error {
 	}
 
 	return nil
-}
-
-func (r *Runner) NewClient() warden.Client {
-	return client.New(&connection.Info{
-		Network: r.network(),
-		Addr:    r.addr(),
-	})
-}
-
-func (r *Runner) network() string {
-	return "unix"
-}
-
-func (r *Runner) addr() string {
-	return path.Join(r.tmpdir, "warden.sock")
 }
