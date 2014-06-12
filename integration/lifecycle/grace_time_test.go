@@ -31,7 +31,7 @@ var _ = Describe("A container with a grace time", func() {
 	Context("when no requests are made for longer than the grace time", func() {
 		It("is destroyed", func() {
 			Eventually(func() error {
-				_, err := container.Info()
+				_, err := client.Lookup(container.Handle())
 				return err
 			}, 10, 1).Should(HaveOccurred())
 		})
