@@ -1,8 +1,6 @@
 package lifecycle_test
 
 import (
-	"time"
-
 	"github.com/cloudfoundry-incubator/garden/warden"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -32,10 +30,10 @@ var _ = Describe("A container with a grace time", func() {
 
 	Context("when no requests are made for longer than the grace time", func() {
 		It("is destroyed", func() {
-			time.Sleep(6 * time.Second)
-
-			_, err := container.Info()
-			Expect(err).To(HaveOccurred())
+			Eventually(func() error {
+				_, err := container.Info()
+				return err
+			}, 10, 1).Should(HaveOccurred())
 		})
 	})
 })
