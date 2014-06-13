@@ -712,10 +712,14 @@ var _ = Describe("Linux containers", func() {
 						Path: "/depot/some-id/bin/wsh",
 					},
 					func(cmd *exec.Cmd) error {
-						_, err := cmd.Stdin.Read(nil)
-						Ω(err).Should(Equal(io.EOF))
+						defer GinkgoRecover()
+
+						bytes, err := ioutil.ReadAll(cmd.Stdin)
+						Ω(err).ShouldNot(HaveOccurred())
+						Ω(bytes).Should(BeEmpty())
 
 						close(waited)
+
 						return nil
 					},
 				)

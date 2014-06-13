@@ -408,8 +408,6 @@ func (c *LinuxContainer) StreamIn(dstPath string) (io.WriteCloser, error) {
 	wshPath := path.Join(c.path, "bin", "wsh")
 	sockPath := path.Join(c.path, "run", "wshd.sock")
 
-	tarRead, tarWrite := io.Pipe()
-
 	tar := &exec.Cmd{
 		Path: wshPath,
 		Args: []string{
@@ -418,18 +416,27 @@ func (c *LinuxContainer) StreamIn(dstPath string) (io.WriteCloser, error) {
 			"bash", "-c",
 			fmt.Sprintf("mkdir -p %s && tar xf - -C %s", dstPath, dstPath),
 		},
-		Stdin: tarRead,
 	}
 
-	err := c.runner.Background(tar)
+	tarWrite, err := tar.StdinPipe()
 	if err != nil {
 		return nil, err
 	}
 
+	err = c.runner.Background(tar)
+	if err != nil {
+		return nil, err
+	}
+
+	errorChan := make(chan error, 1)
+	go func() {
+		errorChan <- c.runner.Wait(tar)
+	}()
+
 	return closeTracker{
 		WriteCloser: tarWrite,
 		callback: func() error {
-			return c.runner.Wait(tar)
+			return <-errorChan
 		},
 	}, nil
 }

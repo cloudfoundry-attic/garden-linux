@@ -225,6 +225,22 @@ wait
 			Expect(*(<-stream).ExitStatus).To(Equal(uint32(42)))
 		})
 
+		It("returns an error when the tar process dies", func(done Done) {
+			tarInput, err := container.StreamIn("/tmp/some-container-dir")
+			Ω(err).ShouldNot(HaveOccurred())
+
+			err = container.Stop(true)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			_, err = io.Copy(tarInput, tarStream)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			err = tarInput.Close()
+			Ω(err).Should(HaveOccurred())
+
+			close(done)
+		}, 3)
+
 		Context("and then copying them out", func() {
 			It("streams the directory", func() {
 				_, stream, err := container.Run(warden.ProcessSpec{
