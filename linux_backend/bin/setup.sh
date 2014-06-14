@@ -7,17 +7,6 @@ shopt -s nullglob
 
 cd $(dirname "${0}")
 
-# Check if the old mount point exists, and if so clean it up
-if [ -d /dev/cgroup ]
-then
-  if grep -q /dev/cgroup /proc/mounts
-  then
-    umount /dev/cgroup
-  fi
-
-  rmdir /dev/cgroup
-fi
-
 cgroup_path="${WARDEN_CGROUP_PATH}"
 
 function mount_flat_cgroup() {
@@ -25,21 +14,18 @@ function mount_flat_cgroup() {
 
   mkdir -p $cgroup_parent_path
 
-  if ! grep "${cgroup_parent_path} " /proc/mounts | cut -d' ' -f3 | grep -q tmpfs
-  then
+  if ! mountpoint -q $cgroup_parent_path; then
     mount -t tmpfs none $cgroup_parent_path
   fi
 
   mkdir -p $1
-  mount -t cgroup none $1
+  mount -t cgroup cgroup $1
 
   # bind-mount cgroup subsystems to make file tree consistent
-  for subsystem in cpu cpuacct cpuset devices memory
-  do
+  for subsystem in $(tail -n +2 /proc/cgroups | awk '{print $1}'); do
     mkdir -p ${1}/$subsystem
 
-    if ! grep -q "${1}/$subsystem " /proc/mounts
-    then
+    if ! mountpoint -q ${1}/$subsystem; then
       mount --bind $1 ${1}/$subsystem
     fi
   done
@@ -48,37 +34,23 @@ function mount_flat_cgroup() {
 function mount_nested_cgroup() {
   mkdir -p $1
 
-  if ! grep "${cgroup_path} " /proc/mounts | cut -d' ' -f3 | grep -q tmpfs
-  then
-    mount -t tmpfs none $1
+  if ! mountpoint -q $1; then
+    mount -t tmpfs -o uid=0,gid=0,mode=0755 cgroup $1
   fi
 
-  for subsystem in cpu cpuacct cpuset devices memory
-  do
+  for subsystem in $(tail -n +2 /proc/cgroups | awk '{print $1}'); do
     mkdir -p ${1}/$subsystem
 
-    if ! grep -q "${1}/$subsystem " /proc/mounts
-    then
-      mount -t cgroup -o $subsystem none ${1}/$subsystem
+    if ! mountpoint -q ${1}/$subsystem; then
+      mount -n -t cgroup -o $subsystem cgroup ${1}/$subsystem
     fi
   done
 }
 
 if [ ! -d $cgroup_path ]
 then
-  # temporarily mount a flat cgroup just to see if we can
-  cgroup_check_path=${WARDEN_CGROUP_PATH}_temporary_check
-
-  mkdir -p $cgroup_check_path
-
-  if mount -t cgroup none $cgroup_check_path; then
-    umount $cgroup_check_path
-    rmdir $cgroup_check_path
+  mount_nested_cgroup $cgroup_path || \
     mount_flat_cgroup $cgroup_path
-  else
-    rmdir $cgroup_check_path
-    mount_nested_cgroup $cgroup_path
-  fi
 fi
 
 ./net.sh setup
