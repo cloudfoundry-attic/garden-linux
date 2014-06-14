@@ -35,7 +35,10 @@ func New(bin, binPath, rootFSPath string, argv ...string) *Runner {
 		binPath:    binPath,
 		rootFSPath: rootFSPath,
 
-		tmpdir: fmt.Sprintf("/tmp/test-warden-%d", ginkgo.GinkgoParallelNode()),
+		tmpdir: filepath.Join(
+			os.TempDir(),
+			fmt.Sprintf("test-warden-%d", ginkgo.GinkgoParallelNode()),
+		),
 	}
 }
 
@@ -48,6 +51,7 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 	depotPath := filepath.Join(r.tmpdir, "containers")
 	overlaysPath := filepath.Join(r.tmpdir, "overlays")
 	snapshotsPath := filepath.Join(r.tmpdir, "snapshots")
+	graphPath := filepath.Join(r.tmpdir, "graph")
 
 	if err := os.MkdirAll(depotPath, 0755); err != nil {
 		return err
@@ -66,6 +70,7 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 		"--depot", depotPath,
 		"--overlays", overlaysPath,
 		"--snapshots", snapshotsPath,
+		"--graph", graphPath,
 		"--debug",
 		"--disableQuotas",
 		"--networkPool", fmt.Sprintf("10.250.%d.0/24", ginkgo.GinkgoParallelNode()),
