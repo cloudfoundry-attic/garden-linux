@@ -46,12 +46,15 @@ file=$rootfs_path/dev/urandom
 mknod -m 666 $file c 1 9
 chown root:root $file
 
-# /dev/null, /dev/zero
+# /dev/null, /dev/zero, /dev/full
 file=$rootfs_path/dev/null
 mknod -m 666 $file c 1 3
 chown root:root $file
 file=$rootfs_path/dev/zero
 mknod -m 666 $file c 1 5
+chown root:root $file
+file=$rootfs_path/dev/full
+mknod -m 666 $file c 1 7
 chown root:root $file
 
 # /dev/fd, /dev/std{in,out,err}

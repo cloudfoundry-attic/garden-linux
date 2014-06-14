@@ -38,16 +38,28 @@ do
     echo "c 1:3 rwm" > $instance_path/devices.allow
     # /dev/zero
     echo "c 1:5 rwm" > $instance_path/devices.allow
+    # /dev/full
+    echo "c 1:7 rwm" > $instance_path/devices.allow
     # /dev/random
     echo "c 1:8 rwm" > $instance_path/devices.allow
     # /dev/urandom
     echo "c 1:9 rwm" > $instance_path/devices.allow
+    # /dev/tty0
+    echo "c 4:0 rwm" > $instance_path/devices.allow
+    # /dev/tty1
+    echo "c 4:1 rwm" > $instance_path/devices.allow
     # /dev/tty
     echo "c 5:0 rwm" > $instance_path/devices.allow
+    # /dev/console
+    echo "c 5:1 rwm" > $instance_path/devices.allow
     # /dev/ptmx
     echo "c 5:2 rwm" > $instance_path/devices.allow
     # /dev/pts/*
     echo "c 136:* rwm" > $instance_path/devices.allow
+    # tuntap (?)
+    echo "c 10:200 rwm" > $instance_path/devices.allow
+    # /dev/fuse
+    echo "c 10:229 rwm" > $instance_path/devices.allow
   fi
 
   echo $PID > $instance_path/tasks
