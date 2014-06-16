@@ -2,11 +2,11 @@
 image: cloudfoundry/warden-ci
 
 env:
-  - GOROOT=/usr/local/go
-  - PATH=$GOROOT/bin:$PATH
-  - GOPATH=/tmp/build/src
-  - PATH=/usr/local/bin:$PATH
-  - REPO_DIR=$GOPATH/src/github.com/cloudfoundry-incubator/warden-linux
+  - GOROOT: /usr/local/go
+  - PATH: $GOROOT/bin:$PATH
+  - GOPATH: /tmp/build/src
+  - PATH: /usr/local/bin:$PATH
+  - REPO_DIR: $GOPATH/src/github.com/cloudfoundry-incubator/warden-linux
 
 script: |
   set -e
