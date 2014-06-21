@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -70,7 +71,7 @@ var _ = Describe("Creating a container", func() {
 		})
 	})
 
-	Context("and running a job", func() {
+	Context("and running a process", func() {
 		It("sends output back in chunks until stopped", func() {
 			_, stream, err := container.Run(warden.ProcessSpec{
 				Script: "sleep 0.5; echo $FIRST; sleep 0.5; echo $SECOND; sleep 0.5; exit 42",
@@ -210,13 +211,8 @@ wait
 		})
 
 		It("creates the files in the container", func() {
-			tarInput, err := container.StreamIn("/tmp/some-container-dir")
+			err := container.StreamIn("/tmp/some-container-dir", tarStream)
 			Ω(err).ShouldNot(HaveOccurred())
-
-			_, err = io.Copy(tarInput, tarStream)
-			Ω(err).ShouldNot(HaveOccurred())
-
-			tarInput.Close()
 
 			_, stream, err := container.Run(warden.ProcessSpec{
 				Script: `test -f /tmp/some-container-dir/some-temp-dir/some-temp-file && exit 42`,
@@ -225,21 +221,13 @@ wait
 			Expect(*(<-stream).ExitStatus).To(Equal(uint32(42)))
 		})
 
-		It("returns an error when the tar process dies", func(done Done) {
-			tarInput, err := container.StreamIn("/tmp/some-container-dir")
-			Ω(err).ShouldNot(HaveOccurred())
-
-			err = container.Stop(true)
-			Ω(err).ShouldNot(HaveOccurred())
-
-			_, err = io.Copy(tarInput, tarStream)
-			Ω(err).ShouldNot(HaveOccurred())
-
-			err = tarInput.Close()
+		It("returns an error when the tar process dies", func() {
+			err := container.StreamIn("/tmp/some-container-dir", &io.LimitedReader{
+				R: tarStream,
+				N: 10,
+			})
 			Ω(err).Should(HaveOccurred())
-
-			close(done)
-		}, 3)
+		})
 
 		Context("and then copying them out", func() {
 			It("streams the directory", func() {

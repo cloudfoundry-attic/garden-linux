@@ -103,6 +103,10 @@ func (b *LinuxBackend) Start() error {
 	return b.containerPool.Prune(keep)
 }
 
+func (b *LinuxBackend) Ping() error {
+	return nil
+}
+
 func (b *LinuxBackend) Capacity() (warden.Capacity, error) {
 	totalMemory, err := b.systemInfo.TotalMemory()
 	if err != nil {

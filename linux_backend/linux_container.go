@@ -387,22 +387,7 @@ func (c *LinuxContainer) Info() (warden.ContainerInfo, error) {
 	}, nil
 }
 
-type closeTracker struct {
-	io.WriteCloser
-
-	callback func() error
-}
-
-func (tracker closeTracker) Close() error {
-	err := tracker.WriteCloser.Close()
-	if err != nil {
-		return err
-	}
-
-	return tracker.callback()
-}
-
-func (c *LinuxContainer) StreamIn(dstPath string) (io.WriteCloser, error) {
+func (c *LinuxContainer) StreamIn(dstPath string, tarStream io.Reader) error {
 	log.Println(c.id, "writing data to:", dstPath)
 
 	wshPath := path.Join(c.path, "bin", "wsh")
@@ -416,32 +401,13 @@ func (c *LinuxContainer) StreamIn(dstPath string) (io.WriteCloser, error) {
 			"bash", "-c",
 			fmt.Sprintf("mkdir -p %s && tar xf - -C %s", dstPath, dstPath),
 		},
+		Stdin: tarStream,
 	}
 
-	tarWrite, err := tar.StdinPipe()
-	if err != nil {
-		return nil, err
-	}
-
-	err = c.runner.Background(tar)
-	if err != nil {
-		return nil, err
-	}
-
-	errorChan := make(chan error, 1)
-	go func() {
-		errorChan <- c.runner.Wait(tar)
-	}()
-
-	return closeTracker{
-		WriteCloser: tarWrite,
-		callback: func() error {
-			return <-errorChan
-		},
-	}, nil
+	return c.runner.Run(tar)
 }
 
-func (c *LinuxContainer) StreamOut(srcPath string) (io.Reader, error) {
+func (c *LinuxContainer) StreamOut(srcPath string) (io.ReadCloser, error) {
 	log.Println(c.id, "reading data from:", srcPath)
 
 	wshPath := path.Join(c.path, "bin", "wsh")

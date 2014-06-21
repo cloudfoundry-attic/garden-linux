@@ -134,10 +134,7 @@ func (r *Runner) TryDial() error {
 }
 
 func (r *Runner) NewClient() warden.Client {
-	return client.New(&connection.Info{
-		Network: r.Network(),
-		Addr:    r.Addr(),
-	})
+	return client.New(connection.New(r.Network(), r.Addr()))
 }
 
 func (r *Runner) Network() string {

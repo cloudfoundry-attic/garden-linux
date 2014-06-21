@@ -670,7 +670,7 @@ var _ = Describe("Linux containers", func() {
 			source = strings.NewReader("the-tar-content")
 		})
 
-		It("streams the input to tar xf in the container", func(done Done) {
+		It("streams the input to tar xf in the container", func() {
 			fakeRunner.WhenRunning(
 				fake_command_runner.CommandSpec{
 					Path: "/depot/some-id/bin/wsh",
@@ -681,97 +681,35 @@ var _ = Describe("Linux containers", func() {
 					},
 				},
 				func(cmd *exec.Cmd) error {
-					go func() {
-						defer GinkgoRecover()
+					bytes, err := ioutil.ReadAll(cmd.Stdin)
+					Expect(err).ToNot(HaveOccurred())
 
-						bytes, err := ioutil.ReadAll(cmd.Stdin)
-						Expect(err).ToNot(HaveOccurred())
-
-						Expect(string(bytes)).To(Equal("the-tar-content"))
-
-						close(done)
-					}()
+					Expect(string(bytes)).To(Equal("the-tar-content"))
 
 					return nil
 				},
 			)
 
-			writer, err := container.StreamIn("/some/directory/dst")
+			err := container.StreamIn("/some/directory/dst", bytes.NewBufferString("the-tar-content"))
 			Expect(err).ToNot(HaveOccurred())
-
-			writer.Write([]byte("the-tar-content"))
-			writer.Close()
 		})
 
-		Context("and closing the stream", func() {
-			It("closes the command's input and waits for tar to complete", func() {
-				waited := make(chan struct{})
-
-				fakeRunner.WhenWaitingFor(
-					fake_command_runner.CommandSpec{
-						Path: "/depot/some-id/bin/wsh",
-					},
-					func(cmd *exec.Cmd) error {
-						defer GinkgoRecover()
-
-						bytes, err := ioutil.ReadAll(cmd.Stdin)
-						Ω(err).ShouldNot(HaveOccurred())
-						Ω(bytes).Should(BeEmpty())
-
-						close(waited)
-
-						return nil
-					},
-				)
-
-				writer, err := container.StreamIn("/some/directory/dst")
-				Expect(err).ToNot(HaveOccurred())
-
-				err = writer.Close()
-				Ω(err).ShouldNot(HaveOccurred())
-
-				Ω(waited).Should(BeClosed())
-			})
-
-			Context("when tar fails", func() {
-				disaster := errors.New("oh no!")
-
-				BeforeEach(func() {
-					fakeRunner.WhenWaitingFor(
-						fake_command_runner.CommandSpec{
-							Path: "/depot/some-id/bin/wsh",
-						},
-						func(cmd *exec.Cmd) error {
-							return disaster
-						},
-					)
-				})
-
-				It("returns the error", func() {
-					writer, err := container.StreamIn("/some/directory/dst")
-					Expect(err).ToNot(HaveOccurred())
-
-					err = writer.Close()
-					Ω(err).Should(Equal(disaster))
-				})
-			})
-		})
-
-		Context("when executing the command fails", func() {
+		Context("when tar fails", func() {
 			disaster := errors.New("oh no!")
 
 			BeforeEach(func() {
 				fakeRunner.WhenRunning(
 					fake_command_runner.CommandSpec{
 						Path: "/depot/some-id/bin/wsh",
-					}, func(*exec.Cmd) error {
+					},
+					func(cmd *exec.Cmd) error {
 						return disaster
 					},
 				)
 			})
 
 			It("returns the error", func() {
-				_, err := container.StreamIn("/some/dst")
+				err := container.StreamIn("/some/directory/dst", nil)
 				Expect(err).To(Equal(disaster))
 			})
 		})
