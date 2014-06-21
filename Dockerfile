@@ -14,7 +14,7 @@ RUN echo "deb http://mirror.anl.gov/pub/ubuntu trusty main universe" > /etc/apt/
 RUN apt-get update
 RUN apt-get install -y build-essential mercurial git-core subversion wget
 
-RUN wget -qO- https://storage.googleapis.com/golang/go1.2.2.linux-amd64.tar.gz | tar -C /usr/local -xzf -
+RUN wget -qO- https://storage.googleapis.com/golang/go1.3.linux-amd64.tar.gz | tar -C /usr/local -xzf -
 
 # pull in dependencies for the server
 RUN apt-get -y install iptables quota rsync net-tools protobuf-compiler
