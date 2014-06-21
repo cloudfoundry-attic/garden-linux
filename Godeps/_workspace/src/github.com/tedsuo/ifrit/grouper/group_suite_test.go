@@ -9,5 +9,5 @@ import (
 
 func TestGroup(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Group Suite")
+	RunSpecs(t, "Grouper v0.1 Suite")
 }
