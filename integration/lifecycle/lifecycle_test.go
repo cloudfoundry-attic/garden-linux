@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"path/filepath"
 	"time"
@@ -26,23 +25,23 @@ var _ = Describe("Creating a container", func() {
 		var err error
 
 		container, err = client.Create(warden.ContainerSpec{})
-		Expect(err).ToNot(HaveOccurred())
+		Ω(err).ShouldNot(HaveOccurred())
 	})
 
 	AfterEach(func() {
 		err := client.Destroy(container.Handle())
-		Expect(err).ToNot(HaveOccurred())
+		Ω(err).ShouldNot(HaveOccurred())
 	})
 
 	It("sources /etc/seed", func() {
 		_, stream, err := container.Run(warden.ProcessSpec{
 			Script: "test -e /tmp/ran-seed",
 		})
-		Expect(err).ToNot(HaveOccurred())
+		Ω(err).ShouldNot(HaveOccurred())
 
 		for chunk := range stream {
 			if chunk.ExitStatus != nil {
-				Expect(*chunk.ExitStatus).To(Equal(uint32(0)))
+				Ω(*chunk.ExitStatus).Should(Equal(uint32(0)))
 			}
 		}
 	})
@@ -53,21 +52,21 @@ var _ = Describe("Creating a container", func() {
 		_, _, err := container.Run(warden.ProcessSpec{
 			Script: fmt.Sprintf("%s && %s", command1, command2),
 		})
-		Expect(err).ToNot(HaveOccurred())
+		Ω(err).ShouldNot(HaveOccurred())
 	})
 
 	Context("and sending a List request", func() {
 		It("includes the created container", func() {
-			Expect(getContainerHandles()).To(ContainElement(container.Handle()))
+			Ω(getContainerHandles()).Should(ContainElement(container.Handle()))
 		})
 	})
 
 	Context("and sending an Info request", func() {
 		It("returns the container's info", func() {
 			info, err := container.Info()
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
-			Expect(info.State).To(Equal("active"))
+			Ω(info.State).Should(Equal("active"))
 		})
 	})
 
@@ -80,11 +79,11 @@ var _ = Describe("Creating a container", func() {
 					warden.EnvironmentVariable{Key: "SECOND", Value: "goodbye"},
 				},
 			})
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
-			Expect(string((<-stream).Data)).To(Equal("hello\n"))
-			Expect(string((<-stream).Data)).To(Equal("goodbye\n"))
-			Expect(*(<-stream).ExitStatus).To(Equal(uint32(42)))
+			Ω(string((<-stream).Data)).Should(Equal("hello\n"))
+			Ω(string((<-stream).Data)).Should(Equal("goodbye\n"))
+			Ω(*(<-stream).ExitStatus).Should(Equal(uint32(42)))
 		})
 
 		Context("and then attaching to it", func() {
@@ -92,13 +91,13 @@ var _ = Describe("Creating a container", func() {
 				processID, _, err := container.Run(warden.ProcessSpec{
 					Script: "sleep 2; echo hello; sleep 0.5; echo goodbye; sleep 0.5; exit 42",
 				})
-				Expect(err).ToNot(HaveOccurred())
+				Ω(err).ShouldNot(HaveOccurred())
 
 				stream, err := container.Attach(processID)
 
-				Expect(string((<-stream).Data)).To(Equal("hello\n"))
-				Expect(string((<-stream).Data)).To(Equal("goodbye\n"))
-				Expect(*(<-stream).ExitStatus).To(Equal(uint32(42)))
+				Ω(string((<-stream).Data)).Should(Equal("hello\n"))
+				Ω(string((<-stream).Data)).Should(Equal("goodbye\n"))
+				Ω(*(<-stream).ExitStatus).Should(Equal(uint32(42)))
 
 				close(done)
 			}, 10.0)
@@ -110,12 +109,12 @@ var _ = Describe("Creating a container", func() {
 					Script: `exec ruby -e 'trap("TERM") { exit 42 }; while true; sleep 1; end'`,
 				})
 
-				Expect(err).ToNot(HaveOccurred())
+				Ω(err).ShouldNot(HaveOccurred())
 
 				err = container.Stop(false)
-				Expect(err).ToNot(HaveOccurred())
+				Ω(err).ShouldNot(HaveOccurred())
 
-				Expect(*(<-stream).ExitStatus).To(Equal(uint32(42)))
+				Ω(*(<-stream).ExitStatus).Should(Equal(uint32(42)))
 			})
 
 			It("recursively terminates all child processes", func(done Done) {
@@ -134,12 +133,12 @@ wait
 `,
 				})
 
-				Expect(err).ToNot(HaveOccurred())
+				Ω(err).ShouldNot(HaveOccurred())
 
 				stoppedAt := time.Now()
 
 				err = container.Stop(false)
-				Expect(err).ToNot(HaveOccurred())
+				Ω(err).ShouldNot(HaveOccurred())
 
 				for chunk := range stream {
 					if chunk.ExitStatus != nil {
@@ -157,12 +156,12 @@ wait
 						Script: `exec ruby -e 'trap("TERM") { puts "cant touch this" }; sleep 1000'`,
 					})
 
-					Expect(err).ToNot(HaveOccurred())
+					Ω(err).ShouldNot(HaveOccurred())
 
 					stoppedAt := time.Now()
 
 					err = container.Stop(false)
-					Expect(err).ToNot(HaveOccurred())
+					Ω(err).ShouldNot(HaveOccurred())
 
 					Eventually(func() *uint32 {
 						select {
@@ -218,7 +217,7 @@ wait
 				Script: `test -f /tmp/some-container-dir/some-temp-dir/some-temp-file && exit 42`,
 			})
 
-			Expect(*(<-stream).ExitStatus).To(Equal(uint32(42)))
+			Ω(*(<-stream).ExitStatus).Should(Equal(uint32(42)))
 		})
 
 		It("returns an error when the tar process dies", func() {
@@ -235,7 +234,7 @@ wait
 					Script: `mkdir -p some-outer-dir/some-inner-dir; touch some-outer-dir/some-inner-dir/some-file;`,
 				})
 
-				Expect(*(<-stream).ExitStatus).To(Equal(uint32(0)))
+				Ω(*(<-stream).ExitStatus).Should(Equal(uint32(0)))
 
 				tarOutput, err := container.StreamOut("some-outer-dir/some-inner-dir")
 				Ω(err).ShouldNot(HaveOccurred())
@@ -257,7 +256,7 @@ wait
 						Script: `mkdir -p some-container-dir; touch some-container-dir/some-file;`,
 					})
 
-					Expect(*(<-stream).ExitStatus).To(Equal(uint32(0)))
+					Ω(*(<-stream).ExitStatus).Should(Equal(uint32(0)))
 
 					tarOutput, err := container.StreamOut("some-container-dir/")
 					Ω(err).ShouldNot(HaveOccurred())
@@ -279,12 +278,12 @@ wait
 	Context("and sending a Stop request", func() {
 		It("changes the container's state to 'stopped'", func() {
 			err := container.Stop(false)
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
 			info, err := container.Info()
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
-			Expect(info.State).To(Equal("stopped"))
+			Ω(info.State).Should(Equal("stopped"))
 		})
 	})
 })

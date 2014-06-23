@@ -85,7 +85,7 @@ var _ = Describe("Running processes", func() {
 						},
 					), "Executed iomux-link too early!")
 
-					Expect(cmd.Stdout).ToNot(BeNil())
+					Ω(cmd.Stdout).ShouldNot(BeNil())
 
 					fakeRunner.WhenWaitingFor(
 						fake_command_runner.CommandSpec{
@@ -121,7 +121,7 @@ var _ = Describe("Running processes", func() {
 		processID2, _, err := processTracker.Run(exec.Command("xxx"))
 		Expect(err).NotTo(HaveOccurred())
 
-		Expect(processID1).ToNot(Equal(processID2))
+		Ω(processID1).ShouldNot(Equal(processID2))
 	})
 
 	It("creates the process's working directory", func() {
@@ -130,7 +130,7 @@ var _ = Describe("Running processes", func() {
 		processID, _, err := processTracker.Run(exec.Command("xxx"))
 		Expect(err).NotTo(HaveOccurred())
 
-		Expect(fakeRunner).To(HaveExecutedSerially(
+		Ω(fakeRunner).Should(HaveExecutedSerially(
 			fake_command_runner.CommandSpec{
 				Path: "mkdir",
 				Args: []string{
@@ -139,6 +139,7 @@ var _ = Describe("Running processes", func() {
 				},
 			},
 		))
+
 	})
 
 	It("streams output from the process", func(done Done) {
@@ -172,14 +173,14 @@ var _ = Describe("Running processes", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		chunk1 := <-processStreamChannel
-		Expect(chunk1.Source).To(Equal(warden.ProcessStreamSourceStdout))
-		Expect(string(chunk1.Data)).To(Equal("hi out\n"))
-		Expect(chunk1.ExitStatus).To(BeNil())
+		Ω(chunk1.Source).Should(Equal(warden.ProcessStreamSourceStdout))
+		Ω(string(chunk1.Data)).Should(Equal("hi out\n"))
+		Ω(chunk1.ExitStatus).Should(BeNil())
 
 		chunk2 := <-processStreamChannel
-		Expect(chunk2.Source).To(Equal(warden.ProcessStreamSourceStderr))
-		Expect(string(chunk2.Data)).To(Equal("hi err\n"))
-		Expect(chunk2.ExitStatus).To(BeNil())
+		Ω(chunk2.Source).Should(Equal(warden.ProcessStreamSourceStderr))
+		Ω(string(chunk2.Data)).Should(Equal("hi err\n"))
+		Ω(chunk2.ExitStatus).Should(BeNil())
 
 		close(done)
 	}, 5.0)
@@ -199,7 +200,7 @@ var _ = Describe("Running processes", func() {
 
 		It("returns the error", func() {
 			_, _, err := processTracker.Run(exec.Command("xxx"))
-			Expect(err).To(Equal(disaster))
+			Ω(err).Should(Equal(disaster))
 		})
 	})
 })
@@ -220,8 +221,8 @@ var _ = Describe("Restoring processes", func() {
 		cmd.Stdin = bytes.NewBufferString("echo hi")
 
 		processID, _, err := processTracker.Run(cmd)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(processID).To(Equal(uint32(1)))
+		Ω(err).ShouldNot(HaveOccurred())
+		Ω(processID).Should(Equal(uint32(1)))
 
 		processTracker.Restore(5)
 
@@ -230,8 +231,8 @@ var _ = Describe("Restoring processes", func() {
 		cmd.Stdin = bytes.NewBufferString("echo hi")
 
 		processID, _, err = processTracker.Run(cmd)
-		Expect(err).ToNot(HaveOccurred())
-		Expect(processID).To(Equal(uint32(6)))
+		Ω(err).ShouldNot(HaveOccurred())
+		Ω(processID).Should(Equal(uint32(6)))
 	})
 
 	It("tracks the restored process", func() {
@@ -239,7 +240,7 @@ var _ = Describe("Restoring processes", func() {
 
 		activeProcesses := processTracker.ActiveProcessIDs()
 
-		Expect(activeProcesses).To(Equal([]uint32{2}))
+		Ω(activeProcesses).Should(Equal([]uint32{2}))
 	})
 })
 
@@ -280,17 +281,17 @@ var _ = Describe("Attaching to running processes", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		processStreamChannel, err := processTracker.Attach(processID)
-		Expect(err).ToNot(HaveOccurred())
+		Ω(err).ShouldNot(HaveOccurred())
 
 		chunk1 := <-processStreamChannel
-		Expect(chunk1.Source).To(Equal(warden.ProcessStreamSourceStdout))
-		Expect(string(chunk1.Data)).To(Equal("hi out\n"))
-		Expect(chunk1.ExitStatus).To(BeNil())
+		Ω(chunk1.Source).Should(Equal(warden.ProcessStreamSourceStdout))
+		Ω(string(chunk1.Data)).Should(Equal("hi out\n"))
+		Ω(chunk1.ExitStatus).Should(BeNil())
 
 		chunk2 := <-processStreamChannel
-		Expect(chunk2.Source).To(Equal(warden.ProcessStreamSourceStderr))
-		Expect(string(chunk2.Data)).To(Equal("hi err\n"))
-		Expect(chunk2.ExitStatus).To(BeNil())
+		Ω(chunk2.Source).Should(Equal(warden.ProcessStreamSourceStderr))
+		Ω(string(chunk2.Data)).Should(Equal("hi err\n"))
+		Ω(chunk2.ExitStatus).Should(BeNil())
 
 		close(done)
 	}, 5.0)
@@ -301,14 +302,14 @@ var _ = Describe("Attaching to running processes", func() {
 
 			processTracker.Restore(0)
 
-			Expect(fakeRunner).ToNot(HaveStartedExecuting(
+			Ω(fakeRunner).ShouldNot(HaveStartedExecuting(
 				fake_command_runner.CommandSpec{
 					Path: binPath("iomux-link"),
 				},
 			))
 
 			_, err := processTracker.Attach(0)
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
 			Eventually(fakeRunner).Should(HaveStartedExecuting(
 				fake_command_runner.CommandSpec{
@@ -326,16 +327,16 @@ var _ = Describe("Attaching to running processes", func() {
 			Expect(err).NotTo(HaveOccurred())
 
 			processStreamChannel, err := processTracker.Attach(processID)
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
 			<-processStreamChannel
 			<-processStreamChannel
 
 			chunk3 := <-processStreamChannel
-			Expect(chunk3.Source).To(BeZero())
-			Expect(string(chunk3.Data)).To(Equal(""))
-			Expect(chunk3.ExitStatus).ToNot(BeNil())
-			Expect(*chunk3.ExitStatus).To(Equal(uint32(42)))
+			Ω(chunk3.Source).Should(BeZero())
+			Ω(string(chunk3.Data)).Should(Equal(""))
+			Ω(chunk3.ExitStatus).ShouldNot(BeNil())
+			Ω(*chunk3.ExitStatus).Should(Equal(uint32(42)))
 
 			_, ok := <-processStreamChannel
 			Expect(ok).To(BeFalse(), "channel is not closed")
@@ -368,17 +369,17 @@ var _ = Describe("Unlinking active processes", func() {
 		)
 
 		_, _, err := processTracker.Run(exec.Command("xxx"))
-		Expect(err).ToNot(HaveOccurred())
+		Ω(err).ShouldNot(HaveOccurred())
 
 		_, _, err = processTracker.Run(exec.Command("xxx"))
-		Expect(err).ToNot(HaveOccurred())
+		Ω(err).ShouldNot(HaveOccurred())
 
 		Eventually(linked).Should(Receive())
 		Eventually(linked).Should(Receive())
 
 		processTracker.UnlinkAll()
 
-		Expect(fakeRunner).To(HaveSignalled(
+		Ω(fakeRunner).Should(HaveSignalled(
 			fake_command_runner.CommandSpec{
 				Path: "/depot/some-id/bin/iomux-link",
 				Args: []string{
@@ -389,7 +390,7 @@ var _ = Describe("Unlinking active processes", func() {
 			os.Interrupt,
 		))
 
-		Expect(fakeRunner).To(HaveSignalled(
+		Ω(fakeRunner).Should(HaveSignalled(
 			fake_command_runner.CommandSpec{
 				Path: "/depot/some-id/bin/iomux-link",
 				Args: []string{
@@ -399,6 +400,7 @@ var _ = Describe("Unlinking active processes", func() {
 			},
 			os.Interrupt,
 		))
+
 	})
 })
 
@@ -424,14 +426,14 @@ var _ = Describe("Listing active process IDs", func() {
 		)
 
 		processID1, _, err := processTracker.Run(exec.Command("xxx"))
-		Expect(err).ToNot(HaveOccurred())
+		Ω(err).ShouldNot(HaveOccurred())
 
 		processID2, _, err := processTracker.Run(exec.Command("xxx"))
-		Expect(err).ToNot(HaveOccurred())
+		Ω(err).ShouldNot(HaveOccurred())
 
 		runningIDs := append(<-running, <-running...)
 
-		Expect(runningIDs).To(ContainElement(processID1))
-		Expect(runningIDs).To(ContainElement(processID2))
+		Ω(runningIDs).Should(ContainElement(processID1))
+		Ω(runningIDs).Should(ContainElement(processID2))
 	})
 })

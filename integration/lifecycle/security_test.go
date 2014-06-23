@@ -31,23 +31,23 @@ var _ = Describe("Denying access to network ranges", func() {
 
 		// create a listener to which we deny network access
 		blockedListener, err = client.Create(warden.ContainerSpec{})
-		Expect(err).ToNot(HaveOccurred())
+		Ω(err).ShouldNot(HaveOccurred())
 		info, err := blockedListener.Info()
-		Expect(err).ToNot(HaveOccurred())
+		Ω(err).ShouldNot(HaveOccurred())
 		blockedListenerIP = info.ContainerIP
 
 		// create a listener to which we do not deny access
 		unblockedListener, err = client.Create(warden.ContainerSpec{})
-		Expect(err).ToNot(HaveOccurred())
+		Ω(err).ShouldNot(HaveOccurred())
 		info, err = unblockedListener.Info()
-		Expect(err).ToNot(HaveOccurred())
+		Ω(err).ShouldNot(HaveOccurred())
 		unblockedListenerIP = info.ContainerIP
 
 		// create a listener to which we exclicitly allow access
 		allowedListener, err = client.Create(warden.ContainerSpec{})
-		Expect(err).ToNot(HaveOccurred())
+		Ω(err).ShouldNot(HaveOccurred())
 		info, err = allowedListener.Info()
-		Expect(err).ToNot(HaveOccurred())
+		Ω(err).ShouldNot(HaveOccurred())
 		allowedListenerIP = info.ContainerIP
 
 		restartWarden(
@@ -60,21 +60,21 @@ var _ = Describe("Denying access to network ranges", func() {
 
 		// create a container with the new deny network configuration
 		sender, err = client.Create(warden.ContainerSpec{})
-		Expect(err).ToNot(HaveOccurred())
+		Ω(err).ShouldNot(HaveOccurred())
 	})
 
 	AfterEach(func() {
 		err := client.Destroy(sender.Handle())
-		Expect(err).ToNot(HaveOccurred())
+		Ω(err).ShouldNot(HaveOccurred())
 
 		err = client.Destroy(blockedListener.Handle())
-		Expect(err).ToNot(HaveOccurred())
+		Ω(err).ShouldNot(HaveOccurred())
 
 		err = client.Destroy(unblockedListener.Handle())
-		Expect(err).ToNot(HaveOccurred())
+		Ω(err).ShouldNot(HaveOccurred())
 
 		err = client.Destroy(allowedListener.Handle())
-		Expect(err).ToNot(HaveOccurred())
+		Ω(err).ShouldNot(HaveOccurred())
 	})
 
 	expectStreamToExitWith := func(stream <-chan warden.ProcessStream, status int) {
@@ -87,7 +87,7 @@ var _ = Describe("Denying access to network ranges", func() {
 
 	runInContainer := func(container warden.Container, script string) <-chan warden.ProcessStream {
 		_, stream, err := container.Run(warden.ProcessSpec{Script: script})
-		Expect(err).ToNot(HaveOccurred())
+		Ω(err).ShouldNot(HaveOccurred())
 
 		return stream
 	}

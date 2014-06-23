@@ -44,7 +44,7 @@ var _ = Describe("Container pool", func() {
 
 	BeforeEach(func() {
 		_, ipNet, err := net.ParseCIDR("1.2.0.0/20")
-		Expect(err).ToNot(HaveOccurred())
+		Ω(err).ShouldNot(HaveOccurred())
 
 		fakeUIDPool = fake_uid_pool.New(10000)
 		fakeNetworkPool = fake_network_pool.New(ipNet)
@@ -57,7 +57,7 @@ var _ = Describe("Container pool", func() {
 		defaultFakeRootFSProvider.ProvideResult = "/provided/rootfs/path"
 
 		depotPath, err = ioutil.TempDir("", "depot-path")
-		Expect(err).ToNot(HaveOccurred())
+		Ω(err).ShouldNot(HaveOccurred())
 
 		pool = container_pool.New(
 			"/root/path",
@@ -110,9 +110,9 @@ var _ = Describe("Container pool", func() {
 			fakeQuotaManager.MountPointResult = "/depot/mount/point"
 
 			err := pool.Setup()
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
-			Expect(fakeRunner).To(HaveExecutedSerially(
+			Ω(fakeRunner).Should(HaveExecutedSerially(
 				fake_command_runner.CommandSpec{
 					Path: "/root/path/setup.sh",
 					Env: []string{
@@ -127,6 +127,7 @@ var _ = Describe("Container pool", func() {
 					},
 				},
 			))
+
 		})
 
 		Context("when setup.sh fails", func() {
@@ -144,7 +145,7 @@ var _ = Describe("Container pool", func() {
 
 			It("returns the error", func() {
 				err := pool.Setup()
-				Expect(err).To(Equal(nastyError))
+				Ω(err).Should(Equal(nastyError))
 			})
 		})
 	})
@@ -152,21 +153,21 @@ var _ = Describe("Container pool", func() {
 	Describe("creating", func() {
 		It("returns containers with unique IDs", func() {
 			container1, err := pool.Create(warden.ContainerSpec{})
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
 			container2, err := pool.Create(warden.ContainerSpec{})
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
-			Expect(container1.ID()).ToNot(Equal(container2.ID()))
+			Ω(container1.ID()).ShouldNot(Equal(container2.ID()))
 		})
 
 		It("creates containers with the correct grace time", func() {
 			container, err := pool.Create(warden.ContainerSpec{
 				GraceTime: 1 * time.Second,
 			})
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
-			Expect(container.GraceTime()).To(Equal(1 * time.Second))
+			Ω(container.GraceTime()).Should(Equal(1 * time.Second))
 		})
 
 		It("creates containers with the correct properties", func() {
@@ -177,16 +178,16 @@ var _ = Describe("Container pool", func() {
 			container, err := pool.Create(warden.ContainerSpec{
 				Properties: properties,
 			})
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
-			Expect(container.Properties()).To(Equal(properties))
+			Ω(container.Properties()).Should(Equal(properties))
 		})
 
 		It("executes create.sh with the correct args and environment", func() {
 			container, err := pool.Create(warden.ContainerSpec{})
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
-			Expect(fakeRunner).To(HaveExecutedSerially(
+			Ω(fakeRunner).Should(HaveExecutedSerially(
 				fake_command_runner.CommandSpec{
 					Path: "/root/path/create.sh",
 					Args: []string{path.Join(depotPath, container.ID())},
@@ -201,16 +202,17 @@ var _ = Describe("Container pool", func() {
 					},
 				},
 			))
+
 		})
 
 		It("saves the determined rootfs provider to the depot", func() {
 			container, err := pool.Create(warden.ContainerSpec{})
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
 			body, err := ioutil.ReadFile(path.Join(depotPath, container.ID(), "rootfs-provider"))
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
-			Expect(string(body)).To(Equal(""))
+			Ω(string(body)).Should(Equal(""))
 		})
 
 		Context("when a rootfs is specified", func() {
@@ -218,9 +220,9 @@ var _ = Describe("Container pool", func() {
 				container, err := pool.Create(warden.ContainerSpec{
 					RootFSPath: "fake:///path/to/custom-rootfs",
 				})
-				Expect(err).ToNot(HaveOccurred())
+				Ω(err).ShouldNot(HaveOccurred())
 
-				Expect(fakeRootFSProvider.Provided()).To(ContainElement(fake_rootfs_provider.ProvidedSpec{
+				Ω(fakeRootFSProvider.Provided()).Should(ContainElement(fake_rootfs_provider.ProvidedSpec{
 					ID: container.ID(),
 					URL: &url.URL{
 						Scheme: "fake",
@@ -228,6 +230,7 @@ var _ = Describe("Container pool", func() {
 						Path:   "/path/to/custom-rootfs",
 					},
 				}))
+
 			})
 
 			It("passes the provided rootfs as $rootfs_path to create.sh", func() {
@@ -236,9 +239,9 @@ var _ = Describe("Container pool", func() {
 				container, err := pool.Create(warden.ContainerSpec{
 					RootFSPath: "fake:///path/to/custom-rootfs",
 				})
-				Expect(err).ToNot(HaveOccurred())
+				Ω(err).ShouldNot(HaveOccurred())
 
-				Expect(fakeRunner).To(HaveExecutedSerially(
+				Ω(fakeRunner).Should(HaveExecutedSerially(
 					fake_command_runner.CommandSpec{
 						Path: "/root/path/create.sh",
 						Args: []string{path.Join(depotPath, container.ID())},
@@ -253,18 +256,19 @@ var _ = Describe("Container pool", func() {
 						},
 					},
 				))
+
 			})
 
 			It("saves the determined rootfs provider to the depot", func() {
 				container, err := pool.Create(warden.ContainerSpec{
 					RootFSPath: "fake:///path/to/custom-rootfs",
 				})
-				Expect(err).ToNot(HaveOccurred())
+				Ω(err).ShouldNot(HaveOccurred())
 
 				body, err := ioutil.ReadFile(path.Join(depotPath, container.ID(), "rootfs-provider"))
-				Expect(err).ToNot(HaveOccurred())
+				Ω(err).ShouldNot(HaveOccurred())
 
-				Expect(string(body)).To(Equal("fake"))
+				Ω(string(body)).Should(Equal("fake"))
 			})
 
 			Context("but its scheme is unknown", func() {
@@ -272,7 +276,7 @@ var _ = Describe("Container pool", func() {
 					_, err := pool.Create(warden.ContainerSpec{
 						RootFSPath: "unknown:///path/to/custom-rootfs",
 					})
-					Expect(err).To(Equal(container_pool.ErrUnknownRootFSProvider))
+					Ω(err).Should(Equal(container_pool.ErrUnknownRootFSProvider))
 				})
 			})
 
@@ -287,20 +291,21 @@ var _ = Describe("Container pool", func() {
 					_, err := pool.Create(warden.ContainerSpec{
 						RootFSPath: "fake:///path/to/custom-rootfs",
 					})
-					Expect(err).To(Equal(disaster))
+					Ω(err).Should(Equal(disaster))
 				})
 
 				It("does not execute create.sh", func() {
 					_, err := pool.Create(warden.ContainerSpec{
 						RootFSPath: "fake:///path/to/custom-rootfs",
 					})
-					Expect(err).To(HaveOccurred())
+					Ω(err).Should(HaveOccurred())
 
-					Expect(fakeRunner).ToNot(HaveExecutedSerially(
+					Ω(fakeRunner).ShouldNot(HaveExecutedSerially(
 						fake_command_runner.CommandSpec{
 							Path: "/root/path/create.sh",
 						},
 					))
+
 				})
 			})
 		})
@@ -328,11 +333,11 @@ var _ = Describe("Container pool", func() {
 					},
 				})
 
-				Expect(err).ToNot(HaveOccurred())
+				Ω(err).ShouldNot(HaveOccurred())
 
 				containerPath := path.Join(depotPath, container.ID())
 
-				Expect(fakeRunner).To(HaveExecutedSerially(
+				Ω(fakeRunner).Should(HaveExecutedSerially(
 					fake_command_runner.CommandSpec{
 						Path: "bash",
 						Args: []string{
@@ -420,6 +425,7 @@ var _ = Describe("Container pool", func() {
 						},
 					},
 				))
+
 			})
 
 			Context("when appending to hook-child-before-pivot.sh fails", func() {
@@ -449,7 +455,7 @@ var _ = Describe("Container pool", func() {
 						},
 					})
 
-					Expect(err).To(Equal(disaster))
+					Ω(err).Should(Equal(disaster))
 				})
 			})
 		})
@@ -463,7 +469,7 @@ var _ = Describe("Container pool", func() {
 
 			It("returns the error", func() {
 				_, err := pool.Create(warden.ContainerSpec{})
-				Expect(err).To(Equal(nastyError))
+				Ω(err).Should(Equal(nastyError))
 			})
 		})
 
@@ -476,9 +482,9 @@ var _ = Describe("Container pool", func() {
 
 			It("returns the error and releases the uid", func() {
 				_, err := pool.Create(warden.ContainerSpec{})
-				Expect(err).To(Equal(nastyError))
+				Ω(err).Should(Equal(nastyError))
 
-				Expect(fakeUIDPool.Released).To(ContainElement(uint32(10000)))
+				Ω(fakeUIDPool.Released).Should(ContainElement(uint32(10000)))
 			})
 		})
 
@@ -497,10 +503,10 @@ var _ = Describe("Container pool", func() {
 
 			It("returns the error and releases the uid and network", func() {
 				_, err := pool.Create(warden.ContainerSpec{})
-				Expect(err).To(Equal(nastyError))
+				Ω(err).Should(Equal(nastyError))
 
-				Expect(fakeUIDPool.Released).To(ContainElement(uint32(10000)))
-				Expect(fakeNetworkPool.Released).To(ContainElement("1.2.0.0/30"))
+				Ω(fakeUIDPool.Released).Should(ContainElement(uint32(10000)))
+				Ω(fakeNetworkPool.Released).Should(ContainElement("1.2.0.0/30"))
 			})
 		})
 	})
@@ -516,7 +522,7 @@ var _ = Describe("Container pool", func() {
 			snapshot = buf
 
 			_, ipNet, err := net.ParseCIDR("10.244.0.0/30")
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
 			restoredNetwork = network.New(ipNet)
 
@@ -544,50 +550,51 @@ var _ = Describe("Container pool", func() {
 					},
 				},
 			)
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 		})
 
 		It("constructs a container from the snapshot", func() {
 			container, err := pool.Restore(snapshot)
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
-			Expect(container.ID()).To(Equal("some-restored-id"))
-			Expect(container.Handle()).To(Equal("some-restored-handle"))
-			Expect(container.GraceTime()).To(Equal(1 * time.Second))
-			Expect(container.Properties()).To(Equal(warden.Properties(map[string]string{
+			Ω(container.ID()).Should(Equal("some-restored-id"))
+			Ω(container.Handle()).Should(Equal("some-restored-handle"))
+			Ω(container.GraceTime()).Should(Equal(1 * time.Second))
+			Ω(container.Properties()).Should(Equal(warden.Properties(map[string]string{
 				"foo": "bar",
 			})))
 
 			linuxContainer := container.(*linux_backend.LinuxContainer)
 
-			Expect(linuxContainer.State()).To(Equal(linux_backend.State("some-restored-state")))
-			Expect(linuxContainer.Events()).To(Equal([]string{
+			Ω(linuxContainer.State()).Should(Equal(linux_backend.State("some-restored-state")))
+			Ω(linuxContainer.Events()).Should(Equal([]string{
 				"some-restored-event",
 				"some-other-restored-event",
 			}))
+
 		})
 
 		It("removes its UID from the pool", func() {
 			_, err := pool.Restore(snapshot)
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
-			Expect(fakeUIDPool.Removed).To(ContainElement(uint32(10000)))
+			Ω(fakeUIDPool.Removed).Should(ContainElement(uint32(10000)))
 		})
 
 		It("removes its network from the pool", func() {
 			_, err := pool.Restore(snapshot)
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
-			Expect(fakeNetworkPool.Removed).To(ContainElement(restoredNetwork.String()))
+			Ω(fakeNetworkPool.Removed).Should(ContainElement(restoredNetwork.String()))
 		})
 
 		It("removes its ports from the pool", func() {
 			_, err := pool.Restore(snapshot)
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
-			Expect(fakePortPool.Removed).To(ContainElement(uint32(61001)))
-			Expect(fakePortPool.Removed).To(ContainElement(uint32(61002)))
-			Expect(fakePortPool.Removed).To(ContainElement(uint32(61003)))
+			Ω(fakePortPool.Removed).Should(ContainElement(uint32(61001)))
+			Ω(fakePortPool.Removed).Should(ContainElement(uint32(61002)))
+			Ω(fakePortPool.Removed).Should(ContainElement(uint32(61003)))
 		})
 
 		Context("when decoding the snapshot fails", func() {
@@ -597,7 +604,7 @@ var _ = Describe("Container pool", func() {
 
 			It("fails", func() {
 				_, err := pool.Restore(snapshot)
-				Expect(err).To(HaveOccurred())
+				Ω(err).Should(HaveOccurred())
 			})
 		})
 
@@ -610,7 +617,7 @@ var _ = Describe("Container pool", func() {
 
 			It("returns the error", func() {
 				_, err := pool.Restore(snapshot)
-				Expect(err).To(Equal(disaster))
+				Ω(err).Should(Equal(disaster))
 			})
 		})
 
@@ -623,9 +630,9 @@ var _ = Describe("Container pool", func() {
 
 			It("returns the error and releases the uid", func() {
 				_, err := pool.Restore(snapshot)
-				Expect(err).To(Equal(disaster))
+				Ω(err).Should(Equal(disaster))
 
-				Expect(fakeUIDPool.Released).To(ContainElement(uint32(10000)))
+				Ω(fakeUIDPool.Released).Should(ContainElement(uint32(10000)))
 			})
 		})
 
@@ -638,13 +645,13 @@ var _ = Describe("Container pool", func() {
 
 			It("returns the error and releases the uid, network, and all ports", func() {
 				_, err := pool.Restore(snapshot)
-				Expect(err).To(Equal(disaster))
+				Ω(err).Should(Equal(disaster))
 
-				Expect(fakeUIDPool.Released).To(ContainElement(uint32(10000)))
-				Expect(fakeNetworkPool.Released).To(ContainElement(restoredNetwork.String()))
-				Expect(fakePortPool.Released).To(ContainElement(uint32(61001)))
-				Expect(fakePortPool.Released).To(ContainElement(uint32(61002)))
-				Expect(fakePortPool.Released).To(ContainElement(uint32(61003)))
+				Ω(fakeUIDPool.Released).Should(ContainElement(uint32(10000)))
+				Ω(fakeNetworkPool.Released).Should(ContainElement(restoredNetwork.String()))
+				Ω(fakePortPool.Released).Should(ContainElement(uint32(61001)))
+				Ω(fakePortPool.Released).Should(ContainElement(uint32(61002)))
+				Ω(fakePortPool.Released).Should(ContainElement(uint32(61003)))
 			})
 		})
 	})
@@ -653,32 +660,32 @@ var _ = Describe("Container pool", func() {
 		Context("when containers are found in the depot", func() {
 			BeforeEach(func() {
 				err := os.MkdirAll(path.Join(depotPath, "container-1"), 0755)
-				Expect(err).ToNot(HaveOccurred())
+				Ω(err).ShouldNot(HaveOccurred())
 
 				err = os.MkdirAll(path.Join(depotPath, "container-2"), 0755)
-				Expect(err).ToNot(HaveOccurred())
+				Ω(err).ShouldNot(HaveOccurred())
 
 				err = os.MkdirAll(path.Join(depotPath, "container-3"), 0755)
-				Expect(err).ToNot(HaveOccurred())
+				Ω(err).ShouldNot(HaveOccurred())
 
 				err = os.MkdirAll(path.Join(depotPath, "tmp"), 0755)
-				Expect(err).ToNot(HaveOccurred())
+				Ω(err).ShouldNot(HaveOccurred())
 
 				err = ioutil.WriteFile(path.Join(depotPath, "container-1", "rootfs-provider"), []byte("fake"), 0644)
-				Expect(err).ToNot(HaveOccurred())
+				Ω(err).ShouldNot(HaveOccurred())
 
 				err = ioutil.WriteFile(path.Join(depotPath, "container-2", "rootfs-provider"), []byte("fake"), 0644)
-				Expect(err).ToNot(HaveOccurred())
+				Ω(err).ShouldNot(HaveOccurred())
 
 				err = ioutil.WriteFile(path.Join(depotPath, "container-3", "rootfs-provider"), []byte(""), 0644)
-				Expect(err).ToNot(HaveOccurred())
+				Ω(err).ShouldNot(HaveOccurred())
 			})
 
 			It("destroys each container", func() {
 				err := pool.Prune(map[string]bool{})
-				Expect(err).ToNot(HaveOccurred())
+				Ω(err).ShouldNot(HaveOccurred())
 
-				Expect(fakeRunner).To(HaveExecutedSerially(
+				Ω(fakeRunner).Should(HaveExecutedSerially(
 					fake_command_runner.CommandSpec{
 						Path: "/root/path/destroy.sh",
 						Args: []string{path.Join(depotPath, "container-1")},
@@ -692,6 +699,7 @@ var _ = Describe("Container pool", func() {
 						Args: []string{path.Join(depotPath, "container-3")},
 					},
 				))
+
 			})
 
 			Context("after destroying it", func() {
@@ -707,44 +715,46 @@ var _ = Describe("Container pool", func() {
 
 				It("cleans up each container's rootfs after destroying it", func() {
 					err := pool.Prune(map[string]bool{})
-					Expect(err).ToNot(HaveOccurred())
+					Ω(err).ShouldNot(HaveOccurred())
 
-					Expect(fakeRootFSProvider.CleanedUp()).To(Equal([]string{
+					Ω(fakeRootFSProvider.CleanedUp()).Should(Equal([]string{
 						"container-1",
 						"container-2",
 					}))
 
-					Expect(defaultFakeRootFSProvider.CleanedUp()).To(Equal([]string{
+					Ω(defaultFakeRootFSProvider.CleanedUp()).Should(Equal([]string{
 						"container-3",
 					}))
+
 				})
 			})
 
 			Context("when a container does not declare a rootfs provider", func() {
 				BeforeEach(func() {
 					err := os.Remove(path.Join(depotPath, "container-2", "rootfs-provider"))
-					Expect(err).ToNot(HaveOccurred())
+					Ω(err).ShouldNot(HaveOccurred())
 				})
 
 				It("cleans it up using the default provider", func() {
 					err := pool.Prune(map[string]bool{})
-					Expect(err).ToNot(HaveOccurred())
+					Ω(err).ShouldNot(HaveOccurred())
 
-					Expect(defaultFakeRootFSProvider.CleanedUp()).To(Equal([]string{
+					Ω(defaultFakeRootFSProvider.CleanedUp()).Should(Equal([]string{
 						"container-2",
 						"container-3",
 					}))
+
 				})
 
 				Context("when a container exists with an unknown rootfs provider", func() {
 					BeforeEach(func() {
 						err := ioutil.WriteFile(path.Join(depotPath, "container-2", "rootfs-provider"), []byte("unknown"), 0644)
-						Expect(err).ToNot(HaveOccurred())
+						Ω(err).ShouldNot(HaveOccurred())
 					})
 
 					It("returns ErrUnknownRootFSProvider", func() {
 						err := pool.Prune(map[string]bool{})
-						Expect(err).To(Equal(container_pool.ErrUnknownRootFSProvider))
+						Ω(err).Should(Equal(container_pool.ErrUnknownRootFSProvider))
 					})
 				})
 			})
@@ -758,28 +768,29 @@ var _ = Describe("Container pool", func() {
 
 				It("returns the error", func() {
 					err := pool.Prune(map[string]bool{})
-					Expect(err).To(Equal(disaster))
+					Ω(err).Should(Equal(disaster))
 				})
 			})
 
 			Context("when a container to exclude is specified", func() {
 				It("is not destroyed", func() {
 					err := pool.Prune(map[string]bool{"container-2": true})
-					Expect(err).ToNot(HaveOccurred())
+					Ω(err).ShouldNot(HaveOccurred())
 
-					Expect(fakeRunner).ToNot(HaveExecutedSerially(
+					Ω(fakeRunner).ShouldNot(HaveExecutedSerially(
 						fake_command_runner.CommandSpec{
 							Path: "/root/path/destroy.sh",
 							Args: []string{path.Join(depotPath, "container-2")},
 						},
 					))
+
 				})
 
 				It("is not cleaned up", func() {
 					err := pool.Prune(map[string]bool{"container-2": true})
-					Expect(err).ToNot(HaveOccurred())
+					Ω(err).ShouldNot(HaveOccurred())
 
-					Expect(fakeRootFSProvider.CleanedUp()).ToNot(ContainElement("container-2"))
+					Ω(fakeRootFSProvider.CleanedUp()).ShouldNot(ContainElement("container-2"))
 				})
 			})
 
@@ -798,14 +809,14 @@ var _ = Describe("Container pool", func() {
 
 				It("returns the error", func() {
 					err := pool.Prune(map[string]bool{})
-					Expect(err).To(Equal(disaster))
+					Ω(err).Should(Equal(disaster))
 				})
 
 				It("does not clean up the container's rootfs", func() {
 					err := pool.Prune(map[string]bool{})
-					Expect(err).To(HaveOccurred())
+					Ω(err).Should(HaveOccurred())
 
-					Expect(fakeRootFSProvider.CleanedUp()).To(BeEmpty())
+					Ω(fakeRootFSProvider.CleanedUp()).Should(BeEmpty())
 				})
 			})
 		})
@@ -816,7 +827,7 @@ var _ = Describe("Container pool", func() {
 
 		BeforeEach(func() {
 			container, err := pool.Create(warden.ContainerSpec{})
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
 			createdContainer = container.(*linux_backend.LinuxContainer)
 
@@ -826,40 +837,41 @@ var _ = Describe("Container pool", func() {
 
 		It("executes destroy.sh with the correct args and environment", func() {
 			err := pool.Destroy(createdContainer)
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
-			Expect(fakeRunner).To(HaveExecutedSerially(
+			Ω(fakeRunner).Should(HaveExecutedSerially(
 				fake_command_runner.CommandSpec{
 					Path: "/root/path/destroy.sh",
 					Args: []string{path.Join(depotPath, createdContainer.ID())},
 				},
 			))
+
 		})
 
 		It("releases the container's ports, uid, and network", func() {
 			err := pool.Destroy(createdContainer)
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
-			Expect(fakePortPool.Released).To(ContainElement(uint32(123)))
-			Expect(fakePortPool.Released).To(ContainElement(uint32(456)))
+			Ω(fakePortPool.Released).Should(ContainElement(uint32(123)))
+			Ω(fakePortPool.Released).Should(ContainElement(uint32(456)))
 
-			Expect(fakeUIDPool.Released).To(ContainElement(uint32(10000)))
+			Ω(fakeUIDPool.Released).Should(ContainElement(uint32(10000)))
 
-			Expect(fakeNetworkPool.Released).To(ContainElement("1.2.0.0/30"))
+			Ω(fakeNetworkPool.Released).Should(ContainElement("1.2.0.0/30"))
 		})
 
 		Context("when the container has a rootfs provider defined", func() {
 			BeforeEach(func() {
 				err := os.MkdirAll(path.Join(depotPath, createdContainer.ID()), 0755)
-				Expect(err).ToNot(HaveOccurred())
+				Ω(err).ShouldNot(HaveOccurred())
 
 				err = ioutil.WriteFile(path.Join(depotPath, createdContainer.ID(), "rootfs-provider"), []byte("fake"), 0644)
-				Expect(err).ToNot(HaveOccurred())
+				Ω(err).ShouldNot(HaveOccurred())
 			})
 
 			It("cleans up the container's rootfs", func() {
 				err := pool.Destroy(createdContainer)
-				Expect(err).ToNot(HaveOccurred())
+				Ω(err).ShouldNot(HaveOccurred())
 
 				Ω(fakeRootFSProvider.CleanedUp()).Should(ContainElement(createdContainer.ID()))
 			})
@@ -873,7 +885,7 @@ var _ = Describe("Container pool", func() {
 
 				It("returns the error", func() {
 					err := pool.Destroy(createdContainer)
-					Expect(err).To(Equal(disaster))
+					Ω(err).Should(Equal(disaster))
 				})
 			})
 		})
@@ -895,26 +907,26 @@ var _ = Describe("Container pool", func() {
 
 			It("returns the error", func() {
 				err := pool.Destroy(createdContainer)
-				Expect(err).To(Equal(disaster))
+				Ω(err).Should(Equal(disaster))
 			})
 
 			It("does not clean up the container's rootfs", func() {
 				err := pool.Destroy(createdContainer)
-				Expect(err).To(HaveOccurred())
+				Ω(err).Should(HaveOccurred())
 
-				Expect(fakeRootFSProvider.CleanedUp()).To(BeEmpty())
+				Ω(fakeRootFSProvider.CleanedUp()).Should(BeEmpty())
 			})
 
 			It("does not release the container's resources", func() {
 				err := pool.Destroy(createdContainer)
-				Expect(err).To(HaveOccurred())
+				Ω(err).Should(HaveOccurred())
 
-				Expect(fakePortPool.Released).To(BeEmpty())
-				Expect(fakePortPool.Released).To(BeEmpty())
+				Ω(fakePortPool.Released).Should(BeEmpty())
+				Ω(fakePortPool.Released).Should(BeEmpty())
 
-				Expect(fakeUIDPool.Released).To(BeEmpty())
+				Ω(fakeUIDPool.Released).Should(BeEmpty())
 
-				Expect(fakeNetworkPool.Released).To(BeEmpty())
+				Ω(fakeNetworkPool.Released).Should(BeEmpty())
 			})
 		})
 	})

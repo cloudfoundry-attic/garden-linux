@@ -20,12 +20,12 @@ var _ = Describe("A container with properties", func() {
 				"a":   "b",
 			},
 		})
-		Expect(err).ToNot(HaveOccurred())
+		Ω(err).ShouldNot(HaveOccurred())
 	})
 
 	AfterEach(func() {
 		err := client.Destroy(container.Handle())
-		Expect(err).ToNot(HaveOccurred())
+		Ω(err).ShouldNot(HaveOccurred())
 	})
 
 	Describe("when reporting the container's info", func() {
@@ -51,7 +51,7 @@ var _ = Describe("A container with properties", func() {
 				},
 			})
 
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
 			undesiredHandles = append(undesiredHandles, undesiredContainer.Handle())
 
@@ -62,7 +62,7 @@ var _ = Describe("A container with properties", func() {
 				},
 			})
 
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
 			undesiredHandles = append(undesiredHandles, undesiredContainer.Handle())
 		})

@@ -13,13 +13,13 @@ var _ = Describe("Port pool", func() {
 			pool := port_pool.New(10000, 5)
 
 			port1, err := pool.Acquire()
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
 			port2, err := pool.Acquire()
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
-			Expect(port1).To(Equal(uint32(10000)))
-			Expect(port2).To(Equal(uint32(10001)))
+			Ω(port1).Should(Equal(uint32(10000)))
+			Ω(port2).Should(Equal(uint32(10001)))
 		})
 
 		Context("when the pool is exhausted", func() {
@@ -28,11 +28,11 @@ var _ = Describe("Port pool", func() {
 
 				for i := 0; i < 5; i++ {
 					_, err := pool.Acquire()
-					Expect(err).ToNot(HaveOccurred())
+					Ω(err).ShouldNot(HaveOccurred())
 				}
 
 				_, err := pool.Acquire()
-				Expect(err).To(HaveOccurred())
+				Ω(err).Should(HaveOccurred())
 			})
 		})
 	})
@@ -42,14 +42,14 @@ var _ = Describe("Port pool", func() {
 			pool := port_pool.New(10000, 2)
 
 			err := pool.Remove(10000)
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
 			port, err := pool.Acquire()
-			Expect(err).ToNot(HaveOccurred())
-			Expect(port).To(Equal(uint32(10001)))
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(port).Should(Equal(uint32(10001)))
 
 			_, err = pool.Acquire()
-			Expect(err).To(HaveOccurred())
+			Ω(err).Should(HaveOccurred())
 		})
 
 		Context("when the resource is already acquired", func() {
@@ -57,10 +57,10 @@ var _ = Describe("Port pool", func() {
 				pool := port_pool.New(10000, 2)
 
 				port, err := pool.Acquire()
-				Expect(err).ToNot(HaveOccurred())
+				Ω(err).ShouldNot(HaveOccurred())
 
 				err = pool.Remove(port)
-				Expect(err).To(Equal(port_pool.PortTakenError{port}))
+				Ω(err).Should(Equal(port_pool.PortTakenError{port}))
 			})
 		})
 	})
@@ -70,18 +70,18 @@ var _ = Describe("Port pool", func() {
 			pool := port_pool.New(10000, 2)
 
 			port1, err := pool.Acquire()
-			Expect(err).ToNot(HaveOccurred())
-			Expect(port1).To(Equal(uint32(10000)))
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(port1).Should(Equal(uint32(10000)))
 
 			pool.Release(port1)
 
 			port2, err := pool.Acquire()
-			Expect(err).ToNot(HaveOccurred())
-			Expect(port2).To(Equal(uint32(10001)))
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(port2).Should(Equal(uint32(10001)))
 
 			nextPort, err := pool.Acquire()
-			Expect(err).ToNot(HaveOccurred())
-			Expect(nextPort).To(Equal(uint32(10000)))
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(nextPort).Should(Equal(uint32(10000)))
 		})
 
 		Context("when the released port is out of the range", func() {
@@ -91,7 +91,7 @@ var _ = Describe("Port pool", func() {
 				pool.Release(20000)
 
 				_, err := pool.Acquire()
-				Expect(err).To(HaveOccurred())
+				Ω(err).Should(HaveOccurred())
 			})
 		})
 
@@ -100,22 +100,22 @@ var _ = Describe("Port pool", func() {
 				pool := port_pool.New(10000, 2)
 
 				port1, err := pool.Acquire()
-				Expect(err).ToNot(HaveOccurred())
-				Expect(port1).To(Equal(uint32(10000)))
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(port1).Should(Equal(uint32(10000)))
 
 				pool.Release(port1)
 				pool.Release(port1)
 
 				port2, err := pool.Acquire()
-				Expect(err).ToNot(HaveOccurred())
-				Expect(port2).ToNot(Equal(port1))
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(port2).ShouldNot(Equal(port1))
 
 				port3, err := pool.Acquire()
-				Expect(err).ToNot(HaveOccurred())
-				Expect(port3).To(Equal(port1))
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(port3).Should(Equal(port1))
 
 				_, err = pool.Acquire()
-				Expect(err).To(HaveOccurred())
+				Ω(err).Should(HaveOccurred())
 			})
 		})
 	})

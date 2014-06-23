@@ -10,7 +10,7 @@ import (
 
 func parseURL(str string) *url.URL {
 	parsedURL, err := url.Parse(str)
-	Expect(err).ToNot(HaveOccurred())
+	Ω(err).ShouldNot(HaveOccurred())
 
 	return parsedURL
 }

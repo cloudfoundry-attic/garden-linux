@@ -25,7 +25,7 @@ var _ = Describe("The Warden server", func() {
 			var err error
 
 			container, err = client.Create(warden.ContainerSpec{})
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 		})
 
 		streamCounts := []int{0}
@@ -53,7 +53,7 @@ var _ = Describe("The Warden server", func() {
 							_, results, err := container.Run(warden.ProcessSpec{
 								Script: "cat /dev/zero",
 							})
-							Expect(err).ToNot(HaveOccurred())
+							Ω(err).ShouldNot(HaveOccurred())
 
 							go func(results <-chan warden.ProcessStream) {
 								for {
@@ -77,7 +77,7 @@ var _ = Describe("The Warden server", func() {
 
 				AfterEach(func() {
 					err := client.Destroy(container.Handle())
-					Expect(err).ToNot(HaveOccurred())
+					Ω(err).ShouldNot(HaveOccurred())
 				})
 
 				Measure("it should not adversely affect the rest of the API", func(b Benchmarker) {
@@ -87,20 +87,20 @@ var _ = Describe("The Warden server", func() {
 						var err error
 
 						newContainer, err = client.Create(warden.ContainerSpec{})
-						Expect(err).ToNot(HaveOccurred())
+						Ω(err).ShouldNot(HaveOccurred())
 					})
 
 					for i := 0; i < 10; i++ {
 						b.Time("getting container info (10x)", func() {
 							_, err := newContainer.Info()
-							Expect(err).ToNot(HaveOccurred())
+							Ω(err).ShouldNot(HaveOccurred())
 						})
 					}
 
 					for i := 0; i < 10; i++ {
 						b.Time("running a job (10x)", func() {
 							_, stream, err := newContainer.Run(warden.ProcessSpec{Script: "ls"})
-							Expect(err).ToNot(HaveOccurred())
+							Ω(err).ShouldNot(HaveOccurred())
 
 							for _ = range stream {
 
@@ -110,7 +110,7 @@ var _ = Describe("The Warden server", func() {
 
 					b.Time("destroying the container", func() {
 						err := client.Destroy(newContainer.Handle())
-						Expect(err).ToNot(HaveOccurred())
+						Ω(err).ShouldNot(HaveOccurred())
 					})
 
 					b.RecordValue(

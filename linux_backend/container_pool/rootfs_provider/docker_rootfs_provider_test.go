@@ -32,43 +32,44 @@ var _ = Describe("DockerRootFSProvider", func() {
 			fakeGraphDriver.GetResult = "/some/graph/driver/mount/point"
 
 			mountpoint, err := provider.ProvideRootFS("some-id", parseURL("docker:///some-repository-name"))
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
-			Expect(fakeGraphDriver.Created()).To(ContainElement(
+			Ω(fakeGraphDriver.Created()).Should(ContainElement(
 				fake_graph_driver.CreatedGraph{
 					ID:     "some-id",
 					Parent: "some-image-id",
 				},
 			))
 
-			Expect(fakeRepositoryFetcher.Fetched()).To(ContainElement(
+			Ω(fakeRepositoryFetcher.Fetched()).Should(ContainElement(
 				fake_repository_fetcher.FetchSpec{
 					Repository: "some-repository-name",
 					Tag:        "latest",
 				},
 			))
 
-			Expect(mountpoint).To(Equal("/some/graph/driver/mount/point"))
+			Ω(mountpoint).Should(Equal("/some/graph/driver/mount/point"))
 		})
 
 		Context("when the url is missing a path", func() {
 			It("returns an error", func() {
 				_, err := provider.ProvideRootFS("some-id", parseURL("docker://"))
-				Expect(err).To(Equal(ErrInvalidDockerURL))
+				Ω(err).Should(Equal(ErrInvalidDockerURL))
 			})
 		})
 
 		Context("and a tag is specified via a fragment", func() {
 			It("uses it when fetching the repository", func() {
 				_, err := provider.ProvideRootFS("some-id", parseURL("docker:///some-repository-name#some-tag"))
-				Expect(err).ToNot(HaveOccurred())
+				Ω(err).ShouldNot(HaveOccurred())
 
-				Expect(fakeRepositoryFetcher.Fetched()).To(ContainElement(
+				Ω(fakeRepositoryFetcher.Fetched()).Should(ContainElement(
 					fake_repository_fetcher.FetchSpec{
 						Repository: "some-repository-name",
 						Tag:        "some-tag",
 					},
 				))
+
 			})
 		})
 
@@ -81,7 +82,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 
 			It("returns the error", func() {
 				_, err := provider.ProvideRootFS("some-id", parseURL("docker:///some-repository-name"))
-				Expect(err).To(Equal(disaster))
+				Ω(err).Should(Equal(disaster))
 			})
 		})
 
@@ -94,7 +95,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 
 			It("returns the error", func() {
 				_, err := provider.ProvideRootFS("some-id", parseURL("docker:///some-repository-name#some-tag"))
-				Expect(err).To(Equal(disaster))
+				Ω(err).Should(Equal(disaster))
 			})
 		})
 
@@ -107,7 +108,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 
 			It("returns the error", func() {
 				_, err := provider.ProvideRootFS("some-id", parseURL("docker:///some-repository-name#some-tag"))
-				Expect(err).To(Equal(disaster))
+				Ω(err).Should(Equal(disaster))
 			})
 		})
 	})
@@ -115,10 +116,10 @@ var _ = Describe("DockerRootFSProvider", func() {
 	Describe("CleanupRootFS", func() {
 		It("removes the container from the rootfs graph", func() {
 			err := provider.CleanupRootFS("some-id")
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
-			Expect(fakeGraphDriver.Putted()).To(ContainElement("some-id"))
-			Expect(fakeGraphDriver.Removed()).To(ContainElement("some-id"))
+			Ω(fakeGraphDriver.Putted()).Should(ContainElement("some-id"))
+			Ω(fakeGraphDriver.Removed()).Should(ContainElement("some-id"))
 		})
 
 		Context("when removing the container from the graph fails", func() {
@@ -130,7 +131,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 
 			It("returns the error", func() {
 				err := provider.CleanupRootFS("some-id")
-				Expect(err).To(Equal(disaster))
+				Ω(err).Should(Equal(disaster))
 			})
 		})
 	})

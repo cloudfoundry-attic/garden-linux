@@ -15,16 +15,16 @@ var _ = Describe("A container with a grace time", func() {
 		var err error
 
 		container, err = client.Create(warden.ContainerSpec{})
-		Expect(err).ToNot(HaveOccurred())
+		Ω(err).ShouldNot(HaveOccurred())
 	})
 
 	Context("when a request takes longer than the grace time", func() {
 		It("is not destroyed after the request is over", func() {
 			_, _, err := container.Run(warden.ProcessSpec{Script: "sleep 6"})
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
 			_, err = container.Info()
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 		})
 	})
 

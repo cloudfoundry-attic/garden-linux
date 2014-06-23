@@ -15,7 +15,7 @@ var _ = Describe("Network Pool", func() {
 
 	BeforeEach(func() {
 		_, ipNet, err := net.ParseCIDR("10.254.0.0/22")
-		Expect(err).ToNot(HaveOccurred())
+		Ω(err).ShouldNot(HaveOccurred())
 
 		pool = network_pool.New(ipNet)
 	})
@@ -23,25 +23,25 @@ var _ = Describe("Network Pool", func() {
 	Describe("acquiring", func() {
 		It("takes the next network in the pool", func() {
 			network1, err := pool.Acquire()
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
-			Expect(network1.String()).To(Equal("10.254.0.0/30"))
+			Ω(network1.String()).Should(Equal("10.254.0.0/30"))
 
 			network2, err := pool.Acquire()
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
-			Expect(network2.String()).To(Equal("10.254.0.4/30"))
+			Ω(network2.String()).Should(Equal("10.254.0.4/30"))
 		})
 
 		Context("when the pool is exhausted", func() {
 			It("returns an error", func() {
 				for i := 0; i < 256; i++ {
 					_, err := pool.Acquire()
-					Expect(err).ToNot(HaveOccurred())
+					Ω(err).ShouldNot(HaveOccurred())
 				}
 
 				_, err := pool.Acquire()
-				Expect(err).To(HaveOccurred())
+				Ω(err).Should(HaveOccurred())
 			})
 		})
 	})
@@ -49,28 +49,28 @@ var _ = Describe("Network Pool", func() {
 	Describe("removing", func() {
 		It("acquires a specific network from the pool", func() {
 			_, ipNet, err := net.ParseCIDR("10.254.0.0/30")
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
 			err = pool.Remove(network.New(ipNet))
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
 			for i := 0; i < (256 - 1); i++ {
 				network, err := pool.Acquire()
-				Expect(err).ToNot(HaveOccurred())
-				Expect(network.String()).ToNot(Equal("10.254.0.0/30"))
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(network.String()).ShouldNot(Equal("10.254.0.0/30"))
 			}
 
 			_, err = pool.Acquire()
-			Expect(err).To(HaveOccurred())
+			Ω(err).Should(HaveOccurred())
 		})
 
 		Context("when the resource is already acquired", func() {
 			It("returns a PortTakenError", func() {
 				network, err := pool.Acquire()
-				Expect(err).ToNot(HaveOccurred())
+				Ω(err).ShouldNot(HaveOccurred())
 
 				err = pool.Remove(network)
-				Expect(err).To(Equal(network_pool.NetworkTakenError{network}))
+				Ω(err).Should(Equal(network_pool.NetworkTakenError{network}))
 			})
 		})
 	})
@@ -78,56 +78,56 @@ var _ = Describe("Network Pool", func() {
 	Describe("releasing", func() {
 		It("places a network back and the end of the pool", func() {
 			first, err := pool.Acquire()
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
 			pool.Release(first)
 
 			for i := 0; i < 255; i++ {
 				_, err := pool.Acquire()
-				Expect(err).ToNot(HaveOccurred())
+				Ω(err).ShouldNot(HaveOccurred())
 			}
 
 			last, err := pool.Acquire()
-			Expect(err).ToNot(HaveOccurred())
-			Expect(last).To(Equal(first))
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(last).Should(Equal(first))
 		})
 
 		Context("when the released network is out of the range", func() {
 			It("does not add it to the pool", func() {
 				_, smallIPNet, err := net.ParseCIDR("10.255.0.0/32")
-				Expect(err).ToNot(HaveOccurred())
+				Ω(err).ShouldNot(HaveOccurred())
 
 				kiddiePool := network_pool.New(smallIPNet)
 
 				_, err = kiddiePool.Acquire()
-				Expect(err).ToNot(HaveOccurred())
+				Ω(err).ShouldNot(HaveOccurred())
 
 				_, err = kiddiePool.Acquire()
-				Expect(err).To(HaveOccurred())
+				Ω(err).Should(HaveOccurred())
 
 				outOfRangeNetwork, err := pool.Acquire()
-				Expect(err).ToNot(HaveOccurred())
+				Ω(err).ShouldNot(HaveOccurred())
 
 				kiddiePool.Release(outOfRangeNetwork)
 
 				_, err = kiddiePool.Acquire()
-				Expect(err).To(HaveOccurred())
+				Ω(err).Should(HaveOccurred())
 			})
 		})
 	})
 
 	Describe("InitialSize", func() {
 		It("returns the count of maximum available networks", func() {
-			Expect(pool.InitialSize()).To(Equal(256))
+			Ω(pool.InitialSize()).Should(Equal(256))
 			_, err := pool.Acquire()
-			Expect(err).ToNot(HaveOccurred())
-			Expect(pool.InitialSize()).To(Equal(256))
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(pool.InitialSize()).Should(Equal(256))
 		})
 	})
 
 	Describe("getting the network", func() {
 		It("returns the network's *net.IPNet", func() {
-			Expect(pool.Network().String()).To(Equal("10.254.0.0/22"))
+			Ω(pool.Network().String()).Should(Equal("10.254.0.0/22"))
 		})
 	})
 })

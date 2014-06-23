@@ -21,14 +21,14 @@ var _ = Describe("Through a restart", func() {
 		var err error
 
 		container, err = client.Create(warden.ContainerSpec{})
-		Expect(err).ToNot(HaveOccurred())
+		Ω(err).ShouldNot(HaveOccurred())
 	})
 
 	It("retains the container list", func() {
 		restartWarden()
 
 		handles := getContainerHandles()
-		Expect(handles).To(ContainElement(container.Handle()))
+		Ω(handles).Should(ContainElement(container.Handle()))
 	})
 
 	Describe("a started job", func() {
@@ -37,34 +37,34 @@ var _ = Describe("Through a restart", func() {
 				Script: "while true; do echo hi; sleep 0.5; done",
 			})
 
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
 			restartWarden()
 
 			Eventually(runStream).Should(BeClosed())
 
 			stream, err := container.Attach(processID)
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
 			var chunk warden.ProcessStream
 			Eventually(stream).Should(Receive(&chunk))
-			Expect(chunk.Data).To(ContainSubstring("hi\n"))
+			Ω(chunk.Data).Should(ContainSubstring("hi\n"))
 		})
 
 		It("does not have its job ID repeated", func() {
 			processID1, _, err := container.Run(warden.ProcessSpec{
 				Script: "while true; do echo hi; sleep 0.5; done",
 			})
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
 			restartWarden()
 
 			processID2, _, err := container.Run(warden.ProcessSpec{
 				Script: "while true; do echo hi; sleep 0.5; done",
 			})
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
-			Expect(processID1).ToNot(Equal(processID2))
+			Ω(processID1).ShouldNot(Equal(processID2))
 		})
 
 		Context("that prints monotonously increasing output", func() {
@@ -74,10 +74,10 @@ var _ = Describe("Through a restart", func() {
 				processID, _, err := container.Run(warden.ProcessSpec{
 					Script: "for i in $(seq 10); do echo $i; sleep 0.5; done; echo goodbye; while true; do sleep 1; done",
 				})
-				Expect(err).ToNot(HaveOccurred())
+				Ω(err).ShouldNot(HaveOccurred())
 
 				stream, err := container.Attach(processID)
-				Expect(err).ToNot(HaveOccurred())
+				Ω(err).ShouldNot(HaveOccurred())
 
 				go streamNumbersTo(receivedNumbers, stream)
 
@@ -86,13 +86,13 @@ var _ = Describe("Through a restart", func() {
 				restartWarden()
 
 				stream, err = container.Attach(processID)
-				Expect(err).ToNot(HaveOccurred())
+				Ω(err).ShouldNot(HaveOccurred())
 
 				go streamNumbersTo(receivedNumbers, stream)
 
 				lastNum := 0
 				for num := range receivedNumbers {
-					Expect(num).To(BeNumerically(">", lastNum))
+					Ω(num).Should(BeNumerically(">", lastNum))
 					lastNum = num
 				}
 
@@ -104,22 +104,22 @@ var _ = Describe("Through a restart", func() {
 	Describe("a memory limit", func() {
 		It("is still enforced", func() {
 			err := container.LimitMemory(warden.MemoryLimits{32 * 1024 * 1024})
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
 			restartWarden()
 
 			_, stream, err := container.Run(warden.ProcessSpec{
 				Script: "exec ruby -e '$stdout.sync = true; puts :hello; puts (\"x\" * 64 * 1024 * 1024).size; puts :goodbye; exit 42'",
 			})
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
 			// cgroups OOM killer seems to leave no trace of the process;
 			// there's no exit status indicator, so just assert that the one
 			// we tried to exit with after over-allocating is not seen
 
 			stdout, _, exitStatus := readUntilExit(stream)
-			Expect(stdout).To(Equal("hello\n"))
-			Expect(exitStatus).ToNot(Equal(uint32(42)))
+			Ω(stdout).Should(Equal("hello\n"))
+			Ω(exitStatus).ShouldNot(Equal(uint32(42)))
 		})
 	})
 
@@ -128,27 +128,27 @@ var _ = Describe("Through a restart", func() {
 			processID, _, err := container.Run(warden.ProcessSpec{
 				Script: "while true; do echo hi; sleep 0.5; done",
 			})
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
 			restartWarden()
 
 			info, err := container.Info()
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
-			Expect(info.ProcessIDs).To(ContainElement(uint32(processID)))
+			Ω(info.ProcessIDs).Should(ContainElement(uint32(processID)))
 		})
 	})
 
 	Describe("a container's list of events", func() {
 		It("is still reported", func() {
 			err := container.LimitMemory(warden.MemoryLimits{4 * 1024 * 1024})
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
 			// trigger 'out of memory' event
 			_, stream, err := container.Run(warden.ProcessSpec{
 				Script: "exec ruby -e '$stdout.sync = true; puts :hello; puts (\"x\" * 5 * 1024 * 1024).size; puts :goodbye; exit 42'",
 			})
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
 			for _ = range stream {
 				// wait until process exits
@@ -156,7 +156,7 @@ var _ = Describe("Through a restart", func() {
 
 			Eventually(func() []string {
 				info, err := container.Info()
-				Expect(err).ToNot(HaveOccurred())
+				Ω(err).ShouldNot(HaveOccurred())
 
 				return info.Events
 			}).Should(ContainElement("out of memory"))
@@ -164,9 +164,9 @@ var _ = Describe("Through a restart", func() {
 			restartWarden()
 
 			info, err := container.Info()
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
-			Expect(info.Events).To(ContainElement("out of memory"))
+			Ω(info.Events).Should(ContainElement("out of memory"))
 		})
 	})
 
@@ -177,81 +177,81 @@ var _ = Describe("Through a restart", func() {
 					"foo": "bar",
 				},
 			})
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
 			info, err := containerWithProperties.Info()
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
-			Expect(info.Properties["foo"]).To(Equal("bar"))
+			Ω(info.Properties["foo"]).Should(Equal("bar"))
 
 			restartWarden()
 
 			info, err = containerWithProperties.Info()
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
-			Expect(info.Properties["foo"]).To(Equal("bar"))
+			Ω(info.Properties["foo"]).Should(Equal("bar"))
 		})
 	})
 
 	Describe("a container's state", func() {
 		It("is still reported", func() {
 			info, err := container.Info()
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
-			Expect(info.State).To(Equal("active"))
+			Ω(info.State).Should(Equal("active"))
 
 			restartWarden()
 
 			info, err = container.Info()
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
-			Expect(info.State).To(Equal("active"))
+			Ω(info.State).Should(Equal("active"))
 
 			err = container.Stop(false)
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
 			restartWarden()
 
 			info, err = container.Info()
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
-			Expect(info.State).To(Equal("stopped"))
+			Ω(info.State).Should(Equal("stopped"))
 		})
 	})
 
 	Describe("a container's network", func() {
 		It("does not get reused", func() {
 			infoA, err := container.Info()
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
 			restartWarden()
 
 			newContainer, err := client.Create(warden.ContainerSpec{})
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
 			infoB, err := newContainer.Info()
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
-			Expect(infoA.HostIP).ToNot(Equal(infoB.HostIP))
-			Expect(infoA.ContainerIP).ToNot(Equal(infoB.ContainerIP))
+			Ω(infoA.HostIP).ShouldNot(Equal(infoB.HostIP))
+			Ω(infoA.ContainerIP).ShouldNot(Equal(infoB.ContainerIP))
 		})
 	})
 
 	Describe("a container's mapped port", func() {
 		It("does not get reused", func() {
 			netInAHost, netInAContainer, err := container.NetIn(0, 0)
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
 			restartWarden()
 
 			containerB, err := client.Create(warden.ContainerSpec{})
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
 			netInBHost, netInBContainer, err := containerB.NetIn(0, 0)
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
-			Expect(netInAHost).ToNot(Equal(netInBHost))
-			Expect(netInAContainer).ToNot(Equal(netInBContainer))
+			Ω(netInAHost).ShouldNot(Equal(netInBHost))
+			Ω(netInAContainer).ShouldNot(Equal(netInBContainer))
 		})
 	})
 
@@ -263,7 +263,7 @@ var _ = Describe("Through a restart", func() {
 			_, streamA, err := container.Run(warden.ProcessSpec{
 				Script: "id -u",
 			})
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
 			for chunk := range streamA {
 				idA += string(chunk.Data)
@@ -272,18 +272,18 @@ var _ = Describe("Through a restart", func() {
 			restartWarden()
 
 			otherContainer, err := client.Create(warden.ContainerSpec{})
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
 			_, streamB, err := otherContainer.Run(warden.ProcessSpec{
 				Script: "id -u",
 			})
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
 			for chunk := range streamB {
 				idB += string(chunk.Data)
 			}
 
-			Expect(idA).ToNot(Equal(idB))
+			Ω(idA).ShouldNot(Equal(idB))
 		})
 	})
 
@@ -294,11 +294,11 @@ var _ = Describe("Through a restart", func() {
 
 		It("is still enforced", func() {
 			container, err := client.Create(warden.ContainerSpec{})
-			Expect(err).ToNot(HaveOccurred())
+			Ω(err).ShouldNot(HaveOccurred())
 
 			restartWarden()
 
-			Expect(getContainerHandles()).To(ContainElement(container.Handle()))
+			Ω(getContainerHandles()).Should(ContainElement(container.Handle()))
 			Eventually(getContainerHandles, 10*time.Second).ShouldNot(ContainElement(container.Handle()))
 		})
 	})
