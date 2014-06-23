@@ -49,8 +49,7 @@ var _ = Describe("Container", func() {
 
 			Ω(fakeConnection.Stopped("some-handle")).Should(ContainElement(
 				fake_connection.StopSpec{
-					Background: false,
-					Kill:       true,
+					Kill: true,
 				},
 			))
 		})
@@ -59,7 +58,7 @@ var _ = Describe("Container", func() {
 			disaster := errors.New("oh no!")
 
 			BeforeEach(func() {
-				fakeConnection.WhenStopping = func(handle string, background, kill bool) error {
+				fakeConnection.WhenStopping = func(handle string, kill bool) error {
 					return disaster
 				}
 			})
@@ -228,13 +227,13 @@ var _ = Describe("Container", func() {
 	Describe("LimitDisk", func() {
 		It("sends a limit bandwidth request", func() {
 			err := container.LimitDisk(warden.DiskLimits{
-				ByteLimit: 1,
+				ByteHard: 1,
 			})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(fakeConnection.LimitedDisk("some-handle")).Should(ContainElement(
 				warden.DiskLimits{
-					ByteLimit: 1,
+					ByteHard: 1,
 				},
 			))
 		})
