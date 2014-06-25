@@ -1,6 +1,7 @@
 package measurements_test
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"syscall"
@@ -26,7 +27,9 @@ var wardenProcess ifrit.Process
 var client warden.Client
 
 func startWarden(argv ...string) warden.Client {
-	wardenRunner = Runner.New(wardenBin, binPath, rootFSPath, argv...)
+	wardenAddr := fmt.Sprintf("127.0.0.1:%d", 11997+GinkgoParallelNode())
+
+	wardenRunner = Runner.New(wardenAddr, wardenBin, binPath, rootFSPath, argv...)
 
 	wardenProcess = ifrit.Envoke(wardenRunner)
 	Eventually(wardenRunner.TryDial, 10).ShouldNot(HaveOccurred())
