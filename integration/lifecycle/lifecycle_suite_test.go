@@ -32,7 +32,6 @@ func startWarden(argv ...string) warden.Client {
 	wardenRunner = Runner.New(wardenAddr, wardenBin, binPath, rootFSPath, argv...)
 
 	wardenProcess = ifrit.Envoke(wardenRunner)
-	Eventually(wardenRunner.TryDial, 10).ShouldNot(HaveOccurred())
 
 	return wardenRunner.NewClient()
 }

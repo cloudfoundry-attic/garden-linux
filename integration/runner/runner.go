@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/cloudfoundry-incubator/garden/client"
 	"github.com/cloudfoundry-incubator/garden/client/connection"
@@ -89,6 +90,20 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 		gexec.NewPrefixedWriter("\x1b[91m[e]\x1b[31m[warden-linux]\x1b[0m ", ginkgo.GinkgoWriter),
 	)
 	if err != nil {
+		return err
+	}
+
+	var dialErr error
+	for i := 0; i < 10; i++ {
+		dialErr = r.TryDial()
+		if dialErr == nil {
+			break
+		}
+
+		time.Sleep(time.Second)
+	}
+
+	if dialErr != nil {
 		return err
 	}
 
