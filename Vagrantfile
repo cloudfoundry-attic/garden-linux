@@ -33,14 +33,14 @@ Vagrant.configure("2") do |config|
 
     chef.add_recipe "warden::apt-update"
     chef.add_recipe "build-essential::default"
-    chef.add_recipe "chef-golang"
+    chef.add_recipe "golang"
     chef.add_recipe "warden::warden"
     chef.add_recipe "warden::rootfs"
     chef.add_recipe "warden::dev"
 
     chef.json = {
       go: {
-        version: "1.2",
+        version: "1.3",
       },
     }
   end
