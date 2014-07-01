@@ -2,9 +2,10 @@ package router
 
 import (
 	"fmt"
-	"github.com/bmizerany/pat"
 	"net/http"
 	"strings"
+
+	"github.com/bmizerany/pat"
 )
 
 // Handlers map Handler keys to http.Handler objects.  The Handler key is used to

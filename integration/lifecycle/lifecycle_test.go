@@ -3,7 +3,6 @@ package lifecycle_test
 import (
 	"archive/tar"
 	"compress/gzip"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -35,7 +34,8 @@ var _ = Describe("Creating a container", func() {
 
 	It("sources /etc/seed", func() {
 		_, stream, err := container.Run(warden.ProcessSpec{
-			Script: "test -e /tmp/ran-seed",
+			Path: "test",
+			Args: []string{"-e", "/tmp/ran-seed"},
 		})
 		Ω(err).ShouldNot(HaveOccurred())
 
@@ -47,10 +47,12 @@ var _ = Describe("Creating a container", func() {
 	})
 
 	It("should provide 64k of /dev/shm within the container", func() {
-		command1 := "df|grep /dev/shm|grep 342678243768342867432"
-		command2 := "mount|grep /dev/shm|grep tmpfs"
 		_, _, err := container.Run(warden.ProcessSpec{
-			Script: fmt.Sprintf("%s && %s", command1, command2),
+			Path: "bash",
+			Args: []string{"-c", `
+				df|grep /dev/shm|grep 342678243768342867432 &&
+				mount|grep /dev/shm|grep tmpfs`,
+			},
 		})
 		Ω(err).ShouldNot(HaveOccurred())
 	})
@@ -73,7 +75,8 @@ var _ = Describe("Creating a container", func() {
 	Context("and running a process", func() {
 		It("sends output back in chunks until stopped", func() {
 			_, stream, err := container.Run(warden.ProcessSpec{
-				Script: "sleep 0.5; echo $FIRST; sleep 0.5; echo $SECOND; sleep 0.5; exit 42",
+				Path: "bash",
+				Args: []string{"-c", "sleep 0.5; echo $FIRST; sleep 0.5; echo $SECOND; sleep 0.5; exit 42"},
 				EnvironmentVariables: []warden.EnvironmentVariable{
 					warden.EnvironmentVariable{Key: "FIRST", Value: "hello"},
 					warden.EnvironmentVariable{Key: "SECOND", Value: "goodbye"},
@@ -89,7 +92,8 @@ var _ = Describe("Creating a container", func() {
 		Context("and then attaching to it", func() {
 			It("sends output back in chunks until stopped", func(done Done) {
 				processID, _, err := container.Run(warden.ProcessSpec{
-					Script: "sleep 2; echo hello; sleep 0.5; echo goodbye; sleep 0.5; exit 42",
+					Path: "bash",
+					Args: []string{"-c", "sleep 2; echo hello; sleep 0.5; echo goodbye; sleep 0.5; exit 42"},
 				})
 				Ω(err).ShouldNot(HaveOccurred())
 
@@ -106,7 +110,8 @@ var _ = Describe("Creating a container", func() {
 		Context("and then sending a Stop request", func() {
 			It("terminates all running processes", func() {
 				_, stream, err := container.Run(warden.ProcessSpec{
-					Script: `exec ruby -e 'trap("TERM") { exit 42 }; while true; sleep 1; end'`,
+					Path: "ruby",
+					Args: []string{"-e", `trap("TERM") { exit 42 }; while true; sleep 1; end`},
 				})
 
 				Ω(err).ShouldNot(HaveOccurred())
@@ -121,7 +126,8 @@ var _ = Describe("Creating a container", func() {
 				defer close(done)
 
 				_, stream, err := container.Run(warden.ProcessSpec{
-					Script: `
+					Path: "bash",
+					Args: []string{"-c", `
 # don't die until child processes die
 trap wait SIGTERM
 
@@ -131,6 +137,7 @@ bash -c 'sleep 100 & wait' &
 # wait on children
 wait
 `,
+					},
 				})
 
 				Ω(err).ShouldNot(HaveOccurred())
@@ -153,7 +160,8 @@ wait
 			Context("when a process does not die 10 seconds after receiving SIGTERM", func() {
 				It("is forcibly killed", func() {
 					_, stream, err := container.Run(warden.ProcessSpec{
-						Script: `exec ruby -e 'trap("TERM") { puts "cant touch this" }; sleep 1000'`,
+						Path: "ruby",
+						Args: []string{"-e", `trap("TERM") { puts "cant touch this" }; sleep 1000`},
 					})
 
 					Ω(err).ShouldNot(HaveOccurred())
@@ -214,7 +222,8 @@ wait
 			Ω(err).ShouldNot(HaveOccurred())
 
 			_, stream, err := container.Run(warden.ProcessSpec{
-				Script: `test -f /tmp/some-container-dir/some-temp-dir/some-temp-file && exit 42`,
+				Path: "bash",
+				Args: []string{"-c", `test -f /tmp/some-container-dir/some-temp-dir/some-temp-file && exit 42`},
 			})
 
 			Ω(*(<-stream).ExitStatus).Should(Equal(uint32(42)))
@@ -231,7 +240,8 @@ wait
 		Context("and then copying them out", func() {
 			It("streams the directory", func() {
 				_, stream, err := container.Run(warden.ProcessSpec{
-					Script: `mkdir -p some-outer-dir/some-inner-dir; touch some-outer-dir/some-inner-dir/some-file;`,
+					Path: "bash",
+					Args: []string{"-c", `mkdir -p some-outer-dir/some-inner-dir; touch some-outer-dir/some-inner-dir/some-file;`},
 				})
 
 				Ω(*(<-stream).ExitStatus).Should(Equal(uint32(0)))
@@ -253,7 +263,8 @@ wait
 			Context("with a trailing slash", func() {
 				It("streams the contents of the directory", func() {
 					_, stream, err := container.Run(warden.ProcessSpec{
-						Script: `mkdir -p some-container-dir; touch some-container-dir/some-file;`,
+						Path: "bash",
+						Args: []string{"-c", `mkdir -p some-container-dir; touch some-container-dir/some-file;`},
 					})
 
 					Ω(*(<-stream).ExitStatus).Should(Equal(uint32(0)))

@@ -20,7 +20,7 @@ var _ = Describe("A container with a grace time", func() {
 
 	Context("when a request takes longer than the grace time", func() {
 		It("is not destroyed after the request is over", func() {
-			_, _, err := container.Run(warden.ProcessSpec{Script: "sleep 6"})
+			_, _, err := container.Run(warden.ProcessSpec{Path: "bash", Args: []string{"-c", "sleep 6"}})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			_, err = container.Info()

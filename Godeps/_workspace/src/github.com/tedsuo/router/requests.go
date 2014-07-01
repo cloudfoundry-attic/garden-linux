@@ -7,12 +7,17 @@ import (
 	"strings"
 )
 
+// RequestGenerator creates http.Request objects with the correct path and method
+// pre-filled for the given route object.  You can also set the the host and,
+// optionally, any headers you would like included with every request.
 type RequestGenerator struct {
 	Header http.Header
 	host   string
 	routes Routes
 }
 
+// NewRequestGenerator creates a RequestGenerator for a given host and route set.
+// Host is of the form "http://example.com".
 func NewRequestGenerator(host string, routes Routes) *RequestGenerator {
 	return &RequestGenerator{
 		host:   host,
@@ -20,6 +25,10 @@ func NewRequestGenerator(host string, routes Routes) *RequestGenerator {
 	}
 }
 
+// RequestForHandler creates a new http Request for the matching handler. If the
+// request cannot be created, either because the handler does not exist or because
+// the given params do not match the params the route requires, then RequestForHandler
+// returns an error.
 func (r *RequestGenerator) RequestForHandler(
 	handler string,
 	params Params,

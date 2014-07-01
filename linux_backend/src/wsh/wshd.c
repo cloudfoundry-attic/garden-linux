@@ -233,9 +233,9 @@ char **env__add(char **envp, const char *key, const char *value) {
   return envp;
 }
 
-char **child_setup_environment(struct passwd *pw) {
+char **child_setup_environment(struct passwd *pw, char **extra_env_vars) {
   int rv;
-  char **envp = NULL;
+  char **envp = extra_env_vars;
 
   rv = chdir(pw->pw_dir);
   if (rv == -1) {
@@ -271,6 +271,7 @@ int child_fork(msg_request_t *req, int in, int out, int err) {
     char *default_envp[] = { NULL };
     char **argv = default_argv;
     char **envp = default_envp;
+    char **extra_env_vars = NULL;
 
     rv = dup2(in, STDIN_FILENO);
     assert(rv != -1);
@@ -323,7 +324,12 @@ int child_fork(msg_request_t *req, int in, int out, int err) {
       goto error;
     }
 
-    envp = child_setup_environment(pw);
+    if (req->env.count) {
+      extra_env_vars = (char **)msg_array_export(&req->env);
+      assert(extra_env_vars != NULL);
+    }
+
+    envp = child_setup_environment(pw, extra_env_vars);
     assert(envp != NULL);
 
     execvpe(argv[0], argv, envp);

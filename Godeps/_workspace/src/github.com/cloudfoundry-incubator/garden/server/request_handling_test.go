@@ -227,7 +227,7 @@ var _ = Describe("When a client connects", func() {
 
 		Context("when destroying the container fails", func() {
 			BeforeEach(func() {
-				serverBackend.DestroyError = errors.New("oh no!")
+				serverBackend.SetDestroyError(errors.New("oh no!"))
 			})
 
 			It("sends a WardenError response", func() {
@@ -1160,7 +1160,7 @@ var _ = Describe("When a client connects", func() {
 
 		Describe("running", func() {
 			processSpec := warden.ProcessSpec{
-				Script:     "/some/script",
+				Path:       "/some/script",
 				Privileged: true,
 				Limits: warden.ResourceLimits{
 					As:         uint64ptr(1),

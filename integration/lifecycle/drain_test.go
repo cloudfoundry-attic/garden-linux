@@ -34,7 +34,8 @@ var _ = Describe("Through a restart", func() {
 	Describe("a started job", func() {
 		It("continues to stream", func() {
 			processID, runStream, err := container.Run(warden.ProcessSpec{
-				Script: "while true; do echo hi; sleep 0.5; done",
+				Path: "bash",
+				Args: []string{"-c", "while true; do echo hi; sleep 0.5; done"},
 			})
 
 			Ω(err).ShouldNot(HaveOccurred())
@@ -53,14 +54,16 @@ var _ = Describe("Through a restart", func() {
 
 		It("does not have its job ID repeated", func() {
 			processID1, _, err := container.Run(warden.ProcessSpec{
-				Script: "while true; do echo hi; sleep 0.5; done",
+				Path: "bash",
+				Args: []string{"-c", "while true; do echo hi; sleep 0.5; done"},
 			})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			restartWarden()
 
 			processID2, _, err := container.Run(warden.ProcessSpec{
-				Script: "while true; do echo hi; sleep 0.5; done",
+				Path: "bash",
+				Args: []string{"-c", "while true; do echo hi; sleep 0.5; done"},
 			})
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -72,7 +75,8 @@ var _ = Describe("Through a restart", func() {
 				receivedNumbers := make(chan int, 2048)
 
 				processID, _, err := container.Run(warden.ProcessSpec{
-					Script: "for i in $(seq 10); do echo $i; sleep 0.5; done; echo goodbye; while true; do sleep 1; done",
+					Path: "bash",
+					Args: []string{"-c", "for i in $(seq 10); do echo $i; sleep 0.5; done; echo goodbye; while true; do sleep 1; done"},
 				})
 				Ω(err).ShouldNot(HaveOccurred())
 
@@ -109,7 +113,8 @@ var _ = Describe("Through a restart", func() {
 			restartWarden()
 
 			_, stream, err := container.Run(warden.ProcessSpec{
-				Script: "exec ruby -e '$stdout.sync = true; puts :hello; puts (\"x\" * 64 * 1024 * 1024).size; puts :goodbye; exit 42'",
+				Path: "ruby",
+				Args: []string{"-e", "$stdout.sync = true; puts :hello; puts (\"x\" * 64 * 1024 * 1024).size; puts :goodbye; exit 42"},
 			})
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -126,7 +131,8 @@ var _ = Describe("Through a restart", func() {
 	Describe("a container's active job", func() {
 		It("is still tracked", func() {
 			processID, _, err := container.Run(warden.ProcessSpec{
-				Script: "while true; do echo hi; sleep 0.5; done",
+				Path: "bash",
+				Args: []string{"-c", "while true; do echo hi; sleep 0.5; done"},
 			})
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -146,7 +152,8 @@ var _ = Describe("Through a restart", func() {
 
 			// trigger 'out of memory' event
 			_, stream, err := container.Run(warden.ProcessSpec{
-				Script: "exec ruby -e '$stdout.sync = true; puts :hello; puts (\"x\" * 5 * 1024 * 1024).size; puts :goodbye; exit 42'",
+				Path: "ruby",
+				Args: []string{"-e", "$stdout.sync = true; puts :hello; puts (\"x\" * 5 * 1024 * 1024).size; puts :goodbye; exit 42"},
 			})
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -261,7 +268,8 @@ var _ = Describe("Through a restart", func() {
 			idB := ""
 
 			_, streamA, err := container.Run(warden.ProcessSpec{
-				Script: "id -u",
+				Path: "id",
+				Args: []string{"-u"},
 			})
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -275,7 +283,8 @@ var _ = Describe("Through a restart", func() {
 			Ω(err).ShouldNot(HaveOccurred())
 
 			_, streamB, err := otherContainer.Run(warden.ProcessSpec{
-				Script: "id -u",
+				Path: "id",
+				Args: []string{"-u"},
 			})
 			Ω(err).ShouldNot(HaveOccurred())
 

@@ -2,7 +2,6 @@ package linux_backend
 
 import (
 	"bufio"
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -577,15 +576,7 @@ func (c *LinuxContainer) CurrentCPULimits() (warden.CPULimits, error) {
 }
 
 func (c *LinuxContainer) Run(spec warden.ProcessSpec) (uint32, <-chan warden.ProcessStream, error) {
-	script := ""
-
-	for _, env := range spec.EnvironmentVariables {
-		script += exportCommand(env)
-	}
-
-	script += spec.Script
-
-	log.Println(c.id, "running process:", script)
+	log.Println(c.id, "running process:", spec.Path, spec.Args)
 
 	wshPath := path.Join(c.path, "bin", "wsh")
 	sockPath := path.Join(c.path, "run", "wshd.sock")
@@ -595,10 +586,17 @@ func (c *LinuxContainer) Run(spec warden.ProcessSpec) (uint32, <-chan warden.Pro
 		user = "root"
 	}
 
+	args := []string{"--socket", sockPath, "--user", user}
+	for _, envVar := range spec.EnvironmentVariables {
+		args = append(args, "--env")
+		args = append(args, fmt.Sprintf(`%s=%s`, envVar.Key, envVar.Value))
+	}
+
+	args = append(args, spec.Path)
+
 	wsh := &exec.Cmd{
-		Path:  wshPath,
-		Args:  []string{"--socket", sockPath, "--user", user, "/bin/bash"},
-		Stdin: bytes.NewBufferString(script),
+		Path: wshPath,
+		Args: append(args, spec.Args...),
 	}
 
 	setRLimitsEnv(wsh, spec.Limits)
@@ -941,12 +939,4 @@ func setRLimitsEnv(cmd *exec.Cmd, rlimits warden.ResourceLimits) {
 	if rlimits.Stack != nil {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("RLIMIT_STACK=%d", *rlimits.Stack))
 	}
-}
-
-func exportCommand(env warden.EnvironmentVariable) string {
-	return fmt.Sprintf("export %s=\"%s\"\n", env.Key, escapeQuotes(env.Value))
-}
-
-func escapeQuotes(value string) string {
-	return strings.Replace(value, `"`, `\"`, -1)
 }

@@ -1,12 +1,13 @@
 package router_test
 
 import (
+	"net/http"
+	"net/http/httptest"
+
 	"github.com/cloudfoundry/gunk/test_server"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/tedsuo/router"
-	"net/http"
-	"net/http/httptest"
 )
 
 var _ = Describe("Router", func() {

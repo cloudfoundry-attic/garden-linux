@@ -21,9 +21,9 @@ type Params map[string]string
 // associate each Route with a http.Handler object, and use the Route properties
 // to determine which Handler should be invoked.
 //
-// Currently, properties used in match are such as Method and Path.
+// Currently, the properties used for matching are Method and Path.
 //
-// Method is one of the following:
+// Method can be one of the following:
 //  GET PUT POST DELETE
 //
 // Path conforms to Pat-style pattern matching. The following docs are taken from

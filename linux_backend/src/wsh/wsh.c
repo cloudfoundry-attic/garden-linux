@@ -19,6 +19,8 @@ typedef struct wsh_s wsh_t;
 struct wsh_s {
   int argc;
   char **argv;
+  char **environment_variables;
+  size_t environment_variable_count;
 
   /* Path to socket */
   const char *socket_path;
@@ -37,6 +39,11 @@ int wsh__usage(wsh_t *w) {
 
   fprintf(stderr, "  --user USER   "
     "User to change to"
+    "\n");
+
+  fprintf(stderr, "  --env KEY=VALUE "
+    "Environment variables to set for the command. "
+    "You can specify multiple --env arguments"
     "\n");
 
   fprintf(stderr, "  --rsh         "
@@ -63,6 +70,12 @@ int wsh__getopt(wsh_t *w) {
       j -= 2;
     } else if (j >= 2 && strcmp(w->argv[i], "--user") == 0) {
       w->user = strdup(w->argv[i+1]);
+      i += 2;
+      j -= 2;
+    } else if (j >= 2 && strcmp(w->argv[i], "--env") == 0) {
+      w->environment_variable_count++;
+      w->environment_variables = realloc(w->environment_variables, w->environment_variable_count * sizeof(char *));
+      w->environment_variables[w->environment_variable_count - 1] = strdup(w->argv[i+1]);
       i += 2;
       j -= 2;
     } else if (j >= 1 && strcmp(w->argv[i], "--rsh") == 0) {
@@ -229,7 +242,7 @@ void tty_winsz(void) {
 
 void loop_interactive(int fd) {
   msg_response_t res;
-  char buf[MSG_MAX_SIZE];
+  char buf[sizeof(res)];
   size_t buflen = sizeof(buf);
   int fds[2];
   size_t fdslen = sizeof(fds)/sizeof(fds[0]);
@@ -262,7 +275,7 @@ void loop_interactive(int fd) {
 
 void loop_noninteractive(int fd) {
   msg_response_t res;
-  char buf[MSG_MAX_SIZE];
+  char buf[sizeof(res)];
   size_t buflen = sizeof(buf);
   int fds[4];
   size_t fdslen = sizeof(fds)/sizeof(fds[0]);
@@ -326,7 +339,13 @@ int main(int argc, char **argv) {
 
   rv = msg_array_import(&req.arg, w->argc, (const char **)w->argv);
   if (rv == -1) {
-    fprintf(stderr, "msg_import_array: Too much data\n");
+    fprintf(stderr, "msg_import_array: Too much data in args\n");
+    exit(255);
+  }
+
+  rv = msg_array_import(&req.env, w->environment_variable_count, (const char **)w->environment_variables);
+  if (rv == -1) {
+    fprintf(stderr, "msg_import_array: Too much data in environment variables\n");
     exit(255);
   }
 

@@ -118,7 +118,8 @@ int un_recv_fds(int fd, char *data, int datalen, int *fds, int fdslen) {
   iov[0].iov_base = data;
   iov[0].iov_len = datalen;
 
-  int rv;
+  int rv = -1;
+  errno = 0;
 
   do {
     rv = recvmsg(fd, &mh, 0);
@@ -141,6 +142,14 @@ int un_recv_fds(int fd, char *data, int datalen, int *fds, int fdslen) {
     for (i = 0; i < fdslen; i++) {
       fds[i] = fds_[i];
     }
+  }
+
+  while (rv < datalen) {
+    int temp_rv = recv(fd, data + rv, (datalen - rv), MSG_WAITALL);
+    if (temp_rv == -1) {
+      assert(0);
+    }
+    rv += temp_rv;
   }
 
 done:

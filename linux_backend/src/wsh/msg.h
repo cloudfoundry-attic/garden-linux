@@ -2,7 +2,7 @@
 #define MSG_H 1
 
 #define MSG_VERSION 1
-#define MSG_MAX_SIZE (16 * 1024)
+#define MSG_MAX_SIZE (16824)
 
 #include <sys/time.h>
 #include <sys/resource.h>
@@ -36,6 +36,7 @@ struct msg_request_s {
   int version;
   int tty;
   msg__array_t arg;
+  msg__array_t env;
   msg__rlimit_t rlim;
   msg__user_t user;
 };

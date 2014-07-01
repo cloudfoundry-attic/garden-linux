@@ -86,7 +86,7 @@ var _ = Describe("Denying access to network ranges", func() {
 	}
 
 	runInContainer := func(container warden.Container, script string) <-chan warden.ProcessStream {
-		_, stream, err := container.Run(warden.ProcessSpec{Script: script})
+		_, stream, err := container.Run(warden.ProcessSpec{Path: "bash", Args: []string{"-c", script}})
 		Ω(err).ShouldNot(HaveOccurred())
 
 		return stream

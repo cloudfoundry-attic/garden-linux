@@ -392,6 +392,22 @@ setup_fs
 			Eventually(pwdSession).Should(Say("/home/vcap\n"))
 			Eventually(pwdSession).Should(Exit(0))
 		})
+
+		It("sets the specified environment variables", func() {
+			pwd := exec.Command(wsh,
+				"--socket", socketPath,
+				"--user", "vcap",
+				"--env", "VAR1=VALUE1",
+				"--env", "VAR2=VALUE2",
+				"bash", "-c", "env | sort",
+			)
+
+			session, err := Start(pwd, GinkgoWriter, GinkgoWriter)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Eventually(session).Should(Say("VAR1=VALUE1\n"))
+			Eventually(session).Should(Say("VAR2=VALUE2\n"))
+		})
 	})
 
 	Context("when running a command as root", func() {

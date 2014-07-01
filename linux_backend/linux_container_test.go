@@ -792,7 +792,8 @@ var _ = Describe("Linux containers", func() {
 	Describe("Running", func() {
 		It("runs the /bin/bash via wsh with the given script as the input, and rlimits in env", func() {
 			_, _, err := container.Run(warden.ProcessSpec{
-				Script: "/some/script",
+				Path: "/some/script",
+				Args: []string{"arg1", "arg2"},
 				Limits: warden.ResourceLimits{
 					As:         uint64ptr(1),
 					Core:       uint64ptr(2),
@@ -820,7 +821,9 @@ var _ = Describe("Linux containers", func() {
 			Ω(ranCmd.Args).Should(Equal([]string{
 				"--socket", "/depot/some-id/run/wshd.sock",
 				"--user", "vcap",
-				"/bin/bash",
+				"/some/script",
+				"arg1",
+				"arg2",
 			}))
 
 			Ω(ranCmd.Env).Should(Equal([]string{
@@ -840,18 +843,13 @@ var _ = Describe("Linux containers", func() {
 				"RLIMIT_SIGPENDING=14",
 				"RLIMIT_STACK=15",
 			}))
-
-			stdin, err := ioutil.ReadAll(ranCmd.Stdin)
-			Ω(err).ShouldNot(HaveOccurred())
-			Ω(string(stdin)).Should(Equal("/some/script"))
 		})
 
 		It("runs the script with escaped environment variables", func() {
 			_, _, err := container.Run(warden.ProcessSpec{
-				Script: "/some/script",
+				Path: "/some/script",
 				EnvironmentVariables: []warden.EnvironmentVariable{
 					warden.EnvironmentVariable{Key: "ESCAPED", Value: "kurt \"russell\""},
-					warden.EnvironmentVariable{Key: "INTERPOLATED", Value: "snake $PLISSKEN"},
 					warden.EnvironmentVariable{Key: "UNESCAPED", Value: "isaac\nhayes"},
 				},
 			})
@@ -859,14 +857,13 @@ var _ = Describe("Linux containers", func() {
 			Ω(err).ShouldNot(HaveOccurred())
 
 			ranCmd := fakeProcessTracker.RunArgsForCall(0)
-
-			stdin, err := ioutil.ReadAll(ranCmd.Stdin)
-			Ω(err).ShouldNot(HaveOccurred())
-			Ω(string(stdin)).Should(Equal(`export ESCAPED="kurt \"russell\""
-export INTERPOLATED="snake $PLISSKEN"
-export UNESCAPED="isaac
-hayes"
-/some/script`))
+			Ω(ranCmd.Args).Should(Equal([]string{
+				"--socket", "/depot/some-id/run/wshd.sock",
+				"--user", "vcap",
+				"--env", `ESCAPED=kurt "russell"`,
+				"--env", "UNESCAPED=isaac\nhayes",
+				"/some/script",
+			}))
 		})
 
 		Describe("streaming", func() {
@@ -882,7 +879,7 @@ hayes"
 
 			It("streams stderr and stdout and exit status", func() {
 				_, runningStreamChannel, err := container.Run(warden.ProcessSpec{
-					Script: "/some/script",
+					Path: "/some/script",
 				})
 				Ω(err).ShouldNot(HaveOccurred())
 
@@ -895,7 +892,7 @@ hayes"
 		Context("when not all rlimits are set", func() {
 			It("only sets the given rlimits", func() {
 				_, _, err := container.Run(warden.ProcessSpec{
-					Script: "/some/script",
+					Path: "/some/script",
 					Limits: warden.ResourceLimits{
 						As:      uint64ptr(1),
 						Cpu:     uint64ptr(3),
@@ -916,7 +913,7 @@ hayes"
 				Ω(ranCmd.Args).Should(Equal([]string{
 					"--socket", "/depot/some-id/run/wshd.sock",
 					"--user", "vcap",
-					"/bin/bash",
+					"/some/script",
 				}))
 
 				Ω(ranCmd.Env).Should(Equal([]string{
@@ -936,7 +933,7 @@ hayes"
 			fakeProcessTracker.RunReturns(1, nil, nil)
 
 			processID1, _, err := container.Run(warden.ProcessSpec{
-				Script: "/some/script",
+				Path: "/some/script",
 			})
 			Ω(err).ToNot(HaveOccurred())
 			Ω(processID1).Should(Equal(uint32(1)))
@@ -944,7 +941,7 @@ hayes"
 			fakeProcessTracker.RunReturns(2, nil, nil)
 
 			processID2, _, err := container.Run(warden.ProcessSpec{
-				Script: "/some/script",
+				Path: "/some/script",
 			})
 			Ω(err).ToNot(HaveOccurred())
 			Ω(processID2).Should(Equal(uint32(2)))
@@ -953,7 +950,7 @@ hayes"
 		Context("with 'privileged' true", func() {
 			It("runs with --user root", func() {
 				_, _, err := container.Run(warden.ProcessSpec{
-					Script:     "/some/script",
+					Path:       "/some/script",
 					Privileged: true,
 				})
 
@@ -965,7 +962,7 @@ hayes"
 				Ω(ranCmd.Args).Should(Equal([]string{
 					"--socket", "/depot/some-id/run/wshd.sock",
 					"--user", "root",
-					"/bin/bash",
+					"/some/script",
 				}))
 			})
 		})
@@ -979,7 +976,7 @@ hayes"
 
 			It("returns the error", func() {
 				_, _, err := container.Run(warden.ProcessSpec{
-					Script:     "/some/script",
+					Path:       "/some/script",
 					Privileged: true,
 				})
 

@@ -51,7 +51,8 @@ var _ = Describe("The Warden server", func() {
 						go func() {
 							defer GinkgoRecover()
 							_, results, err := container.Run(warden.ProcessSpec{
-								Script: "cat /dev/zero",
+								Path: "cat",
+								Args: []string{"/dev/zero"},
 							})
 							Ω(err).ShouldNot(HaveOccurred())
 
@@ -99,7 +100,7 @@ var _ = Describe("The Warden server", func() {
 
 					for i := 0; i < 10; i++ {
 						b.Time("running a job (10x)", func() {
-							_, stream, err := newContainer.Run(warden.ProcessSpec{Script: "ls"})
+							_, stream, err := newContainer.Run(warden.ProcessSpec{Path: "ls"})
 							Ω(err).ShouldNot(HaveOccurred())
 
 							for _ = range stream {
