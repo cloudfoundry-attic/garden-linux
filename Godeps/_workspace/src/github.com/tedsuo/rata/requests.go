@@ -1,4 +1,4 @@
-package router
+package rata
 
 import (
 	"fmt"
@@ -25,20 +25,20 @@ func NewRequestGenerator(host string, routes Routes) *RequestGenerator {
 	}
 }
 
-// RequestForHandler creates a new http Request for the matching handler. If the
+// CreateRequest creates a new http Request for the matching handler. If the
 // request cannot be created, either because the handler does not exist or because
-// the given params do not match the params the route requires, then RequestForHandler
+// the given params do not match the params the route requires, then CreateRequest
 // returns an error.
-func (r *RequestGenerator) RequestForHandler(
-	handler string,
+func (r *RequestGenerator) CreateRequest(
+	name string,
 	params Params,
 	body io.Reader,
 ) (*http.Request, error) {
-	route, ok := r.routes.RouteForHandler(handler)
+	route, ok := r.routes.FindRouteByName(name)
 	if !ok {
-		return &http.Request{}, fmt.Errorf("No route exists for handler %", handler)
+		return &http.Request{}, fmt.Errorf("No route exists with the name %", name)
 	}
-	path, err := route.PathWithParams(params)
+	path, err := route.CreatePath(params)
 	if err != nil {
 		return &http.Request{}, err
 	}

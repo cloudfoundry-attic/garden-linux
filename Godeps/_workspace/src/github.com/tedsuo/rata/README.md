@@ -1,9 +1,9 @@
-# Router
-A router with Pat-style path patterns.
+# Rata: It's a smat rata. Wicked smat.
+Rata is a router with Pat-style path patterns, plus more.
 
-API Docs: https://godoc.org/github.com/tedsuo/router
+API Docs: https://godoc.org/github.com/tedsuo/rata
 
-Package router provides three things: Routes, a Router, and a RequestGenerator.
+Package rata provides three things: Routes, a Router, and a RequestGenerator.
 
 Routes are structs that define which Method and Path each associated http handler
 should respond to. Unlike many router implementations, the routes and the handlers
@@ -21,17 +21,17 @@ like to include the owner_id and pet_id as part of the URL path.
 
 First off, the routes might look like this:
 ```go
-  petRoutes := router.Routes{
-    {Handler: "get_pet",    Method: "GET",    Path: "/people/:owner_id/pets/:pet_id"},
-    {Handler: "create_pet", Method: "POST",   Path: "/people/:owner_id/pets"},
-    {Handler: "update_pet", Method: "PUT",    Path: "/people/:owner_id/pets/:pet_id"},
-    {Handler: "delete_pet", Method: "DELETE", Path: "/people/:owner_id/pets/:pet_id"},
+  petRoutes := rata.Routes{
+    {Name: "get_pet",    Method: "GET",    Path: "/people/:owner_id/pets/:pet_id"},
+    {Name: "create_pet", Method: "POST",   Path: "/people/:owner_id/pets"},
+    {Name: "update_pet", Method: "PUT",    Path: "/people/:owner_id/pets/:pet_id"},
+    {Name: "delete_pet", Method: "DELETE", Path: "/people/:owner_id/pets/:pet_id"},
   }
 ```
 
 On the server, create a matching set of http handlers, one for each route:
 ```go
-  petHandlers := router.Handlers{
+  petHandlers := rata.Handlers{
     "get_pet":    newGetPetHandler(),
     "create_pet": newCreatePetHandler(),
     "update_pet": newUpdatePetHandler(),
@@ -41,21 +41,21 @@ On the server, create a matching set of http handlers, one for each route:
 
 You can create a router by mixing the routes and handlers together:
 ```go
-  routerHandler, err := router.NewRouter(petRoutes, petHandlers)
+  router, err := rata.NewRouter(petRoutes, petHandlers)
   if err != nil {
     panic(err)
   }
 
   // The router is just an http.Handler, so it can be used to create a server in the usual fashion:
-  server := httptest.NewServer(routerHandler)
+  server := httptest.NewServer(router)
 ```
 
 Meanwhile, on the client side, you can create a request generator:
 ```go
-  requestGenerator := router.NewRequestGenerator(server.URL, petRoutes)
+  requestGenerator := rata.NewRequestGenerator(server.URL, petRoutes)
 
   // You can use the request generator to ensure you are creating a valid request:
-  req, err := requestGenerator.RequestForHandler("get_pet", router.Params{"owner_id": "123", "pet_id": "5"}, nil)
+  req, err := requestGenerator.CreateRequest("get_pet", rata.Params{"owner_id": "123", "pet_id": "5"}, nil)
 
   // The generated request can be used like any other http.Request object:
   res, err := http.DefaultClient.Do(req)
