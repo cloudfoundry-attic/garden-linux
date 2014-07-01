@@ -359,6 +359,18 @@ setup_fs
 		})
 	})
 
+	Context("when running a command in a working dir", func() {
+		It("executes with setuid and setgid", func() {
+			bash := exec.Command(wsh, "--socket", socketPath, "--dir", "/usr", "pwd")
+
+			bashSession, err := Start(bash, GinkgoWriter, GinkgoWriter)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Eventually(bashSession).Should(Say("^/usr\n"))
+			Eventually(bashSession).Should(Exit(0))
+		})
+	})
+
 	Context("when running a command as a user", func() {
 		It("executes with setuid and setgid", func() {
 			bash := exec.Command(wsh, "--socket", socketPath, "--user", "vcap", "/bin/bash", "-c", "id -u; id -g")

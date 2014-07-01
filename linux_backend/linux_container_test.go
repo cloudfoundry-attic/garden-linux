@@ -866,6 +866,23 @@ var _ = Describe("Linux containers", func() {
 			}))
 		})
 
+		It("runs the script with the working dir set if present", func() {
+			_, _, err := container.Run(warden.ProcessSpec{
+				Path: "/some/script",
+				Dir:  "/some/dir",
+			})
+
+			Ω(err).ShouldNot(HaveOccurred())
+
+			ranCmd := fakeProcessTracker.RunArgsForCall(0)
+			Ω(ranCmd.Args).Should(Equal([]string{
+				"--socket", "/depot/some-id/run/wshd.sock",
+				"--user", "vcap",
+				"--dir", "/some/dir",
+				"/some/script",
+			}))
+		})
+
 		Describe("streaming", func() {
 			BeforeEach(func() {
 				preloadedChannel := make(chan warden.ProcessStream, 3)

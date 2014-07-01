@@ -89,6 +89,19 @@ var _ = Describe("Creating a container", func() {
 			Ω(*(<-stream).ExitStatus).Should(Equal(uint32(42)))
 		})
 
+		Context("with a working directory", func() {
+			It("executes with the working directory as the dir", func() {
+				_, stream, err := container.Run(warden.ProcessSpec{
+					Path: "pwd",
+					Dir:  "/usr",
+				})
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Ω(string((<-stream).Data)).Should(Equal("/usr\n"))
+				Ω(*(<-stream).ExitStatus).Should(Equal(uint32(0)))
+			})
+		})
+
 		Context("and then attaching to it", func() {
 			It("sends output back in chunks until stopped", func(done Done) {
 				processID, _, err := container.Run(warden.ProcessSpec{

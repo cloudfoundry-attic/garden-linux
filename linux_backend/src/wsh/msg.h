@@ -11,6 +11,7 @@
 typedef struct msg__array_s msg__array_t;
 typedef struct msg__rlimit_s msg__rlimit_t;
 typedef struct msg__user_s msg__user_t;
+typedef struct msg__dir_s msg__dir_t;
 typedef struct msg_request_s msg_request_t;
 typedef struct msg_response_s msg_response_t;
 
@@ -31,6 +32,10 @@ struct msg__user_s {
   char name[32];
 };
 
+struct msg__dir_s {
+  char path[1024];
+};
+
 struct msg_request_s {
   int version;
   int tty;
@@ -38,6 +43,7 @@ struct msg_request_s {
   msg__array_t env;
   msg__rlimit_t rlim;
   msg__user_t user;
+  msg__dir_t dir;
 };
 
 struct msg_response_s {

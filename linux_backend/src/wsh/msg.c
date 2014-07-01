@@ -155,6 +155,17 @@ int msg_user_export(msg__user_t *u, struct passwd *pw) {
   return 0;
 }
 
+int msg_dir_import(msg__dir_t *d, const char *dir) {
+  int rv;
+
+  if (dir != NULL) {
+    rv = snprintf(d->path, sizeof(d->path), "%s", dir);
+    assert(rv < sizeof(d->path));
+  }
+
+  return 0;
+}
+
 void msg_request_init(msg_request_t *req) {
   memset(req, 0, sizeof(*req));
   req->version = MSG_VERSION;
