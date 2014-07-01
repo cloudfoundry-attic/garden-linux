@@ -3,8 +3,8 @@
 Vagrant.configure("2") do |config|
   config.vm.hostname = "warden"
 
-  config.vm.box = "precise64"
-  config.vm.box_url = "http://files.vagrantup.com/precise64.box"
+  config.vm.box = "trusty64"
+  config.vm.box_url = "https://cloud-images.ubuntu.com/vagrant/trusty/current/trusty-server-cloudimg-amd64-vagrant-disk1.box"
 
   config.omnibus.chef_version = :latest
 
@@ -18,14 +18,8 @@ Vagrant.configure("2") do |config|
   config.vm.synced_folder ENV["GOPATH"], "/go"
 
   config.vm.provider :virtualbox do |v, override|
-    v.customize ["modifyvm", :id, "--memory", 1*1024]
+    v.customize ["modifyvm", :id, "--memory", 8*1024]
     v.customize ["modifyvm", :id, "--cpus", 4]
-  end
-
-  config.vm.provider :vmware_fusion do |v, override|
-    override.vm.box_url = "http://files.vagrantup.com/precise64_vmware.box"
-    v.vmx["numvcpus"] = "4"
-    v.vmx["memsize"] = 1 * 1024
   end
 
   config.vm.provision :chef_solo do |chef|
