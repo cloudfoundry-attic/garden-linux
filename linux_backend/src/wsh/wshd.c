@@ -471,8 +471,6 @@ err:
 
 int child_accept(wshd_t *w) {
   int rv, fd;
-  char buf[MSG_MAX_SIZE];
-  size_t buflen = sizeof(buf);
   msg_request_t req;
 
   rv = accept(w->fd, NULL, NULL);
@@ -485,7 +483,7 @@ int child_accept(wshd_t *w) {
 
   fcntl_mix_cloexec(fd);
 
-  rv = un_recv_fds(fd, buf, buflen, NULL, 0);
+  rv = un_recv_fds(fd, (char *)&req, sizeof(req), NULL, 0);
   if (rv < 0) {
     perror("recvmsg");
     exit(255);
@@ -497,7 +495,6 @@ int child_accept(wshd_t *w) {
   }
 
   assert(rv == sizeof(req));
-  memcpy(&req, buf, sizeof(req));
 
   if (req.tty) {
     return child_handle_interactive(fd, w, &req);

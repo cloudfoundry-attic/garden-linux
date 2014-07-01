@@ -2,7 +2,6 @@
 #define MSG_H 1
 
 #define MSG_VERSION 1
-#define MSG_MAX_SIZE (16824)
 
 #include <sys/time.h>
 #include <sys/resource.h>

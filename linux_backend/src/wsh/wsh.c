@@ -242,20 +242,17 @@ void tty_winsz(void) {
 
 void loop_interactive(int fd) {
   msg_response_t res;
-  char buf[sizeof(res)];
-  size_t buflen = sizeof(buf);
   int fds[2];
   size_t fdslen = sizeof(fds)/sizeof(fds[0]);
   int rv;
 
-  rv = un_recv_fds(fd, buf, buflen, fds, fdslen);
+  rv = un_recv_fds(fd, (char *)&res, sizeof(res), fds, fdslen);
   if (rv <= 0) {
     perror("recvmsg");
     exit(255);
   }
 
   assert(rv == sizeof(res));
-  memcpy(&res, buf, sizeof(res));
 
   pty_remote_fd = fds[0];
   pty_local_fd = STDIN_FILENO;
@@ -275,20 +272,17 @@ void loop_interactive(int fd) {
 
 void loop_noninteractive(int fd) {
   msg_response_t res;
-  char buf[sizeof(res)];
-  size_t buflen = sizeof(buf);
   int fds[4];
   size_t fdslen = sizeof(fds)/sizeof(fds[0]);
   int rv;
 
-  rv = un_recv_fds(fd, buf, buflen, fds, fdslen);
+  rv = un_recv_fds(fd, (char *)&res, sizeof(res), fds, fdslen);
   if (rv <= 0) {
     perror("recvmsg");
     exit(255);
   }
 
   assert(rv == sizeof(res));
-  memcpy(&res, buf, sizeof(res));
 
   pump_t p;
   pump_pair_t pp[3];

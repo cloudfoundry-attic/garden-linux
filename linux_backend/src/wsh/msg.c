@@ -156,13 +156,11 @@ int msg_user_export(msg__user_t *u, struct passwd *pw) {
 }
 
 void msg_request_init(msg_request_t *req) {
-  assert(sizeof(msg_request_t) <= MSG_MAX_SIZE);
   memset(req, 0, sizeof(*req));
   req->version = MSG_VERSION;
 }
 
 void msg_response_init(msg_response_t *res) {
-  assert(sizeof(msg_response_t) <= MSG_MAX_SIZE);
   memset(res, 0, sizeof(*res));
   res->version = MSG_VERSION;
 }

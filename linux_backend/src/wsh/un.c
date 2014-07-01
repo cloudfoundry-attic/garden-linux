@@ -146,9 +146,10 @@ int un_recv_fds(int fd, char *data, int datalen, int *fds, int fdslen) {
 
   while (rv < datalen) {
     int temp_rv = recv(fd, data + rv, (datalen - rv), MSG_WAITALL);
-    if (temp_rv == -1) {
-      assert(0);
+    if (temp_rv <= 0) {
+      goto done;
     }
+
     rv += temp_rv;
   }
 
