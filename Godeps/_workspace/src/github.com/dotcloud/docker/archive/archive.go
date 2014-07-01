@@ -27,6 +27,7 @@ type (
 	Compression   int
 	TarOptions    struct {
 		Includes    []string
+		Excludes    []string
 		Compression Compression
 		NoLchown    bool
 	}
@@ -286,7 +287,7 @@ func createTarFile(path, extractDir string, hdr *tar.Header, reader io.Reader, L
 // Tar creates an archive from the directory at `path`, and returns it as a
 // stream of bytes.
 func Tar(path string, compression Compression) (io.ReadCloser, error) {
-	return TarFilter(path, &TarOptions{Compression: compression})
+	return TarWithOptions(path, &TarOptions{Compression: compression})
 }
 
 func escapeName(name string) string {
@@ -305,12 +306,9 @@ func escapeName(name string) string {
 	return string(escaped)
 }
 
-// TarFilter creates an archive from the directory at `srcPath` with `options`, and returns it as a
-// stream of bytes.
-//
-// Files are included according to `options.Includes`, default to including all files.
-// Stream is compressed according to `options.Compression', default to Uncompressed.
-func TarFilter(srcPath string, options *TarOptions) (io.ReadCloser, error) {
+// TarWithOptions creates an archive from the directory at `path`, only including files whose relative
+// paths are included in `options.Includes` (if non-nil) or not in `options.Excludes`.
+func TarWithOptions(srcPath string, options *TarOptions) (io.ReadCloser, error) {
 	pipeReader, pipeWriter := io.Pipe()
 
 	compressWriter, err := CompressStream(pipeWriter, options.Compression)
@@ -342,6 +340,21 @@ func TarFilter(srcPath string, options *TarOptions) (io.ReadCloser, error) {
 					return nil
 				}
 
+				for _, exclude := range options.Excludes {
+					matched, err := filepath.Match(exclude, relFilePath)
+					if err != nil {
+						utils.Errorf("Error matching: %s (pattern: %s)", relFilePath, exclude)
+						return err
+					}
+					if matched {
+						utils.Debugf("Skipping excluded path: %s", relFilePath)
+						if f.IsDir() {
+							return filepath.SkipDir
+						}
+						return nil
+					}
+				}
+
 				if err := addTarFile(filePath, relFilePath, tw); err != nil {
 					utils.Debugf("Can't add file %s to tar: %s\n", srcPath, err)
 				}
@@ -370,7 +383,8 @@ func TarFilter(srcPath string, options *TarOptions) (io.ReadCloser, error) {
 //  identity (uncompressed), gzip, bzip2, xz.
 // If `dest` does not exist, it is created unless there are multiple entries in `archive`.
 // In the latter case, an error is returned.
-// An other error is returned if `dest` exists but is not a directory, to prevent overwriting.
+// If `dest` is an existing file, it gets overwritten.
+// If `dest` is an existing directory, its files get merged (with overwrite for conflicting files).
 func Untar(archive io.Reader, dest string, options *TarOptions) error {
 	if archive == nil {
 		return fmt.Errorf("Empty archive")
@@ -386,7 +400,7 @@ func Untar(archive io.Reader, dest string, options *TarOptions) error {
 
 	var (
 		dirs            []*tar.Header
-		destNotExist    bool
+		create          bool
 		multipleEntries bool
 	)
 
@@ -395,9 +409,10 @@ func Untar(archive io.Reader, dest string, options *TarOptions) error {
 			return err
 		}
 		// destination does not exist, so it is assumed it has to be created.
-		destNotExist = true
+		create = true
 	} else if !fi.IsDir() {
-		return fmt.Errorf("Trying to untar to `%s`: exists but not a directory", dest)
+		// destination exists and is not a directory, so it will be overwritten.
+		create = true
 	}
 
 	// Iterate through the files in the archive.
@@ -412,7 +427,7 @@ func Untar(archive io.Reader, dest string, options *TarOptions) error {
 		}
 
 		// Return an error if destination needs to be created and there is more than 1 entry in the tar stream.
-		if destNotExist && multipleEntries {
+		if create && multipleEntries {
 			return fmt.Errorf("Trying to untar an archive with multiple entries to an inexistant target `%s`: did you mean `%s` instead?", dest, filepath.Dir(dest))
 		}
 
@@ -432,7 +447,7 @@ func Untar(archive io.Reader, dest string, options *TarOptions) error {
 		}
 
 		var path string
-		if destNotExist {
+		if create {
 			path = dest // we are renaming hdr.Name to dest
 		} else {
 			path = filepath.Join(dest, hdr.Name)
@@ -452,6 +467,7 @@ func Untar(archive io.Reader, dest string, options *TarOptions) error {
 				}
 			}
 		}
+
 		if err := createTarFile(path, dest, hdr, tr, options == nil || !options.NoLchown); err != nil {
 			return err
 		}
@@ -482,7 +498,7 @@ func Untar(archive io.Reader, dest string, options *TarOptions) error {
 // TarUntar aborts and returns the error.
 func TarUntar(src string, dst string) error {
 	utils.Debugf("TarUntar(%s %s)", src, dst)
-	archive, err := TarFilter(src, &TarOptions{Compression: Uncompressed})
+	archive, err := TarWithOptions(src, &TarOptions{Compression: Uncompressed})
 	if err != nil {
 		return err
 	}
