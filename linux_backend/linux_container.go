@@ -592,6 +592,10 @@ func (c *LinuxContainer) Run(spec warden.ProcessSpec) (uint32, <-chan warden.Pro
 		args = append(args, fmt.Sprintf(`%s=%s`, envVar.Key, envVar.Value))
 	}
 
+	if spec.Dir != "" {
+		args = append(args, "--dir", spec.Dir)
+	}
+
 	args = append(args, spec.Path)
 
 	wsh := &exec.Cmd{

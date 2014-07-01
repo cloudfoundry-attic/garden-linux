@@ -17,8 +17,11 @@
 typedef struct wsh_s wsh_t;
 
 struct wsh_s {
+  /* Path and args to execute */
   int argc;
   char **argv;
+
+  /* Environment variables for running process */
   char **environment_variables;
   size_t environment_variable_count;
 
@@ -27,17 +30,20 @@ struct wsh_s {
 
   /* User to change to */
   const char *user;
+
+  /* Working directory of process */
+  const char *dir;
 };
 
 int wsh__usage(wsh_t *w) {
   fprintf(stderr, "Usage: %s OPTION...\n", w->argv[0]);
   fprintf(stderr, "\n");
 
-  fprintf(stderr, "  --socket PATH "
+  fprintf(stderr, "  --socket PATH   "
     "Path to socket"
     "\n");
 
-  fprintf(stderr, "  --user USER   "
+  fprintf(stderr, "  --user USER     "
     "User to change to"
     "\n");
 
@@ -46,7 +52,11 @@ int wsh__usage(wsh_t *w) {
     "You can specify multiple --env arguments"
     "\n");
 
-  fprintf(stderr, "  --rsh         "
+  fprintf(stderr, "  --dir PATH      "
+    "Working directory for the running process"
+    "\n");
+
+  fprintf(stderr, "  --rsh           "
     "RSH compatibility mode"
     "\n");
   return 0;
@@ -70,6 +80,10 @@ int wsh__getopt(wsh_t *w) {
       j -= 2;
     } else if (j >= 2 && strcmp(w->argv[i], "--user") == 0) {
       w->user = strdup(w->argv[i+1]);
+      i += 2;
+      j -= 2;
+    } else if (j >= 2 && strcmp(w->argv[i], "--dir") == 0) {
+      w->dir = strdup(w->argv[i+1]);
       i += 2;
       j -= 2;
     } else if (j >= 2 && strcmp(w->argv[i], "--env") == 0) {
@@ -324,6 +338,8 @@ int main(int argc, char **argv) {
   fd = rv;
 
   msg_request_init(&req);
+
+  msg_dir_import(&req.dir, w->dir);
 
   if (isatty(STDIN_FILENO)) {
     req.tty = 1;

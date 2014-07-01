@@ -332,6 +332,14 @@ int child_fork(msg_request_t *req, int in, int out, int err) {
     envp = child_setup_environment(pw, extra_env_vars);
     assert(envp != NULL);
 
+    if (strlen(req->dir.path)) {
+      rv = chdir(req->dir.path);
+      if (rv == -1) {
+        perror("chdir");
+        goto error;
+      }
+    }
+
     execvpe(argv[0], argv, envp);
     perror("execvpe");
 
