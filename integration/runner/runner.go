@@ -15,6 +15,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden/warden"
 	"github.com/onsi/ginkgo"
 	"github.com/onsi/gomega/gexec"
+	"github.com/pivotal-golang/lager"
 )
 
 type Runner struct {
@@ -47,6 +48,9 @@ func New(addr string, bin, binPath, rootFSPath string, argv ...string) *Runner {
 }
 
 func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
+	logger := lager.NewLogger("warden-runner")
+	logger.RegisterSink(lager.NewWriterSink(ginkgo.GinkgoWriter, lager.DEBUG))
+
 	err := os.MkdirAll(r.tmpdir, 0755)
 	if err != nil {
 		return err
@@ -116,9 +120,12 @@ dance:
 		select {
 		case signal = <-signals:
 			if signal == syscall.SIGKILL {
+				logger.Info("received-sigkill")
 				if err := r.destroyContainers(); err != nil {
+					logger.Error("destroy-containers-failed", err)
 					return err
 				}
+				logger.Info("destroyed-containers")
 			}
 
 			session.Signal(syscall.SIGTERM)
@@ -127,17 +134,23 @@ dance:
 		}
 	}
 
+	logger.Info("process-exited")
+
 	if signal == syscall.SIGKILL {
 		if err := os.RemoveAll(r.tmpdir); err != nil {
+			logger.Error("cleanup-tempdirs-failed", err, lager.Data{"tmpdir": r.tmpdir})
 			return err
 		}
 	}
 
 	if session.ExitCode() == 0 {
+		logger.Info("runner-exited-success")
 		return nil
 	}
 
-	return fmt.Errorf("exit status %d", session.ExitCode())
+	err = fmt.Errorf("exit status %d", session.ExitCode())
+	logger.Error("runner-exited-failure", err, lager.Data{"exit_code": session.ExitCode()})
+	return err
 }
 
 func (r *Runner) TryDial() error {
