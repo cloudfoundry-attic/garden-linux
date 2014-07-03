@@ -93,7 +93,7 @@ var _ = Describe("Creating a container", func() {
 			It("executes with the working directory as the dir", func() {
 				_, stream, err := container.Run(warden.ProcessSpec{
 					Path: "pwd",
-					Dir:  "/usr",
+					Args: []string{"/usr"},
 				})
 				Ω(err).ShouldNot(HaveOccurred())
 
