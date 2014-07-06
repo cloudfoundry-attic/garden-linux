@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"math"
@@ -15,8 +16,10 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gbytes"
 
 	"github.com/cloudfoundry-incubator/garden/warden"
+	wfakes "github.com/cloudfoundry-incubator/garden/warden/fakes"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/bandwidth_manager/fake_bandwidth_manager"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/cgroups_manager/fake_cgroups_manager"
@@ -80,21 +83,6 @@ var _ = Describe("Linux containers", func() {
 			fakeProcessTracker,
 		)
 	})
-
-	outChunk := warden.ProcessStream{
-		Source: warden.ProcessStreamSourceStdout,
-		Data:   []byte("hi out\n"),
-	}
-
-	errChunk := warden.ProcessStream{
-		Source: warden.ProcessStreamSourceStderr,
-		Data:   []byte("hi err\n"),
-	}
-
-	exit42 := uint32(42)
-	exitChunk := warden.ProcessStream{
-		ExitStatus: &exit42,
-	}
 
 	Describe("Snapshotting", func() {
 		memoryLimits := warden.MemoryLimits{
@@ -791,7 +779,7 @@ var _ = Describe("Linux containers", func() {
 
 	Describe("Running", func() {
 		It("runs the /bin/bash via wsh with the given script as the input, and rlimits in env", func() {
-			_, _, err := container.Run(warden.ProcessSpec{
+			_, err := container.Run(warden.ProcessSpec{
 				Path: "/some/script",
 				Args: []string{"arg1", "arg2"},
 				Limits: warden.ResourceLimits{
@@ -811,11 +799,11 @@ var _ = Describe("Linux containers", func() {
 					Sigpending: uint64ptr(14),
 					Stack:      uint64ptr(15),
 				},
-			})
+			}, warden.ProcessIO{})
 
 			Ω(err).ShouldNot(HaveOccurred())
 
-			ranCmd := fakeProcessTracker.RunArgsForCall(0)
+			ranCmd, _ := fakeProcessTracker.RunArgsForCall(0)
 			Ω(ranCmd.Path).Should(Equal("/depot/some-id/bin/wsh"))
 
 			Ω(ranCmd.Args).Should(Equal([]string{
@@ -845,18 +833,15 @@ var _ = Describe("Linux containers", func() {
 			}))
 		})
 
-		It("runs the script with escaped environment variables", func() {
-			_, _, err := container.Run(warden.ProcessSpec{
+		It("runs the script with environment variables", func() {
+			_, err := container.Run(warden.ProcessSpec{
 				Path: "/some/script",
-				EnvironmentVariables: []warden.EnvironmentVariable{
-					warden.EnvironmentVariable{Key: "ESCAPED", Value: "kurt \"russell\""},
-					warden.EnvironmentVariable{Key: "UNESCAPED", Value: "isaac\nhayes"},
-				},
-			})
+				Env:  []string{"ESCAPED=kurt \"russell\"", "UNESCAPED=isaac\nhayes"},
+			}, warden.ProcessIO{})
 
 			Ω(err).ShouldNot(HaveOccurred())
 
-			ranCmd := fakeProcessTracker.RunArgsForCall(0)
+			ranCmd, _ := fakeProcessTracker.RunArgsForCall(0)
 			Ω(ranCmd.Args).Should(Equal([]string{
 				"--socket", "/depot/some-id/run/wshd.sock",
 				"--user", "vcap",
@@ -867,14 +852,14 @@ var _ = Describe("Linux containers", func() {
 		})
 
 		It("runs the script with the working dir set if present", func() {
-			_, _, err := container.Run(warden.ProcessSpec{
+			_, err := container.Run(warden.ProcessSpec{
 				Path: "/some/script",
 				Dir:  "/some/dir",
-			})
+			}, warden.ProcessIO{})
 
 			Ω(err).ShouldNot(HaveOccurred())
 
-			ranCmd := fakeProcessTracker.RunArgsForCall(0)
+			ranCmd, _ := fakeProcessTracker.RunArgsForCall(0)
 			Ω(ranCmd.Args).Should(Equal([]string{
 				"--socket", "/depot/some-id/run/wshd.sock",
 				"--user", "vcap",
@@ -885,95 +870,98 @@ var _ = Describe("Linux containers", func() {
 
 		Describe("streaming", func() {
 			BeforeEach(func() {
-				preloadedChannel := make(chan warden.ProcessStream, 3)
+				fakeProcessTracker.RunStub = func(cmd *exec.Cmd, io warden.ProcessIO) (warden.Process, error) {
+					process := new(wfakes.FakeProcess)
+					process.IDReturns(42)
+					process.WaitReturns(123, nil)
 
-				preloadedChannel <- outChunk
-				preloadedChannel <- errChunk
-				preloadedChannel <- exitChunk
+					go func() {
+						_, err := fmt.Fprintf(io.Stdout, "hi out\n")
+						Ω(err).ShouldNot(HaveOccurred())
 
-				fakeProcessTracker.RunReturns(1, preloadedChannel, nil)
+						_, err = fmt.Fprintf(io.Stderr, "hi err\n")
+						Ω(err).ShouldNot(HaveOccurred())
+
+						err = io.Stdout.Close()
+						Ω(err).ShouldNot(HaveOccurred())
+
+						err = io.Stderr.Close()
+						Ω(err).ShouldNot(HaveOccurred())
+					}()
+
+					return process, nil
+				}
 			})
 
 			It("streams stderr and stdout and exit status", func() {
-				_, runningStreamChannel, err := container.Run(warden.ProcessSpec{
+				stdout := gbytes.NewBuffer()
+				stderr := gbytes.NewBuffer()
+
+				process, err := container.Run(warden.ProcessSpec{
 					Path: "/some/script",
+				}, warden.ProcessIO{
+					Stdout: stdout,
+					Stderr: stderr,
 				})
 				Ω(err).ShouldNot(HaveOccurred())
 
-				Eventually(runningStreamChannel).Should(Receive(Equal(outChunk)))
-				Eventually(runningStreamChannel).Should(Receive(Equal(errChunk)))
-				Eventually(runningStreamChannel).Should(Receive(Equal(exitChunk)))
+				Ω(process.ID()).Should(Equal(uint32(42)))
+
+				Eventually(stdout).Should(gbytes.Say("hi out\n"))
+				Eventually(stderr).Should(gbytes.Say("hi err\n"))
+
+				Ω(process.Wait()).Should(Equal(123))
 			})
 		})
 
-		Context("when not all rlimits are set", func() {
-			It("only sets the given rlimits", func() {
-				_, _, err := container.Run(warden.ProcessSpec{
-					Path: "/some/script",
-					Limits: warden.ResourceLimits{
-						As:      uint64ptr(1),
-						Cpu:     uint64ptr(3),
-						Fsize:   uint64ptr(5),
-						Memlock: uint64ptr(7),
-						Nice:    uint64ptr(9),
-						Nproc:   uint64ptr(11),
-						Rtprio:  uint64ptr(13),
-						Stack:   uint64ptr(15),
-					},
-				})
-
-				Ω(err).ShouldNot(HaveOccurred())
-
-				ranCmd := fakeProcessTracker.RunArgsForCall(0)
-				Ω(ranCmd.Path).Should(Equal("/depot/some-id/bin/wsh"))
-
-				Ω(ranCmd.Args).Should(Equal([]string{
-					"--socket", "/depot/some-id/run/wshd.sock",
-					"--user", "vcap",
-					"/some/script",
-				}))
-
-				Ω(ranCmd.Env).Should(Equal([]string{
-					"RLIMIT_AS=1",
-					"RLIMIT_CPU=3",
-					"RLIMIT_FSIZE=5",
-					"RLIMIT_MEMLOCK=7",
-					"RLIMIT_NICE=9",
-					"RLIMIT_NPROC=11",
-					"RLIMIT_RTPRIO=13",
-					"RLIMIT_STACK=15",
-				}))
-			})
-		})
-
-		It("returns a the process ID determined by the process tracker", func() {
-			fakeProcessTracker.RunReturns(1, nil, nil)
-
-			processID1, _, err := container.Run(warden.ProcessSpec{
+		It("only sets the given rlimits", func() {
+			_, err := container.Run(warden.ProcessSpec{
 				Path: "/some/script",
-			})
-			Ω(err).ToNot(HaveOccurred())
-			Ω(processID1).Should(Equal(uint32(1)))
+				Limits: warden.ResourceLimits{
+					As:      uint64ptr(1),
+					Cpu:     uint64ptr(3),
+					Fsize:   uint64ptr(5),
+					Memlock: uint64ptr(7),
+					Nice:    uint64ptr(9),
+					Nproc:   uint64ptr(11),
+					Rtprio:  uint64ptr(13),
+					Stack:   uint64ptr(15),
+				},
+			}, warden.ProcessIO{})
 
-			fakeProcessTracker.RunReturns(2, nil, nil)
+			Ω(err).ShouldNot(HaveOccurred())
 
-			processID2, _, err := container.Run(warden.ProcessSpec{
-				Path: "/some/script",
-			})
-			Ω(err).ToNot(HaveOccurred())
-			Ω(processID2).Should(Equal(uint32(2)))
+			ranCmd, _ := fakeProcessTracker.RunArgsForCall(0)
+			Ω(ranCmd.Path).Should(Equal("/depot/some-id/bin/wsh"))
+
+			Ω(ranCmd.Args).Should(Equal([]string{
+				"--socket", "/depot/some-id/run/wshd.sock",
+				"--user", "vcap",
+				"/some/script",
+			}))
+
+			Ω(ranCmd.Env).Should(Equal([]string{
+				"RLIMIT_AS=1",
+				"RLIMIT_CPU=3",
+				"RLIMIT_FSIZE=5",
+				"RLIMIT_MEMLOCK=7",
+				"RLIMIT_NICE=9",
+				"RLIMIT_NPROC=11",
+				"RLIMIT_RTPRIO=13",
+				"RLIMIT_STACK=15",
+			}))
 		})
 
 		Context("with 'privileged' true", func() {
 			It("runs with --user root", func() {
-				_, _, err := container.Run(warden.ProcessSpec{
+				_, err := container.Run(warden.ProcessSpec{
 					Path:       "/some/script",
 					Privileged: true,
-				})
+				}, warden.ProcessIO{})
 
 				Ω(err).ToNot(HaveOccurred())
 
-				ranCmd := fakeProcessTracker.RunArgsForCall(0)
+				ranCmd, _ := fakeProcessTracker.RunArgsForCall(0)
 				Ω(ranCmd.Path).Should(Equal("/depot/some-id/bin/wsh"))
 
 				Ω(ranCmd.Args).Should(Equal([]string{
@@ -988,15 +976,14 @@ var _ = Describe("Linux containers", func() {
 			disaster := errors.New("oh no!")
 
 			BeforeEach(func() {
-				fakeProcessTracker.RunReturns(0, nil, disaster)
+				fakeProcessTracker.RunReturns(nil, disaster)
 			})
 
 			It("returns the error", func() {
-				_, _, err := container.Run(warden.ProcessSpec{
+				_, err := container.Run(warden.ProcessSpec{
 					Path:       "/some/script",
 					Privileged: true,
-				})
-
+				}, warden.ProcessIO{})
 				Ω(err).Should(Equal(disaster))
 			})
 		})
@@ -1005,39 +992,49 @@ var _ = Describe("Linux containers", func() {
 	Describe("Attaching", func() {
 		Context("to a started process", func() {
 			BeforeEach(func() {
-				preloadedChannel := make(chan warden.ProcessStream, 3)
+				fakeProcessTracker.AttachStub = func(id uint32, io warden.ProcessIO) (warden.Process, error) {
+					process := new(wfakes.FakeProcess)
+					process.IDReturns(42)
+					process.WaitReturns(123, nil)
 
-				preloadedChannel <- outChunk
-				preloadedChannel <- errChunk
-				preloadedChannel <- exitChunk
+					go func() {
+						_, err := fmt.Fprintf(io.Stdout, "hi out\n")
+						Ω(err).ShouldNot(HaveOccurred())
 
-				fakeProcessTracker.AttachReturns(preloadedChannel, nil)
+						_, err = fmt.Fprintf(io.Stderr, "hi err\n")
+						Ω(err).ShouldNot(HaveOccurred())
+
+						err = io.Stdout.Close()
+						Ω(err).ShouldNot(HaveOccurred())
+
+						err = io.Stderr.Close()
+						Ω(err).ShouldNot(HaveOccurred())
+					}()
+
+					return process, nil
+				}
 			})
 
-			It("streams stderr and stdout and exit status", func(done Done) {
-				attachStreamChannel, err := container.Attach(1)
+			It("streams stderr and stdout and exit status", func() {
+				stdout := gbytes.NewBuffer()
+				stderr := gbytes.NewBuffer()
+
+				process, err := container.Attach(1, warden.ProcessIO{
+					Stdout: stdout,
+					Stderr: stderr,
+				})
 				Ω(err).ShouldNot(HaveOccurred())
 
-				Ω(fakeProcessTracker.AttachArgsForCall(0)).Should(Equal(uint32(1)))
+				pid, _ := fakeProcessTracker.AttachArgsForCall(0)
+				Ω(pid).Should(Equal(uint32(1)))
 
-				attachChunk := <-attachStreamChannel
-				Ω(attachChunk.Source).Should(Equal(warden.ProcessStreamSourceStdout))
-				Ω(string(attachChunk.Data)).Should(Equal("hi out\n"))
-				Ω(attachChunk.ExitStatus).Should(BeNil())
+				Ω(process.ID()).Should(Equal(uint32(42)))
 
-				attachChunk = <-attachStreamChannel
-				Ω(attachChunk.Source).Should(Equal(warden.ProcessStreamSourceStderr))
-				Ω(string(attachChunk.Data)).Should(Equal("hi err\n"))
-				Ω(attachChunk.ExitStatus).Should(BeNil())
+				Eventually(stdout).Should(gbytes.Say("hi out\n"))
+				Eventually(stderr).Should(gbytes.Say("hi err\n"))
 
-				attachChunk = <-attachStreamChannel
-				Ω(attachChunk.Source).Should(BeZero())
-				Ω(string(attachChunk.Data)).Should(Equal(""))
-				Ω(attachChunk.ExitStatus).ShouldNot(BeNil())
-				Ω(*attachChunk.ExitStatus).Should(Equal(uint32(42)))
-
-				close(done)
-			}, 5.0)
+				Ω(process.Wait()).Should(Equal(123))
+			})
 		})
 
 		Context("when attaching fails", func() {
@@ -1048,7 +1045,7 @@ var _ = Describe("Linux containers", func() {
 			})
 
 			It("returns the error", func() {
-				_, err := container.Attach(42)
+				_, err := container.Attach(42, warden.ProcessIO{})
 				Ω(err).Should(Equal(disaster))
 			})
 		})

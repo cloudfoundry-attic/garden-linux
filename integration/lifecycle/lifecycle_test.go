@@ -12,6 +12,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden/warden"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gbytes"
 	archiver "github.com/pivotal-golang/archiver/extractor/test_helper"
 )
 
@@ -33,28 +34,31 @@ var _ = Describe("Creating a container", func() {
 	})
 
 	It("sources /etc/seed", func() {
-		_, stream, err := container.Run(warden.ProcessSpec{
+		process, err := container.Run(warden.ProcessSpec{
 			Path: "test",
 			Args: []string{"-e", "/tmp/ran-seed"},
-		})
+		}, warden.ProcessIO{})
 		Ω(err).ShouldNot(HaveOccurred())
 
-		for chunk := range stream {
-			if chunk.ExitStatus != nil {
-				Ω(*chunk.ExitStatus).Should(Equal(uint32(0)))
-			}
-		}
+		Ω(process.Wait()).Should(Equal(0))
 	})
 
-	It("should provide 64k of /dev/shm within the container", func() {
-		_, _, err := container.Run(warden.ProcessSpec{
-			Path: "bash",
-			Args: []string{"-c", `
-				df|grep /dev/shm|grep 342678243768342867432 &&
-				mount|grep /dev/shm|grep tmpfs`,
-			},
-		})
+	It("provides 64k of /dev/shm within the container", func() {
+		process, err := container.Run(warden.ProcessSpec{
+			Path: "dd",
+			Args: []string{"if=/dev/urandom", "of=/dev/shm/just-enough", "count=64", "bs=1k"},
+		}, warden.ProcessIO{})
 		Ω(err).ShouldNot(HaveOccurred())
+
+		Ω(process.Wait()).Should(Equal(0))
+
+		process, err = container.Run(warden.ProcessSpec{
+			Path: "dd",
+			Args: []string{"if=/dev/urandom", "of=/dev/shm/just-over", "count=1", "bs=1k"},
+		}, warden.ProcessIO{})
+		Ω(err).ShouldNot(HaveOccurred())
+
+		Ω(process.Wait()).Should(Equal(1))
 	})
 
 	Context("and sending a List request", func() {
@@ -73,48 +77,70 @@ var _ = Describe("Creating a container", func() {
 	})
 
 	Context("and running a process", func() {
-		It("sends output back in chunks until stopped", func() {
-			_, stream, err := container.Run(warden.ProcessSpec{
+		It("streams output back and reports the exit status", func() {
+			stdout := gbytes.NewBuffer()
+			stderr := gbytes.NewBuffer()
+
+			process, err := container.Run(warden.ProcessSpec{
 				Path: "bash",
-				Args: []string{"-c", "sleep 0.5; echo $FIRST; sleep 0.5; echo $SECOND; sleep 0.5; exit 42"},
-				EnvironmentVariables: []warden.EnvironmentVariable{
-					warden.EnvironmentVariable{Key: "FIRST", Value: "hello"},
-					warden.EnvironmentVariable{Key: "SECOND", Value: "goodbye"},
-				},
+				Args: []string{"-c", "sleep 0.5; echo $FIRST; sleep 0.5; echo $SECOND >&2; sleep 0.5; exit 42"},
+				Env:  []string{"FIRST=hello", "SECOND=goodbye"},
+			}, warden.ProcessIO{
+				Stdout: stdout,
+				Stderr: stderr,
 			})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Ω(string((<-stream).Data)).Should(Equal("hello\n"))
-			Ω(string((<-stream).Data)).Should(Equal("goodbye\n"))
-			Ω(*(<-stream).ExitStatus).Should(Equal(uint32(42)))
+			Eventually(stdout).Should(gbytes.Say("hello\n"))
+			Eventually(stderr).Should(gbytes.Say("goodbye\n"))
+			Ω(process.Wait()).Should(Equal(42))
 		})
 
 		Context("with a working directory", func() {
 			It("executes with the working directory as the dir", func() {
-				_, stream, err := container.Run(warden.ProcessSpec{
+				stdout := gbytes.NewBuffer()
+
+				process, err := container.Run(warden.ProcessSpec{
 					Path: "pwd",
 					Dir:  "/usr",
+				}, warden.ProcessIO{
+					Stdout: stdout,
 				})
 				Ω(err).ShouldNot(HaveOccurred())
 
-				Ω(string((<-stream).Data)).Should(Equal("/usr\n"))
-				Ω(*(<-stream).ExitStatus).Should(Equal(uint32(0)))
+				Eventually(stdout).Should(gbytes.Say("/usr\n"))
+				Ω(process.Wait()).Should(Equal(0))
 			})
 		})
 
 		Context("and then attaching to it", func() {
-			It("sends output back in chunks until stopped", func(done Done) {
-				processID, _, err := container.Run(warden.ProcessSpec{
+			It("streams output and the exit status to the attached request", func(done Done) {
+				stdout1 := gbytes.NewBuffer()
+				stdout2 := gbytes.NewBuffer()
+
+				process, err := container.Run(warden.ProcessSpec{
 					Path: "bash",
 					Args: []string{"-c", "sleep 2; echo hello; sleep 0.5; echo goodbye; sleep 0.5; exit 42"},
+				}, warden.ProcessIO{
+					Stdout: stdout1,
 				})
 				Ω(err).ShouldNot(HaveOccurred())
 
-				stream, err := container.Attach(processID)
+				attached, err := container.Attach(process.ID(), warden.ProcessIO{
+					Stdout: stdout2,
+				})
+				Ω(err).ShouldNot(HaveOccurred())
 
-				Ω(string((<-stream).Data)).Should(Equal("hello\n"))
-				Ω(string((<-stream).Data)).Should(Equal("goodbye\n"))
-				Ω(*(<-stream).ExitStatus).Should(Equal(uint32(42)))
+				time.Sleep(2 * time.Second)
+
+				Eventually(stdout1).Should(gbytes.Say("hello\n"))
+				Eventually(stdout1).Should(gbytes.Say("goodbye\n"))
+
+				Eventually(stdout2).Should(gbytes.Say("hello\n"))
+				Eventually(stdout2).Should(gbytes.Say("goodbye\n"))
+
+				Ω(process.Wait()).Should(Equal(42))
+				Ω(attached.Wait()).Should(Equal(42))
 
 				close(done)
 			}, 10.0)
@@ -122,23 +148,22 @@ var _ = Describe("Creating a container", func() {
 
 		Context("and then sending a Stop request", func() {
 			It("terminates all running processes", func() {
-				_, stream, err := container.Run(warden.ProcessSpec{
+				process, err := container.Run(warden.ProcessSpec{
 					Path: "ruby",
 					Args: []string{"-e", `trap("TERM") { exit 42 }; while true; sleep 1; end`},
-				})
-
+				}, warden.ProcessIO{})
 				Ω(err).ShouldNot(HaveOccurred())
 
 				err = container.Stop(false)
 				Ω(err).ShouldNot(HaveOccurred())
 
-				Ω(*(<-stream).ExitStatus).Should(Equal(uint32(42)))
+				Ω(process.Wait()).Should(Equal(42))
 			})
 
 			It("recursively terminates all child processes", func(done Done) {
 				defer close(done)
 
-				_, stream, err := container.Run(warden.ProcessSpec{
+				process, err := container.Run(warden.ProcessSpec{
 					Path: "bash",
 					Args: []string{"-c", `
 # don't die until child processes die
@@ -151,7 +176,7 @@ bash -c 'sleep 100 & wait' &
 wait
 `,
 					},
-				})
+				}, warden.ProcessIO{})
 
 				Ω(err).ShouldNot(HaveOccurred())
 
@@ -160,22 +185,19 @@ wait
 				err = container.Stop(false)
 				Ω(err).ShouldNot(HaveOccurred())
 
-				for chunk := range stream {
-					if chunk.ExitStatus != nil {
-						// should have sigtermmed
-						Ω(*chunk.ExitStatus).Should(Equal(uint32(143)))
-					}
-				}
+				Ω(process.Wait()).Should(Equal(143)) // 143 = 128 + SIGTERM
 
 				Ω(time.Since(stoppedAt)).Should(BeNumerically("<=", 5*time.Second))
-			}, 15.0)
+			}, 15)
 
 			Context("when a process does not die 10 seconds after receiving SIGTERM", func() {
-				It("is forcibly killed", func() {
-					_, stream, err := container.Run(warden.ProcessSpec{
+				It("is forcibly killed", func(done Done) {
+					defer close(done)
+
+					process, err := container.Run(warden.ProcessSpec{
 						Path: "ruby",
 						Args: []string{"-e", `trap("TERM") { puts "cant touch this" }; sleep 1000`},
-					})
+					}, warden.ProcessIO{})
 
 					Ω(err).ShouldNot(HaveOccurred())
 
@@ -184,18 +206,10 @@ wait
 					err = container.Stop(false)
 					Ω(err).ShouldNot(HaveOccurred())
 
-					Eventually(func() *uint32 {
-						select {
-						case chunk := <-stream:
-							return chunk.ExitStatus
-						default:
-						}
-
-						return nil
-					}, 11.0).ShouldNot(BeNil())
+					Ω(process.Wait()).ShouldNot(Equal(0)) // either 137 or 255
 
 					Ω(time.Since(stoppedAt)).Should(BeNumerically(">=", 10*time.Second))
-				})
+				}, 15)
 			})
 		})
 	})
@@ -234,12 +248,12 @@ wait
 			err := container.StreamIn("/tmp/some-container-dir", tarStream)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			_, stream, err := container.Run(warden.ProcessSpec{
+			process, err := container.Run(warden.ProcessSpec{
 				Path: "bash",
-				Args: []string{"-c", `test -f /tmp/some-container-dir/some-temp-dir/some-temp-file && exit 42`},
-			})
+				Args: []string{"-c", `test -f /tmp/some-container-dir/some-temp-dir/some-temp-file`},
+			}, warden.ProcessIO{})
 
-			Ω(*(<-stream).ExitStatus).Should(Equal(uint32(42)))
+			Ω(process.Wait()).Should(Equal(0))
 		})
 
 		It("returns an error when the tar process dies", func() {
@@ -252,12 +266,12 @@ wait
 
 		Context("and then copying them out", func() {
 			It("streams the directory", func() {
-				_, stream, err := container.Run(warden.ProcessSpec{
+				process, err := container.Run(warden.ProcessSpec{
 					Path: "bash",
 					Args: []string{"-c", `mkdir -p some-outer-dir/some-inner-dir; touch some-outer-dir/some-inner-dir/some-file;`},
-				})
+				}, warden.ProcessIO{})
 
-				Ω(*(<-stream).ExitStatus).Should(Equal(uint32(0)))
+				Ω(process.Wait()).Should(Equal(0))
 
 				tarOutput, err := container.StreamOut("some-outer-dir/some-inner-dir")
 				Ω(err).ShouldNot(HaveOccurred())
@@ -275,12 +289,12 @@ wait
 
 			Context("with a trailing slash", func() {
 				It("streams the contents of the directory", func() {
-					_, stream, err := container.Run(warden.ProcessSpec{
+					process, err := container.Run(warden.ProcessSpec{
 						Path: "bash",
 						Args: []string{"-c", `mkdir -p some-container-dir; touch some-container-dir/some-file;`},
-					})
+					}, warden.ProcessIO{})
 
-					Ω(*(<-stream).ExitStatus).Should(Equal(uint32(0)))
+					Ω(process.Wait()).Should(Equal(0))
 
 					tarOutput, err := container.StreamOut("some-container-dir/")
 					Ω(err).ShouldNot(HaveOccurred())

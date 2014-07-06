@@ -1,13 +1,14 @@
 package lifecycle_test
 
 import (
-	"bytes"
 	"fmt"
 	"io"
+	"sync"
 	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gbytes"
 
 	"github.com/cloudfoundry-incubator/garden/warden"
 )
@@ -33,75 +34,92 @@ var _ = Describe("Through a restart", func() {
 
 	Describe("a started job", func() {
 		It("continues to stream", func() {
-			processID, runStream, err := container.Run(warden.ProcessSpec{
+			process, err := container.Run(warden.ProcessSpec{
 				Path: "bash",
 				Args: []string{"-c", "while true; do echo hi; sleep 0.5; done"},
-			})
-
+			}, warden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			restartWarden()
 
-			Eventually(runStream).Should(BeClosed())
+			_, err = process.Wait()
+			Ω(err).Should(HaveOccurred())
 
-			stream, err := container.Attach(processID)
+			stdout := gbytes.NewBuffer()
+			_, err = container.Attach(process.ID(), warden.ProcessIO{
+				Stdout: stdout,
+			})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			var chunk warden.ProcessStream
-			Eventually(stream).Should(Receive(&chunk))
-			Ω(chunk.Data).Should(ContainSubstring("hi\n"))
+			Eventually(stdout).Should(gbytes.Say("hi\n"))
 		})
 
 		It("does not have its job ID repeated", func() {
-			processID1, _, err := container.Run(warden.ProcessSpec{
+			process1, err := container.Run(warden.ProcessSpec{
 				Path: "bash",
 				Args: []string{"-c", "while true; do echo hi; sleep 0.5; done"},
-			})
+			}, warden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			restartWarden()
 
-			processID2, _, err := container.Run(warden.ProcessSpec{
+			process2, err := container.Run(warden.ProcessSpec{
 				Path: "bash",
 				Args: []string{"-c", "while true; do echo hi; sleep 0.5; done"},
-			})
+			}, warden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Ω(processID1).ShouldNot(Equal(processID2))
+			Ω(process1.ID()).ShouldNot(Equal(process2.ID()))
 		})
 
 		Context("that prints monotonously increasing output", func() {
-			It("does not duplicate its output on reconnect", func(done Done) {
-				receivedNumbers := make(chan int, 2048)
+			It("does not duplicate its output on reconnect", func() {
+				receivedNumbers := make(chan int, 16)
 
-				processID, _, err := container.Run(warden.ProcessSpec{
+				process, err := container.Run(warden.ProcessSpec{
 					Path: "bash",
-					Args: []string{"-c", "for i in $(seq 10); do echo $i; sleep 0.5; done; echo goodbye; while true; do sleep 1; done"},
+					Args: []string{"-c", "for i in $(seq 10); do echo $i; sleep 0.5; done; echo -1; while true; do sleep 1; done"},
+				}, warden.ProcessIO{})
+				Ω(err).ShouldNot(HaveOccurred())
+
+				stdoutR, stdoutW := io.Pipe()
+
+				_, err = container.Attach(process.ID(), warden.ProcessIO{
+					Stdout: stdoutW,
 				})
 				Ω(err).ShouldNot(HaveOccurred())
 
-				stream, err := container.Attach(processID)
-				Ω(err).ShouldNot(HaveOccurred())
+				firstStream := &sync.WaitGroup{}
+				firstStream.Add(1)
 
-				go streamNumbersTo(receivedNumbers, stream)
+				go func() {
+					streamNumbersTo(receivedNumbers, stdoutR)
+					firstStream.Done()
+				}()
 
-				time.Sleep(500 * time.Millisecond)
+				time.Sleep(time.Second)
 
 				restartWarden()
 
-				stream, err = container.Attach(processID)
+				stdoutW.Close()
+
+				firstStream.Wait()
+
+				stdoutR, stdoutW = io.Pipe()
+
+				_, err = container.Attach(process.ID(), warden.ProcessIO{
+					Stdout: stdoutW,
+				})
 				Ω(err).ShouldNot(HaveOccurred())
 
-				go streamNumbersTo(receivedNumbers, stream)
+				go streamNumbersTo(receivedNumbers, stdoutR)
 
 				lastNum := 0
 				for num := range receivedNumbers {
 					Ω(num).Should(BeNumerically(">", lastNum))
 					lastNum = num
 				}
-
-				close(done)
-			}, 30.0)
+			})
 		})
 	})
 
@@ -112,28 +130,26 @@ var _ = Describe("Through a restart", func() {
 
 			restartWarden()
 
-			_, stream, err := container.Run(warden.ProcessSpec{
+			process, err := container.Run(warden.ProcessSpec{
 				Path: "ruby",
 				Args: []string{"-e", "$stdout.sync = true; puts :hello; puts (\"x\" * 64 * 1024 * 1024).size; puts :goodbye; exit 42"},
-			})
+			}, warden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			// cgroups OOM killer seems to leave no trace of the process;
 			// there's no exit status indicator, so just assert that the one
 			// we tried to exit with after over-allocating is not seen
 
-			stdout, _, exitStatus := readUntilExit(stream)
-			Ω(stdout).Should(Equal("hello\n"))
-			Ω(exitStatus).ShouldNot(Equal(uint32(42)))
+			Ω(process.Wait()).ShouldNot(Equal(42), "process did not get OOM killed")
 		})
 	})
 
 	Describe("a container's active job", func() {
 		It("is still tracked", func() {
-			processID, _, err := container.Run(warden.ProcessSpec{
+			process, err := container.Run(warden.ProcessSpec{
 				Path: "bash",
 				Args: []string{"-c", "while true; do echo hi; sleep 0.5; done"},
-			})
+			}, warden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			restartWarden()
@@ -141,7 +157,7 @@ var _ = Describe("Through a restart", func() {
 			info, err := container.Info()
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Ω(info.ProcessIDs).Should(ContainElement(uint32(processID)))
+			Ω(info.ProcessIDs).Should(ContainElement(uint32(process.ID())))
 		})
 	})
 
@@ -151,15 +167,13 @@ var _ = Describe("Through a restart", func() {
 			Ω(err).ShouldNot(HaveOccurred())
 
 			// trigger 'out of memory' event
-			_, stream, err := container.Run(warden.ProcessSpec{
+			process, err := container.Run(warden.ProcessSpec{
 				Path: "ruby",
 				Args: []string{"-e", "$stdout.sync = true; puts :hello; puts (\"x\" * 5 * 1024 * 1024).size; puts :goodbye; exit 42"},
-			})
+			}, warden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			for _ = range stream {
-				// wait until process exits
-			}
+			Ω(process.Wait()).ShouldNot(Equal(42), "process did not get OOM killed")
 
 			Eventually(func() []string {
 				info, err := container.Info()
@@ -264,35 +278,33 @@ var _ = Describe("Through a restart", func() {
 
 	Describe("a container's user", func() {
 		It("does not get reused", func() {
-			idA := ""
-			idB := ""
+			idA := gbytes.NewBuffer()
+			idB := gbytes.NewBuffer()
 
-			_, streamA, err := container.Run(warden.ProcessSpec{
+			processA, err := container.Run(warden.ProcessSpec{
 				Path: "id",
 				Args: []string{"-u"},
+			}, warden.ProcessIO{
+				Stdout: idA,
 			})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			for chunk := range streamA {
-				idA += string(chunk.Data)
-			}
+			Ω(processA.Wait()).Should(Equal(0))
 
 			restartWarden()
 
 			otherContainer, err := client.Create(warden.ContainerSpec{})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			_, streamB, err := otherContainer.Run(warden.ProcessSpec{
+			processB, err := otherContainer.Run(warden.ProcessSpec{
 				Path: "id",
 				Args: []string{"-u"},
-			})
+			}, warden.ProcessIO{Stdout: idB})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			for chunk := range streamB {
-				idB += string(chunk.Data)
-			}
+			Ω(processB.Wait()).Should(Equal(0))
 
-			Ω(idA).ShouldNot(Equal(idB))
+			Ω(idA.Contents()).ShouldNot(Equal(idB.Contents()))
 		})
 	})
 
@@ -325,47 +337,21 @@ func getContainerHandles() []string {
 	return handles
 }
 
-func streamNumbersTo(destination chan<- int, source <-chan warden.ProcessStream) {
-	for out := range source {
-		buf := bytes.NewBuffer(out.Data)
-
+func streamNumbersTo(destination chan<- int, source io.Reader) {
+	for {
 		var num int
 
-		for {
-			_, err := fmt.Fscanf(buf, "%d\n", &num)
-			if err == io.EOF {
-				break
-			}
-
-			// got goodbye
-			if err != nil {
-				close(destination)
-				return
-			}
-
-			destination <- num
+		_, err := fmt.Fscanf(source, "%d\n", &num)
+		if err == io.EOF {
+			break
 		}
+
+		// got end of stream
+		if num == -1 {
+			close(destination)
+			return
+		}
+
+		destination <- num
 	}
-}
-
-func readUntilExit(stream <-chan warden.ProcessStream) (string, string, uint32) {
-	stdout := ""
-	stderr := ""
-	exitStatus := uint32(12234)
-
-	for payload := range stream {
-		switch payload.Source {
-		case warden.ProcessStreamSourceStdout:
-			stdout += string(payload.Data)
-
-		case warden.ProcessStreamSourceStderr:
-			stderr += string(payload.Data)
-		}
-
-		if payload.ExitStatus != nil {
-			exitStatus = *payload.ExitStatus
-		}
-	}
-
-	return stdout, stderr, exitStatus
 }

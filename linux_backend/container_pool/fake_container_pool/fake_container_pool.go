@@ -6,6 +6,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden/warden"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend"
+	"github.com/nu7hatch/gouuid"
 )
 
 type FakeContainerPool struct {
@@ -56,6 +57,17 @@ func (p *FakeContainerPool) Prune(keep map[string]bool) error {
 func (p *FakeContainerPool) Create(spec warden.ContainerSpec) (linux_backend.Container, error) {
 	if p.CreateError != nil {
 		return nil, p.CreateError
+	}
+
+	idUUID, err := uuid.NewV4()
+	if err != nil {
+		panic("could not create uuid: " + err.Error())
+	}
+
+	id := idUUID.String()[:11]
+
+	if spec.Handle == "" {
+		spec.Handle = id
 	}
 
 	container := NewFakeContainer(spec)

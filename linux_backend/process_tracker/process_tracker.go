@@ -10,8 +10,8 @@ import (
 )
 
 type ProcessTracker interface {
-	Run(*exec.Cmd) (uint32, chan warden.ProcessStream, error)
-	Attach(uint32) (chan warden.ProcessStream, error)
+	Run(*exec.Cmd, warden.ProcessIO) (warden.Process, error)
+	Attach(uint32, warden.ProcessIO) (warden.Process, error)
 	Restore(processID uint32)
 	ActiveProcessIDs() []uint32
 	UnlinkAll()
@@ -44,7 +44,7 @@ func New(containerPath string, runner command_runner.CommandRunner) ProcessTrack
 	}
 }
 
-func (t *processTracker) Run(cmd *exec.Cmd) (uint32, chan warden.ProcessStream, error) {
+func (t *processTracker) Run(cmd *exec.Cmd, processIO warden.ProcessIO) (warden.Process, error) {
 	t.processesMutex.Lock()
 
 	processID := t.nextProcessID
@@ -60,22 +60,22 @@ func (t *processTracker) Run(cmd *exec.Cmd) (uint32, chan warden.ProcessStream, 
 
 	err := <-ready
 	if err != nil {
-		return 0, nil, err
+		return nil, err
 	}
 
-	processStream := process.Stream()
+	process.Attach(processIO)
 
 	go t.link(processID)
 
 	err = <-active
 	if err != nil {
-		return 0, nil, err
+		return nil, err
 	}
 
-	return processID, processStream, nil
+	return process, nil
 }
 
-func (t *processTracker) Attach(processID uint32) (chan warden.ProcessStream, error) {
+func (t *processTracker) Attach(processID uint32, processIO warden.ProcessIO) (warden.Process, error) {
 	t.processesMutex.RLock()
 	process, ok := t.processes[processID]
 	t.processesMutex.RUnlock()
@@ -84,11 +84,11 @@ func (t *processTracker) Attach(processID uint32) (chan warden.ProcessStream, er
 		return nil, UnknownProcessError{processID}
 	}
 
-	processStream := process.Stream()
+	process.Attach(processIO)
 
 	go t.link(processID)
 
-	return processStream, nil
+	return process, nil
 }
 
 func (t *processTracker) Restore(processID uint32) {
@@ -114,7 +114,7 @@ func (t *processTracker) ActiveProcessIDs() []uint32 {
 	processIDs := []uint32{}
 
 	for _, process := range t.processes {
-		processIDs = append(processIDs, process.ID)
+		processIDs = append(processIDs, process.ID())
 	}
 
 	return processIDs

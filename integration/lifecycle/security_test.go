@@ -3,6 +3,7 @@ package lifecycle_test
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/cloudfoundry-incubator/garden/warden"
 
@@ -77,19 +78,14 @@ var _ = Describe("Denying access to network ranges", func() {
 		Ω(err).ShouldNot(HaveOccurred())
 	})
 
-	expectStreamToExitWith := func(stream <-chan warden.ProcessStream, status int) {
-		for chunk := range stream {
-			if chunk.ExitStatus != nil {
-				ExpectWithOffset(1, *chunk.ExitStatus).To(Equal(uint32(status)))
-			}
-		}
-	}
-
-	runInContainer := func(container warden.Container, script string) <-chan warden.ProcessStream {
-		_, stream, err := container.Run(warden.ProcessSpec{Path: "bash", Args: []string{"-c", script}})
+	runInContainer := func(container warden.Container, script string) warden.Process {
+		process, err := container.Run(warden.ProcessSpec{
+			Path: "bash",
+			Args: []string{"-c", script},
+		}, warden.ProcessIO{})
 		Ω(err).ShouldNot(HaveOccurred())
 
-		return stream
+		return process
 	}
 
 	It("makes that block of ip addresses inaccessible to the container", func() {
@@ -97,22 +93,25 @@ var _ = Describe("Denying access to network ranges", func() {
 		runInContainer(unblockedListener, "nc -l 12345")
 		runInContainer(allowedListener, "nc -l 12345")
 
-		senderStream := runInContainer(
+		// a bit of time for the listeners to start, since they block
+		time.Sleep(time.Second)
+
+		process := runInContainer(
 			sender,
 			fmt.Sprintf("echo hello | nc -w 1 %s 12345", blockedListenerIP),
 		)
-		expectStreamToExitWith(senderStream, 1)
+		Ω(process.Wait()).Should(Equal(1))
 
-		senderStream = runInContainer(
+		process = runInContainer(
 			sender,
 			fmt.Sprintf("echo hello | nc -w 1 %s 12345", unblockedListenerIP),
 		)
-		expectStreamToExitWith(senderStream, 0)
+		Ω(process.Wait()).Should(Equal(0))
 
-		senderStream = runInContainer(
+		process = runInContainer(
 			sender,
 			fmt.Sprintf("echo hello | nc -w 1 %s 12345", allowedListenerIP),
 		)
-		expectStreamToExitWith(senderStream, 0)
+		Ω(process.Wait()).Should(Equal(0))
 	})
 })

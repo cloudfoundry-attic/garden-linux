@@ -11,6 +11,19 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+type byteCounterWriter struct {
+	num *uint64
+}
+
+func (w *byteCounterWriter) Write(d []byte) (int, error) {
+	atomic.AddUint64(w.num, uint64(len(d)))
+	return len(d), nil
+}
+
+func (w *byteCounterWriter) Close() error {
+	return nil
+}
+
 var _ = Describe("The Warden server", func() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
@@ -45,27 +58,21 @@ var _ = Describe("The Warden server", func() {
 					atomic.StoreUint64(&receivedBytes, 0)
 					started = time.Now()
 
+					byteCounter := &byteCounterWriter{&receivedBytes}
+
 					spawned := make(chan bool)
 
 					for j := 0; j < numToSpawn; j++ {
 						go func() {
 							defer GinkgoRecover()
-							_, results, err := container.Run(warden.ProcessSpec{
+
+							_, err := container.Run(warden.ProcessSpec{
 								Path: "cat",
 								Args: []string{"/dev/zero"},
+							}, warden.ProcessIO{
+								Stdout: byteCounter,
 							})
 							Ω(err).ShouldNot(HaveOccurred())
-
-							go func(results <-chan warden.ProcessStream) {
-								for {
-									res, ok := <-results
-									if !ok {
-										break
-									}
-
-									atomic.AddUint64(&receivedBytes, uint64(len(res.Data)))
-								}
-							}(results)
 
 							spawned <- true
 						}()
@@ -100,12 +107,10 @@ var _ = Describe("The Warden server", func() {
 
 					for i := 0; i < 10; i++ {
 						b.Time("running a job (10x)", func() {
-							_, stream, err := newContainer.Run(warden.ProcessSpec{Path: "ls"})
+							process, err := newContainer.Run(warden.ProcessSpec{Path: "ls"}, warden.ProcessIO{})
 							Ω(err).ShouldNot(HaveOccurred())
 
-							for _ = range stream {
-
-							}
+							Ω(process.Wait()).Should(Equal(0))
 						})
 					}
 

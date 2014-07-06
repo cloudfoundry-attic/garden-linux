@@ -3,25 +3,60 @@ package fake_container_pool
 import (
 	"io"
 	"sync"
+	"time"
 
 	"github.com/cloudfoundry-incubator/garden/warden"
-	"github.com/cloudfoundry-incubator/garden/warden/fake_backend"
+	"github.com/cloudfoundry-incubator/garden/warden/fakes"
 )
 
 type FakeContainer struct {
-	*fake_backend.FakeContainer
+	*fakes.FakeContainer
+
+	Spec warden.ContainerSpec
 
 	SnapshotError  error
 	SavedSnapshots []io.Writer
 	snapshotMutex  *sync.RWMutex
+
+	StartError error
+	Started    bool
+
+	CleanedUp bool
 }
 
 func NewFakeContainer(spec warden.ContainerSpec) *FakeContainer {
 	return &FakeContainer{
-		FakeContainer: fake_backend.NewFakeContainer(spec),
+		Spec: spec,
+
+		FakeContainer: new(fakes.FakeContainer),
 
 		snapshotMutex: new(sync.RWMutex),
 	}
+}
+
+func (c *FakeContainer) ID() string {
+	return c.Spec.Handle
+}
+
+func (c *FakeContainer) Handle() string {
+	return c.Spec.Handle
+}
+
+func (c *FakeContainer) Properties() warden.Properties {
+	return c.Spec.Properties
+}
+
+func (c *FakeContainer) Start() error {
+	c.Started = true
+	return c.StartError
+}
+
+func (c *FakeContainer) Cleanup() {
+	c.CleanedUp = true
+}
+
+func (c *FakeContainer) GraceTime() time.Duration {
+	return c.Spec.GraceTime
 }
 
 func (c *FakeContainer) Snapshot(snapshot io.Writer) error {

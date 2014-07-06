@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -11,6 +12,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gbytes"
 
 	"github.com/cloudfoundry-incubator/garden/warden"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/process_tracker"
@@ -21,8 +23,21 @@ import (
 var fakeRunner *fake_command_runner.FakeCommandRunner
 var processTracker process_tracker.ProcessTracker
 
+var tmpdir string
+
+var _ = BeforeEach(func() {
+	var err error
+
+	tmpdir, err = ioutil.TempDir("", "process-tracker-tests")
+	Ω(err).ShouldNot(HaveOccurred())
+})
+
+var _ = AfterEach(func() {
+	os.RemoveAll(tmpdir)
+})
+
 func binPath(bin string) string {
-	return path.Join("/depot/some-id", "bin", bin)
+	return path.Join(tmpdir+"/depot/some-id", "bin", bin)
 }
 
 func setupSuccessfulSpawn() {
@@ -41,7 +56,7 @@ func setupSuccessfulSpawn() {
 var _ = Describe("Running processes", func() {
 	BeforeEach(func() {
 		fakeRunner = fake_command_runner.New()
-		processTracker = process_tracker.New("/depot/some-id", fakeRunner)
+		processTracker = process_tracker.New(tmpdir+"/depot/some-id", fakeRunner)
 	})
 
 	It("runs the command asynchronously via iomux-spawn", func() {
@@ -51,7 +66,7 @@ var _ = Describe("Running processes", func() {
 
 		setupSuccessfulSpawn()
 
-		processID, _, err := processTracker.Run(cmd)
+		process, err := processTracker.Run(cmd, warden.ProcessIO{})
 		Expect(err).NotTo(HaveOccurred())
 
 		Eventually(fakeRunner).Should(HaveBackgrounded(
@@ -61,7 +76,7 @@ var _ = Describe("Running processes", func() {
 					"-c",
 					"cat | " + binPath("iomux-spawn") + ` "$@" &`,
 					binPath("iomux-spawn"),
-					fmt.Sprintf("/depot/some-id/processes/%d", processID),
+					fmt.Sprintf(tmpdir+"/depot/some-id/processes/%d", process.ID()),
 					"/bin/bash",
 				},
 				Stdin: "echo hi",
@@ -110,39 +125,32 @@ var _ = Describe("Running processes", func() {
 			},
 		)
 
-		processTracker.Run(exec.Command("xxx"))
+		processTracker.Run(exec.Command("xxx"), warden.ProcessIO{})
 	}, 10.0)
 
-	It("returns a unique process ID", func() {
+	It("returns unique process IDs", func() {
 		setupSuccessfulSpawn()
 
-		processID1, _, err := processTracker.Run(exec.Command("xxx"))
-		Expect(err).NotTo(HaveOccurred())
-		processID2, _, err := processTracker.Run(exec.Command("xxx"))
+		process1, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{})
 		Expect(err).NotTo(HaveOccurred())
 
-		Ω(processID1).ShouldNot(Equal(processID2))
+		process2, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{})
+		Expect(err).NotTo(HaveOccurred())
+
+		Ω(process1.ID()).ShouldNot(Equal(process2.ID()))
 	})
 
 	It("creates the process's working directory", func() {
 		setupSuccessfulSpawn()
 
-		processID, _, err := processTracker.Run(exec.Command("xxx"))
+		process, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{})
 		Expect(err).NotTo(HaveOccurred())
 
-		Ω(fakeRunner).Should(HaveExecutedSerially(
-			fake_command_runner.CommandSpec{
-				Path: "mkdir",
-				Args: []string{
-					"-p",
-					fmt.Sprintf("/depot/some-id/processes/%d", processID),
-				},
-			},
-		))
-
+		_, err = os.Stat(fmt.Sprintf(tmpdir+"/depot/some-id/processes/%d", process.ID()))
+		Expect(err).NotTo(HaveOccurred())
 	})
 
-	It("streams output from the process", func(done Done) {
+	It("streams output from the process", func() {
 		setupSuccessfulSpawn()
 
 		fakeRunner.WhenRunning(
@@ -150,15 +158,8 @@ var _ = Describe("Running processes", func() {
 				Path: binPath("iomux-link"),
 			},
 			func(cmd *exec.Cmd) error {
-				time.Sleep(100 * time.Millisecond)
-
 				cmd.Stdout.Write([]byte("hi out\n"))
-
-				time.Sleep(100 * time.Millisecond)
-
 				cmd.Stderr.Write([]byte("hi err\n"))
-
-				time.Sleep(100 * time.Millisecond)
 
 				dummyCmd := exec.Command("/bin/bash", "-c", "exit 42")
 				dummyCmd.Run()
@@ -169,21 +170,18 @@ var _ = Describe("Running processes", func() {
 			},
 		)
 
-		_, processStreamChannel, err := processTracker.Run(exec.Command("xxx"))
+		stdout := gbytes.NewBuffer()
+		stderr := gbytes.NewBuffer()
+
+		_, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{
+			Stdout: stdout,
+			Stderr: stderr,
+		})
 		Expect(err).NotTo(HaveOccurred())
 
-		chunk1 := <-processStreamChannel
-		Ω(chunk1.Source).Should(Equal(warden.ProcessStreamSourceStdout))
-		Ω(string(chunk1.Data)).Should(Equal("hi out\n"))
-		Ω(chunk1.ExitStatus).Should(BeNil())
-
-		chunk2 := <-processStreamChannel
-		Ω(chunk2.Source).Should(Equal(warden.ProcessStreamSourceStderr))
-		Ω(string(chunk2.Data)).Should(Equal("hi err\n"))
-		Ω(chunk2.ExitStatus).Should(BeNil())
-
-		close(done)
-	}, 5.0)
+		Eventually(stdout).Should(gbytes.Say("hi out\n"))
+		Eventually(stderr).Should(gbytes.Say("hi err\n"))
+	})
 
 	Context("when spawning fails", func() {
 		disaster := errors.New("oh no!")
@@ -199,7 +197,7 @@ var _ = Describe("Running processes", func() {
 		})
 
 		It("returns the error", func() {
-			_, _, err := processTracker.Run(exec.Command("xxx"))
+			_, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{})
 			Ω(err).Should(Equal(disaster))
 		})
 	})
@@ -208,7 +206,7 @@ var _ = Describe("Running processes", func() {
 var _ = Describe("Restoring processes", func() {
 	BeforeEach(func() {
 		fakeRunner = fake_command_runner.New()
-		processTracker = process_tracker.New("/depot/some-id", fakeRunner)
+		processTracker = process_tracker.New(tmpdir+"/depot/some-id", fakeRunner)
 	})
 
 	It("makes the next process ID be higher than the highest restored ID", func() {
@@ -220,9 +218,9 @@ var _ = Describe("Restoring processes", func() {
 
 		cmd.Stdin = bytes.NewBufferString("echo hi")
 
-		processID, _, err := processTracker.Run(cmd)
+		process, err := processTracker.Run(cmd, warden.ProcessIO{})
 		Ω(err).ShouldNot(HaveOccurred())
-		Ω(processID).Should(Equal(uint32(1)))
+		Ω(process.ID()).Should(Equal(uint32(1)))
 
 		processTracker.Restore(5)
 
@@ -230,9 +228,9 @@ var _ = Describe("Restoring processes", func() {
 
 		cmd.Stdin = bytes.NewBufferString("echo hi")
 
-		processID, _, err = processTracker.Run(cmd)
+		process, err = processTracker.Run(cmd, warden.ProcessIO{})
 		Ω(err).ShouldNot(HaveOccurred())
-		Ω(processID).Should(Equal(uint32(6)))
+		Ω(process.ID()).Should(Equal(uint32(6)))
 	})
 
 	It("tracks the restored process", func() {
@@ -247,22 +245,15 @@ var _ = Describe("Restoring processes", func() {
 var _ = Describe("Attaching to running processes", func() {
 	BeforeEach(func() {
 		fakeRunner = fake_command_runner.New()
-		processTracker = process_tracker.New("/depot/some-id", fakeRunner)
+		processTracker = process_tracker.New(tmpdir+"/depot/some-id", fakeRunner)
 
 		fakeRunner.WhenRunning(
 			fake_command_runner.CommandSpec{
 				Path: binPath("iomux-link"),
 			},
 			func(cmd *exec.Cmd) error {
-				time.Sleep(100 * time.Millisecond)
-
 				cmd.Stdout.Write([]byte("hi out\n"))
-
-				time.Sleep(100 * time.Millisecond)
-
 				cmd.Stderr.Write([]byte("hi err\n"))
-
-				time.Sleep(100 * time.Millisecond)
 
 				dummyCmd := exec.Command("/bin/bash", "-c", "exit 42")
 				dummyCmd.Run()
@@ -274,27 +265,24 @@ var _ = Describe("Attaching to running processes", func() {
 		)
 	})
 
-	It("streams their stdout and stderr into the channel", func(done Done) {
+	It("streams their stdout and stderr into the channel", func() {
 		setupSuccessfulSpawn()
 
-		processID, _, err := processTracker.Run(exec.Command("xxx"))
+		stdout := gbytes.NewBuffer()
+		stderr := gbytes.NewBuffer()
+
+		process, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{})
 		Expect(err).NotTo(HaveOccurred())
 
-		processStreamChannel, err := processTracker.Attach(processID)
-		Ω(err).ShouldNot(HaveOccurred())
+		process, err = processTracker.Attach(process.ID(), warden.ProcessIO{
+			Stdout: stdout,
+			Stderr: stderr,
+		})
+		Expect(err).NotTo(HaveOccurred())
 
-		chunk1 := <-processStreamChannel
-		Ω(chunk1.Source).Should(Equal(warden.ProcessStreamSourceStdout))
-		Ω(string(chunk1.Data)).Should(Equal("hi out\n"))
-		Ω(chunk1.ExitStatus).Should(BeNil())
-
-		chunk2 := <-processStreamChannel
-		Ω(chunk2.Source).Should(Equal(warden.ProcessStreamSourceStderr))
-		Ω(string(chunk2.Data)).Should(Equal("hi err\n"))
-		Ω(chunk2.ExitStatus).Should(BeNil())
-
-		close(done)
-	}, 5.0)
+		Eventually(stdout).Should(gbytes.Say("hi out\n"))
+		Eventually(stderr).Should(gbytes.Say("hi err\n"))
+	})
 
 	Context("when the process is not yet linked to", func() {
 		It("runs iomux-link", func() {
@@ -308,7 +296,7 @@ var _ = Describe("Attaching to running processes", func() {
 				},
 			))
 
-			_, err := processTracker.Attach(0)
+			_, err := processTracker.Attach(0, warden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Eventually(fakeRunner).Should(HaveStartedExecuting(
@@ -320,36 +308,21 @@ var _ = Describe("Attaching to running processes", func() {
 	})
 
 	Context("when the process completes", func() {
-		It("yields the exit status and closes the channel", func(done Done) {
+		It("yields the exit status and closes the channel", func() {
 			setupSuccessfulSpawn()
 
-			processID, _, err := processTracker.Run(exec.Command("xxx"))
+			process, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{})
 			Expect(err).NotTo(HaveOccurred())
 
-			processStreamChannel, err := processTracker.Attach(processID)
-			Ω(err).ShouldNot(HaveOccurred())
-
-			<-processStreamChannel
-			<-processStreamChannel
-
-			chunk3 := <-processStreamChannel
-			Ω(chunk3.Source).Should(BeZero())
-			Ω(string(chunk3.Data)).Should(Equal(""))
-			Ω(chunk3.ExitStatus).ShouldNot(BeNil())
-			Ω(*chunk3.ExitStatus).Should(Equal(uint32(42)))
-
-			_, ok := <-processStreamChannel
-			Expect(ok).To(BeFalse(), "channel is not closed")
-
-			close(done)
-		}, 5.0)
+			Ω(process.Wait()).Should(Equal(42))
+		})
 	})
 })
 
 var _ = Describe("Unlinking active processes", func() {
 	BeforeEach(func() {
 		fakeRunner = fake_command_runner.New()
-		processTracker = process_tracker.New("/depot/some-id", fakeRunner)
+		processTracker = process_tracker.New(tmpdir+"/depot/some-id", fakeRunner)
 	})
 
 	It("sends SIGINT to in-flight iomux-links", func() {
@@ -368,10 +341,10 @@ var _ = Describe("Unlinking active processes", func() {
 			},
 		)
 
-		_, _, err := processTracker.Run(exec.Command("xxx"))
+		_, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{})
 		Ω(err).ShouldNot(HaveOccurred())
 
-		_, _, err = processTracker.Run(exec.Command("xxx"))
+		_, err = processTracker.Run(exec.Command("xxx"), warden.ProcessIO{})
 		Ω(err).ShouldNot(HaveOccurred())
 
 		Eventually(linked).Should(Receive())
@@ -381,10 +354,10 @@ var _ = Describe("Unlinking active processes", func() {
 
 		Ω(fakeRunner).Should(HaveSignalled(
 			fake_command_runner.CommandSpec{
-				Path: "/depot/some-id/bin/iomux-link",
+				Path: tmpdir + "/depot/some-id/bin/iomux-link",
 				Args: []string{
-					"-w", "/depot/some-id/processes/0/cursors",
-					"/depot/some-id/processes/0",
+					"-w", tmpdir + "/depot/some-id/processes/0/cursors",
+					tmpdir + "/depot/some-id/processes/0",
 				},
 			},
 			os.Interrupt,
@@ -392,22 +365,21 @@ var _ = Describe("Unlinking active processes", func() {
 
 		Ω(fakeRunner).Should(HaveSignalled(
 			fake_command_runner.CommandSpec{
-				Path: "/depot/some-id/bin/iomux-link",
+				Path: tmpdir + "/depot/some-id/bin/iomux-link",
 				Args: []string{
-					"-w", "/depot/some-id/processes/1/cursors",
-					"/depot/some-id/processes/1",
+					"-w", tmpdir + "/depot/some-id/processes/1/cursors",
+					tmpdir + "/depot/some-id/processes/1",
 				},
 			},
 			os.Interrupt,
 		))
-
 	})
 })
 
 var _ = Describe("Listing active process IDs", func() {
 	BeforeEach(func() {
 		fakeRunner = fake_command_runner.New()
-		processTracker = process_tracker.New("/depot/some-id", fakeRunner)
+		processTracker = process_tracker.New(tmpdir+"/depot/some-id", fakeRunner)
 	})
 
 	It("includes running process IDs", func() {
@@ -425,15 +397,15 @@ var _ = Describe("Listing active process IDs", func() {
 			},
 		)
 
-		processID1, _, err := processTracker.Run(exec.Command("xxx"))
+		process1, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{})
 		Ω(err).ShouldNot(HaveOccurred())
 
-		processID2, _, err := processTracker.Run(exec.Command("xxx"))
+		process2, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{})
 		Ω(err).ShouldNot(HaveOccurred())
 
 		runningIDs := append(<-running, <-running...)
 
-		Ω(runningIDs).Should(ContainElement(processID1))
-		Ω(runningIDs).Should(ContainElement(processID2))
+		Ω(runningIDs).Should(ContainElement(process1.ID()))
+		Ω(runningIDs).Should(ContainElement(process2.ID()))
 	})
 })
