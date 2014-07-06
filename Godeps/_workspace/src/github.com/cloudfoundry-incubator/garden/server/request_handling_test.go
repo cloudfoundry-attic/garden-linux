@@ -3,6 +3,8 @@ package server_test
 import (
 	"bytes"
 	"errors"
+	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path"
@@ -10,18 +12,19 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gbytes"
 
 	"github.com/cloudfoundry-incubator/garden/client"
 	"github.com/cloudfoundry-incubator/garden/client/connection"
 	"github.com/cloudfoundry-incubator/garden/server"
 	"github.com/cloudfoundry-incubator/garden/warden"
-	"github.com/cloudfoundry-incubator/garden/warden/fake_backend"
+	"github.com/cloudfoundry-incubator/garden/warden/fakes"
 )
 
 var _ = Describe("When a client connects", func() {
 	var socketPath string
 
-	var serverBackend *fake_backend.FakeBackend
+	var serverBackend *fakes.FakeBackend
 
 	var serverContainerGraceTime time.Duration
 
@@ -33,7 +36,7 @@ var _ = Describe("When a client connects", func() {
 		Ω(err).ShouldNot(HaveOccurred())
 
 		socketPath = path.Join(tmpdir, "warden.sock")
-		serverBackend = fake_backend.New()
+		serverBackend = new(fakes.FakeBackend)
 		serverContainerGraceTime = 42 * time.Second
 
 		wardenServer = server.New(
@@ -60,7 +63,7 @@ var _ = Describe("When a client connects", func() {
 
 		Context("when the backend ping fails", func() {
 			BeforeEach(func() {
-				serverBackend.PingError = errors.New("oh no!")
+				serverBackend.PingReturns(errors.New("oh no!"))
 			})
 
 			It("returns an error", func() {
@@ -81,11 +84,11 @@ var _ = Describe("When a client connects", func() {
 
 	Context("and the client sends a CapacityRequest", func() {
 		BeforeEach(func() {
-			serverBackend.CapacityResult = warden.Capacity{
+			serverBackend.CapacityReturns(warden.Capacity{
 				MemoryInBytes: 1111,
 				DiskInBytes:   2222,
 				MaxContainers: 42,
-			}
+			}, nil)
 		})
 
 		It("returns the backend's reported capacity", func() {
@@ -99,7 +102,7 @@ var _ = Describe("When a client connects", func() {
 
 		Context("when getting the capacity fails", func() {
 			BeforeEach(func() {
-				serverBackend.CapacityError = errors.New("oh no!")
+				serverBackend.CapacityReturns(warden.Capacity{}, errors.New("oh no!"))
 			})
 
 			It("returns an error", func() {
@@ -110,6 +113,15 @@ var _ = Describe("When a client connects", func() {
 	})
 
 	Context("and the client sends a CreateRequest", func() {
+		var fakeContainer *fakes.FakeContainer
+
+		BeforeEach(func() {
+			fakeContainer = new(fakes.FakeContainer)
+			fakeContainer.HandleReturns("some-handle")
+
+			serverBackend.CreateReturns(fakeContainer, nil)
+		})
+
 		It("returns a container with the created handle", func() {
 			container, err := wardenClient.Create(warden.ContainerSpec{
 				Handle: "some-handle",
@@ -120,7 +132,7 @@ var _ = Describe("When a client connects", func() {
 		})
 
 		It("creates the container with the spec from the request", func() {
-			container, err := wardenClient.Create(warden.ContainerSpec{
+			_, err := wardenClient.Create(warden.ContainerSpec{
 				Handle:     "some-handle",
 				GraceTime:  42 * time.Second,
 				Network:    "some-network",
@@ -140,10 +152,7 @@ var _ = Describe("When a client connects", func() {
 			})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			createdContainer, found := serverBackend.CreatedContainers[container.Handle()]
-			Ω(found).Should(BeTrue())
-
-			Ω(createdContainer.Spec).Should(Equal(warden.ContainerSpec{
+			Ω(serverBackend.CreateArgsForCall(0)).Should(Equal(warden.ContainerSpec{
 				Handle:     "some-handle",
 				GraceTime:  time.Duration(42 * time.Second),
 				Network:    "some-network",
@@ -165,20 +174,22 @@ var _ = Describe("When a client connects", func() {
 
 		Context("when a grace time is given", func() {
 			It("destroys the container after it has been idle for the grace time", func() {
-				before := time.Now()
-
 				graceTime := time.Second
 
-				_, err := wardenClient.Create(warden.ContainerSpec{
-					Handle:    "some-handle",
-					GraceTime: graceTime,
-				})
+				fakeContainer = new(fakes.FakeContainer)
+				fakeContainer.HandleReturns("doomed-handle")
+
+				serverBackend.GraceTimeReturns(graceTime)
+				serverBackend.CreateReturns(fakeContainer, nil)
+				serverBackend.LookupReturns(fakeContainer, nil)
+
+				before := time.Now()
+
+				_, err := wardenClient.Create(warden.ContainerSpec{})
 				Ω(err).ShouldNot(HaveOccurred())
 
-				Eventually(func() error {
-					_, err := serverBackend.Lookup("some-handle")
-					return err
-				}, 2*graceTime).Should(HaveOccurred())
+				Eventually(serverBackend.DestroyCallCount, 2*time.Second).Should(Equal(1))
+				Ω(serverBackend.DestroyArgsForCall(0)).Should(Equal("doomed-handle"))
 
 				Ω(time.Since(before)).Should(BeNumerically("~", graceTime, 100*time.Millisecond))
 			})
@@ -191,16 +202,14 @@ var _ = Describe("When a client connects", func() {
 				})
 				Ω(err).ShouldNot(HaveOccurred())
 
-				container, err := serverBackend.Lookup("some-handle")
-				Ω(err).ShouldNot(HaveOccurred())
-
-				Ω(serverBackend.GraceTime(container)).Should(Equal(serverContainerGraceTime))
+				spec := serverBackend.CreateArgsForCall(0)
+				Ω(spec.GraceTime).Should(Equal(serverContainerGraceTime))
 			})
 		})
 
 		Context("when creating the container fails", func() {
 			BeforeEach(func() {
-				serverBackend.CreateError = errors.New("oh no!")
+				serverBackend.CreateReturns(nil, errors.New("oh no!"))
 			})
 
 			It("returns an error", func() {
@@ -212,22 +221,17 @@ var _ = Describe("When a client connects", func() {
 		})
 	})
 
-	Context("and the client sends a DestroyRequest", func() {
-		BeforeEach(func() {
-			_, err := serverBackend.Create(warden.ContainerSpec{Handle: "some-handle"})
-			Ω(err).ShouldNot(HaveOccurred())
-		})
-
-		It("destroys the container and sends a DestroyResponse", func() {
+	Context("and the client sends a destroy request", func() {
+		It("destroys the container", func() {
 			err := wardenClient.Destroy("some-handle")
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Ω(serverBackend.CreatedContainers).ShouldNot(HaveKey("some-handle"))
+			Ω(serverBackend.DestroyArgsForCall(0)).Should(Equal("some-handle"))
 		})
 
 		Context("when destroying the container fails", func() {
 			BeforeEach(func() {
-				serverBackend.SetDestroyError(errors.New("oh no!"))
+				serverBackend.DestroyReturns(errors.New("oh no!"))
 			})
 
 			It("sends a WardenError response", func() {
@@ -235,39 +239,20 @@ var _ = Describe("When a client connects", func() {
 				Ω(err).Should(HaveOccurred())
 			})
 		})
-
-		It("removes the grace timer", func() {
-			_, err := wardenClient.Create(warden.ContainerSpec{
-				Handle:    "some-other-handle",
-				GraceTime: time.Second,
-			})
-			Ω(err).ShouldNot(HaveOccurred())
-
-			err = wardenClient.Destroy("some-other-handle")
-			Ω(err).ShouldNot(HaveOccurred())
-
-			time.Sleep(2 * time.Second)
-
-			Ω(serverBackend.DestroyedContainers).Should(HaveLen(1))
-		})
 	})
 
 	Context("and the client sends a ListRequest", func() {
 		BeforeEach(func() {
-			_, err := serverBackend.Create(warden.ContainerSpec{
-				Handle: "some-handle",
-			})
-			Ω(err).ShouldNot(HaveOccurred())
+			c1 := new(fakes.FakeContainer)
+			c1.HandleReturns("some-handle")
 
-			_, err = serverBackend.Create(warden.ContainerSpec{
-				Handle: "another-handle",
-			})
-			Ω(err).ShouldNot(HaveOccurred())
+			c2 := new(fakes.FakeContainer)
+			c2.HandleReturns("another-handle")
 
-			_, err = serverBackend.Create(warden.ContainerSpec{
-				Handle: "super-handle",
-			})
-			Ω(err).ShouldNot(HaveOccurred())
+			c3 := new(fakes.FakeContainer)
+			c3.HandleReturns("super-handle")
+
+			serverBackend.ContainersReturns([]warden.Container{c1, c2, c3}, nil)
 		})
 
 		It("returns the containers from the backend", func() {
@@ -288,7 +273,7 @@ var _ = Describe("When a client connects", func() {
 
 		Context("when getting the containers fails", func() {
 			BeforeEach(func() {
-				serverBackend.ContainersError = errors.New("oh no!")
+				serverBackend.ContainersReturns(nil, errors.New("oh no!"))
 			})
 
 			It("returns an error", func() {
@@ -304,7 +289,7 @@ var _ = Describe("When a client connects", func() {
 				})
 				Ω(err).ShouldNot(HaveOccurred())
 
-				Ω(serverBackend.ContainersFilters).Should(ContainElement(
+				Ω(serverBackend.ContainersArgsForCall(serverBackend.ContainersCallCount() - 1)).Should(Equal(
 					warden.Properties{
 						"foo": "bar",
 					},
@@ -316,34 +301,29 @@ var _ = Describe("When a client connects", func() {
 	Context("when a container has been created", func() {
 		var container warden.Container
 
-		var fakeContainer *fake_backend.FakeContainer
+		var fakeContainer *fakes.FakeContainer
 
 		BeforeEach(func() {
+			fakeContainer = new(fakes.FakeContainer)
+			fakeContainer.HandleReturns("some-handle")
+
+			serverBackend.CreateReturns(fakeContainer, nil)
+			serverBackend.LookupReturns(fakeContainer, nil)
+		})
+
+		JustBeforeEach(func() {
 			var err error
 
-			container, err = wardenClient.Create(warden.ContainerSpec{Handle: "some-handle"})
+			container, err = wardenClient.Create(warden.ContainerSpec{})
 			Ω(err).ShouldNot(HaveOccurred())
-
-			fakeContainer = serverBackend.CreatedContainers["some-handle"]
-			Ω(fakeContainer).ShouldNot(BeZero())
 		})
 
 		itResetsGraceTimeWhenHandling := func(call func()) {
 			Context("when created with a grace time", func() {
 				graceTime := 1 * time.Second
-				doomedHandle := "some-doomed-handle"
 
 				BeforeEach(func() {
-					var err error
-
-					container, err = wardenClient.Create(warden.ContainerSpec{
-						Handle:    doomedHandle,
-						GraceTime: graceTime,
-					})
-					Ω(err).ShouldNot(HaveOccurred())
-
-					fakeContainer = serverBackend.CreatedContainers[doomedHandle]
-					Ω(fakeContainer).ShouldNot(BeZero())
+					serverBackend.GraceTimeReturns(graceTime)
 				})
 
 				It("resets the container's grace time", func() {
@@ -354,12 +334,19 @@ var _ = Describe("When a client connects", func() {
 
 					before := time.Now()
 
-					Eventually(func() error {
-						_, err := serverBackend.Lookup(doomedHandle)
-						return err
-					}, 2*graceTime).Should(HaveOccurred())
+					Eventually(serverBackend.DestroyCallCount, 2*graceTime).Should(Equal(1))
+					Ω(serverBackend.DestroyArgsForCall(0)).Should(Equal(container.Handle()))
 
 					Ω(time.Since(before)).Should(BeNumerically("~", graceTime, 100*time.Millisecond))
+				})
+			})
+		}
+
+		itFailsWhenTheContainerIsNotFound := func(example func()) {
+			Context("when the container is not found", func() {
+				It("fails", func() {
+					serverBackend.LookupReturns(nil, errors.New("not found"))
+					example()
 				})
 			})
 		}
@@ -369,28 +356,17 @@ var _ = Describe("When a client connects", func() {
 				err := container.Stop(true)
 				Ω(err).ShouldNot(HaveOccurred())
 
-				Ω(fakeContainer.Stopped()).Should(ContainElement(
-					fake_backend.StopSpec{
-						Killed: true,
-					},
-				))
-
+				Ω(fakeContainer.StopArgsForCall(0)).Should(Equal(true))
 			})
 
-			Context("when the container is not found", func() {
-				BeforeEach(func() {
-					serverBackend.Destroy(fakeContainer.Handle())
-				})
-
-				It("returns an error", func() {
-					err := container.Stop(true)
-					Ω(err).Should(HaveOccurred())
-				})
+			itFailsWhenTheContainerIsNotFound(func() {
+				err := container.Stop(true)
+				Ω(err).Should(HaveOccurred())
 			})
 
 			Context("when stopping the container fails", func() {
 				BeforeEach(func() {
-					fakeContainer.StopError = errors.New("oh no!")
+					fakeContainer.StopReturns(errors.New("oh no!"))
 				})
 
 				It("returns an error", func() {
@@ -410,31 +386,27 @@ var _ = Describe("When a client connects", func() {
 		Describe("streaming in", func() {
 			It("streams the file in, waits for completion, and succeeds", func() {
 				data := bytes.NewBufferString("chunk-1;chunk-2;chunk-3;")
+
+				fakeContainer.StreamInStub = func(dest string, stream io.Reader) error {
+					Ω(dest).Should(Equal("/dst/path"))
+					Ω(ioutil.ReadAll(stream)).Should(Equal([]byte("chunk-1;chunk-2;chunk-3;")))
+					return nil
+				}
+
 				err := container.StreamIn("/dst/path", data)
 				Ω(err).ShouldNot(HaveOccurred())
 
-				Ω(fakeContainer.StreamedIn).Should(HaveLen(1))
-
-				streamedIn := fakeContainer.StreamedIn[0]
-				Ω(streamedIn.DestPath).Should(Equal("/dst/path"))
-
-				Ω(streamedIn.InStream).Should(Equal([]byte("chunk-1;chunk-2;chunk-3;")))
+				Ω(fakeContainer.StreamInCallCount()).Should(Equal(1))
 			})
 
-			Context("when the container is not found", func() {
-				BeforeEach(func() {
-					serverBackend.Destroy(fakeContainer.Handle())
-				})
-
-				It("fails", func() {
-					err := container.StreamIn("/dst/path", nil)
-					Ω(err).Should(HaveOccurred())
-				})
+			itFailsWhenTheContainerIsNotFound(func() {
+				err := container.StreamIn("/dst/path", nil)
+				Ω(err).Should(HaveOccurred())
 			})
 
 			Context("when copying in to the container fails", func() {
 				BeforeEach(func() {
-					fakeContainer.StreamInError = errors.New("oh no!")
+					fakeContainer.StreamInReturns(errors.New("oh no!"))
 				})
 
 				It("fails", func() {
@@ -445,8 +417,11 @@ var _ = Describe("When a client connects", func() {
 		})
 
 		Describe("streaming out", func() {
-			BeforeEach(func() {
-				fakeContainer.StreamOutBuffer = bytes.NewBuffer([]byte("hello-world!"))
+			JustBeforeEach(func() {
+				fakeContainer.StreamOutReturns(
+					ioutil.NopCloser(bytes.NewBuffer([]byte("hello-world!"))),
+					nil,
+				)
 			})
 
 			It("streams the bits out and succeeds", func() {
@@ -459,10 +434,7 @@ var _ = Describe("When a client connects", func() {
 
 				Ω(string(streamedContent)).Should(Equal("hello-world!"))
 
-				Ω(fakeContainer.StreamedOut).Should(Equal([]string{
-					"/src/path",
-				}))
-
+				Ω(fakeContainer.StreamOutArgsForCall(0)).Should(Equal("/src/path"))
 			})
 
 			itResetsGraceTimeWhenHandling(func() {
@@ -474,20 +446,14 @@ var _ = Describe("When a client connects", func() {
 				Ω(err).ShouldNot(HaveOccurred())
 			})
 
-			Context("when the container is not found", func() {
-				BeforeEach(func() {
-					serverBackend.Destroy(fakeContainer.Handle())
-				})
-
-				It("returns an error", func() {
-					_, err := container.StreamOut("/src/path")
-					Ω(err).Should(HaveOccurred())
-				})
+			itFailsWhenTheContainerIsNotFound(func() {
+				_, err := container.StreamOut("/src/path")
+				Ω(err).Should(HaveOccurred())
 			})
 
 			Context("when streaming out of the container fails", func() {
-				BeforeEach(func() {
-					fakeContainer.StreamOutError = errors.New("oh no!")
+				JustBeforeEach(func() {
+					fakeContainer.StreamOutReturns(nil, errors.New("oh no!"))
 				})
 
 				It("returns an error", func() {
@@ -507,7 +473,7 @@ var _ = Describe("When a client connects", func() {
 				err := container.LimitBandwidth(setLimits)
 				Ω(err).ShouldNot(HaveOccurred())
 
-				Ω(fakeContainer.LimitedBandwidth).Should(Equal(setLimits))
+				Ω(fakeContainer.LimitBandwidthArgsForCall(0)).Should(Equal(setLimits))
 			})
 
 			itResetsGraceTimeWhenHandling(func() {
@@ -518,23 +484,17 @@ var _ = Describe("When a client connects", func() {
 				Ω(err).ShouldNot(HaveOccurred())
 			})
 
-			Context("when the container is not found", func() {
-				BeforeEach(func() {
-					serverBackend.Destroy(fakeContainer.Handle())
+			itFailsWhenTheContainerIsNotFound(func() {
+				err := container.LimitBandwidth(warden.BandwidthLimits{
+					RateInBytesPerSecond:      123,
+					BurstRateInBytesPerSecond: 456,
 				})
-
-				It("fails", func() {
-					err := container.LimitBandwidth(warden.BandwidthLimits{
-						RateInBytesPerSecond:      123,
-						BurstRateInBytesPerSecond: 456,
-					})
-					Ω(err).Should(HaveOccurred())
-				})
+				Ω(err).Should(HaveOccurred())
 			})
 
 			Context("when limiting the bandwidth fails", func() {
 				BeforeEach(func() {
-					fakeContainer.LimitBandwidthError = errors.New("oh no!")
+					fakeContainer.LimitBandwidthReturns(errors.New("oh no!"))
 				})
 
 				It("fails", func() {
@@ -554,7 +514,7 @@ var _ = Describe("When a client connects", func() {
 					BurstRateInBytesPerSecond: 4560,
 				}
 
-				fakeContainer.CurrentBandwidthLimitsResult = effectiveLimits
+				fakeContainer.CurrentBandwidthLimitsReturns(effectiveLimits, nil)
 
 				limits, err := container.CurrentBandwidthLimits()
 				Ω(err).ShouldNot(HaveOccurred())
@@ -564,7 +524,7 @@ var _ = Describe("When a client connects", func() {
 
 			Context("when getting the current limits fails", func() {
 				BeforeEach(func() {
-					fakeContainer.CurrentBandwidthLimitsError = errors.New("oh no!")
+					fakeContainer.CurrentBandwidthLimitsReturns(warden.BandwidthLimits{}, errors.New("oh no!"))
 				})
 
 				It("fails", func() {
@@ -581,7 +541,7 @@ var _ = Describe("When a client connects", func() {
 				err := container.LimitMemory(setLimits)
 				Ω(err).ShouldNot(HaveOccurred())
 
-				Ω(fakeContainer.LimitedMemory).Should(Equal(setLimits))
+				Ω(fakeContainer.LimitMemoryArgsForCall(0)).Should(Equal(setLimits))
 			})
 
 			itResetsGraceTimeWhenHandling(func() {
@@ -589,20 +549,14 @@ var _ = Describe("When a client connects", func() {
 				Ω(err).ShouldNot(HaveOccurred())
 			})
 
-			Context("when the container is not found", func() {
-				BeforeEach(func() {
-					serverBackend.Destroy(fakeContainer.Handle())
-				})
-
-				It("fail", func() {
-					err := container.LimitMemory(warden.MemoryLimits{123})
-					Ω(err).Should(HaveOccurred())
-				})
+			itFailsWhenTheContainerIsNotFound(func() {
+				err := container.LimitMemory(warden.MemoryLimits{123})
+				Ω(err).Should(HaveOccurred())
 			})
 
 			Context("when limiting the memory fails", func() {
 				BeforeEach(func() {
-					fakeContainer.LimitMemoryError = errors.New("oh no!")
+					fakeContainer.LimitMemoryReturns(errors.New("oh no!"))
 				})
 
 				It("fail", func() {
@@ -615,7 +569,7 @@ var _ = Describe("When a client connects", func() {
 		Describe("getting memory limits", func() {
 			It("obtains the current limits", func() {
 				effectiveLimits := warden.MemoryLimits{2048}
-				fakeContainer.CurrentMemoryLimitsResult = effectiveLimits
+				fakeContainer.CurrentMemoryLimitsReturns(effectiveLimits, nil)
 
 				limits, err := container.CurrentMemoryLimits()
 				Ω(err).ShouldNot(HaveOccurred())
@@ -628,23 +582,17 @@ var _ = Describe("When a client connects", func() {
 				_, err := container.CurrentMemoryLimits()
 				Ω(err).ShouldNot(HaveOccurred())
 
-				Ω(fakeContainer.DidLimitMemory).Should(BeFalse())
+				Ω(fakeContainer.LimitMemoryCallCount()).Should(BeZero())
 			})
 
-			Context("when the container is not found", func() {
-				BeforeEach(func() {
-					serverBackend.Destroy(fakeContainer.Handle())
-				})
-
-				It("fails", func() {
-					_, err := container.CurrentMemoryLimits()
-					Ω(err).Should(HaveOccurred())
-				})
+			itFailsWhenTheContainerIsNotFound(func() {
+				_, err := container.CurrentMemoryLimits()
+				Ω(err).Should(HaveOccurred())
 			})
 
 			Context("when getting the current memory limits fails", func() {
 				BeforeEach(func() {
-					fakeContainer.CurrentMemoryLimitsError = errors.New("oh no!")
+					fakeContainer.CurrentMemoryLimitsReturns(warden.MemoryLimits{}, errors.New("oh no!"))
 				})
 
 				It("fails", func() {
@@ -670,7 +618,7 @@ var _ = Describe("When a client connects", func() {
 				err := container.LimitDisk(setLimits)
 				Ω(err).ShouldNot(HaveOccurred())
 
-				Ω(fakeContainer.LimitedDisk).Should(Equal(setLimits))
+				Ω(fakeContainer.LimitDiskArgsForCall(0)).Should(Equal(setLimits))
 			})
 
 			itResetsGraceTimeWhenHandling(func() {
@@ -678,20 +626,14 @@ var _ = Describe("When a client connects", func() {
 				Ω(err).ShouldNot(HaveOccurred())
 			})
 
-			Context("when the container is not found", func() {
-				BeforeEach(func() {
-					serverBackend.Destroy(fakeContainer.Handle())
-				})
-
-				It("fails", func() {
-					err := container.LimitDisk(warden.DiskLimits{})
-					Ω(err).Should(HaveOccurred())
-				})
+			itFailsWhenTheContainerIsNotFound(func() {
+				err := container.LimitDisk(warden.DiskLimits{})
+				Ω(err).Should(HaveOccurred())
 			})
 
 			Context("when limiting the disk fails", func() {
 				BeforeEach(func() {
-					fakeContainer.LimitDiskError = errors.New("oh no!")
+					fakeContainer.LimitDiskReturns(errors.New("oh no!"))
 				})
 
 				It("fails", func() {
@@ -714,7 +656,7 @@ var _ = Describe("When a client connects", func() {
 			}
 
 			It("returns the limits returned by the backend", func() {
-				fakeContainer.CurrentDiskLimitsResult = currentLimits
+				fakeContainer.CurrentDiskLimitsReturns(currentLimits, nil)
 
 				limits, err := container.CurrentDiskLimits()
 				Ω(err).ShouldNot(HaveOccurred())
@@ -726,23 +668,17 @@ var _ = Describe("When a client connects", func() {
 				_, err := container.CurrentDiskLimits()
 				Ω(err).ShouldNot(HaveOccurred())
 
-				Ω(fakeContainer.DidLimitDisk).Should(BeFalse())
+				Ω(fakeContainer.LimitDiskCallCount()).Should(BeZero())
 			})
 
-			Context("when the container is not found", func() {
-				BeforeEach(func() {
-					serverBackend.Destroy(fakeContainer.Handle())
-				})
-
-				It("fails", func() {
-					_, err := container.CurrentDiskLimits()
-					Ω(err).Should(HaveOccurred())
-				})
+			itFailsWhenTheContainerIsNotFound(func() {
+				_, err := container.CurrentDiskLimits()
+				Ω(err).Should(HaveOccurred())
 			})
 
 			Context("when getting the current disk limits fails", func() {
 				BeforeEach(func() {
-					fakeContainer.CurrentDiskLimitsError = errors.New("oh no!")
+					fakeContainer.CurrentDiskLimitsReturns(warden.DiskLimits{}, errors.New("oh no!"))
 				})
 
 				It("fails", func() {
@@ -759,7 +695,7 @@ var _ = Describe("When a client connects", func() {
 				err := container.LimitCPU(setLimits)
 				Ω(err).ShouldNot(HaveOccurred())
 
-				Ω(fakeContainer.LimitedCPU).Should(Equal(setLimits))
+				Ω(fakeContainer.LimitCPUArgsForCall(0)).Should(Equal(setLimits))
 			})
 
 			itResetsGraceTimeWhenHandling(func() {
@@ -767,20 +703,14 @@ var _ = Describe("When a client connects", func() {
 				Ω(err).ShouldNot(HaveOccurred())
 			})
 
-			Context("when the container is not found", func() {
-				BeforeEach(func() {
-					serverBackend.Destroy(fakeContainer.Handle())
-				})
-
-				It("fails", func() {
-					err := container.LimitCPU(setLimits)
-					Ω(err).Should(HaveOccurred())
-				})
+			itFailsWhenTheContainerIsNotFound(func() {
+				err := container.LimitCPU(setLimits)
+				Ω(err).Should(HaveOccurred())
 			})
 
 			Context("when limiting the CPU fails", func() {
 				BeforeEach(func() {
-					fakeContainer.LimitCPUError = errors.New("oh no!")
+					fakeContainer.LimitCPUReturns(errors.New("oh no!"))
 				})
 
 				It("fails", func() {
@@ -794,7 +724,7 @@ var _ = Describe("When a client connects", func() {
 			effectiveLimits := warden.CPULimits{456}
 
 			It("gets the current limits", func() {
-				fakeContainer.CurrentCPULimitsResult = effectiveLimits
+				fakeContainer.CurrentCPULimitsReturns(effectiveLimits, nil)
 
 				limits, err := container.CurrentCPULimits()
 				Ω(err).ShouldNot(HaveOccurred())
@@ -806,23 +736,17 @@ var _ = Describe("When a client connects", func() {
 				_, err := container.CurrentCPULimits()
 				Ω(err).ShouldNot(HaveOccurred())
 
-				Ω(fakeContainer.DidLimitCPU).Should(BeFalse())
+				Ω(fakeContainer.LimitCPUCallCount()).Should(BeZero())
 			})
 
-			Context("when the container is not found", func() {
-				BeforeEach(func() {
-					serverBackend.Destroy(fakeContainer.Handle())
-				})
-
-				It("fails", func() {
-					_, err := container.CurrentCPULimits()
-					Ω(err).Should(HaveOccurred())
-				})
+			itFailsWhenTheContainerIsNotFound(func() {
+				_, err := container.CurrentCPULimits()
+				Ω(err).Should(HaveOccurred())
 			})
 
 			Context("when getting the current CPU limits fails", func() {
 				BeforeEach(func() {
-					fakeContainer.CurrentCPULimitsError = errors.New("oh no!")
+					fakeContainer.CurrentCPULimitsReturns(warden.CPULimits{}, errors.New("oh no!"))
 				})
 
 				It("fails", func() {
@@ -834,15 +758,17 @@ var _ = Describe("When a client connects", func() {
 
 		Describe("net in", func() {
 			It("maps the ports and returns them", func() {
+				fakeContainer.NetInReturns(111, 222, nil)
+
 				hostPort, containerPort, err := container.NetIn(123, 456)
 				Ω(err).ShouldNot(HaveOccurred())
 
-				Ω(fakeContainer.MappedIn).Should(ContainElement(
-					[]uint32{123, 456},
-				))
+				hp, cp := fakeContainer.NetInArgsForCall(0)
+				Ω(hp).Should(Equal(uint32(123)))
+				Ω(cp).Should(Equal(uint32(456)))
 
-				Ω(hostPort).Should(Equal(uint32(123)))
-				Ω(containerPort).Should(Equal(uint32(456)))
+				Ω(hostPort).Should(Equal(uint32(111)))
+				Ω(containerPort).Should(Equal(uint32(222)))
 			})
 
 			itResetsGraceTimeWhenHandling(func() {
@@ -850,20 +776,14 @@ var _ = Describe("When a client connects", func() {
 				Ω(err).ShouldNot(HaveOccurred())
 			})
 
-			Context("when the container is not found", func() {
-				BeforeEach(func() {
-					serverBackend.Destroy(fakeContainer.Handle())
-				})
-
-				It("fails", func() {
-					_, _, err := container.NetIn(123, 456)
-					Ω(err).Should(HaveOccurred())
-				})
+			itFailsWhenTheContainerIsNotFound(func() {
+				_, _, err := container.NetIn(123, 456)
+				Ω(err).Should(HaveOccurred())
 			})
 
 			Context("when mapping the port fails", func() {
 				BeforeEach(func() {
-					fakeContainer.NetInError = errors.New("oh no!")
+					fakeContainer.NetInReturns(0, 0, errors.New("oh no!"))
 				})
 
 				It("fails", func() {
@@ -878,10 +798,9 @@ var _ = Describe("When a client connects", func() {
 				err := container.NetOut("1.2.3.4/22", 456)
 				Ω(err).ShouldNot(HaveOccurred())
 
-				Ω(fakeContainer.PermittedOut).Should(ContainElement(
-					fake_backend.NetOutSpec{"1.2.3.4/22", 456},
-				))
-
+				cidr, port := fakeContainer.NetOutArgsForCall(0)
+				Ω(cidr).Should(Equal("1.2.3.4/22"))
+				Ω(port).Should(Equal(uint32(456)))
 			})
 
 			itResetsGraceTimeWhenHandling(func() {
@@ -889,20 +808,14 @@ var _ = Describe("When a client connects", func() {
 				Ω(err).ShouldNot(HaveOccurred())
 			})
 
-			Context("when the container is not found", func() {
-				BeforeEach(func() {
-					serverBackend.Destroy(fakeContainer.Handle())
-				})
-
-				It("fails", func() {
-					err := container.NetOut("1.2.3.4/22", 456)
-					Ω(err).Should(HaveOccurred())
-				})
+			itFailsWhenTheContainerIsNotFound(func() {
+				err := container.NetOut("1.2.3.4/22", 456)
+				Ω(err).Should(HaveOccurred())
 			})
 
 			Context("when permitting traffic fails", func() {
 				BeforeEach(func() {
-					fakeContainer.NetOutError = errors.New("oh no!")
+					fakeContainer.NetOutReturns(errors.New("oh no!"))
 				})
 
 				It("fails", func() {
@@ -913,88 +826,75 @@ var _ = Describe("When a client connects", func() {
 		})
 
 		Describe("info", func() {
-			BeforeEach(func() {
-				var err error
-
-				container, err = wardenClient.Create(warden.ContainerSpec{
-					Properties: map[string]string{
-						"foo": "bar",
-						"a":   "b",
-					},
-				})
-				Ω(err).ShouldNot(HaveOccurred())
-
-				fakeContainer = serverBackend.CreatedContainers[container.Handle()]
-				Ω(fakeContainer).ShouldNot(BeZero())
-			})
+			containerInfo := warden.ContainerInfo{
+				State:         "active",
+				Events:        []string{"oom", "party"},
+				HostIP:        "host-ip",
+				ContainerIP:   "container-ip",
+				ContainerPath: "/path/to/container",
+				ProcessIDs:    []uint32{1, 2},
+				Properties: warden.Properties{
+					"foo": "bar",
+					"a":   "b",
+				},
+				MemoryStat: warden.ContainerMemoryStat{
+					Cache:                   1,
+					Rss:                     2,
+					MappedFile:              3,
+					Pgpgin:                  4,
+					Pgpgout:                 5,
+					Swap:                    6,
+					Pgfault:                 7,
+					Pgmajfault:              8,
+					InactiveAnon:            9,
+					ActiveAnon:              10,
+					InactiveFile:            11,
+					ActiveFile:              12,
+					Unevictable:             13,
+					HierarchicalMemoryLimit: 14,
+					HierarchicalMemswLimit:  15,
+					TotalCache:              16,
+					TotalRss:                17,
+					TotalMappedFile:         18,
+					TotalPgpgin:             19,
+					TotalPgpgout:            20,
+					TotalSwap:               21,
+					TotalPgfault:            22,
+					TotalPgmajfault:         23,
+					TotalInactiveAnon:       24,
+					TotalActiveAnon:         25,
+					TotalInactiveFile:       26,
+					TotalActiveFile:         27,
+					TotalUnevictable:        28,
+				},
+				CPUStat: warden.ContainerCPUStat{
+					Usage:  1,
+					User:   2,
+					System: 3,
+				},
+				DiskStat: warden.ContainerDiskStat{
+					BytesUsed:  1,
+					InodesUsed: 2,
+				},
+				BandwidthStat: warden.ContainerBandwidthStat{
+					InRate:   1,
+					InBurst:  2,
+					OutRate:  3,
+					OutBurst: 4,
+				},
+				MappedPorts: []warden.PortMapping{
+					{HostPort: 1234, ContainerPort: 5678},
+					{HostPort: 1235, ContainerPort: 5679},
+				},
+			}
 
 			It("reports information about the container", func() {
-				fakeContainer.ReportedInfo = warden.ContainerInfo{
-					State:         "active",
-					Events:        []string{"oom", "party"},
-					HostIP:        "host-ip",
-					ContainerIP:   "container-ip",
-					ContainerPath: "/path/to/container",
-					ProcessIDs:    []uint32{1, 2},
-					Properties: warden.Properties{
-						"foo": "bar",
-						"a":   "b",
-					},
-					MemoryStat: warden.ContainerMemoryStat{
-						Cache:                   1,
-						Rss:                     2,
-						MappedFile:              3,
-						Pgpgin:                  4,
-						Pgpgout:                 5,
-						Swap:                    6,
-						Pgfault:                 7,
-						Pgmajfault:              8,
-						InactiveAnon:            9,
-						ActiveAnon:              10,
-						InactiveFile:            11,
-						ActiveFile:              12,
-						Unevictable:             13,
-						HierarchicalMemoryLimit: 14,
-						HierarchicalMemswLimit:  15,
-						TotalCache:              16,
-						TotalRss:                17,
-						TotalMappedFile:         18,
-						TotalPgpgin:             19,
-						TotalPgpgout:            20,
-						TotalSwap:               21,
-						TotalPgfault:            22,
-						TotalPgmajfault:         23,
-						TotalInactiveAnon:       24,
-						TotalActiveAnon:         25,
-						TotalInactiveFile:       26,
-						TotalActiveFile:         27,
-						TotalUnevictable:        28,
-					},
-					CPUStat: warden.ContainerCPUStat{
-						Usage:  1,
-						User:   2,
-						System: 3,
-					},
-					DiskStat: warden.ContainerDiskStat{
-						BytesUsed:  1,
-						InodesUsed: 2,
-					},
-					BandwidthStat: warden.ContainerBandwidthStat{
-						InRate:   1,
-						InBurst:  2,
-						OutRate:  3,
-						OutBurst: 4,
-					},
-					MappedPorts: []warden.PortMapping{
-						{HostPort: 1234, ContainerPort: 5678},
-						{HostPort: 1235, ContainerPort: 5679},
-					},
-				}
+				fakeContainer.InfoReturns(containerInfo, nil)
 
 				info, err := container.Info()
 				Ω(err).ShouldNot(HaveOccurred())
 
-				Ω(info).Should(Equal(fakeContainer.ReportedInfo))
+				Ω(info).Should(Equal(containerInfo))
 			})
 
 			itResetsGraceTimeWhenHandling(func() {
@@ -1002,21 +902,14 @@ var _ = Describe("When a client connects", func() {
 				Ω(err).ShouldNot(HaveOccurred())
 			})
 
-			Context("when the container is not found", func() {
-				BeforeEach(func() {
-					err := serverBackend.Destroy(fakeContainer.Handle())
-					Ω(err).ShouldNot(HaveOccurred())
-				})
-
-				It("fails", func() {
-					_, err := container.Info()
-					Ω(err).Should(HaveOccurred())
-				})
+			itFailsWhenTheContainerIsNotFound(func() {
+				_, err := container.Info()
+				Ω(err).Should(HaveOccurred())
 			})
 
 			Context("when getting container info fails", func() {
 				BeforeEach(func() {
-					fakeContainer.InfoError = errors.New("oh no!")
+					fakeContainer.InfoReturns(warden.ContainerInfo{}, errors.New("oh no!"))
 				})
 
 				It("fails", func() {
@@ -1027,132 +920,107 @@ var _ = Describe("When a client connects", func() {
 		})
 
 		Describe("attaching", func() {
-			exitStatus := uint32(42)
-
-			It("responds with a ProcessPayload for every chunk", func() {
-				streamIn := make(chan warden.ProcessStream, 1)
-
-				fakeContainer.StreamChannel = streamIn
-
-				stream, err := container.Attach(123)
-				Ω(err).ShouldNot(HaveOccurred())
-
-				Ω(fakeContainer.Attached).Should(ContainElement(uint32(123)))
-
-				streamIn <- warden.ProcessStream{
-					Source: warden.ProcessStreamSourceStdout,
-					Data:   []byte("process out\n"),
-				}
-
-				var chunk warden.ProcessStream
-				Eventually(stream).Should(Receive(&chunk))
-				Ω(chunk).Should(Equal(warden.ProcessStream{
-					Source: warden.ProcessStreamSourceStdout,
-					Data:   []byte("process out\n"),
-				}))
-
-				streamIn <- warden.ProcessStream{
-					Source: warden.ProcessStreamSourceStderr,
-					Data:   []byte("process err\n"),
-				}
-
-				Eventually(stream).Should(Receive(&chunk))
-				Ω(chunk).Should(Equal(warden.ProcessStream{
-					Source: warden.ProcessStreamSourceStderr,
-					Data:   []byte("process err\n"),
-				}))
-
-				streamIn <- warden.ProcessStream{
-					ExitStatus: &exitStatus,
-				}
-
-				Eventually(stream).Should(Receive(&chunk))
-				Ω(chunk).Should(Equal(warden.ProcessStream{
-					ExitStatus: &exitStatus,
-				}))
-
-				close(streamIn)
-
-				Eventually(stream).Should(BeClosed())
-			})
-
-			Context("when the container has a grace time", func() {
+			Context("when attaching succeeds", func() {
 				BeforeEach(func() {
-					var err error
+					fakeContainer.AttachStub = func(processID uint32, io warden.ProcessIO) (warden.Process, error) {
+						process := new(fakes.FakeProcess)
 
-					container, err = wardenClient.Create(warden.ContainerSpec{
-						GraceTime: 1 * time.Second,
-						Handle:    "graceful-handle",
-					})
-					Ω(err).ShouldNot(HaveOccurred())
+						process.IDReturns(42)
+						process.WaitReturns(123, nil)
 
-					fakeContainer = serverBackend.CreatedContainers["graceful-handle"]
-					Ω(fakeContainer).ShouldNot(BeZero())
+						go func() {
+							defer GinkgoRecover()
+
+							_, err := fmt.Fprintf(io.Stdout, "stdout data")
+							Ω(err).ShouldNot(HaveOccurred())
+
+							_, err = fmt.Fprintf(io.Stderr, "stderr data")
+							Ω(err).ShouldNot(HaveOccurred())
+
+							err = io.Stdout.Close()
+							Ω(err).ShouldNot(HaveOccurred())
+
+							err = io.Stderr.Close()
+							Ω(err).ShouldNot(HaveOccurred())
+						}()
+
+						return process, nil
+					}
 				})
 
-				It("resets as long as it's streaming", func() {
-					streamIn := make(chan warden.ProcessStream, 1)
+				It("responds with a ProcessPayload for every chunk", func() {
+					stdout := gbytes.NewBuffer()
+					stderr := gbytes.NewBuffer()
 
-					fakeContainer.StreamChannel = streamIn
+					processIO := warden.ProcessIO{
+						Stdout: stdout,
+						Stderr: stderr,
+					}
 
-					stream, err := container.Attach(123)
+					process, err := container.Attach(42, processIO)
 					Ω(err).ShouldNot(HaveOccurred())
 
-					Ω(fakeContainer.Attached).Should(ContainElement(uint32(123)))
+					pid, _ := fakeContainer.AttachArgsForCall(0)
+					Ω(pid).Should(Equal(uint32(42)))
 
-					streamIn <- warden.ProcessStream{
-						Source: warden.ProcessStreamSourceStdout,
-						Data:   []byte("process out\n"),
-					}
+					Eventually(stdout).Should(gbytes.Say("stdout data"))
+					Eventually(stderr).Should(gbytes.Say("stderr data"))
 
-					Eventually(stream).Should(Receive())
+					Eventually(stdout.Closed).Should(BeTrue())
+					Eventually(stderr.Closed).Should(BeTrue())
 
-					time.Sleep(time.Second)
+					status, err := process.Wait()
+					Ω(err).ShouldNot(HaveOccurred())
+					Ω(status).Should(Equal(123))
+				})
 
-					streamIn <- warden.ProcessStream{
-						Source: warden.ProcessStreamSourceStderr,
-						Data:   []byte("process err\n"),
-					}
+				itResetsGraceTimeWhenHandling(func() {
+					process, err := container.Attach(42, warden.ProcessIO{})
+					Ω(err).ShouldNot(HaveOccurred())
 
-					Eventually(stream).Should(Receive())
-
-					time.Sleep(time.Second)
-
-					streamIn <- warden.ProcessStream{
-						ExitStatus: &exitStatus,
-					}
-
-					Eventually(stream).Should(Receive())
-
-					before := time.Now()
-
-					Eventually(func() error {
-						_, err := serverBackend.Lookup(container.Handle())
-						return err
-					}, 2.0).Should(HaveOccurred())
-
-					Ω(time.Since(before)).Should(BeNumerically("~", 1*time.Second, 100*time.Millisecond))
+					status, err := process.Wait()
+					Ω(err).ShouldNot(HaveOccurred())
+					Ω(status).Should(Equal(123))
 				})
 			})
 
-			Context("when the container is not found", func() {
+			itFailsWhenTheContainerIsNotFound(func() {
+				_, err := container.Attach(123, warden.ProcessIO{})
+				Ω(err).Should(HaveOccurred())
+			})
+
+			Context("when waiting on the process fails server-side", func() {
 				BeforeEach(func() {
-					serverBackend.Destroy(fakeContainer.Handle())
+					fakeContainer.AttachStub = func(id uint32, io warden.ProcessIO) (warden.Process, error) {
+						process := new(fakes.FakeProcess)
+
+						process.IDReturns(42)
+						process.WaitReturns(0, errors.New("oh no!"))
+
+						io.Stdout.Close()
+						io.Stderr.Close()
+
+						return process, nil
+					}
 				})
 
-				It("fails", func() {
-					_, err := container.Attach(123)
+				It("bubbles the error up", func() {
+					process, err := container.Attach(42, warden.ProcessIO{})
+					Ω(err).ShouldNot(HaveOccurred())
+
+					_, err = process.Wait()
 					Ω(err).Should(HaveOccurred())
+					Ω(err.Error()).Should(ContainSubstring("oh no!"))
 				})
 			})
 
-			Context("when streaming fails", func() {
+			Context("when attaching fails", func() {
 				BeforeEach(func() {
-					fakeContainer.AttachError = errors.New("oh no!")
+					fakeContainer.AttachReturns(nil, errors.New("oh no!"))
 				})
 
 				It("fails", func() {
-					_, err := container.Attach(123)
+					_, err := container.Attach(123, warden.ProcessIO{})
 					Ω(err).Should(HaveOccurred())
 				})
 			})
@@ -1181,149 +1049,114 @@ var _ = Describe("When a client connects", func() {
 					Sigpending: uint64ptr(14),
 					Stack:      uint64ptr(15),
 				},
-				EnvironmentVariables: []warden.EnvironmentVariable{
-					warden.EnvironmentVariable{
-						Key:   "FLAVOR",
-						Value: "chocolate",
-					},
-					warden.EnvironmentVariable{
-						Key:   "TOPPINGS",
-						Value: "sprinkles",
-					},
+				Env: []string{
+					"FLAVOR=chocolate",
+					"TOPPINGS=sprinkles",
 				},
 			}
 
-			exitStatus := uint32(42)
+			Context("when running succeeds", func() {
+				BeforeEach(func() {
+					fakeContainer.RunStub = func(spec warden.ProcessSpec, io warden.ProcessIO) (warden.Process, error) {
+						process := new(fakes.FakeProcess)
 
-			It("runs the process and streams the output", func() {
-				streamIn := make(chan warden.ProcessStream, 1)
+						process.IDReturns(42)
+						process.WaitReturns(123, nil)
 
-				fakeContainer.StreamChannel = streamIn
+						go func() {
+							defer GinkgoRecover()
 
-				fakeContainer.RunningProcessID = 123
+							_, err := fmt.Fprintf(io.Stdout, "stdout data")
+							Ω(err).ShouldNot(HaveOccurred())
 
-				pid, stream, err := container.Run(processSpec)
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(pid).Should(Equal(uint32(123)))
+							_, err = fmt.Fprintf(io.Stderr, "stderr data")
+							Ω(err).ShouldNot(HaveOccurred())
 
-				Ω(fakeContainer.RunningProcesses).Should(ContainElement(processSpec))
+							err = io.Stdout.Close()
+							Ω(err).ShouldNot(HaveOccurred())
 
-				streamIn <- warden.ProcessStream{
-					Source: warden.ProcessStreamSourceStdout,
-					Data:   []byte("process out\n"),
-				}
+							err = io.Stderr.Close()
+							Ω(err).ShouldNot(HaveOccurred())
+						}()
 
-				var chunk warden.ProcessStream
-				Eventually(stream).Should(Receive(&chunk))
-				Ω(chunk).Should(Equal(warden.ProcessStream{
-					Source: warden.ProcessStreamSourceStdout,
-					Data:   []byte("process out\n"),
-				}))
+						return process, nil
+					}
+				})
 
-				streamIn <- warden.ProcessStream{
-					Source: warden.ProcessStreamSourceStderr,
-					Data:   []byte("process err\n"),
-				}
+				It("runs the process and streams the output", func() {
+					stdout := gbytes.NewBuffer()
+					stderr := gbytes.NewBuffer()
 
-				Eventually(stream).Should(Receive(&chunk))
-				Ω(chunk).Should(Equal(warden.ProcessStream{
-					Source: warden.ProcessStreamSourceStderr,
-					Data:   []byte("process err\n"),
-				}))
+					processIO := warden.ProcessIO{
+						Stdout: stdout,
+						Stderr: stderr,
+					}
 
-				streamIn <- warden.ProcessStream{
-					ExitStatus: &exitStatus,
-				}
+					process, err := container.Run(processSpec, processIO)
+					Ω(err).ShouldNot(HaveOccurred())
 
-				Eventually(stream).Should(Receive(&chunk))
-				Ω(chunk).Should(Equal(warden.ProcessStream{
-					ExitStatus: &exitStatus,
-				}))
+					ranSpec, _ := fakeContainer.RunArgsForCall(0)
+					Ω(ranSpec).Should(Equal(processSpec))
 
-				close(streamIn)
+					Eventually(stdout).Should(gbytes.Say("stdout data"))
+					Eventually(stderr).Should(gbytes.Say("stderr data"))
 
-				Eventually(stream).Should(BeClosed())
+					Eventually(stdout.Closed).Should(BeTrue())
+					Eventually(stderr.Closed).Should(BeTrue())
+
+					status, err := process.Wait()
+					Ω(err).ShouldNot(HaveOccurred())
+					Ω(status).Should(Equal(123))
+				})
+
+				itResetsGraceTimeWhenHandling(func() {
+					process, err := container.Run(processSpec, warden.ProcessIO{})
+					Ω(err).ShouldNot(HaveOccurred())
+
+					status, err := process.Wait()
+					Ω(err).ShouldNot(HaveOccurred())
+					Ω(status).Should(Equal(123))
+				})
 			})
 
-			Context("when the container is not found", func() {
+			Context("when waiting on the process fails server-side", func() {
 				BeforeEach(func() {
-					serverBackend.Destroy(fakeContainer.Handle())
+					fakeContainer.RunStub = func(spec warden.ProcessSpec, io warden.ProcessIO) (warden.Process, error) {
+						process := new(fakes.FakeProcess)
+
+						process.IDReturns(42)
+						process.WaitReturns(0, errors.New("oh no!"))
+
+						io.Stdout.Close()
+						io.Stderr.Close()
+
+						return process, nil
+					}
 				})
 
-				It("fails", func() {
-					_, _, err := container.Run(processSpec)
+				It("bubbles the error up", func() {
+					process, err := container.Run(processSpec, warden.ProcessIO{})
+					Ω(err).ShouldNot(HaveOccurred())
+
+					_, err = process.Wait()
 					Ω(err).Should(HaveOccurred())
+					Ω(err.Error()).Should(ContainSubstring("oh no!"))
 				})
+			})
+
+			itFailsWhenTheContainerIsNotFound(func() {
+				_, err := container.Run(processSpec, warden.ProcessIO{})
+				Ω(err).Should(HaveOccurred())
 			})
 
 			Context("when running fails", func() {
 				BeforeEach(func() {
-					fakeContainer.RunError = errors.New("oh no!")
+					fakeContainer.RunReturns(nil, errors.New("oh no!"))
 				})
 
 				It("fails", func() {
-					_, _, err := container.Run(processSpec)
+					_, err := container.Run(processSpec, warden.ProcessIO{})
 					Ω(err).Should(HaveOccurred())
-				})
-			})
-
-			Context("when the container has a grace time", func() {
-				BeforeEach(func() {
-					var err error
-
-					container, err = wardenClient.Create(warden.ContainerSpec{
-						GraceTime: 1 * time.Second,
-						Handle:    "graceful-handle",
-					})
-					Ω(err).ShouldNot(HaveOccurred())
-
-					fakeContainer = serverBackend.CreatedContainers["graceful-handle"]
-					Ω(fakeContainer).ShouldNot(BeZero())
-				})
-
-				It("resets the container's grace time as long as it's streaming", func() {
-					streamIn := make(chan warden.ProcessStream, 1)
-
-					fakeContainer.StreamChannel = streamIn
-
-					fakeContainer.RunningProcessID = 123
-
-					pid, stream, err := container.Run(processSpec)
-					Ω(err).ShouldNot(HaveOccurred())
-					Ω(pid).Should(Equal(uint32(123)))
-
-					streamIn <- warden.ProcessStream{
-						Source: warden.ProcessStreamSourceStdout,
-						Data:   []byte("process out\n"),
-					}
-
-					Eventually(stream).Should(Receive())
-
-					time.Sleep(time.Second)
-
-					streamIn <- warden.ProcessStream{
-						Source: warden.ProcessStreamSourceStderr,
-						Data:   []byte("process err\n"),
-					}
-
-					Eventually(stream).Should(Receive())
-
-					time.Sleep(time.Second)
-
-					streamIn <- warden.ProcessStream{
-						ExitStatus: &exitStatus,
-					}
-
-					Eventually(stream).Should(Receive())
-
-					before := time.Now()
-
-					Eventually(func() error {
-						_, err := serverBackend.Lookup(container.Handle())
-						return err
-					}, 2.0).Should(HaveOccurred())
-
-					Ω(time.Since(before)).Should(BeNumerically("~", 1*time.Second, 100*time.Millisecond))
 				})
 			})
 		})
