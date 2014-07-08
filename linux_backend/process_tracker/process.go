@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path"
@@ -33,7 +32,9 @@ type Process struct {
 	done       bool
 	doneL      *sync.Cond
 
-	stdin  *faninReader
+	stdin  *os.File
+	stdinW *faninWriter
+
 	stdout *fanoutWriter
 	stderr *fanoutWriter
 }
@@ -42,11 +43,14 @@ func NewProcess(
 	id uint32,
 	containerPath string,
 	runner command_runner.CommandRunner,
-) *Process {
+) (*Process, error) {
 	unlinked := make(chan struct{}, 1)
 	unlinked <- struct{}{}
 
-	inR, inW := io.Pipe()
+	inR, inW, err := os.Pipe()
+	if err != nil {
+		return nil, err
+	}
 
 	return &Process{
 		id: id,
@@ -61,10 +65,11 @@ func NewProcess(
 
 		doneL: sync.NewCond(&sync.Mutex{}),
 
-		stdin:  &faninReader{Reader: inR, w: inW},
+		stdin:  inR,
+		stdinW: &faninWriter{w: inW},
 		stdout: &fanoutWriter{},
 		stderr: &fanoutWriter{},
-	}
+	}, nil
 }
 
 func (p *Process) ID() uint32 {
@@ -87,26 +92,8 @@ func (p *Process) Spawn(cmd *exec.Cmd) (ready, active chan error) {
 	ready = make(chan error, 1)
 	active = make(chan error, 1)
 
-	spawnPath := path.Join(p.containerPath, "bin", "iomux-spawn")
-	processDir := path.Join(p.containerPath, "processes", fmt.Sprintf("%d", p.ID()))
-
-	err := os.MkdirAll(processDir, 0755)
-	if err != nil {
-		ready <- err
-		return
-	}
-
-	spawn := &exec.Cmd{
-		Path:  "bash",
-		Stdin: cmd.Stdin,
-	}
-
-	// spawn but not as a child process (fork off in the bash subprocess). pipe
-	// 'cat' to it to keep stdin connected.
-	spawn.Args = append([]string{"-c", "cat | " + spawnPath + ` "$@" &`, spawnPath, processDir}, cmd.Path)
-	spawn.Args = append(spawn.Args, cmd.Args...)
-
-	spawn.Env = cmd.Env
+	spawnPath := path.Join(p.containerPath, "bin", "iodaemon")
+	processSock := path.Join(p.containerPath, "processes", fmt.Sprintf("%d.sock", p.ID()))
 
 	spawnR, spawnW, err := os.Pipe()
 	if err != nil {
@@ -114,7 +101,24 @@ func (p *Process) Spawn(cmd *exec.Cmd) (ready, active chan error) {
 		return
 	}
 
-	spawn.Stdout = spawnW
+	spawn := &exec.Cmd{
+		Env: cmd.Env,
+
+		Path: "bash",
+		Args: append([]string{
+			"-c",
+			// spawn but not as a child process (fork off in the bash subprocess). pipe
+			// 'cat' to it to keep stdin connected.
+			"cat | " + spawnPath + ` "$@" &`,
+			spawnPath,
+			"spawn",
+			processSock,
+			cmd.Path,
+		}, cmd.Args...),
+
+		Stdin:  cmd.Stdin,
+		Stdout: spawnW,
+	}
 
 	spawnOut := bufio.NewReader(spawnR)
 
@@ -174,7 +178,7 @@ func (p *Process) Unlink() error {
 
 func (p *Process) Attach(processIO warden.ProcessIO) {
 	if processIO.Stdin != nil {
-		p.stdin.AddSource(processIO.Stdin)
+		p.stdinW.AddSource(processIO.Stdin)
 	}
 
 	if processIO.Stdout != nil {
@@ -187,12 +191,12 @@ func (p *Process) Attach(processIO warden.ProcessIO) {
 }
 
 func (p *Process) runLinker() {
-	linkPath := path.Join(p.containerPath, "bin", "iomux-link")
-	processDir := path.Join(p.containerPath, "processes", fmt.Sprintf("%d", p.ID()))
+	linkPath := path.Join(p.containerPath, "bin", "iodaemon")
+	processSock := path.Join(p.containerPath, "processes", fmt.Sprintf("%d.sock", p.ID()))
 
 	p.link = &exec.Cmd{
 		Path:   linkPath,
-		Args:   []string{"-w", path.Join(processDir, "cursors"), processDir},
+		Args:   []string{"link", processSock},
 		Stdin:  p.stdin,
 		Stdout: p.stdout,
 		Stderr: p.stderr,

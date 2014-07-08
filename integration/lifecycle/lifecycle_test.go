@@ -97,7 +97,7 @@ var _ = Describe("Creating a container", func() {
 			Ω(process.Wait()).Should(Equal(42))
 		})
 
-		PIt("streams input to the process's stdin", func() {
+		It("streams input to the process's stdin", func() {
 			stdout := gbytes.NewBuffer()
 
 			process, err := container.Run(warden.ProcessSpec{

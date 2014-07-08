@@ -41,6 +41,8 @@ func New(containerPath string, runner command_runner.CommandRunner) ProcessTrack
 
 		processes:      make(map[uint32]*Process),
 		processesMutex: new(sync.RWMutex),
+
+		nextProcessID: 1,
 	}
 }
 
@@ -50,7 +52,11 @@ func (t *processTracker) Run(cmd *exec.Cmd, processIO warden.ProcessIO) (warden.
 	processID := t.nextProcessID
 	t.nextProcessID++
 
-	process := NewProcess(processID, t.containerPath, t.runner)
+	process, err := NewProcess(processID, t.containerPath, t.runner)
+	if err != nil {
+		t.processesMutex.Unlock()
+		return nil, err
+	}
 
 	t.processes[processID] = process
 
@@ -58,7 +64,7 @@ func (t *processTracker) Run(cmd *exec.Cmd, processIO warden.ProcessIO) (warden.
 
 	ready, active := process.Spawn(cmd)
 
-	err := <-ready
+	err = <-ready
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +100,10 @@ func (t *processTracker) Attach(processID uint32, processIO warden.ProcessIO) (w
 func (t *processTracker) Restore(processID uint32) {
 	t.processesMutex.Lock()
 
-	process := NewProcess(processID, t.containerPath, t.runner)
+	process, err := NewProcess(processID, t.containerPath, t.runner)
+	if err != nil {
+		return
+	}
 
 	t.processes[processID] = process
 

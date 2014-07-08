@@ -5,7 +5,5 @@ default: all
 	cd wsh && $(MAKE) $@
 	cd oom && $(MAKE) $@
 	cd repquota && $(MAKE) $@
-	cd iomux && $(MAKE) $@
-	cd closefds && $(MAKE) $@
 
 .PHONY: default
