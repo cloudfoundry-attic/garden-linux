@@ -183,6 +183,39 @@ var _ = Describe("Running processes", func() {
 		Eventually(stderr).Should(gbytes.Say("hi err\n"))
 	})
 
+	It("streams input to the process", func() {
+		setupSuccessfulSpawn()
+
+		fakeRunner.WhenRunning(
+			fake_command_runner.CommandSpec{
+				Path: binPath("iomux-link"),
+			},
+			func(cmd *exec.Cmd) error {
+				stdin, err := ioutil.ReadAll(cmd.Stdin)
+				Ω(err).ShouldNot(HaveOccurred())
+
+				fmt.Fprintf(cmd.Stdout, "roundtripped %s\n", stdin)
+
+				dummyCmd := exec.Command("/bin/bash", "-c", "exit 42")
+				dummyCmd.Run()
+
+				cmd.ProcessState = dummyCmd.ProcessState
+
+				return nil
+			},
+		)
+
+		stdout := gbytes.NewBuffer()
+
+		_, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{
+			Stdin:  bytes.NewBufferString("hi in"),
+			Stdout: stdout,
+		})
+		Expect(err).NotTo(HaveOccurred())
+
+		Eventually(stdout).Should(gbytes.Say("roundtripped hi in\n"))
+	})
+
 	Context("when spawning fails", func() {
 		disaster := errors.New("oh no!")
 
@@ -255,6 +288,11 @@ var _ = Describe("Attaching to running processes", func() {
 				cmd.Stdout.Write([]byte("hi out\n"))
 				cmd.Stderr.Write([]byte("hi err\n"))
 
+				stdin, err := ioutil.ReadAll(cmd.Stdin)
+				Ω(err).ShouldNot(HaveOccurred())
+
+				fmt.Fprintf(cmd.Stdout, "roundtripped %s\n", stdin)
+
 				dummyCmd := exec.Command("/bin/bash", "-c", "exit 42")
 				dummyCmd.Run()
 
@@ -265,8 +303,22 @@ var _ = Describe("Attaching to running processes", func() {
 		)
 	})
 
-	It("streams their stdout and stderr into the channel", func() {
+	It("streams stdout, stdin, and stderr", func() {
 		setupSuccessfulSpawn()
+
+		fakeRunner.WhenRunning(
+			fake_command_runner.CommandSpec{
+				Path: binPath("iomux-link"),
+			},
+			func(cmd *exec.Cmd) error {
+				dummyCmd := exec.Command("/bin/bash", "-c", "exit 42")
+				dummyCmd.Run()
+
+				cmd.ProcessState = dummyCmd.ProcessState
+
+				return nil
+			},
+		)
 
 		stdout := gbytes.NewBuffer()
 		stderr := gbytes.NewBuffer()
@@ -275,13 +327,18 @@ var _ = Describe("Attaching to running processes", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		process, err = processTracker.Attach(process.ID(), warden.ProcessIO{
+			Stdin:  bytes.NewBufferString("hi in"),
 			Stdout: stdout,
 			Stderr: stderr,
 		})
 		Expect(err).NotTo(HaveOccurred())
 
 		Eventually(stdout).Should(gbytes.Say("hi out\n"))
+		Eventually(stdout).Should(gbytes.Say("roundtripped hi in\n"))
+		Eventually(stdout.Closed).Should(BeTrue())
+
 		Eventually(stderr).Should(gbytes.Say("hi err\n"))
+		Eventually(stderr.Closed).Should(BeTrue())
 	})
 
 	Context("when the process is not yet linked to", func() {
@@ -296,7 +353,9 @@ var _ = Describe("Attaching to running processes", func() {
 				},
 			))
 
-			_, err := processTracker.Attach(0, warden.ProcessIO{})
+			_, err := processTracker.Attach(0, warden.ProcessIO{
+				Stdin: bytes.NewBufferString("hi in"),
+			})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Eventually(fakeRunner).Should(HaveStartedExecuting(
@@ -311,7 +370,9 @@ var _ = Describe("Attaching to running processes", func() {
 		It("yields the exit status and closes the channel", func() {
 			setupSuccessfulSpawn()
 
-			process, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{})
+			process, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{
+				Stdin: bytes.NewBufferString("hi in"),
+			})
 			Expect(err).NotTo(HaveOccurred())
 
 			Ω(process.Wait()).Should(Equal(42))

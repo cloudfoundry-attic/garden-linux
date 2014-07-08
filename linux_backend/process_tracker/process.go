@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path"
@@ -32,6 +33,7 @@ type Process struct {
 	done       bool
 	doneL      *sync.Cond
 
+	stdin  *faninReader
 	stdout *fanoutWriter
 	stderr *fanoutWriter
 }
@@ -44,7 +46,9 @@ func NewProcess(
 	unlinked := make(chan struct{}, 1)
 	unlinked <- struct{}{}
 
-	p := &Process{
+	inR, inW := io.Pipe()
+
+	return &Process{
 		id: id,
 
 		containerPath: containerPath,
@@ -56,12 +60,11 @@ func NewProcess(
 		unlinked:     unlinked,
 
 		doneL: sync.NewCond(&sync.Mutex{}),
+
+		stdin:  &faninReader{Reader: inR, w: inW},
+		stdout: &fanoutWriter{},
+		stderr: &fanoutWriter{},
 	}
-
-	p.stdout = &fanoutWriter{}
-	p.stderr = &fanoutWriter{}
-
-	return p
 }
 
 func (p *Process) ID() uint32 {
@@ -170,6 +173,10 @@ func (p *Process) Unlink() error {
 }
 
 func (p *Process) Attach(processIO warden.ProcessIO) {
+	if processIO.Stdin != nil {
+		p.stdin.AddSource(processIO.Stdin)
+	}
+
 	if processIO.Stdout != nil {
 		p.stdout.AddSink(processIO.Stdout)
 	}
@@ -186,6 +193,7 @@ func (p *Process) runLinker() {
 	p.link = &exec.Cmd{
 		Path:   linkPath,
 		Args:   []string{"-w", path.Join(processDir, "cursors"), processDir},
+		Stdin:  p.stdin,
 		Stdout: p.stdout,
 		Stderr: p.stderr,
 	}

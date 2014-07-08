@@ -2,6 +2,7 @@ package lifecycle_test
 
 import (
 	"archive/tar"
+	"bytes"
 	"compress/gzip"
 	"io"
 	"io/ioutil"
@@ -94,6 +95,22 @@ var _ = Describe("Creating a container", func() {
 			Eventually(stdout).Should(gbytes.Say("hello\n"))
 			Eventually(stderr).Should(gbytes.Say("goodbye\n"))
 			Ω(process.Wait()).Should(Equal(42))
+		})
+
+		PIt("streams input to the process's stdin", func() {
+			stdout := gbytes.NewBuffer()
+
+			process, err := container.Run(warden.ProcessSpec{
+				Path: "ruby",
+				Args: []string{"-e", "puts STDIN.gets"},
+			}, warden.ProcessIO{
+				Stdin:  bytes.NewBufferString("world\n"),
+				Stdout: stdout,
+			})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Eventually(stdout).Should(gbytes.Say("world\n"))
+			Ω(process.Wait()).Should(Equal(0))
 		})
 
 		Context("with a working directory", func() {
