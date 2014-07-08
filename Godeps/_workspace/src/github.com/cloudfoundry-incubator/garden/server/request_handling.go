@@ -578,7 +578,7 @@ func (s *WardenServer) handleRun(w http.ResponseWriter, r *http.Request) {
 		Args:       args,
 		Dir:        dir,
 		Privileged: privileged,
-		Env:        convertEnvironmentVariables(env),
+		Env:        convertEnv(env),
 	}
 
 	if request.Rlimits != nil {
@@ -588,7 +588,10 @@ func (s *WardenServer) handleRun(w http.ResponseWriter, r *http.Request) {
 	stdout := make(chan []byte, 1000)
 	stderr := make(chan []byte, 1000)
 
+	stdinR, stdinW := io.Pipe()
+
 	processIO := warden.ProcessIO{
+		Stdin:  stdinR,
 		Stdout: &chanWriter{stdout},
 		Stderr: &chanWriter{stderr},
 	}
@@ -602,7 +605,7 @@ func (s *WardenServer) handleRun(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 	w.Header().Set("Content-Type", "application/json")
 
-	conn, _, err := w.(http.Hijacker).Hijack()
+	conn, br, err := w.(http.Hijacker).Hijack()
 	if err != nil {
 		s.writeError(w, err)
 		return
@@ -618,7 +621,31 @@ func (s *WardenServer) handleRun(w http.ResponseWriter, r *http.Request) {
 	s.handling.Done()
 	defer s.handling.Add(1)
 
+	go s.streamInput(json.NewDecoder(br), stdinW)
+
 	s.streamProcess(conn, process, stdout, stderr)
+}
+
+func (s *WardenServer) streamInput(decoder *json.Decoder, in io.WriteCloser) {
+	for {
+		var payload protocol.ProcessPayload
+		err := decoder.Decode(&payload)
+		if err != nil {
+			break
+		}
+
+		if payload.Data == nil {
+			err := in.Close()
+			if err != nil {
+				break
+			}
+		} else {
+			_, err := in.Write([]byte(payload.GetData()))
+			if err != nil {
+				break
+			}
+		}
+	}
 }
 
 func (s *WardenServer) handleAttach(w http.ResponseWriter, r *http.Request) {
@@ -644,7 +671,10 @@ func (s *WardenServer) handleAttach(w http.ResponseWriter, r *http.Request) {
 	stdout := make(chan []byte, 1000)
 	stderr := make(chan []byte, 1000)
 
+	stdinR, stdinW := io.Pipe()
+
 	processIO := warden.ProcessIO{
+		Stdin:  stdinR,
 		Stdout: &chanWriter{stdout},
 		Stderr: &chanWriter{stderr},
 	}
@@ -658,7 +688,7 @@ func (s *WardenServer) handleAttach(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	w.Header().Set("Content-Type", "application/json")
 
-	conn, _, err := w.(http.Hijacker).Hijack()
+	conn, br, err := w.(http.Hijacker).Hijack()
 	if err != nil {
 		s.writeError(w, err)
 		return
@@ -669,6 +699,8 @@ func (s *WardenServer) handleAttach(w http.ResponseWriter, r *http.Request) {
 	// do not block shutdown on run/attach
 	s.handling.Done()
 	defer s.handling.Add(1)
+
+	go s.streamInput(json.NewDecoder(br), stdinW)
 
 	s.streamProcess(conn, process, stdout, stderr)
 }
@@ -821,11 +853,11 @@ func (s *WardenServer) readRequest(msg proto.Message, w http.ResponseWriter, r *
 	return true
 }
 
-func convertEnvironmentVariables(environmentVariables []*protocol.EnvironmentVariable) []string {
+func convertEnv(env []*protocol.EnvironmentVariable) []string {
 	converted := []string{}
 
-	for _, env := range environmentVariables {
-		converted = append(converted, env.GetKey()+"="+env.GetValue())
+	for _, e := range env {
+		converted = append(converted, e.GetKey()+"="+e.GetValue())
 	}
 
 	return converted
@@ -845,6 +877,7 @@ func (s *WardenServer) streamProcess(conn net.Conn, process warden.Process, stdo
 		case data, outOpen = <-stdout:
 			if !outOpen {
 				stdout = nil
+				break
 			}
 
 			transport.WriteMessage(conn, &protocol.ProcessPayload{
@@ -856,6 +889,7 @@ func (s *WardenServer) streamProcess(conn net.Conn, process warden.Process, stdo
 		case data, errOpen = <-stderr:
 			if !errOpen {
 				stderr = nil
+				break
 			}
 
 			transport.WriteMessage(conn, &protocol.ProcessPayload{

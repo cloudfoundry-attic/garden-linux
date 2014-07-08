@@ -739,6 +739,18 @@ func convertEnvironmentVariables(environmentVariables []string) []*protocol.Envi
 func (c *connection) streamPayloads(conn net.Conn, decoder *json.Decoder, processIO warden.ProcessIO, process *process) {
 	defer conn.Close()
 
+	if processIO.Stdin != nil {
+		writer := &stdinWriter{
+			process: process,
+			conn:    conn,
+		}
+
+		go func() {
+			io.Copy(writer, processIO.Stdin)
+			writer.Close()
+		}()
+	}
+
 	for {
 		payload := &protocol.ProcessPayload{}
 
