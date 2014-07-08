@@ -72,7 +72,7 @@ var _ = Describe("Through a restart", func() {
 			Ω(process1.ID()).ShouldNot(Equal(process2.ID()))
 		})
 
-		Context("that prints monotonously increasing output", func() {
+		Context("that prints monotonically increasing output", func() {
 			It("does not duplicate its output on reconnect", func() {
 				receivedNumbers := make(chan int, 16)
 
