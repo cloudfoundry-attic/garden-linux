@@ -10,7 +10,7 @@ var _ = Describe("A container with a grace time", func() {
 	var container warden.Container
 
 	BeforeEach(func() {
-		client = startWarden("--containerGraceTime", "5s")
+		client = startWarden("--containerGraceTime", "3s")
 
 		var err error
 
@@ -22,7 +22,7 @@ var _ = Describe("A container with a grace time", func() {
 		It("is not destroyed after the request is over", func() {
 			process, err := container.Run(warden.ProcessSpec{
 				Path: "sleep",
-				Args: []string{"6"},
+				Args: []string{"5"},
 			}, warden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
