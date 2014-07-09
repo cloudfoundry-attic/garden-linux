@@ -1,6 +1,7 @@
 package lifecycle_test
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"sync"
@@ -54,6 +55,30 @@ var _ = Describe("Through a restart", func() {
 			Eventually(stdout).Should(gbytes.Say("hi\n"))
 		})
 
+		It("can still accept stdin", func() {
+			process, err := container.Run(warden.ProcessSpec{
+				Path: "bash",
+				Args: []string{"-c", "cat <&0"},
+			}, warden.ProcessIO{})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			restartWarden()
+
+			_, err = process.Wait()
+			Ω(err).Should(HaveOccurred())
+
+			stdout := gbytes.NewBuffer()
+
+			process, err = container.Attach(process.ID(), warden.ProcessIO{
+				Stdin:  bytes.NewBufferString("hello\nworld"),
+				Stdout: stdout,
+			})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Eventually(stdout).Should(gbytes.Say("hello\nworld"))
+			Ω(process.Wait()).Should(Equal(0))
+		})
+
 		It("does not have its job ID repeated", func() {
 			process1, err := container.Run(warden.ProcessSpec{
 				Path: "bash",
@@ -97,12 +122,13 @@ var _ = Describe("Through a restart", func() {
 					firstStream.Done()
 				}()
 
+				// allow a bit of time to collect some output
 				time.Sleep(time.Second)
 
 				restartWarden()
 
+				// wait for first stream to end
 				stdoutW.Close()
-
 				firstStream.Wait()
 
 				stdoutR, stdoutW = io.Pipe()

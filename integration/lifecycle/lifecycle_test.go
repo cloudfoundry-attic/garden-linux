@@ -101,15 +101,15 @@ var _ = Describe("Creating a container", func() {
 			stdout := gbytes.NewBuffer()
 
 			process, err := container.Run(warden.ProcessSpec{
-				Path: "ruby",
-				Args: []string{"-e", "puts STDIN.gets"},
+				Path: "bash",
+				Args: []string{"-c", "cat <&0"},
 			}, warden.ProcessIO{
-				Stdin:  bytes.NewBufferString("world\n"),
+				Stdin:  bytes.NewBufferString("hello\nworld"),
 				Stdout: stdout,
 			})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Eventually(stdout).Should(gbytes.Say("world\n"))
+			Eventually(stdout).Should(gbytes.Say("hello\nworld"))
 			Ω(process.Wait()).Should(Equal(0))
 		})
 

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/gob"
 	"fmt"
 	"log"
 	"net"
@@ -24,8 +25,6 @@ func spawn(socketPath string, path string, argv []string, timeout time.Duration,
 		fatal(err)
 	}
 
-	var stdinW, stdoutR, stderrR *os.File
-
 	bin, err := exec.LookPath(path)
 	if err != nil {
 		fatal(err)
@@ -35,6 +34,9 @@ func spawn(socketPath string, path string, argv []string, timeout time.Duration,
 		Path: bin,
 		Args: argv,
 	}
+
+	var stdinW, stdoutR, stderrR *os.File
+	var stdinR, stdoutW, stderrW *os.File
 
 	if withTty {
 		pty, tty, err := pty.Open()
@@ -46,26 +48,31 @@ func spawn(socketPath string, path string, argv []string, timeout time.Duration,
 		stdoutR = pty
 		stderrR = pty
 
-		cmd.Stdin = tty
-		cmd.Stdout = tty
-		cmd.Stderr = tty
+		stdinR = tty
+		stdoutW = tty
+		stderrW = tty
+
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setctty: true, Setsid: true}
 	} else {
-		cmd.Stdin, stdinW, err = os.Pipe()
+		stdinR, stdinW, err = os.Pipe()
 		if err != nil {
 			fatal(err)
 		}
 
-		stdoutR, cmd.Stdout, err = os.Pipe()
+		stdoutR, stdoutW, err = os.Pipe()
 		if err != nil {
 			fatal(err)
 		}
 
-		stderrR, cmd.Stderr, err = os.Pipe()
+		stderrR, stderrW, err = os.Pipe()
 		if err != nil {
 			fatal(err)
 		}
 	}
+
+	cmd.Stdin = stdinR
+	cmd.Stdout = stdoutW
+	cmd.Stderr = stderrW
 
 	statusR, statusW, err := os.Pipe()
 	if err != nil {
@@ -84,7 +91,6 @@ func spawn(socketPath string, path string, argv []string, timeout time.Duration,
 		}
 
 		rights := syscall.UnixRights(
-			int(stdinW.Fd()),
 			int(stdoutR.Fd()),
 			int(stderrR.Fd()),
 			int(statusR.Fd()),
@@ -96,18 +102,17 @@ func spawn(socketPath string, path string, argv []string, timeout time.Duration,
 			break
 		}
 
-		sync := make([]byte, 1)
-		n, err := conn.Read(sync)
-		if n != 1 || err != nil {
-			log.Println("ERROR SYNCING:", err)
-			break
-		}
-
 		if !started {
-			err = cmd.Start()
+			err := cmd.Start()
 			if err != nil {
 				fatal(err)
 			}
+
+			// close no longer relevant pipe ends
+			// this closes tty 3 times but that's OK
+			stdinR.Close()
+			stdoutW.Close()
+			stderrW.Close()
 
 			go func() {
 				cmd.Wait()
@@ -123,12 +128,36 @@ func spawn(socketPath string, path string, argv []string, timeout time.Duration,
 
 			fmt.Println("pid:", cmd.Process.Pid)
 
-			// detach from parent
+			// detach from parent process
 			os.Stdin.Close()
 			os.Stdout.Close()
 			os.Stderr.Close()
 
 			started = true
+		}
+
+		decoder := gob.NewDecoder(conn)
+
+		for {
+			var input Input
+			err := decoder.Decode(&input)
+			if err != nil {
+				break
+			}
+
+			if input.EOF {
+				err := stdinW.Close()
+				if err != nil {
+					conn.Close()
+					break
+				}
+			} else {
+				_, err := stdinW.Write(input.Data)
+				if err != nil {
+					conn.Close()
+					break
+				}
+			}
 		}
 	}
 }

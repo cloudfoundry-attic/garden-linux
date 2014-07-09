@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/gob"
 	"fmt"
 	"io"
 	"log"
@@ -40,23 +41,24 @@ func link(socketPath string) {
 		log.Fatalln("failed to parse unix rights", err)
 	}
 
-	if len(fds) != 4 {
-		log.Fatalln("invalid number of fds; need 4, got", len(fds))
+	if len(fds) != 3 {
+		log.Fatalln("invalid number of fds; need 3, got", len(fds))
 	}
 
-	stdin := os.NewFile(uintptr(fds[0]), "stdin")
-	stdout := os.NewFile(uintptr(fds[1]), "stdout")
-	stderr := os.NewFile(uintptr(fds[2]), "stderr")
-	status := os.NewFile(uintptr(fds[3]), "status")
+	stdout := os.NewFile(uintptr(fds[0]), "stdout")
+	stderr := os.NewFile(uintptr(fds[1]), "stderr")
+	status := os.NewFile(uintptr(fds[2]), "status")
 
 	streaming := &sync.WaitGroup{}
+
+	inputWriter := &inputWriter{gob.NewEncoder(conn)}
 
 	// do not add stdin to the waitgroup; it appears to cause things to hang.
 	// doesn't make much sense anyway; if stdout/stderr closed we probably
 	// can't write any more to stdin in the first place.
 	go func() {
-		io.Copy(stdin, os.Stdin)
-		stdin.Close()
+		io.Copy(inputWriter, os.Stdin)
+		inputWriter.Close()
 		os.Stdin.Close()
 	}()
 
@@ -75,11 +77,6 @@ func link(socketPath string) {
 		os.Stderr.Close()
 		streaming.Done()
 	}()
-
-	_, err = conn.Write([]byte{'x'})
-	if err != nil {
-		log.Fatalln("failed synchronizing:", err)
-	}
 
 	streaming.Wait()
 
