@@ -336,10 +336,8 @@ var _ = Describe("Attaching to running processes", func() {
 
 		Eventually(stdout).Should(gbytes.Say("hi out\n"))
 		Eventually(stdout).Should(gbytes.Say("roundtripped hi in\n"))
-		Eventually(stdout.Closed).Should(BeTrue())
 
 		Eventually(stderr).Should(gbytes.Say("hi err\n"))
-		Eventually(stderr.Closed).Should(BeTrue())
 	})
 
 	Context("when the process is not yet linked to", func() {

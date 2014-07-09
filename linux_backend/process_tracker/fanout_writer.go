@@ -7,7 +7,7 @@ import (
 )
 
 type fanoutWriter struct {
-	sinks  []io.WriteCloser
+	sinks  []io.Writer
 	closed bool
 	sinksL sync.Mutex
 }
@@ -30,31 +30,10 @@ func (w *fanoutWriter) Write(data []byte) (int, error) {
 	return len(data), nil
 }
 
-func (w *fanoutWriter) Close() error {
+func (w *fanoutWriter) AddSink(sink io.Writer) {
 	w.sinksL.Lock()
 
-	if w.closed {
-		return errors.New("closed twice")
-	}
-
-	for _, s := range w.sinks {
-		s.Close()
-	}
-
-	w.closed = true
-	w.sinks = nil
-
-	w.sinksL.Unlock()
-
-	return nil
-}
-
-func (w *fanoutWriter) AddSink(sink io.WriteCloser) {
-	w.sinksL.Lock()
-
-	if w.closed {
-		sink.Close()
-	} else {
+	if !w.closed {
 		w.sinks = append(w.sinks, sink)
 	}
 

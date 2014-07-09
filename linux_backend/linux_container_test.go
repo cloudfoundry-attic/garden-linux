@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -871,23 +872,28 @@ var _ = Describe("Linux containers", func() {
 		Describe("streaming", func() {
 			BeforeEach(func() {
 				fakeProcessTracker.RunStub = func(cmd *exec.Cmd, io warden.ProcessIO) (warden.Process, error) {
-					process := new(wfakes.FakeProcess)
-					process.IDReturns(42)
-					process.WaitReturns(123, nil)
+					writing := new(sync.WaitGroup)
+					writing.Add(1)
 
 					go func() {
+						defer writing.Done()
+						defer GinkgoRecover()
+
 						_, err := fmt.Fprintf(io.Stdout, "hi out\n")
 						Ω(err).ShouldNot(HaveOccurred())
 
 						_, err = fmt.Fprintf(io.Stderr, "hi err\n")
 						Ω(err).ShouldNot(HaveOccurred())
-
-						err = io.Stdout.Close()
-						Ω(err).ShouldNot(HaveOccurred())
-
-						err = io.Stderr.Close()
-						Ω(err).ShouldNot(HaveOccurred())
 					}()
+
+					process := new(wfakes.FakeProcess)
+
+					process.IDReturns(42)
+
+					process.WaitStub = func() (int, error) {
+						writing.Wait()
+						return 123, nil
+					}
 
 					return process, nil
 				}
@@ -993,23 +999,28 @@ var _ = Describe("Linux containers", func() {
 		Context("to a started process", func() {
 			BeforeEach(func() {
 				fakeProcessTracker.AttachStub = func(id uint32, io warden.ProcessIO) (warden.Process, error) {
-					process := new(wfakes.FakeProcess)
-					process.IDReturns(42)
-					process.WaitReturns(123, nil)
+					writing := new(sync.WaitGroup)
+					writing.Add(1)
 
 					go func() {
+						defer writing.Done()
+						defer GinkgoRecover()
+
 						_, err := fmt.Fprintf(io.Stdout, "hi out\n")
 						Ω(err).ShouldNot(HaveOccurred())
 
 						_, err = fmt.Fprintf(io.Stderr, "hi err\n")
 						Ω(err).ShouldNot(HaveOccurred())
-
-						err = io.Stdout.Close()
-						Ω(err).ShouldNot(HaveOccurred())
-
-						err = io.Stderr.Close()
-						Ω(err).ShouldNot(HaveOccurred())
 					}()
+
+					process := new(wfakes.FakeProcess)
+
+					process.IDReturns(42)
+
+					process.WaitStub = func() (int, error) {
+						writing.Wait()
+						return 123, nil
+					}
 
 					return process, nil
 				}

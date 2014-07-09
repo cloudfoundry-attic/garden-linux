@@ -202,18 +202,6 @@ func (p *Process) runLinker() {
 		Stderr: p.stderr,
 	}
 
-	defer func() {
-		err := p.stdout.Close()
-		if err != nil {
-			p.completed(-1, err)
-		}
-
-		err = p.stderr.Close()
-		if err != nil {
-			p.completed(-1, err)
-		}
-	}()
-
 	err := p.runner.Start(p.link)
 	if err != nil {
 		p.completed(-1, err)
