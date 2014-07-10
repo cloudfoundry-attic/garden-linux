@@ -52,6 +52,8 @@ func spawn(socketPath string, path string, argv []string, timeout time.Duration,
 		stdoutW = tty
 		stderrW = tty
 
+		setWinSize(pty, 80, 24)
+
 		cmd.SysProcAttr = &syscall.SysProcAttr{Setctty: true, Setsid: true}
 	} else {
 		stdinR, stdinW, err = os.Pipe()
