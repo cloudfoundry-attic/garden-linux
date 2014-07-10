@@ -65,6 +65,9 @@ func getBlkioStat(path string) ([]cgroups.BlkioStatEntry, error) {
 	var blkioStats []cgroups.BlkioStatEntry
 	f, err := os.Open(path)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return blkioStats, nil
+		}
 		return nil, err
 	}
 	defer f.Close()

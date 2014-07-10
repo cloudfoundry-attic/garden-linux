@@ -2,11 +2,13 @@ package opts
 
 import (
 	"fmt"
-	"github.com/dotcloud/docker/utils"
+	"net"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/dotcloud/docker/utils"
 )
 
 // ListOpts type
@@ -128,16 +130,24 @@ func ValidateEnv(val string) (string, error) {
 	return fmt.Sprintf("%s=%s", val, os.Getenv(val)), nil
 }
 
-func ValidateIp4Address(val string) (string, error) {
-	re := regexp.MustCompile(`^(([0-9]+\.){3}([0-9]+))\s*$`)
-	var ns = re.FindSubmatch([]byte(val))
-	if len(ns) > 0 {
-		return string(ns[1]), nil
+func ValidateIPAddress(val string) (string, error) {
+	var ip = net.ParseIP(strings.TrimSpace(val))
+	if ip != nil {
+		return ip.String(), nil
 	}
-	return "", fmt.Errorf("%s is not an ip4 address", val)
+	return "", fmt.Errorf("%s is not an ip address", val)
 }
 
-func ValidateDomain(val string) (string, error) {
+// Validates domain for resolvconf search configuration.
+// A zero length domain is represented by .
+func ValidateDnsSearch(val string) (string, error) {
+	if val = strings.Trim(val, " "); val == "." {
+		return val, nil
+	}
+	return validateDomain(val)
+}
+
+func validateDomain(val string) (string, error) {
 	alpha := regexp.MustCompile(`[a-zA-Z]`)
 	if alpha.FindString(val) == "" {
 		return "", fmt.Errorf("%s is not a valid domain", val)

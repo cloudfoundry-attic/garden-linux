@@ -17,12 +17,12 @@ stored in the `$graph/devicemapper/json` file (encoded as Json).
 
 In order to support multiple devicemapper graphs on a system the thin
 pool will be named something like: `docker-0:33-19478248-pool`, where
-the `0:30` part is the minor/major device nr and `19478248` is the
+the `0:33` part is the minor/major device nr and `19478248` is the
 inode number of the $graph directory.
 
 On the thin pool docker automatically creates a base thin device,
 called something like `docker-0:33-19478248-base` of a fixed
-size. This is automatically formated on creation and contains just an
+size. This is automatically formatted on creation and contains just an
 empty filesystem. This device is the base of all docker images and
 containers. All base images are snapshots of this device and those
 images are then in turn used as snapshots for other images and
@@ -32,7 +32,7 @@ eventually containers.
 
 The devicemapper backend supports some options that you can specify
 when starting the docker daemon using the --storage-opt flags.
-This uses the `dm` prefix and would be used somthing like `docker -d --storage-opt dm.foo=bar`.
+This uses the `dm` prefix and would be used something like `docker -d --storage-opt dm.foo=bar`.
 
 Here is the list of supported options:
 
@@ -125,6 +125,15 @@ Here is the list of supported options:
     Example use:
 
     ``docker -d --storage-opt dm.datadev=/dev/sdb1 --storage-opt dm.metadatadev=/dev/sdc1``
+
+ *  `dm.blocksize`
+
+    Specifies a custom blocksize to use for the thin pool.  The default
+    blocksize is 64K.
+
+    Example use:
+
+    ``docker -d --storage-opt dm.blocksize=512K``
 
  *  `dm.blkdiscard`
 
