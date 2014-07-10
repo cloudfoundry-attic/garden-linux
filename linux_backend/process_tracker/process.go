@@ -94,13 +94,11 @@ func (p *Process) Spawn(cmd *exec.Cmd) (ready, active chan error) {
 
 	spawn.Env = cmd.Env
 
-	spawnR, spawnW, err := os.Pipe()
+	spawnR, err := spawn.StdoutPipe()
 	if err != nil {
 		ready <- err
 		return
 	}
-
-	spawn.Stdout = spawnW
 
 	spawnOut := bufio.NewReader(spawnR)
 
@@ -110,14 +108,7 @@ func (p *Process) Spawn(cmd *exec.Cmd) (ready, active chan error) {
 		return
 	}
 
-	go spawn.Wait()
-
 	go func() {
-		defer func() {
-			spawnW.Close()
-			spawnR.Close()
-		}()
-
 		_, err := spawnOut.ReadBytes('\n')
 		if err != nil {
 			ready <- err
@@ -133,6 +124,8 @@ func (p *Process) Spawn(cmd *exec.Cmd) (ready, active chan error) {
 		}
 
 		active <- nil
+
+		spawn.Wait()
 	}()
 
 	return
