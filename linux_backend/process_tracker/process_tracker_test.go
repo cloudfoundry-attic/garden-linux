@@ -86,6 +86,14 @@ var _ = Describe("Running processes", func() {
 	})
 
 	It("initiates a link to the process after spawn is ready", func(done Done) {
+		linkSpec := fake_command_runner.CommandSpec{
+			Path: binPath("iodaemon"),
+			Args: []string{
+				"link",
+				tmpdir + "/depot/some-id/processes/1.sock",
+			},
+		}
+
 		fakeRunner.WhenRunning(
 			fake_command_runner.CommandSpec{
 				Path: "bash",
@@ -96,42 +104,19 @@ var _ = Describe("Running processes", func() {
 					time.Sleep(100 * time.Millisecond)
 
 					Expect(fakeRunner).ToNot(HaveStartedExecuting(
-						fake_command_runner.CommandSpec{
-							Path: binPath("iodaemon"),
-							Args: []string{
-								"link",
-								tmpdir + "/depot/some-id/processes/1.sock",
-							},
-						},
+						linkSpec,
 					), "Executed iodaemon too early!")
 
 					Ω(cmd.Stdout).ShouldNot(BeNil())
 
-					fakeRunner.WhenWaitingFor(
-						fake_command_runner.CommandSpec{
-							Path: binPath("iodaemon"),
-							Args: []string{
-								"link",
-								tmpdir + "/depot/some-id/processes/1.sock",
-							},
-						},
-						func(*exec.Cmd) error {
-							close(done)
-							return nil
-						},
-					)
+					fakeRunner.WhenWaitingFor(linkSpec, func(*exec.Cmd) error {
+						close(done)
+						return nil
+					})
 
 					cmd.Stdout.Write([]byte("xxx\n"))
 
-					Eventually(fakeRunner).Should(HaveStartedExecuting(
-						fake_command_runner.CommandSpec{
-							Path: binPath("iodaemon"),
-							Args: []string{
-								"link",
-								tmpdir + "/depot/some-id/processes/1.sock",
-							},
-						},
-					))
+					Eventually(fakeRunner).Should(HaveStartedExecuting(linkSpec))
 				}()
 
 				return nil
