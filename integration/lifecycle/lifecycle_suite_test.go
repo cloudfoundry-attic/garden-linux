@@ -27,9 +27,9 @@ var wardenProcess ifrit.Process
 var client warden.Client
 
 func startWarden(argv ...string) warden.Client {
-	wardenAddr := fmt.Sprintf("127.0.0.1:%d", 11997+GinkgoParallelNode())
+	wardenAddr := fmt.Sprintf("/tmp/warden_%d.sock", GinkgoParallelNode())
 
-	wardenRunner = Runner.New(wardenAddr, wardenBin, binPath, rootFSPath, argv...)
+	wardenRunner = Runner.New("unix", wardenAddr, wardenBin, binPath, rootFSPath, argv...)
 
 	wardenProcess = ifrit.Envoke(wardenRunner)
 

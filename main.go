@@ -250,8 +250,6 @@ func main() {
 		log.Fatalln("failed to set up backend:", err)
 	}
 
-	log.Println("starting server; listening with", *listenNetwork, "on", *listenAddr)
-
 	graceTime := *containerGraceTime
 
 	wardenServer := server.New(*listenNetwork, *listenAddr, graceTime, backend)
@@ -260,6 +258,8 @@ func main() {
 	if err != nil {
 		log.Fatalln("failed to start:", err)
 	}
+
+	log.Println("server started; listening with", *listenNetwork, "on", *listenAddr)
 
 	signals := make(chan os.Signal, 1)
 

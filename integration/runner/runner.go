@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"syscall"
@@ -14,12 +13,14 @@ import (
 	"github.com/cloudfoundry-incubator/garden/client/connection"
 	"github.com/cloudfoundry-incubator/garden/warden"
 	"github.com/onsi/ginkgo"
-	"github.com/onsi/gomega/gexec"
 	"github.com/pivotal-golang/lager"
+	"github.com/tedsuo/ifrit"
+	"github.com/tedsuo/ifrit/ginkgomon"
 )
 
 type Runner struct {
-	addr string
+	network string
+	addr    string
 
 	bin  string
 	argv []string
@@ -30,9 +31,10 @@ type Runner struct {
 	tmpdir string
 }
 
-func New(addr string, bin, binPath, rootFSPath string, argv ...string) *Runner {
+func New(network, addr string, bin, binPath, rootFSPath string, argv ...string) *Runner {
 	return &Runner{
-		addr: addr,
+		network: network,
+		addr:    addr,
 
 		bin:  bin,
 		argv: argv,
@@ -71,7 +73,7 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 
 	wardenArgs := append(
 		r.argv,
-		"--listenNetwork", "tcp",
+		"--listenNetwork", r.network,
 		"--listenAddr", r.addr,
 		"--bin", r.binPath,
 		"--rootfs", r.rootFSPath,
@@ -88,32 +90,30 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 		"--tag", strconv.Itoa(ginkgo.GinkgoParallelNode()),
 	)
 
-	session, err := gexec.Start(
-		exec.Command(r.bin, wardenArgs...),
-		gexec.NewPrefixedWriter("\x1b[32m[o]\x1b[31m[warden-linux]\x1b[0m ", ginkgo.GinkgoWriter),
-		gexec.NewPrefixedWriter("\x1b[91m[e]\x1b[31m[warden-linux]\x1b[0m ", ginkgo.GinkgoWriter),
-	)
-	if err != nil {
-		return err
-	}
+	var signal os.Signal
 
-	var dialErr error
-	for i := 0; i < 10; i++ {
-		dialErr = r.TryDial()
-		if dialErr == nil {
-			break
-		}
-
-		time.Sleep(time.Second)
-	}
-
-	if dialErr != nil {
-		return err
-	}
+	process := ifrit.Envoke(&ginkgomon.Runner{
+		Name:              "warden-linux",
+		BinPath:           r.bin,
+		Args:              wardenArgs,
+		AnsiColorCode:     "31m",
+		StartCheck:        "server started",
+		StartCheckTimeout: 10 * time.Second,
+		Cleanup: func() {
+			if signal == syscall.SIGKILL {
+				logger.Info("removing-tmp-dirs")
+				if err := os.RemoveAll(r.tmpdir); err != nil {
+					logger.Error("cleanup-tempdirs-failed", err, lager.Data{"tmpdir": r.tmpdir})
+				} else {
+					logger.Info("tmp-dirs-removed")
+				}
+			}
+		},
+	})
 
 	close(ready)
 
-	var signal os.Signal
+	var waitErr error
 
 dance:
 	for {
@@ -128,33 +128,19 @@ dance:
 				logger.Info("destroyed-containers")
 			}
 
-			session.Signal(syscall.SIGTERM)
-		case <-session.Exited:
+			process.Signal(syscall.SIGTERM)
+		case waitErr = <-process.Wait():
 			break dance
 		}
 	}
 
 	logger.Info("process-exited")
 
-	if signal == syscall.SIGKILL {
-		if err := os.RemoveAll(r.tmpdir); err != nil {
-			logger.Error("cleanup-tempdirs-failed", err, lager.Data{"tmpdir": r.tmpdir})
-			return err
-		}
-	}
-
-	if session.ExitCode() == 0 {
-		logger.Info("runner-exited-success")
-		return nil
-	}
-
-	err = fmt.Errorf("exit status %d", session.ExitCode())
-	logger.Error("runner-exited-failure", err, lager.Data{"exit_code": session.ExitCode()})
-	return err
+	return waitErr
 }
 
 func (r *Runner) TryDial() error {
-	conn, dialErr := net.Dial("tcp", r.addr)
+	conn, dialErr := net.DialTimeout(r.network, r.addr, 100*time.Millisecond)
 
 	if dialErr == nil {
 		conn.Close()
@@ -165,7 +151,7 @@ func (r *Runner) TryDial() error {
 }
 
 func (r *Runner) NewClient() warden.Client {
-	return client.New(connection.New("tcp", r.addr))
+	return client.New(connection.New(r.network, r.addr))
 }
 
 func (r *Runner) destroyContainers() error {
