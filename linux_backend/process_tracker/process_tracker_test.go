@@ -64,7 +64,7 @@ var _ = Describe("Running processes", func() {
 
 		setupSuccessfulSpawn()
 
-		process, err := processTracker.Run(cmd, warden.ProcessIO{})
+		process, err := processTracker.Run(cmd, warden.ProcessIO{}, false)
 		Expect(err).NotTo(HaveOccurred())
 
 		Eventually(fakeRunner).Should(HaveBackgrounded(
@@ -74,6 +74,7 @@ var _ = Describe("Running processes", func() {
 					"-c",
 					binPath("iodaemon") + ` "$@" &`,
 					binPath("iodaemon"),
+					"-tty=false",
 					"spawn",
 					fmt.Sprintf(tmpdir+"/depot/some-id/processes/%d.sock", process.ID()),
 					"/bin/bash",
@@ -121,16 +122,16 @@ var _ = Describe("Running processes", func() {
 			},
 		)
 
-		processTracker.Run(exec.Command("xxx"), warden.ProcessIO{})
+		processTracker.Run(exec.Command("xxx"), warden.ProcessIO{}, false)
 	}, 10.0)
 
 	It("returns unique process IDs", func() {
 		setupSuccessfulSpawn()
 
-		process1, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{})
+		process1, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{}, false)
 		Expect(err).NotTo(HaveOccurred())
 
-		process2, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{})
+		process2, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{}, false)
 		Expect(err).NotTo(HaveOccurred())
 
 		Ω(process1.ID()).ShouldNot(Equal(process2.ID()))
@@ -166,7 +167,7 @@ var _ = Describe("Running processes", func() {
 		_, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{
 			Stdout: stdout,
 			Stderr: stderr,
-		})
+		}, false)
 		Expect(err).NotTo(HaveOccurred())
 
 		Eventually(stdout).Should(gbytes.Say("hi out\n"))
@@ -204,10 +205,37 @@ var _ = Describe("Running processes", func() {
 		_, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{
 			Stdin:  bytes.NewBufferString("hi in"),
 			Stdout: stdout,
-		})
+		}, false)
 		Expect(err).NotTo(HaveOccurred())
 
 		Eventually(stdout).Should(gbytes.Say("roundtripped hi in\n"))
+	})
+
+	Context("with a tty", func() {
+		It("spawns with -tty", func() {
+			cmd := &exec.Cmd{Path: "/bin/bash", Args: []string{"-l"}}
+
+			setupSuccessfulSpawn()
+
+			process, err := processTracker.Run(cmd, warden.ProcessIO{}, true)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(fakeRunner).Should(HaveBackgrounded(
+				fake_command_runner.CommandSpec{
+					Path: "bash",
+					Args: []string{
+						"-c",
+						binPath("iodaemon") + ` "$@" &`,
+						binPath("iodaemon"),
+						"-tty=true",
+						"spawn",
+						fmt.Sprintf(tmpdir+"/depot/some-id/processes/%d.sock", process.ID()),
+						"/bin/bash",
+						"-l",
+					},
+				},
+			))
+		})
 	})
 
 	Context("when spawning fails", func() {
@@ -224,7 +252,7 @@ var _ = Describe("Running processes", func() {
 		})
 
 		It("returns the error", func() {
-			_, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{})
+			_, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{}, false)
 			Ω(err).Should(Equal(disaster))
 		})
 	})
@@ -245,7 +273,7 @@ var _ = Describe("Restoring processes", func() {
 
 		cmd.Stdin = bytes.NewBufferString("echo hi")
 
-		process, err := processTracker.Run(cmd, warden.ProcessIO{})
+		process, err := processTracker.Run(cmd, warden.ProcessIO{}, false)
 		Ω(err).ShouldNot(HaveOccurred())
 		Ω(process.ID()).Should(Equal(uint32(1)))
 
@@ -255,7 +283,7 @@ var _ = Describe("Restoring processes", func() {
 
 		cmd.Stdin = bytes.NewBufferString("echo hi")
 
-		process, err = processTracker.Run(cmd, warden.ProcessIO{})
+		process, err = processTracker.Run(cmd, warden.ProcessIO{}, false)
 		Ω(err).ShouldNot(HaveOccurred())
 		Ω(process.ID()).Should(Equal(uint32(6)))
 	})
@@ -307,7 +335,7 @@ var _ = Describe("Attaching to running processes", func() {
 		stdout := gbytes.NewBuffer()
 		stderr := gbytes.NewBuffer()
 
-		process, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{})
+		process, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{}, false)
 		Expect(err).NotTo(HaveOccurred())
 
 		process, err = processTracker.Attach(process.ID(), warden.ProcessIO{
@@ -362,7 +390,7 @@ var _ = Describe("Attaching to running processes", func() {
 
 			process, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{
 				Stdin: bytes.NewBufferString("hi in"),
-			})
+			}, false)
 			Expect(err).NotTo(HaveOccurred())
 
 			Ω(process.Wait()).Should(Equal(42))
@@ -392,10 +420,10 @@ var _ = Describe("Unlinking active processes", func() {
 			},
 		)
 
-		_, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{})
+		_, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{}, false)
 		Ω(err).ShouldNot(HaveOccurred())
 
-		_, err = processTracker.Run(exec.Command("xxx"), warden.ProcessIO{})
+		_, err = processTracker.Run(exec.Command("xxx"), warden.ProcessIO{}, false)
 		Ω(err).ShouldNot(HaveOccurred())
 
 		Eventually(linked).Should(Receive())
@@ -466,10 +494,10 @@ var _ = Describe("Listing active process IDs", func() {
 			},
 		)
 
-		process1, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{})
+		process1, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{}, false)
 		Ω(err).ShouldNot(HaveOccurred())
 
-		process2, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{})
+		process2, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{}, false)
 		Ω(err).ShouldNot(HaveOccurred())
 
 		runningIDs := append(<-running, <-running...)

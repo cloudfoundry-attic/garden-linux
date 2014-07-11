@@ -88,7 +88,7 @@ func (p *Process) Wait() (int, error) {
 	return p.exitStatus, p.exitErr
 }
 
-func (p *Process) Spawn(cmd *exec.Cmd) (ready, active chan error) {
+func (p *Process) Spawn(cmd *exec.Cmd, tty bool) (ready, active chan error) {
 	ready = make(chan error, 1)
 	active = make(chan error, 1)
 
@@ -102,6 +102,7 @@ func (p *Process) Spawn(cmd *exec.Cmd) (ready, active chan error) {
 			// spawn but not as a child process (fork off in the bash subprocess).
 			spawnPath + ` "$@" &`,
 			spawnPath,
+			fmt.Sprintf("-tty=%v", tty),
 			"spawn",
 			processSock,
 			cmd.Path,

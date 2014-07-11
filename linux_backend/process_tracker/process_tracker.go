@@ -10,7 +10,7 @@ import (
 )
 
 type ProcessTracker interface {
-	Run(*exec.Cmd, warden.ProcessIO) (warden.Process, error)
+	Run(*exec.Cmd, warden.ProcessIO, bool) (warden.Process, error)
 	Attach(uint32, warden.ProcessIO) (warden.Process, error)
 	Restore(processID uint32)
 	ActiveProcessIDs() []uint32
@@ -46,7 +46,7 @@ func New(containerPath string, runner command_runner.CommandRunner) ProcessTrack
 	}
 }
 
-func (t *processTracker) Run(cmd *exec.Cmd, processIO warden.ProcessIO) (warden.Process, error) {
+func (t *processTracker) Run(cmd *exec.Cmd, processIO warden.ProcessIO, tty bool) (warden.Process, error) {
 	t.processesMutex.Lock()
 
 	processID := t.nextProcessID
@@ -62,7 +62,7 @@ func (t *processTracker) Run(cmd *exec.Cmd, processIO warden.ProcessIO) (warden.
 
 	t.processesMutex.Unlock()
 
-	ready, active := process.Spawn(cmd)
+	ready, active := process.Spawn(cmd, tty)
 
 	err = <-ready
 	if err != nil {

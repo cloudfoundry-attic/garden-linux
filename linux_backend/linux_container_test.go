@@ -804,7 +804,7 @@ var _ = Describe("Linux containers", func() {
 
 			Ω(err).ShouldNot(HaveOccurred())
 
-			ranCmd, _ := fakeProcessTracker.RunArgsForCall(0)
+			ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
 			Ω(ranCmd.Path).Should(Equal("/depot/some-id/bin/wsh"))
 
 			Ω(ranCmd.Args).Should(Equal([]string{
@@ -842,7 +842,7 @@ var _ = Describe("Linux containers", func() {
 
 			Ω(err).ShouldNot(HaveOccurred())
 
-			ranCmd, _ := fakeProcessTracker.RunArgsForCall(0)
+			ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
 			Ω(ranCmd.Args).Should(Equal([]string{
 				"--socket", "/depot/some-id/run/wshd.sock",
 				"--user", "vcap",
@@ -860,7 +860,7 @@ var _ = Describe("Linux containers", func() {
 
 			Ω(err).ShouldNot(HaveOccurred())
 
-			ranCmd, _ := fakeProcessTracker.RunArgsForCall(0)
+			ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
 			Ω(ranCmd.Args).Should(Equal([]string{
 				"--socket", "/depot/some-id/run/wshd.sock",
 				"--user", "vcap",
@@ -869,9 +869,21 @@ var _ = Describe("Linux containers", func() {
 			}))
 		})
 
+		It("runs the script with a TTY if present", func() {
+			_, err := container.Run(warden.ProcessSpec{
+				Path: "/some/script",
+				TTY:  true,
+			}, warden.ProcessIO{})
+
+			Ω(err).ShouldNot(HaveOccurred())
+
+			_, _, tty := fakeProcessTracker.RunArgsForCall(0)
+			Ω(tty).Should(BeTrue())
+		})
+
 		Describe("streaming", func() {
 			BeforeEach(func() {
-				fakeProcessTracker.RunStub = func(cmd *exec.Cmd, io warden.ProcessIO) (warden.Process, error) {
+				fakeProcessTracker.RunStub = func(cmd *exec.Cmd, io warden.ProcessIO, tty bool) (warden.Process, error) {
 					writing := new(sync.WaitGroup)
 					writing.Add(1)
 
@@ -937,7 +949,7 @@ var _ = Describe("Linux containers", func() {
 
 			Ω(err).ShouldNot(HaveOccurred())
 
-			ranCmd, _ := fakeProcessTracker.RunArgsForCall(0)
+			ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
 			Ω(ranCmd.Path).Should(Equal("/depot/some-id/bin/wsh"))
 
 			Ω(ranCmd.Args).Should(Equal([]string{
@@ -967,7 +979,7 @@ var _ = Describe("Linux containers", func() {
 
 				Ω(err).ToNot(HaveOccurred())
 
-				ranCmd, _ := fakeProcessTracker.RunArgsForCall(0)
+				ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
 				Ω(ranCmd.Path).Should(Equal("/depot/some-id/bin/wsh"))
 
 				Ω(ranCmd.Args).Should(Equal([]string{

@@ -604,7 +604,7 @@ func (c *LinuxContainer) Run(spec warden.ProcessSpec, processIO warden.ProcessIO
 
 	setRLimitsEnv(wsh, spec.Limits)
 
-	return c.processTracker.Run(wsh, processIO)
+	return c.processTracker.Run(wsh, processIO, spec.TTY)
 }
 
 func (c *LinuxContainer) Attach(processID uint32, processIO warden.ProcessIO) (warden.Process, error) {

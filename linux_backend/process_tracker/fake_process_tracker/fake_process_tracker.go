@@ -4,16 +4,18 @@ package fake_process_tracker
 import (
 	"os/exec"
 	"sync"
+
 	"github.com/cloudfoundry-incubator/garden/warden"
 	. "github.com/cloudfoundry-incubator/warden-linux/linux_backend/process_tracker"
 )
 
 type FakeProcessTracker struct {
-	RunStub        func(*exec.Cmd, warden.ProcessIO) (warden.Process, error)
+	RunStub        func(*exec.Cmd, warden.ProcessIO, bool) (warden.Process, error)
 	runMutex       sync.RWMutex
 	runArgsForCall []struct {
 		arg1 *exec.Cmd
 		arg2 warden.ProcessIO
+		arg3 bool
 	}
 	runReturns struct {
 		result1 warden.Process
@@ -37,7 +39,7 @@ type FakeProcessTracker struct {
 	ActiveProcessIDsStub        func() []uint32
 	activeProcessIDsMutex       sync.RWMutex
 	activeProcessIDsArgsForCall []struct{}
-	activeProcessIDsReturns struct {
+	activeProcessIDsReturns     struct {
 		result1 []uint32
 	}
 	UnlinkAllStub        func()
@@ -45,15 +47,16 @@ type FakeProcessTracker struct {
 	unlinkAllArgsForCall []struct{}
 }
 
-func (fake *FakeProcessTracker) Run(arg1 *exec.Cmd, arg2 warden.ProcessIO) (warden.Process, error) {
+func (fake *FakeProcessTracker) Run(arg1 *exec.Cmd, arg2 warden.ProcessIO, arg3 bool) (warden.Process, error) {
 	fake.runMutex.Lock()
 	defer fake.runMutex.Unlock()
 	fake.runArgsForCall = append(fake.runArgsForCall, struct {
 		arg1 *exec.Cmd
 		arg2 warden.ProcessIO
-	}{arg1, arg2})
+		arg3 bool
+	}{arg1, arg2, arg3})
 	if fake.RunStub != nil {
-		return fake.RunStub(arg1, arg2)
+		return fake.RunStub(arg1, arg2, arg3)
 	} else {
 		return fake.runReturns.result1, fake.runReturns.result2
 	}
@@ -65,10 +68,10 @@ func (fake *FakeProcessTracker) RunCallCount() int {
 	return len(fake.runArgsForCall)
 }
 
-func (fake *FakeProcessTracker) RunArgsForCall(i int) (*exec.Cmd, warden.ProcessIO) {
+func (fake *FakeProcessTracker) RunArgsForCall(i int) (*exec.Cmd, warden.ProcessIO, bool) {
 	fake.runMutex.RLock()
 	defer fake.runMutex.RUnlock()
-	return fake.runArgsForCall[i].arg1, fake.runArgsForCall[i].arg2
+	return fake.runArgsForCall[i].arg1, fake.runArgsForCall[i].arg2, fake.runArgsForCall[i].arg3
 }
 
 func (fake *FakeProcessTracker) RunReturns(result1 warden.Process, result2 error) {
