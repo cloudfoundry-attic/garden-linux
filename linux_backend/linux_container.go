@@ -575,7 +575,7 @@ func (c *LinuxContainer) CurrentCPULimits() (warden.CPULimits, error) {
 	return warden.CPULimits{uint64(numericLimit)}, nil
 }
 
-func (c *LinuxContainer) Run(spec warden.ProcessSpec) (uint32, <-chan warden.ProcessStream, error) {
+func (c *LinuxContainer) Run(spec warden.ProcessSpec, processIO warden.ProcessIO) (warden.Process, error) {
 	log.Println(c.id, "running process:", spec.Path, spec.Args)
 
 	wshPath := path.Join(c.path, "bin", "wsh")
@@ -587,9 +587,8 @@ func (c *LinuxContainer) Run(spec warden.ProcessSpec) (uint32, <-chan warden.Pro
 	}
 
 	args := []string{"--socket", sockPath, "--user", user}
-	for _, envVar := range spec.EnvironmentVariables {
-		args = append(args, "--env")
-		args = append(args, fmt.Sprintf(`%s=%s`, envVar.Key, envVar.Value))
+	for _, envVar := range spec.Env {
+		args = append(args, "--env", envVar)
 	}
 
 	if spec.Dir != "" {
@@ -605,12 +604,12 @@ func (c *LinuxContainer) Run(spec warden.ProcessSpec) (uint32, <-chan warden.Pro
 
 	setRLimitsEnv(wsh, spec.Limits)
 
-	return c.processTracker.Run(wsh)
+	return c.processTracker.Run(wsh, processIO)
 }
 
-func (c *LinuxContainer) Attach(processID uint32) (<-chan warden.ProcessStream, error) {
+func (c *LinuxContainer) Attach(processID uint32, processIO warden.ProcessIO) (warden.Process, error) {
 	log.Println(c.id, "attaching to process", processID)
-	return c.processTracker.Attach(processID)
+	return c.processTracker.Attach(processID, processIO)
 }
 
 func (c *LinuxContainer) NetIn(hostPort uint32, containerPort uint32) (uint32, uint32, error) {

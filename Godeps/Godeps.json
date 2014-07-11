@@ -20,27 +20,27 @@
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/client",
-			"Rev": "f82f581ca0873fe6747a0cd595ad2f6d55752e8e"
+			"Rev": "c1ae3d080a25864f160848059f3ce454ea776acf"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/protocol",
-			"Rev": "f82f581ca0873fe6747a0cd595ad2f6d55752e8e"
+			"Rev": "c1ae3d080a25864f160848059f3ce454ea776acf"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/routes",
-			"Rev": "f82f581ca0873fe6747a0cd595ad2f6d55752e8e"
+			"Rev": "c1ae3d080a25864f160848059f3ce454ea776acf"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/server",
-			"Rev": "f82f581ca0873fe6747a0cd595ad2f6d55752e8e"
+			"Rev": "c1ae3d080a25864f160848059f3ce454ea776acf"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/transport",
-			"Rev": "f82f581ca0873fe6747a0cd595ad2f6d55752e8e"
+			"Rev": "c1ae3d080a25864f160848059f3ce454ea776acf"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/warden",
-			"Rev": "f82f581ca0873fe6747a0cd595ad2f6d55752e8e"
+			"Rev": "c1ae3d080a25864f160848059f3ce454ea776acf"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry/gosigar",
@@ -160,6 +160,11 @@
 			"ImportPath": "github.com/dotcloud/docker/vendor/src/code.google.com/p/go/src/pkg/archive/tar",
 			"Comment": "v1.1.1-151-g840ed5a",
 			"Rev": "840ed5ace28381e61b6b34063f9afb71d63fb6a9"
+		},
+		{
+			"ImportPath": "github.com/kr/pty",
+			"Comment": "release.r56-19-g67e2db2",
+			"Rev": "67e2db24c831afa6c64fc17b4a143390674365ef"
 		},
 		{
 			"ImportPath": "github.com/nu7hatch/gouuid",

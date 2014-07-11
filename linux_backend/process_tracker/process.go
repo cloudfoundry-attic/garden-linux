@@ -2,6 +2,7 @@ package process_tracker
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -14,85 +15,103 @@ import (
 )
 
 type Process struct {
-	ID uint32
+	id uint32
 
 	containerPath string
 	runner        command_runner.CommandRunner
 
-	waitingLinks   *sync.Mutex
-	completionLock *sync.Mutex
-	runningLink    *sync.Once
-	link           *exec.Cmd
+	waitingLinks *sync.Mutex
+	runningLink  *sync.Once
+	link         *exec.Cmd
 
 	linked   chan struct{}
 	unlinked <-chan struct{}
 
-	streams     []chan warden.ProcessStream
-	streamsLock *sync.RWMutex
+	exitStatus int
+	exitErr    error
+	done       bool
+	doneL      *sync.Cond
 
-	completed bool
+	stdin  *os.File
+	stdinW *faninWriter
 
-	exitStatus uint32
-	stdout     *namedStream
-	stderr     *namedStream
+	stdout *fanoutWriter
+	stderr *fanoutWriter
 }
 
 func NewProcess(
 	id uint32,
 	containerPath string,
 	runner command_runner.CommandRunner,
-) *Process {
+) (*Process, error) {
 	unlinked := make(chan struct{}, 1)
 	unlinked <- struct{}{}
 
-	p := &Process{
-		ID: id,
+	inR, inW, err := os.Pipe()
+	if err != nil {
+		return nil, err
+	}
+
+	return &Process{
+		id: id,
 
 		containerPath: containerPath,
 		runner:        runner,
 
-		streamsLock: &sync.RWMutex{},
+		waitingLinks: &sync.Mutex{},
+		runningLink:  &sync.Once{},
+		linked:       make(chan struct{}),
+		unlinked:     unlinked,
 
-		waitingLinks:   &sync.Mutex{},
-		runningLink:    &sync.Once{},
-		completionLock: &sync.Mutex{},
-		linked:         make(chan struct{}),
-		unlinked:       unlinked,
+		doneL: sync.NewCond(&sync.Mutex{}),
+
+		stdin:  inR,
+		stdinW: &faninWriter{w: inW},
+		stdout: &fanoutWriter{},
+		stderr: &fanoutWriter{},
+	}, nil
+}
+
+func (p *Process) ID() uint32 {
+	return p.id
+}
+
+func (p *Process) Wait() (int, error) {
+	p.doneL.L.Lock()
+
+	for !p.done {
+		p.doneL.Wait()
 	}
 
-	p.stdout = newNamedStream(p, warden.ProcessStreamSourceStdout)
-	p.stderr = newNamedStream(p, warden.ProcessStreamSourceStderr)
+	defer p.doneL.L.Unlock()
 
-	return p
+	return p.exitStatus, p.exitErr
 }
 
 func (p *Process) Spawn(cmd *exec.Cmd) (ready, active chan error) {
 	ready = make(chan error, 1)
 	active = make(chan error, 1)
 
-	spawnPath := path.Join(p.containerPath, "bin", "iomux-spawn")
-	processDir := path.Join(p.containerPath, "processes", fmt.Sprintf("%d", p.ID))
-
-	mkdir := &exec.Cmd{
-		Path: "mkdir",
-		Args: []string{"-p", processDir},
-	}
-
-	err := p.runner.Run(mkdir)
-	if err != nil {
-		ready <- err
-		return
-	}
+	spawnPath := path.Join(p.containerPath, "bin", "iodaemon")
+	processSock := path.Join(p.containerPath, "processes", fmt.Sprintf("%d.sock", p.ID()))
 
 	spawn := &exec.Cmd{
-		Path:  "bash",
+		Env: cmd.Env,
+
+		Path: "bash",
+		Args: append([]string{
+			"-c",
+			// spawn but not as a child process (fork off in the bash subprocess). pipe
+			// 'cat' to it to keep stdin connected.
+			"cat | " + spawnPath + ` "$@" &`,
+			spawnPath,
+			"spawn",
+			processSock,
+			cmd.Path,
+		}, cmd.Args...),
+
 		Stdin: cmd.Stdin,
 	}
-
-	spawn.Args = append([]string{"-c", "cat | " + spawnPath + ` "$@" &`, spawnPath, processDir}, cmd.Path)
-	spawn.Args = append(spawn.Args, cmd.Args...)
-
-	spawn.Env = cmd.Env
 
 	spawnR, err := spawn.StdoutPipe()
 	if err != nil {
@@ -151,22 +170,37 @@ func (p *Process) Unlink() error {
 	return p.runner.Signal(p.link, os.Interrupt)
 }
 
-func (p *Process) Stream() chan warden.ProcessStream {
-	return p.registerStream()
+func (p *Process) Attach(processIO warden.ProcessIO) {
+	if processIO.Stdin != nil {
+		p.stdinW.AddSource(processIO.Stdin)
+	}
+
+	if processIO.Stdout != nil {
+		p.stdout.AddSink(processIO.Stdout)
+	}
+
+	if processIO.Stderr != nil {
+		p.stderr.AddSink(processIO.Stderr)
+	}
 }
 
 func (p *Process) runLinker() {
-	linkPath := path.Join(p.containerPath, "bin", "iomux-link")
-	processDir := path.Join(p.containerPath, "processes", fmt.Sprintf("%d", p.ID))
+	linkPath := path.Join(p.containerPath, "bin", "iodaemon")
+	processSock := path.Join(p.containerPath, "processes", fmt.Sprintf("%d.sock", p.ID()))
 
 	p.link = &exec.Cmd{
 		Path:   linkPath,
-		Args:   []string{"-w", path.Join(processDir, "cursors"), processDir},
+		Args:   []string{"link", processSock},
+		Stdin:  p.stdin,
 		Stdout: p.stdout,
 		Stderr: p.stderr,
 	}
 
-	p.runner.Start(p.link)
+	err := p.runner.Start(p.link)
+	if err != nil {
+		p.completed(-1, err)
+		return
+	}
 
 	close(p.linked)
 
@@ -185,53 +219,26 @@ func (p *Process) runLinker() {
 	// exited
 	<-p.unlinked
 
-	exitStatus := uint32(255)
-
 	if p.link.ProcessState != nil {
-		exitStatus = uint32(p.link.ProcessState.Sys().(syscall.WaitStatus).ExitStatus())
+		p.completed(p.link.ProcessState.Sys().(syscall.WaitStatus).ExitStatus(), nil)
+	} else {
+		// this really should not happen, since we called .Wait()
+		p.completed(-1, errors.New("could not determine exit status"))
+	}
+}
+
+func (p *Process) completed(exitStatus int, err error) {
+	p.doneL.L.Lock()
+
+	if p.done {
+		p.doneL.L.Unlock()
+		return
 	}
 
+	p.done = true
+	p.exitErr = err
 	p.exitStatus = exitStatus
+	p.doneL.L.Unlock()
 
-	p.closeStreams()
-}
-
-func (p *Process) registerStream() chan warden.ProcessStream {
-	p.streamsLock.Lock()
-	defer p.streamsLock.Unlock()
-
-	stream := make(chan warden.ProcessStream, 1000)
-
-	p.streams = append(p.streams, stream)
-
-	if p.completed {
-		defer p.closeStreams()
-	}
-
-	return stream
-}
-
-func (p *Process) sendToStreams(chunk warden.ProcessStream) {
-	p.streamsLock.RLock()
-	defer p.streamsLock.RUnlock()
-
-	for _, stream := range p.streams {
-		select {
-		case stream <- chunk:
-		default:
-		}
-	}
-}
-
-func (p *Process) closeStreams() {
-	p.streamsLock.RLock()
-	defer p.streamsLock.RUnlock()
-
-	for _, stream := range p.streams {
-		stream <- warden.ProcessStream{ExitStatus: &(p.exitStatus)}
-		close(stream)
-	}
-
-	p.streams = nil
-	p.completed = true
+	p.doneL.Broadcast()
 }

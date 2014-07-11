@@ -10,8 +10,8 @@ import (
 )
 
 type ProcessTracker interface {
-	Run(*exec.Cmd) (uint32, chan warden.ProcessStream, error)
-	Attach(uint32) (chan warden.ProcessStream, error)
+	Run(*exec.Cmd, warden.ProcessIO) (warden.Process, error)
+	Attach(uint32, warden.ProcessIO) (warden.Process, error)
 	Restore(processID uint32)
 	ActiveProcessIDs() []uint32
 	UnlinkAll()
@@ -41,16 +41,22 @@ func New(containerPath string, runner command_runner.CommandRunner) ProcessTrack
 
 		processes:      make(map[uint32]*Process),
 		processesMutex: new(sync.RWMutex),
+
+		nextProcessID: 1,
 	}
 }
 
-func (t *processTracker) Run(cmd *exec.Cmd) (uint32, chan warden.ProcessStream, error) {
+func (t *processTracker) Run(cmd *exec.Cmd, processIO warden.ProcessIO) (warden.Process, error) {
 	t.processesMutex.Lock()
 
 	processID := t.nextProcessID
 	t.nextProcessID++
 
-	process := NewProcess(processID, t.containerPath, t.runner)
+	process, err := NewProcess(processID, t.containerPath, t.runner)
+	if err != nil {
+		t.processesMutex.Unlock()
+		return nil, err
+	}
 
 	t.processes[processID] = process
 
@@ -58,24 +64,24 @@ func (t *processTracker) Run(cmd *exec.Cmd) (uint32, chan warden.ProcessStream, 
 
 	ready, active := process.Spawn(cmd)
 
-	err := <-ready
+	err = <-ready
 	if err != nil {
-		return 0, nil, err
+		return nil, err
 	}
 
-	processStream := process.Stream()
+	process.Attach(processIO)
 
 	go t.link(processID)
 
 	err = <-active
 	if err != nil {
-		return 0, nil, err
+		return nil, err
 	}
 
-	return processID, processStream, nil
+	return process, nil
 }
 
-func (t *processTracker) Attach(processID uint32) (chan warden.ProcessStream, error) {
+func (t *processTracker) Attach(processID uint32, processIO warden.ProcessIO) (warden.Process, error) {
 	t.processesMutex.RLock()
 	process, ok := t.processes[processID]
 	t.processesMutex.RUnlock()
@@ -84,17 +90,20 @@ func (t *processTracker) Attach(processID uint32) (chan warden.ProcessStream, er
 		return nil, UnknownProcessError{processID}
 	}
 
-	processStream := process.Stream()
+	process.Attach(processIO)
 
 	go t.link(processID)
 
-	return processStream, nil
+	return process, nil
 }
 
 func (t *processTracker) Restore(processID uint32) {
 	t.processesMutex.Lock()
 
-	process := NewProcess(processID, t.containerPath, t.runner)
+	process, err := NewProcess(processID, t.containerPath, t.runner)
+	if err != nil {
+		return
+	}
 
 	t.processes[processID] = process
 
@@ -114,7 +123,7 @@ func (t *processTracker) ActiveProcessIDs() []uint32 {
 	processIDs := []uint32{}
 
 	for _, process := range t.processes {
-		processIDs = append(processIDs, process.ID)
+		processIDs = append(processIDs, process.ID())
 	}
 
 	return processIDs

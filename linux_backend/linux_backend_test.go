@@ -162,7 +162,6 @@ var _ = Describe("Start", func() {
 				"handle-a": true,
 				"handle-b": true,
 			}))
-
 		})
 
 		Context("when restoring the container fails", func() {

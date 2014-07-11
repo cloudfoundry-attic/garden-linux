@@ -1,0 +1,12 @@
+#!/bin/bash
+# vim: set ft=sh
+
+export GOROOT=/usr/local/go
+export PATH=$GOROOT/bin:$PATH
+
+export GOPATH=$PWD/gopath
+export PATH=$GOPATH/bin:$PATH
+
+cd $(dirname $0)/..
+
+./scripts/drone-test "$@"

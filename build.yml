@@ -1,22 +1,8 @@
 ---
 image: docker:///cloudfoundry/warden-ci
 
+paths:
+  warden-linux: gopath/src/github.com/cloudfoundry-incubator/warden-linux
+
 run:
-  path: bash
-  args:
-    - '-c'
-    - |
-      set -e
-
-      export GOROOT=/usr/local/go
-      export PATH=$GOROOT/bin:$PATH
-      export GOPATH=/tmp/build/src
-      export PATH=/usr/local/bin:$PATH
-      export REPO_DIR=$GOPATH/src/github.com/cloudfoundry-incubator/warden-linux
-
-      mkdir -p $(dirname $REPO_DIR)
-      ln -s $PWD/$(basename $REPO_DIR) $REPO_DIR
-
-      cd $REPO_DIR
-
-      ./scripts/drone-test
+  path: gopath/src/github.com/cloudfoundry-incubator/warden-linux/scripts/concourse-test

@@ -10,7 +10,7 @@ var _ = Describe("A container with a grace time", func() {
 	var container warden.Container
 
 	BeforeEach(func() {
-		client = startWarden("--containerGraceTime", "5s")
+		client = startWarden("--containerGraceTime", "3s")
 
 		var err error
 
@@ -20,8 +20,13 @@ var _ = Describe("A container with a grace time", func() {
 
 	Context("when a request takes longer than the grace time", func() {
 		It("is not destroyed after the request is over", func() {
-			_, _, err := container.Run(warden.ProcessSpec{Path: "bash", Args: []string{"-c", "sleep 6"}})
+			process, err := container.Run(warden.ProcessSpec{
+				Path: "sleep",
+				Args: []string{"5"},
+			}, warden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(process.Wait()).Should(Equal(0))
 
 			_, err = container.Info()
 			Ω(err).ShouldNot(HaveOccurred())
