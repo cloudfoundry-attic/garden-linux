@@ -96,21 +96,17 @@ func (p *Process) Spawn(cmd *exec.Cmd) (ready, active chan error) {
 	processSock := path.Join(p.containerPath, "processes", fmt.Sprintf("%d.sock", p.ID()))
 
 	spawn := &exec.Cmd{
-		Env: cmd.Env,
-
 		Path: "bash",
 		Args: append([]string{
 			"-c",
-			// spawn but not as a child process (fork off in the bash subprocess). pipe
-			// 'cat' to it to keep stdin connected.
-			"cat | " + spawnPath + ` "$@" &`,
+			// spawn but not as a child process (fork off in the bash subprocess).
+			spawnPath + ` "$@" &`,
 			spawnPath,
 			"spawn",
 			processSock,
 			cmd.Path,
 		}, cmd.Args...),
-
-		Stdin: cmd.Stdin,
+		Env: cmd.Env,
 	}
 
 	spawnR, err := spawn.StdoutPipe()

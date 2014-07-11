@@ -60,9 +60,7 @@ var _ = Describe("Running processes", func() {
 	})
 
 	It("runs the command asynchronously via iodaemon spawn", func() {
-		cmd := &exec.Cmd{Path: "/bin/bash"}
-
-		cmd.Stdin = bytes.NewBufferString("echo hi")
+		cmd := &exec.Cmd{Path: "/bin/bash", Args: []string{"-l"}}
 
 		setupSuccessfulSpawn()
 
@@ -74,13 +72,13 @@ var _ = Describe("Running processes", func() {
 				Path: "bash",
 				Args: []string{
 					"-c",
-					"cat | " + binPath("iodaemon") + ` "$@" &`,
+					binPath("iodaemon") + ` "$@" &`,
 					binPath("iodaemon"),
 					"spawn",
 					fmt.Sprintf(tmpdir+"/depot/some-id/processes/%d.sock", process.ID()),
 					"/bin/bash",
+					"-l",
 				},
-				Stdin: "echo hi",
 			},
 		))
 	})
