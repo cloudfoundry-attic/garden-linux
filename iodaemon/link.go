@@ -59,14 +59,12 @@ func link(socketPath string) {
 	go func() {
 		io.Copy(inputWriter, os.Stdin)
 		inputWriter.Close()
-		os.Stdin.Close()
 	}()
 
 	streaming.Add(1)
 	go func() {
 		io.Copy(os.Stdout, stdout)
 		stdout.Close()
-		os.Stdout.Close()
 		streaming.Done()
 	}()
 
@@ -74,7 +72,6 @@ func link(socketPath string) {
 	go func() {
 		io.Copy(os.Stderr, stderr)
 		stderr.Close()
-		os.Stderr.Close()
 		streaming.Done()
 	}()
 
