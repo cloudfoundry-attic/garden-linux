@@ -88,4 +88,29 @@ var _ = Describe("Iodaemon", func() {
 
 		Eventually(linkS).Should(gexec.Exit(42))
 	})
+
+	Describe("spawning with -tty", func() {
+		It("executes with a 80x24 tty", func() {
+			spawnS, err := gexec.Start(exec.Command(
+				iodaemon,
+				"-tty",
+				"spawn",
+				socketPath,
+				"bash", "-c", "tput -Txterm cols; tput -Txterm lines",
+			), GinkgoWriter, GinkgoWriter)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			defer spawnS.Kill()
+
+			Eventually(spawnS).Should(gbytes.Say("ready\n"))
+
+			link := exec.Command(iodaemon, "link", socketPath)
+
+			linkS, err := gexec.Start(link, GinkgoWriter, GinkgoWriter)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Eventually(linkS).Should(gbytes.Say("80\r\n24\r\n"))
+			Eventually(linkS).Should(gexec.Exit(0))
+		})
+	})
 })

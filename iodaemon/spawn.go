@@ -35,8 +35,15 @@ func spawn(socketPath string, path string, argv []string, timeout time.Duration,
 		Args: argv,
 	}
 
-	var stdinW, stdoutR, stderrR *os.File
-	var stdinR, stdoutW, stderrW *os.File
+	// stderr will not be assigned in the case of a tty, so make
+	// a dummy pipe to send across instead
+	stderrR, stderrW, err := os.Pipe()
+	if err != nil {
+		fatal(err)
+	}
+
+	var stdinW, stdoutR *os.File
+	var stdinR, stdoutW *os.File
 
 	if withTty {
 		pty, tty, err := pty.Open()
@@ -46,11 +53,9 @@ func spawn(socketPath string, path string, argv []string, timeout time.Duration,
 
 		stdinW = pty
 		stdoutR = pty
-		stderrR = pty
 
 		stdinR = tty
 		stdoutW = tty
-		stderrW = tty
 
 		setWinSize(pty, 80, 24)
 
@@ -62,11 +67,6 @@ func spawn(socketPath string, path string, argv []string, timeout time.Duration,
 		}
 
 		stdoutR, stdoutW, err = os.Pipe()
-		if err != nil {
-			fatal(err)
-		}
-
-		stderrR, stderrW, err = os.Pipe()
 		if err != nil {
 			fatal(err)
 		}
