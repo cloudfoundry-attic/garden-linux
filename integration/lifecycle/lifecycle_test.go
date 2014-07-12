@@ -113,6 +113,40 @@ var _ = Describe("Creating a container", func() {
 			Ω(process.Wait()).Should(Equal(0))
 		})
 
+		Context("with a tty", func() {
+			It("can have its terminal resized", func() {
+				stdout := gbytes.NewBuffer()
+
+				process, err := container.Run(warden.ProcessSpec{
+					Path: "bash",
+					Args: []string{
+						"-c",
+						`
+						trap 'stty -a; exit 42' WINCH
+
+						while true; do
+							echo waiting
+							sleep 0.5
+						done
+						`,
+					},
+					TTY: true,
+				}, warden.ProcessIO{
+					Stdout: stdout,
+				})
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Eventually(stdout).Should(gbytes.Say("waiting"))
+
+				err = process.SetWindowSize(123, 456)
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Eventually(stdout).Should(gbytes.Say("rows 456; columns 123;"))
+
+				Ω(process.Wait()).Should(Equal(42))
+			})
+		})
+
 		Context("with a working directory", func() {
 			It("executes with the working directory as the dir", func() {
 				stdout := gbytes.NewBuffer()

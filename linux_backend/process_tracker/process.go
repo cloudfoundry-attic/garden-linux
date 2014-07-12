@@ -12,10 +12,14 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden/warden"
 	"github.com/cloudfoundry/gunk/command_runner"
+	"github.com/kr/pty"
+
+	"github.com/cloudfoundry-incubator/warden-linux/ptyutil"
 )
 
 type Process struct {
-	id uint32
+	id      uint32
+	withTty bool
 
 	containerPath string
 	runner        command_runner.CommandRunner
@@ -41,19 +45,29 @@ type Process struct {
 
 func NewProcess(
 	id uint32,
+	withTty bool,
 	containerPath string,
 	runner command_runner.CommandRunner,
 ) (*Process, error) {
 	unlinked := make(chan struct{}, 1)
 	unlinked <- struct{}{}
 
-	inR, inW, err := os.Pipe()
+	var inR, inW *os.File
+	var err error
+
+	if withTty {
+		inW, inR, err = pty.Open()
+	} else {
+		inR, inW, err = os.Pipe()
+	}
+
 	if err != nil {
 		return nil, err
 	}
 
 	return &Process{
-		id: id,
+		id:      id,
+		withTty: withTty,
 
 		containerPath: containerPath,
 		runner:        runner,
@@ -88,7 +102,20 @@ func (p *Process) Wait() (int, error) {
 	return p.exitStatus, p.exitErr
 }
 
-func (p *Process) Spawn(cmd *exec.Cmd, tty bool) (ready, active chan error) {
+func (p *Process) SetWindowSize(cols, rows int) error {
+	err := ptyutil.SetWinSize(p.stdin, cols, rows)
+	if err != nil {
+		return err
+	}
+
+	return p.link.Process.Signal(syscall.SIGWINCH)
+}
+
+func (p *Process) WithTTY() bool {
+	return p.withTty
+}
+
+func (p *Process) Spawn(cmd *exec.Cmd) (ready, active chan error) {
 	ready = make(chan error, 1)
 	active = make(chan error, 1)
 
@@ -102,7 +129,7 @@ func (p *Process) Spawn(cmd *exec.Cmd, tty bool) (ready, active chan error) {
 			// spawn but not as a child process (fork off in the bash subprocess).
 			spawnPath + ` "$@" &`,
 			spawnPath,
-			fmt.Sprintf("-tty=%v", tty),
+			fmt.Sprintf("-tty=%v", p.withTty),
 			"spawn",
 			processSock,
 			cmd.Path,
@@ -186,8 +213,12 @@ func (p *Process) runLinker() {
 	processSock := path.Join(p.containerPath, "processes", fmt.Sprintf("%d.sock", p.ID()))
 
 	p.link = &exec.Cmd{
-		Path:   linkPath,
-		Args:   []string{"link", processSock},
+		Path: linkPath,
+		Args: []string{
+			fmt.Sprintf("-tty=%v", p.withTty),
+			"link",
+			processSock,
+		},
 		Stdin:  p.stdin,
 		Stdout: p.stdout,
 		Stderr: p.stderr,

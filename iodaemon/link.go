@@ -7,8 +7,12 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/signal"
 	"sync"
 	"syscall"
+
+	"github.com/kr/pty"
+	"github.com/pkg/term"
 )
 
 func link(socketPath string) {
@@ -53,11 +57,41 @@ func link(socketPath string) {
 
 	inputWriter := &inputWriter{gob.NewEncoder(conn)}
 
+	var input io.Reader
+
+	if *tty {
+		term, err := term.Open(os.Stdin.Name())
+		if err == nil {
+			err = term.SetRaw()
+			if err == nil {
+				input = term
+				defer term.Restore()
+			}
+		}
+
+		resized := make(chan os.Signal, 10)
+
+		go func() {
+			for {
+				<-resized
+
+				rows, cols, err := pty.Getsize(os.Stdin)
+				if err == nil {
+					inputWriter.SetWindowSize(cols, rows)
+				}
+			}
+		}()
+
+		signal.Notify(resized, syscall.SIGWINCH)
+	} else {
+		input = os.Stdin
+	}
+
 	// do not add stdin to the waitgroup; it appears to cause things to hang.
 	// doesn't make much sense anyway; if stdout/stderr closed we probably
 	// can't write any more to stdin in the first place.
 	go func() {
-		io.Copy(inputWriter, os.Stdin)
+		io.Copy(inputWriter, input)
 		inputWriter.Close()
 	}()
 

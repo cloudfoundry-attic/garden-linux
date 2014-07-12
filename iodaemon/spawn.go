@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/cloudfoundry-incubator/warden-linux/ptyutil"
 	"github.com/kr/pty"
 )
 
@@ -48,13 +49,17 @@ func spawn(socketPath string, path string, argv []string, timeout time.Duration,
 			fatal(err)
 		}
 
+		// do NOT assign stderrR to pty; the receiving end should only receive one
+		// pty output stream, as they're both the same fd
+
 		stdinW = pty
 		stdoutR = pty
 
 		stdinR = tty
 		stdoutW = tty
+		stderrW = tty
 
-		setWinSize(pty, 80, 24)
+		ptyutil.SetWinSize(stdinW, 80, 24)
 
 		cmd.SysProcAttr.Setctty = true
 		cmd.SysProcAttr.Setsid = true
@@ -145,7 +150,10 @@ func spawn(socketPath string, path string, argv []string, timeout time.Duration,
 				break
 			}
 
-			if input.EOF {
+			if input.WindowSize != nil {
+				ptyutil.SetWinSize(stdinW, input.WindowSize.Columns, input.WindowSize.Rows)
+				cmd.Process.Signal(syscall.SIGWINCH)
+			} else if input.EOF {
 				err := stdinW.Close()
 				if err != nil {
 					conn.Close()

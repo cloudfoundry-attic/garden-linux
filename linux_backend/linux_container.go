@@ -193,10 +193,13 @@ func (c *LinuxContainer) Snapshot(out io.Writer) error {
 
 	processSnapshots := []ProcessSnapshot{}
 
-	for _, id := range c.processTracker.ActiveProcessIDs() {
+	for _, p := range c.processTracker.ActiveProcesses() {
 		processSnapshots = append(
 			processSnapshots,
-			ProcessSnapshot{ID: id},
+			ProcessSnapshot{
+				ID:  p.ID(),
+				TTY: p.WithTTY(),
+			},
 		)
 	}
 
@@ -248,7 +251,7 @@ func (c *LinuxContainer) Restore(snapshot ContainerSnapshot) error {
 	}
 
 	for _, process := range snapshot.Processes {
-		c.processTracker.Restore(process.ID)
+		c.processTracker.Restore(process.ID, process.TTY)
 	}
 
 	net := &exec.Cmd{
@@ -370,6 +373,11 @@ func (c *LinuxContainer) Info() (warden.ContainerInfo, error) {
 
 	c.netInsMutex.RUnlock()
 
+	processIDs := []uint32{}
+	for _, process := range c.processTracker.ActiveProcesses() {
+		processIDs = append(processIDs, process.ID())
+	}
+
 	return warden.ContainerInfo{
 		State:         string(c.State()),
 		Events:        c.Events(),
@@ -377,7 +385,7 @@ func (c *LinuxContainer) Info() (warden.ContainerInfo, error) {
 		HostIP:        c.resources.Network.HostIP().String(),
 		ContainerIP:   c.resources.Network.ContainerIP().String(),
 		ContainerPath: c.path,
-		ProcessIDs:    c.processTracker.ActiveProcessIDs(),
+		ProcessIDs:    processIDs,
 		MemoryStat:    parseMemoryStat(memoryStat),
 		CPUStat:       parseCPUStat(cpuUsage, cpuStat),
 		DiskStat:      diskStat,
