@@ -30,13 +30,17 @@ func spawn(socketPath string, path string, argv []string, timeout time.Duration,
 		fatal(err)
 	}
 
-	cmd := &exec.Cmd{
-		Path: bin,
-		Args: argv,
+	cmd := child(bin, argv)
+
+	// stderr will not be assigned in the case of a tty, so make
+	// a dummy pipe to send across instead
+	stderrR, stderrW, err := os.Pipe()
+	if err != nil {
+		fatal(err)
 	}
 
-	var stdinW, stdoutR, stderrR *os.File
-	var stdinR, stdoutW, stderrW *os.File
+	var stdinW, stdoutR *os.File
+	var stdinR, stdoutW *os.File
 
 	if withTty {
 		pty, tty, err := pty.Open()
@@ -46,15 +50,14 @@ func spawn(socketPath string, path string, argv []string, timeout time.Duration,
 
 		stdinW = pty
 		stdoutR = pty
-		stderrR = pty
 
 		stdinR = tty
 		stdoutW = tty
-		stderrW = tty
 
 		setWinSize(pty, 80, 24)
 
-		cmd.SysProcAttr = &syscall.SysProcAttr{Setctty: true, Setsid: true}
+		cmd.SysProcAttr.Setctty = true
+		cmd.SysProcAttr.Setsid = true
 	} else {
 		stdinR, stdinW, err = os.Pipe()
 		if err != nil {
@@ -62,11 +65,6 @@ func spawn(socketPath string, path string, argv []string, timeout time.Duration,
 		}
 
 		stdoutR, stdoutW, err = os.Pipe()
-		if err != nil {
-			fatal(err)
-		}
-
-		stderrR, stderrW, err = os.Pipe()
 		if err != nil {
 			fatal(err)
 		}
