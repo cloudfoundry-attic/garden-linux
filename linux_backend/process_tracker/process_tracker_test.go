@@ -88,6 +88,7 @@ var _ = Describe("Running processes", func() {
 		linkSpec := fake_command_runner.CommandSpec{
 			Path: binPath("iodaemon"),
 			Args: []string{
+				"-tty=false",
 				"link",
 				tmpdir + "/depot/some-id/processes/1.sock",
 			},
@@ -144,6 +145,7 @@ var _ = Describe("Running processes", func() {
 			fake_command_runner.CommandSpec{
 				Path: binPath("iodaemon"),
 				Args: []string{
+					"-tty=false",
 					"link",
 					tmpdir + "/depot/some-id/processes/1.sock",
 				},
@@ -181,6 +183,7 @@ var _ = Describe("Running processes", func() {
 			fake_command_runner.CommandSpec{
 				Path: binPath("iodaemon"),
 				Args: []string{
+					"-tty=false",
 					"link",
 					tmpdir + "/depot/some-id/processes/1.sock",
 				},
@@ -212,7 +215,7 @@ var _ = Describe("Running processes", func() {
 	})
 
 	Context("with a tty", func() {
-		It("spawns with -tty", func() {
+		It("spawns and links with -tty", func() {
 			cmd := &exec.Cmd{Path: "/bin/bash", Args: []string{"-l"}}
 
 			setupSuccessfulSpawn()
@@ -232,6 +235,17 @@ var _ = Describe("Running processes", func() {
 						fmt.Sprintf(tmpdir+"/depot/some-id/processes/%d.sock", process.ID()),
 						"/bin/bash",
 						"-l",
+					},
+				},
+			))
+
+			Eventually(fakeRunner).Should(HaveStartedExecuting(
+				fake_command_runner.CommandSpec{
+					Path: binPath("iodaemon"),
+					Args: []string{
+						"-tty=true",
+						"link",
+						fmt.Sprintf(tmpdir+"/depot/some-id/processes/%d.sock", process.ID()),
 					},
 				},
 			))
@@ -267,7 +281,7 @@ var _ = Describe("Restoring processes", func() {
 	It("makes the next process ID be higher than the highest restored ID", func() {
 		setupSuccessfulSpawn()
 
-		processTracker.Restore(0)
+		processTracker.Restore(0, false)
 
 		cmd := &exec.Cmd{Path: "/bin/bash"}
 
@@ -277,7 +291,7 @@ var _ = Describe("Restoring processes", func() {
 		Ω(err).ShouldNot(HaveOccurred())
 		Ω(process.ID()).Should(Equal(uint32(1)))
 
-		processTracker.Restore(5)
+		processTracker.Restore(5, false)
 
 		cmd = &exec.Cmd{Path: "/bin/bash"}
 
@@ -289,11 +303,11 @@ var _ = Describe("Restoring processes", func() {
 	})
 
 	It("tracks the restored process", func() {
-		processTracker.Restore(2)
+		processTracker.Restore(2, false)
 
-		activeProcesses := processTracker.ActiveProcessIDs()
-
-		Ω(activeProcesses).Should(Equal([]uint32{2}))
+		activeProcesses := processTracker.ActiveProcesses()
+		Ω(activeProcesses).Should(HaveLen(1))
+		Ω(activeProcesses[0].ID()).Should(Equal(uint32(2)))
 	})
 })
 
@@ -306,6 +320,7 @@ var _ = Describe("Attaching to running processes", func() {
 			fake_command_runner.CommandSpec{
 				Path: binPath("iodaemon"),
 				Args: []string{
+					"-tty=false",
 					"link",
 					tmpdir + "/depot/some-id/processes/1.sock",
 				},
@@ -355,12 +370,13 @@ var _ = Describe("Attaching to running processes", func() {
 		It("runs iodaemon link", func() {
 			setupSuccessfulSpawn()
 
-			processTracker.Restore(1)
+			processTracker.Restore(1, false)
 
 			Ω(fakeRunner).ShouldNot(HaveStartedExecuting(
 				fake_command_runner.CommandSpec{
 					Path: binPath("iodaemon"),
 					Args: []string{
+						"-tty=false",
 						"link",
 						tmpdir + "/depot/some-id/processes/1.sock",
 					},
@@ -376,6 +392,7 @@ var _ = Describe("Attaching to running processes", func() {
 				fake_command_runner.CommandSpec{
 					Path: binPath("iodaemon"),
 					Args: []string{
+						"-tty=false",
 						"link",
 						tmpdir + "/depot/some-id/processes/1.sock",
 					},
@@ -435,6 +452,7 @@ var _ = Describe("Unlinking active processes", func() {
 			fake_command_runner.CommandSpec{
 				Path: tmpdir + "/depot/some-id/bin/iodaemon",
 				Args: []string{
+					"-tty=false",
 					"link",
 					tmpdir + "/depot/some-id/processes/1.sock",
 				},
@@ -446,6 +464,7 @@ var _ = Describe("Unlinking active processes", func() {
 			fake_command_runner.CommandSpec{
 				Path: tmpdir + "/depot/some-id/bin/iodaemon",
 				Args: []string{
+					"-tty=false",
 					"link",
 					tmpdir + "/depot/some-id/processes/2.sock",
 				},
@@ -464,18 +483,19 @@ var _ = Describe("Listing active process IDs", func() {
 	It("includes running process IDs", func() {
 		setupSuccessfulSpawn()
 
-		running := make(chan []uint32, 2)
+		running := make(chan []process_tracker.LinuxProcess, 2)
 
 		fakeRunner.WhenRunning(
 			fake_command_runner.CommandSpec{
 				Path: binPath("iodaemon"),
 				Args: []string{
+					"-tty=false",
 					"link",
 					tmpdir + "/depot/some-id/processes/1.sock",
 				},
 			},
 			func(cmd *exec.Cmd) error {
-				running <- processTracker.ActiveProcessIDs()
+				running <- processTracker.ActiveProcesses()
 				return nil
 			},
 		)
@@ -484,12 +504,13 @@ var _ = Describe("Listing active process IDs", func() {
 			fake_command_runner.CommandSpec{
 				Path: binPath("iodaemon"),
 				Args: []string{
+					"-tty=false",
 					"link",
 					tmpdir + "/depot/some-id/processes/2.sock",
 				},
 			},
 			func(cmd *exec.Cmd) error {
-				running <- processTracker.ActiveProcessIDs()
+				running <- processTracker.ActiveProcesses()
 				return nil
 			},
 		)
@@ -502,7 +523,7 @@ var _ = Describe("Listing active process IDs", func() {
 
 		runningIDs := append(<-running, <-running...)
 
-		Ω(runningIDs).Should(ContainElement(process1.ID()))
-		Ω(runningIDs).Should(ContainElement(process2.ID()))
+		Ω(runningIDs).Should(ContainElement(process1))
+		Ω(runningIDs).Should(ContainElement(process2))
 	})
 })

@@ -1,6 +1,3 @@
-// spawn [-t <timeout>] <socket directory> <args...>
-// link <socket directory>
-
 package main
 
 import (

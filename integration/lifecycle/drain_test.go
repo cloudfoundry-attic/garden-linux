@@ -33,7 +33,7 @@ var _ = Describe("Through a restart", func() {
 		Ω(handles).Should(ContainElement(container.Handle()))
 	})
 
-	Describe("a started job", func() {
+	Describe("a started process", func() {
 		It("continues to stream", func() {
 			process, err := container.Run(warden.ProcessSpec{
 				Path: "bash",
@@ -56,9 +56,57 @@ var _ = Describe("Through a restart", func() {
 		})
 
 		It("can still accept stdin", func() {
+			r, w := io.Pipe()
+
+			stdout := gbytes.NewBuffer()
+
 			process, err := container.Run(warden.ProcessSpec{
 				Path: "bash",
 				Args: []string{"-c", "cat <&0"},
+			}, warden.ProcessIO{
+				Stdin:  r,
+				Stdout: stdout,
+			})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			_, err = fmt.Fprintf(w, "hello")
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Eventually(stdout).Should(gbytes.Say("hello"))
+
+			restartWarden()
+
+			_, err = process.Wait()
+			Ω(err).Should(HaveOccurred())
+
+			err = w.Close()
+			Ω(err).ShouldNot(HaveOccurred())
+
+			process, err = container.Attach(process.ID(), warden.ProcessIO{
+				Stdin:  bytes.NewBufferString("world"),
+				Stdout: stdout,
+			})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Eventually(stdout, 10).Should(gbytes.Say("world"))
+			Ω(process.Wait()).Should(Equal(0))
+		})
+
+		It("can still have its tty window resized", func() {
+			process, err := container.Run(warden.ProcessSpec{
+				Path: "bash",
+				Args: []string{
+					"-c",
+					`
+						trap 'stty -a; exit 42' WINCH
+
+						while true; do
+							echo waiting
+							sleep 0.5
+						done
+						`,
+				},
+				TTY: true,
 			}, warden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -70,13 +118,15 @@ var _ = Describe("Through a restart", func() {
 			stdout := gbytes.NewBuffer()
 
 			process, err = container.Attach(process.ID(), warden.ProcessIO{
-				Stdin:  bytes.NewBufferString("hello\nworld"),
 				Stdout: stdout,
 			})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Eventually(stdout).Should(gbytes.Say("hello\nworld"))
-			Ω(process.Wait()).Should(Equal(0))
+			err = process.SetWindowSize(123, 456)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Eventually(stdout).Should(gbytes.Say("rows 456; columns 123;"))
+			Ω(process.Wait()).Should(Equal(42))
 		})
 
 		It("does not have its job ID repeated", func() {

@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/cloudfoundry-incubator/warden-linux/ptyutil"
 	"github.com/kr/pty"
 )
 
@@ -30,13 +31,17 @@ func spawn(socketPath string, path string, argv []string, timeout time.Duration,
 		fatal(err)
 	}
 
-	cmd := &exec.Cmd{
-		Path: bin,
-		Args: argv,
+	cmd := child(bin, argv)
+
+	// stderr will not be assigned in the case of a tty, so make
+	// a dummy pipe to send across instead
+	stderrR, stderrW, err := os.Pipe()
+	if err != nil {
+		fatal(err)
 	}
 
-	var stdinW, stdoutR, stderrR *os.File
-	var stdinR, stdoutW, stderrW *os.File
+	var stdinW, stdoutR *os.File
+	var stdinR, stdoutW *os.File
 
 	if withTty {
 		pty, tty, err := pty.Open()
@@ -44,17 +49,20 @@ func spawn(socketPath string, path string, argv []string, timeout time.Duration,
 			fatal(err)
 		}
 
+		// do NOT assign stderrR to pty; the receiving end should only receive one
+		// pty output stream, as they're both the same fd
+
 		stdinW = pty
 		stdoutR = pty
-		stderrR = pty
 
 		stdinR = tty
 		stdoutW = tty
 		stderrW = tty
 
-		setWinSize(pty, 80, 24)
+		ptyutil.SetWinSize(stdinW, 80, 24)
 
-		cmd.SysProcAttr = &syscall.SysProcAttr{Setctty: true, Setsid: true}
+		cmd.SysProcAttr.Setctty = true
+		cmd.SysProcAttr.Setsid = true
 	} else {
 		stdinR, stdinW, err = os.Pipe()
 		if err != nil {
@@ -62,11 +70,6 @@ func spawn(socketPath string, path string, argv []string, timeout time.Duration,
 		}
 
 		stdoutR, stdoutW, err = os.Pipe()
-		if err != nil {
-			fatal(err)
-		}
-
-		stderrR, stderrW, err = os.Pipe()
 		if err != nil {
 			fatal(err)
 		}
@@ -147,7 +150,10 @@ func spawn(socketPath string, path string, argv []string, timeout time.Duration,
 				break
 			}
 
-			if input.EOF {
+			if input.WindowSize != nil {
+				ptyutil.SetWinSize(stdinW, input.WindowSize.Columns, input.WindowSize.Rows)
+				cmd.Process.Signal(syscall.SIGWINCH)
+			} else if input.EOF {
 				err := stdinW.Close()
 				if err != nil {
 					conn.Close()

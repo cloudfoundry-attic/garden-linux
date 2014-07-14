@@ -13,6 +13,8 @@ import (
 )
 
 var iodaemon string
+var winsizeReporter string
+
 var tmpdir string
 var socketPath string
 
@@ -20,6 +22,9 @@ var _ = BeforeSuite(func() {
 	var err error
 
 	iodaemon, err = gexec.Build("github.com/cloudfoundry-incubator/warden-linux/iodaemon", "-race")
+	Ω(err).ShouldNot(HaveOccurred())
+
+	winsizeReporter, err = gexec.Build("github.com/cloudfoundry-incubator/warden-linux/iodaemon/winsizereporter", "-race")
 	Ω(err).ShouldNot(HaveOccurred())
 })
 

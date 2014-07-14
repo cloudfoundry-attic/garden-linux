@@ -20,12 +20,12 @@ import (
 	"github.com/onsi/gomega/gbytes"
 
 	"github.com/cloudfoundry-incubator/garden/warden"
-	wfakes "github.com/cloudfoundry-incubator/garden/warden/fakes"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/bandwidth_manager/fake_bandwidth_manager"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/cgroups_manager/fake_cgroups_manager"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/network_pool"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/port_pool/fake_port_pool"
+	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/process_tracker"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/process_tracker/fake_process_tracker"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/quota_manager/fake_quota_manager"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
@@ -128,7 +128,19 @@ var _ = Describe("Linux containers", func() {
 			err = container.NetOut("network-b", 2)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			fakeProcessTracker.ActiveProcessIDsReturns([]uint32{1, 2, 3})
+			p1 := new(fake_process_tracker.FakeLinuxProcess)
+			p1.IDReturns(1)
+			p1.WithTTYReturns(true)
+
+			p2 := new(fake_process_tracker.FakeLinuxProcess)
+			p2.IDReturns(2)
+			p2.WithTTYReturns(false)
+
+			p3 := new(fake_process_tracker.FakeLinuxProcess)
+			p3.IDReturns(3)
+			p3.WithTTYReturns(true)
+
+			fakeProcessTracker.ActiveProcessesReturns([]process_tracker.LinuxProcess{p1, p2, p3})
 		})
 
 		It("writes a JSON ContainerSnapshot", func() {
@@ -185,26 +197,28 @@ var _ = Describe("Linux containers", func() {
 
 			Ω(snapshot.Processes).Should(ContainElement(
 				linux_backend.ProcessSnapshot{
-					ID: 1,
+					ID:  1,
+					TTY: true,
 				},
 			))
 
 			Ω(snapshot.Processes).Should(ContainElement(
 				linux_backend.ProcessSnapshot{
-					ID: 2,
+					ID:  2,
+					TTY: false,
 				},
 			))
 
 			Ω(snapshot.Processes).Should(ContainElement(
 				linux_backend.ProcessSnapshot{
-					ID: 3,
+					ID:  3,
+					TTY: true,
 				},
 			))
 
 			Ω(snapshot.Properties).Should(Equal(warden.Properties(map[string]string{
 				"property-name": "property-value",
 			})))
-
 		})
 
 		Context("with limits set", func() {
@@ -248,7 +262,6 @@ var _ = Describe("Linux containers", func() {
 						CPU:       &cpuLimits,
 					},
 				))
-
 			})
 		})
 
@@ -300,17 +313,24 @@ var _ = Describe("Linux containers", func() {
 
 				Processes: []linux_backend.ProcessSnapshot{
 					{
-						ID: 0,
+						ID:  0,
+						TTY: false,
 					},
 					{
-						ID: 1,
+						ID:  1,
+						TTY: true,
 					},
 				},
 			})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Ω(fakeProcessTracker.RestoreArgsForCall(0)).Should(Equal(uint32(0)))
-			Ω(fakeProcessTracker.RestoreArgsForCall(1)).Should(Equal(uint32(1)))
+			pid, tty := fakeProcessTracker.RestoreArgsForCall(0)
+			Ω(pid).Should(Equal(uint32(0)))
+			Ω(tty).Should(BeFalse())
+
+			pid, tty = fakeProcessTracker.RestoreArgsForCall(1)
+			Ω(pid).Should(Equal(uint32(1)))
+			Ω(tty).Should(BeTrue())
 		})
 
 		It("redoes network setup and net-in/net-outs", func() {
@@ -883,7 +903,7 @@ var _ = Describe("Linux containers", func() {
 
 		Describe("streaming", func() {
 			BeforeEach(func() {
-				fakeProcessTracker.RunStub = func(cmd *exec.Cmd, io warden.ProcessIO, tty bool) (warden.Process, error) {
+				fakeProcessTracker.RunStub = func(cmd *exec.Cmd, io warden.ProcessIO, tty bool) (process_tracker.LinuxProcess, error) {
 					writing := new(sync.WaitGroup)
 					writing.Add(1)
 
@@ -898,7 +918,7 @@ var _ = Describe("Linux containers", func() {
 						Ω(err).ShouldNot(HaveOccurred())
 					}()
 
-					process := new(wfakes.FakeProcess)
+					process := new(fake_process_tracker.FakeLinuxProcess)
 
 					process.IDReturns(42)
 
@@ -1010,7 +1030,7 @@ var _ = Describe("Linux containers", func() {
 	Describe("Attaching", func() {
 		Context("to a started process", func() {
 			BeforeEach(func() {
-				fakeProcessTracker.AttachStub = func(id uint32, io warden.ProcessIO) (warden.Process, error) {
+				fakeProcessTracker.AttachStub = func(id uint32, io warden.ProcessIO) (process_tracker.LinuxProcess, error) {
 					writing := new(sync.WaitGroup)
 					writing.Add(1)
 
@@ -1025,7 +1045,7 @@ var _ = Describe("Linux containers", func() {
 						Ω(err).ShouldNot(HaveOccurred())
 					}()
 
-					process := new(wfakes.FakeProcess)
+					process := new(fake_process_tracker.FakeLinuxProcess)
 
 					process.IDReturns(42)
 
@@ -1749,7 +1769,19 @@ var _ = Describe("Linux containers", func() {
 
 		Context("with running processes", func() {
 			BeforeEach(func() {
-				fakeProcessTracker.ActiveProcessIDsReturns([]uint32{1, 2, 3})
+				p1 := new(fake_process_tracker.FakeLinuxProcess)
+				p1.IDReturns(1)
+				p1.WithTTYReturns(true)
+
+				p2 := new(fake_process_tracker.FakeLinuxProcess)
+				p2.IDReturns(2)
+				p2.WithTTYReturns(false)
+
+				p3 := new(fake_process_tracker.FakeLinuxProcess)
+				p3.IDReturns(3)
+				p3.WithTTYReturns(true)
+
+				fakeProcessTracker.ActiveProcessesReturns([]process_tracker.LinuxProcess{p1, p2, p3})
 			})
 
 			It("returns their process IDs", func() {

@@ -43,5 +43,6 @@ type ResourcesSnapshot struct {
 }
 
 type ProcessSnapshot struct {
-	ID uint32
+	ID  uint32
+	TTY bool
 }

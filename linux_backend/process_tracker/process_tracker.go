@@ -10,11 +10,16 @@ import (
 )
 
 type ProcessTracker interface {
-	Run(*exec.Cmd, warden.ProcessIO, bool) (warden.Process, error)
-	Attach(uint32, warden.ProcessIO) (warden.Process, error)
-	Restore(processID uint32)
-	ActiveProcessIDs() []uint32
+	Run(*exec.Cmd, warden.ProcessIO, bool) (LinuxProcess, error)
+	Attach(uint32, warden.ProcessIO) (LinuxProcess, error)
+	Restore(processID uint32, tty bool)
+	ActiveProcesses() []LinuxProcess
 	UnlinkAll()
+}
+
+type LinuxProcess interface {
+	warden.Process
+	WithTTY() bool
 }
 
 type processTracker struct {
@@ -46,13 +51,13 @@ func New(containerPath string, runner command_runner.CommandRunner) ProcessTrack
 	}
 }
 
-func (t *processTracker) Run(cmd *exec.Cmd, processIO warden.ProcessIO, tty bool) (warden.Process, error) {
+func (t *processTracker) Run(cmd *exec.Cmd, processIO warden.ProcessIO, tty bool) (LinuxProcess, error) {
 	t.processesMutex.Lock()
 
 	processID := t.nextProcessID
 	t.nextProcessID++
 
-	process, err := NewProcess(processID, t.containerPath, t.runner)
+	process, err := NewProcess(processID, tty, t.containerPath, t.runner)
 	if err != nil {
 		t.processesMutex.Unlock()
 		return nil, err
@@ -62,7 +67,7 @@ func (t *processTracker) Run(cmd *exec.Cmd, processIO warden.ProcessIO, tty bool
 
 	t.processesMutex.Unlock()
 
-	ready, active := process.Spawn(cmd, tty)
+	ready, active := process.Spawn(cmd)
 
 	err = <-ready
 	if err != nil {
@@ -81,7 +86,7 @@ func (t *processTracker) Run(cmd *exec.Cmd, processIO warden.ProcessIO, tty bool
 	return process, nil
 }
 
-func (t *processTracker) Attach(processID uint32, processIO warden.ProcessIO) (warden.Process, error) {
+func (t *processTracker) Attach(processID uint32, processIO warden.ProcessIO) (LinuxProcess, error) {
 	t.processesMutex.RLock()
 	process, ok := t.processes[processID]
 	t.processesMutex.RUnlock()
@@ -97,10 +102,10 @@ func (t *processTracker) Attach(processID uint32, processIO warden.ProcessIO) (w
 	return process, nil
 }
 
-func (t *processTracker) Restore(processID uint32) {
+func (t *processTracker) Restore(processID uint32, tty bool) {
 	t.processesMutex.Lock()
 
-	process, err := NewProcess(processID, t.containerPath, t.runner)
+	process, err := NewProcess(processID, tty, t.containerPath, t.runner)
 	if err != nil {
 		return
 	}
@@ -116,17 +121,19 @@ func (t *processTracker) Restore(processID uint32) {
 	t.processesMutex.Unlock()
 }
 
-func (t *processTracker) ActiveProcessIDs() []uint32 {
+func (t *processTracker) ActiveProcesses() []LinuxProcess {
 	t.processesMutex.RLock()
 	defer t.processesMutex.RUnlock()
 
-	processIDs := []uint32{}
+	processes := make([]LinuxProcess, len(t.processes))
 
+	i := 0
 	for _, process := range t.processes {
-		processIDs = append(processIDs, process.ID())
+		processes[i] = process
+		i++
 	}
 
-	return processIDs
+	return processes
 }
 
 func (t *processTracker) UnlinkAll() {
