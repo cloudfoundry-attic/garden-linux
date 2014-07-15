@@ -3,6 +3,7 @@ package main_test
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"syscall"
@@ -107,16 +108,19 @@ var _ = Describe("Iodaemon", func() {
 
 			Eventually(spawnS).Should(gbytes.Say("ready\n"))
 
-			pty, tty, err := pty.Open()
+			inR, inW := io.Pipe()
 			Ω(err).ShouldNot(HaveOccurred())
 
-			link := exec.Command(iodaemon, "-tty", "link", socketPath)
-			link.Stdin = tty
+			link := exec.Command(iodaemon, "link", socketPath)
+			link.Stdin = inR
 
 			linkS, err := gexec.Start(link, GinkgoWriter, GinkgoWriter)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			_, err = pty.WriteString("out\n")
+			_, err = inW.Write([]byte("out\r\n"))
+			Ω(err).ShouldNot(HaveOccurred())
+
+			err = inW.Close()
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Eventually(linkS).Should(gbytes.Say("hi out\r\n"))
@@ -142,7 +146,7 @@ var _ = Describe("Iodaemon", func() {
 			pty, tty, err := pty.Open()
 			Ω(err).ShouldNot(HaveOccurred())
 
-			link := exec.Command(iodaemon, "-tty", "link", socketPath)
+			link := exec.Command(iodaemon, "link", socketPath)
 			link.Stdin = tty
 
 			linkS, err := gexec.Start(link, GinkgoWriter, GinkgoWriter)
