@@ -199,11 +199,28 @@ var _ = Describe("Creating a container", func() {
 
 		Context("and then sending a Stop request", func() {
 			It("terminates all running processes", func() {
+				stdout := gbytes.NewBuffer()
+
 				process, err := container.Run(warden.ProcessSpec{
-					Path: "ruby",
-					Args: []string{"-e", `trap("TERM") { exit 42 }; while true; sleep 1; end`},
-				}, warden.ProcessIO{})
+					Path: "bash",
+					Args: []string{
+						"-c",
+						`
+						trap 'exit 42' SIGTERM
+
+						# sync with test, and allow trap to fire when not sleeping
+						while true; do
+							echo waiting
+							sleep 0.5
+						done
+						`,
+					},
+				}, warden.ProcessIO{
+					Stdout: stdout,
+				})
 				Ω(err).ShouldNot(HaveOccurred())
+
+				Eventually(stdout, 30).Should(gbytes.Say("waiting"))
 
 				err = container.Stop(false)
 				Ω(err).ShouldNot(HaveOccurred())
@@ -214,22 +231,33 @@ var _ = Describe("Creating a container", func() {
 			It("recursively terminates all child processes", func(done Done) {
 				defer close(done)
 
+				stdout := gbytes.NewBuffer()
+
 				process, err := container.Run(warden.ProcessSpec{
 					Path: "bash",
-					Args: []string{"-c", `
-# don't die until child processes die
-trap wait SIGTERM
+					Args: []string{
+						"-c",
+						`
+						# don't die until child processes die
+						trap wait SIGTERM
 
-# spawn child that exits when it receives TERM
-bash -c 'sleep 100 & wait' &
+						# spawn child that exits when it receives TERM
+						bash -c 'sleep 100 & wait' &
 
-# wait on children
-wait
-`,
+						# sync with test
+						echo waiting
+
+						# wait on children
+						wait
+						`,
 					},
-				}, warden.ProcessIO{})
+				}, warden.ProcessIO{
+					Stdout: stdout,
+				})
 
 				Ω(err).ShouldNot(HaveOccurred())
+
+				Eventually(stdout, 5).Should(gbytes.Say("waiting\n"))
 
 				stoppedAt := time.Now()
 
