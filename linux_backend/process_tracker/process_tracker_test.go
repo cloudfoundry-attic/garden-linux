@@ -326,13 +326,13 @@ var _ = Describe("Attaching to running processes", func() {
 				},
 			},
 			func(cmd *exec.Cmd) error {
-				cmd.Stdout.Write([]byte("hi out\n"))
-				cmd.Stderr.Write([]byte("hi err\n"))
-
 				stdin, err := ioutil.ReadAll(cmd.Stdin)
 				Ω(err).ShouldNot(HaveOccurred())
 
 				fmt.Fprintf(cmd.Stdout, "roundtripped %s\n", stdin)
+
+				cmd.Stdout.Write([]byte("hi out\n"))
+				cmd.Stderr.Write([]byte("hi err\n"))
 
 				dummyCmd := exec.Command("/bin/bash", "-c", "exit 42")
 				dummyCmd.Run()
@@ -360,9 +360,8 @@ var _ = Describe("Attaching to running processes", func() {
 		})
 		Expect(err).NotTo(HaveOccurred())
 
-		Eventually(stdout).Should(gbytes.Say("hi out\n"))
 		Eventually(stdout).Should(gbytes.Say("roundtripped hi in\n"))
-
+		Eventually(stdout).Should(gbytes.Say("hi out\n"))
 		Eventually(stderr).Should(gbytes.Say("hi err\n"))
 	})
 
