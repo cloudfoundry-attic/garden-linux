@@ -94,17 +94,21 @@ var _ = Describe("Through a restart", func() {
 
 		It("can still have its tty window resized", func() {
 			process, err := container.Run(warden.ProcessSpec{
-				Path: "bash",
+				Path: "ruby",
 				Args: []string{
-					"-c",
-					`
-						trap 'stty -a; exit 42' WINCH
+					"-e",
 
-						while true; do
-							echo waiting
-							sleep 0.5
-						done
-						`,
+					// apparently, processes may receive SIGWINCH immediately upon
+					// spawning. the initial approach was to exit after receiving the
+					// signal, but sometimes it would exit immediately.
+					//
+					// so, instead, print whenever we receive SIGWINCH, and only exit
+					// when a line of text is entered.
+					`
+					$stdout.sync = true
+					trap("WINCH") { system "stty -a" }
+					gets
+					`,
 				},
 				TTY: true,
 			}, warden.ProcessIO{})
@@ -115,9 +119,12 @@ var _ = Describe("Through a restart", func() {
 			_, err = process.Wait()
 			Ω(err).Should(HaveOccurred())
 
+			inR, inW := io.Pipe()
+
 			stdout := gbytes.NewBuffer()
 
 			process, err = container.Attach(process.ID(), warden.ProcessIO{
+				Stdin:  inR,
 				Stdout: stdout,
 			})
 			Ω(err).ShouldNot(HaveOccurred())
@@ -126,7 +133,11 @@ var _ = Describe("Through a restart", func() {
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Eventually(stdout).Should(gbytes.Say("rows 456; columns 123;"))
-			Ω(process.Wait()).Should(Equal(42))
+
+			_, err = fmt.Fprintf(inW, "ok\n")
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(process.Wait()).Should(Equal(0))
 		})
 
 		It("does not have its job ID repeated", func() {
