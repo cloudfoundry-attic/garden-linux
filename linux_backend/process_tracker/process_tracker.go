@@ -57,11 +57,7 @@ func (t *processTracker) Run(cmd *exec.Cmd, processIO warden.ProcessIO, tty bool
 	processID := t.nextProcessID
 	t.nextProcessID++
 
-	process, err := NewProcess(processID, tty, t.containerPath, t.runner)
-	if err != nil {
-		t.processesMutex.Unlock()
-		return nil, err
-	}
+	process := NewProcess(processID, tty, t.containerPath, t.runner)
 
 	t.processes[processID] = process
 
@@ -69,7 +65,7 @@ func (t *processTracker) Run(cmd *exec.Cmd, processIO warden.ProcessIO, tty bool
 
 	ready, active := process.Spawn(cmd)
 
-	err = <-ready
+	err := <-ready
 	if err != nil {
 		return nil, err
 	}
@@ -105,10 +101,7 @@ func (t *processTracker) Attach(processID uint32, processIO warden.ProcessIO) (L
 func (t *processTracker) Restore(processID uint32, tty bool) {
 	t.processesMutex.Lock()
 
-	process, err := NewProcess(processID, tty, t.containerPath, t.runner)
-	if err != nil {
-		return
-	}
+	process := NewProcess(processID, tty, t.containerPath, t.runner)
 
 	t.processes[processID] = process
 

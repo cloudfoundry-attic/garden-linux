@@ -36,9 +36,9 @@ type Process struct {
 	done       bool
 	doneL      *sync.Cond
 
-	stdin  *os.File
-	stdinW *faninWriter
+	pty *os.File
 
+	stdin  *faninWriter
 	stdout *fanoutWriter
 	stderr *fanoutWriter
 }
@@ -48,32 +48,9 @@ func NewProcess(
 	withTty bool,
 	containerPath string,
 	runner command_runner.CommandRunner,
-) (*Process, error) {
+) *Process {
 	unlinked := make(chan struct{}, 1)
 	unlinked <- struct{}{}
-
-	var inR, inW *os.File
-	var err error
-
-	if withTty {
-		pty, tty, err := pty.Open()
-		if err != nil {
-			return nil, err
-		}
-
-		err = ptyutil.SetRaw(tty)
-		if err != nil {
-			return nil, err
-		}
-
-		inR = tty
-		inW = pty
-	} else {
-		inR, inW, err = os.Pipe()
-		if err != nil {
-			return nil, err
-		}
-	}
 
 	return &Process{
 		id:      id,
@@ -89,11 +66,10 @@ func NewProcess(
 
 		doneL: sync.NewCond(&sync.Mutex{}),
 
-		stdin:  inR,
-		stdinW: &faninWriter{w: inW},
+		stdin:  &faninWriter{hasSink: make(chan struct{})},
 		stdout: &fanoutWriter{},
 		stderr: &fanoutWriter{},
-	}, nil
+	}
 }
 
 func (p *Process) ID() uint32 {
@@ -115,9 +91,11 @@ func (p *Process) Wait() (int, error) {
 func (p *Process) SetWindowSize(cols, rows int) error {
 	<-p.linked
 
-	err := ptyutil.SetWinSize(p.stdin, cols, rows)
-	if err != nil {
-		return err
+	if p.pty != nil {
+		err := ptyutil.SetWinSize(p.pty, cols, rows)
+		if err != nil {
+			return err
+		}
 	}
 
 	return p.link.Process.Signal(syscall.SIGWINCH)
@@ -208,7 +186,7 @@ func (p *Process) Unlink() error {
 
 func (p *Process) Attach(processIO warden.ProcessIO) {
 	if processIO.Stdin != nil {
-		p.stdinW.AddSource(processIO.Stdin)
+		p.stdin.AddSource(processIO.Stdin)
 	}
 
 	if processIO.Stdout != nil {
@@ -224,6 +202,36 @@ func (p *Process) runLinker() {
 	linkPath := path.Join(p.containerPath, "bin", "iodaemon")
 	processSock := path.Join(p.containerPath, "processes", fmt.Sprintf("%d.sock", p.ID()))
 
+	var inR, inW *os.File
+	var err error
+
+	if p.withTty {
+		pty, tty, err := pty.Open()
+		if err != nil {
+			p.completed(-1, err)
+			return
+		}
+
+		err = ptyutil.SetRaw(tty)
+		if err != nil {
+			p.completed(-1, err)
+			return
+		}
+
+		inR = tty
+		inW = pty
+
+		p.pty = pty
+	} else {
+		inR, inW, err = os.Pipe()
+		if err != nil {
+			p.completed(-1, err)
+			return
+		}
+	}
+
+	p.stdin.AddSink(inW)
+
 	p.link = &exec.Cmd{
 		Path: linkPath,
 		Args: []string{
@@ -231,16 +239,19 @@ func (p *Process) runLinker() {
 			"link",
 			processSock,
 		},
-		Stdin:  p.stdin,
+		Stdin:  inR,
 		Stdout: p.stdout,
 		Stderr: p.stderr,
 	}
 
-	err := p.runner.Start(p.link)
+	err = p.runner.Start(p.link)
 	if err != nil {
 		p.completed(-1, err)
 		return
 	}
+
+	// close our slave tty now that the process has it
+	inR.Close()
 
 	close(p.linked)
 

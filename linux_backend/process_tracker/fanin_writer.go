@@ -10,9 +10,13 @@ type faninWriter struct {
 	w      io.WriteCloser
 	closed bool
 	writeL sync.Mutex
+
+	hasSink chan struct{}
 }
 
 func (w *faninWriter) Write(data []byte) (int, error) {
+	<-w.hasSink
+
 	w.writeL.Lock()
 
 	if w.closed {
@@ -25,6 +29,8 @@ func (w *faninWriter) Write(data []byte) (int, error) {
 }
 
 func (w *faninWriter) Close() error {
+	<-w.hasSink
+
 	w.writeL.Lock()
 
 	if w.closed {
@@ -38,9 +44,14 @@ func (w *faninWriter) Close() error {
 	return w.w.Close()
 }
 
-func (w *faninWriter) AddSource(sink io.Reader) {
+func (w *faninWriter) AddSink(sink io.WriteCloser) {
+	w.w = sink
+	close(w.hasSink)
+}
+
+func (w *faninWriter) AddSource(source io.Reader) {
 	go func() {
-		io.Copy(w, sink)
+		io.Copy(w, source)
 		w.Close()
 	}()
 }
