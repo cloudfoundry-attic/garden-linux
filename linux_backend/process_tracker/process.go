@@ -113,6 +113,8 @@ func (p *Process) Wait() (int, error) {
 }
 
 func (p *Process) SetWindowSize(cols, rows int) error {
+	<-p.linked
+
 	err := ptyutil.SetWinSize(p.stdin, cols, rows)
 	if err != nil {
 		return err
