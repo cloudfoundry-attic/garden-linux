@@ -139,17 +139,26 @@ var _ = Describe("Iodaemon", func() {
 			), GinkgoWriter, GinkgoWriter)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			defer spawnS.Kill()
-
 			Eventually(spawnS).Should(gbytes.Say("ready\n"))
 
 			pty, tty, err := pty.Open()
 			Ω(err).ShouldNot(HaveOccurred())
 
+			ptyDone := make(chan struct{})
+
+			go func() {
+				io.Copy(os.Stderr, pty)
+				close(ptyDone)
+			}()
+
 			link := exec.Command(iodaemon, "link", socketPath)
 			link.Stdin = tty
 
 			linkS, err := gexec.Start(link, GinkgoWriter, GinkgoWriter)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			// close our end of the pipe now that the child has its own
+			err = tty.Close()
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Eventually(linkS).Should(gbytes.Say("rows: 24, cols: 80\r\n"))
@@ -161,7 +170,11 @@ var _ = Describe("Iodaemon", func() {
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Eventually(linkS).Should(gbytes.Say("rows: 456, cols: 123\r\n"))
+
+			Eventually(spawnS).Should(gexec.Exit(0))
 			Eventually(linkS).Should(gexec.Exit(0))
+
+			Eventually(ptyDone).Should(BeClosed(), "pty should have closed")
 		})
 	})
 })
