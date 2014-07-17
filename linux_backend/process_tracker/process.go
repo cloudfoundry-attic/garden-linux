@@ -56,13 +56,23 @@ func NewProcess(
 	var err error
 
 	if withTty {
-		inW, inR, err = pty.Open()
+		pty, tty, err := pty.Open()
+		if err != nil {
+			return nil, err
+		}
+
+		err = ptyutil.SetRaw(tty)
+		if err != nil {
+			return nil, err
+		}
+
+		inR = tty
+		inW = pty
 	} else {
 		inR, inW, err = os.Pipe()
-	}
-
-	if err != nil {
-		return nil, err
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &Process{

@@ -114,6 +114,32 @@ var _ = Describe("Creating a container", func() {
 		})
 
 		Context("with a tty", func() {
+			It("executes the process with a raw tty", func() {
+				stdout := gbytes.NewBuffer()
+
+				inR, inW := io.Pipe()
+
+				process, err := container.Run(warden.ProcessSpec{
+					Path: "bash",
+					Args: []string{"-c", "read foo"},
+					TTY:  true,
+				}, warden.ProcessIO{
+					Stdin:  inR,
+					Stdout: stdout,
+				})
+				Ω(err).ShouldNot(HaveOccurred())
+
+				_, err = inW.Write([]byte("hello"))
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Eventually(stdout).Should(gbytes.Say("hello"))
+
+				_, err = inW.Write([]byte("\n"))
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Ω(process.Wait()).Should(Equal(0))
+			})
+
 			It("can have its terminal resized", func() {
 				stdout := gbytes.NewBuffer()
 
