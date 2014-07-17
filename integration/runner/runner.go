@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"syscall"
@@ -19,6 +20,8 @@ import (
 )
 
 type Runner struct {
+	Command *exec.Cmd
+
 	network string
 	addr    string
 
@@ -92,10 +95,11 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 
 	var signal os.Signal
 
+	r.Command = exec.Command(r.bin, wardenArgs...)
+
 	process := ifrit.Envoke(&ginkgomon.Runner{
 		Name:              "warden-linux",
-		BinPath:           r.bin,
-		Args:              wardenArgs,
+		Command:           r.Command,
 		AnsiColorCode:     "31m",
 		StartCheck:        "server started",
 		StartCheckTimeout: 10 * time.Second,

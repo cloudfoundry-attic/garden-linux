@@ -250,7 +250,7 @@ func (p *Process) runLinker() {
 		return
 	}
 
-	// close our slave tty now that the process has it
+	// close our copy of the process's end of the pipe now that it's spawned
 	inR.Close()
 
 	close(p.linked)
@@ -269,6 +269,9 @@ func (p *Process) runLinker() {
 	// try to terminate the iomux-link, as this only happens if it already
 	// exited
 	<-p.unlinked
+
+	// close our end of the pipe so it doesn't leak
+	p.stdin.Close()
 
 	if p.link.ProcessState != nil {
 		p.completed(p.link.ProcessState.Sys().(syscall.WaitStatus).ExitStatus(), nil)

@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
@@ -111,6 +112,28 @@ var _ = Describe("Creating a container", func() {
 
 			Eventually(stdout).Should(gbytes.Say("hello\nworld"))
 			Ω(process.Wait()).Should(Equal(0))
+		})
+
+		It("does not leak open files", func() {
+			procFd := fmt.Sprintf("/proc/%d/fd", wardenRunner.Command.Process.Pid)
+
+			filesBefore, err := ioutil.ReadDir(procFd)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			for i := 0; i < 50; i++ {
+				process, err := container.Run(warden.ProcessSpec{
+					Path: "true",
+				}, warden.ProcessIO{})
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(process.Wait()).Should(Equal(0))
+			}
+
+			filesAfter, err := ioutil.ReadDir(procFd)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			// there's some noise in 'open files' check, but it shouldn't grow
+			// linearly with the number of processes spawned
+			Ω(len(filesAfter)).Should(BeNumerically("~", len(filesBefore), 5))
 		})
 
 		Context("with a tty", func() {
