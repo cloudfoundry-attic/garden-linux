@@ -800,6 +800,7 @@ pid_t child_start(wshd_t *w) {
   flags |= CLONE_NEWNS;
   flags |= CLONE_NEWPID;
   flags |= CLONE_NEWUTS;
+  flags |= CLONE_NEWUSER;
 
   pid = clone(child_run, stack, flags, w);
   if (pid == -1) {
