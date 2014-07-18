@@ -9,6 +9,16 @@ cd $(dirname $0)/../
 
 source etc/config
 
+cat > /proc/$PID/uid_map <<EOF
+0 0 1
+$user_uid $user_uid 1
+EOF
+
+cat > /proc/$PID/gid_map <<EOF
+0 0 1
+$user_uid $user_uid 1
+EOF
+
 # Add new group for every subsystem
 
 # cpuset must be set up first, so that cpuset.cpus and cpuset.mems is assigned
