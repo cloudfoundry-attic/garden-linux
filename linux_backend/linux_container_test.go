@@ -890,20 +890,27 @@ var _ = Describe("Linux containers", func() {
 		})
 
 		It("runs the script with a TTY if present", func() {
+			ttySpec := &warden.TTYSpec{
+				WindowSize: &warden.WindowSize{
+					Columns: 123,
+					Rows:    456,
+				},
+			}
+
 			_, err := container.Run(warden.ProcessSpec{
 				Path: "/some/script",
-				TTY:  true,
+				TTY:  ttySpec,
 			}, warden.ProcessIO{})
 
 			Ω(err).ShouldNot(HaveOccurred())
 
 			_, _, tty := fakeProcessTracker.RunArgsForCall(0)
-			Ω(tty).Should(BeTrue())
+			Ω(tty).Should(Equal(ttySpec))
 		})
 
 		Describe("streaming", func() {
 			BeforeEach(func() {
-				fakeProcessTracker.RunStub = func(cmd *exec.Cmd, io warden.ProcessIO, tty bool) (process_tracker.LinuxProcess, error) {
+				fakeProcessTracker.RunStub = func(cmd *exec.Cmd, io warden.ProcessIO, tty *warden.TTYSpec) (process_tracker.LinuxProcess, error) {
 					writing := new(sync.WaitGroup)
 					writing.Add(1)
 

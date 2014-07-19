@@ -110,7 +110,12 @@ var _ = Describe("Through a restart", func() {
 					gets
 					`,
 				},
-				TTY: true,
+				TTY: &warden.TTYSpec{
+					WindowSize: &warden.WindowSize{
+						Columns: 80,
+						Rows:    24,
+					},
+				},
 			}, warden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -129,7 +134,12 @@ var _ = Describe("Through a restart", func() {
 			})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			err = process.SetWindowSize(123, 456)
+			err = process.SetTTY(warden.TTYSpec{
+				WindowSize: &warden.WindowSize{
+					Columns: 123,
+					Rows:    456,
+				},
+			})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Eventually(stdout).Should(gbytes.Say("rows 456; columns 123;"))

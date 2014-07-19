@@ -29,6 +29,18 @@ var tty = flag.Bool(
 	"spawn child process with a tty",
 )
 
+var windowColumns = flag.Int(
+	"windowColumns",
+	80,
+	"initial window columns for the process's tty",
+)
+
+var windowRows = flag.Int(
+	"windowRows",
+	24,
+	"initial window rows for the process's tty",
+)
+
 func main() {
 	flag.Parse()
 
@@ -40,7 +52,7 @@ func main() {
 			usage()
 		}
 
-		spawn(args[1], args[2], args[2:], *timeout, *tty)
+		spawn(args[1], args[2], args[2:], *timeout, *tty, *windowColumns, *windowRows)
 
 	case "link":
 		if len(args) < 2 {

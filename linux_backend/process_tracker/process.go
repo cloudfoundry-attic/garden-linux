@@ -88,11 +88,15 @@ func (p *Process) Wait() (int, error) {
 	return p.exitStatus, p.exitErr
 }
 
-func (p *Process) SetWindowSize(cols, rows int) error {
+func (p *Process) SetTTY(tty warden.TTYSpec) error {
 	<-p.linked
 
-	if p.pty != nil {
-		err := ptyutil.SetWinSize(p.pty, cols, rows)
+	if p.pty == nil {
+		return nil
+	}
+
+	if tty.WindowSize != nil {
+		err := ptyutil.SetWinSize(p.pty, tty.WindowSize.Columns, tty.WindowSize.Rows)
 		if err != nil {
 			return err
 		}
@@ -105,26 +109,38 @@ func (p *Process) WithTTY() bool {
 	return p.withTty
 }
 
-func (p *Process) Spawn(cmd *exec.Cmd) (ready, active chan error) {
+func (p *Process) Spawn(cmd *exec.Cmd, tty *warden.TTYSpec) (ready, active chan error) {
 	ready = make(chan error, 1)
 	active = make(chan error, 1)
 
 	spawnPath := path.Join(p.containerPath, "bin", "iodaemon")
 	processSock := path.Join(p.containerPath, "processes", fmt.Sprintf("%d.sock", p.ID()))
 
+	bashFlags := []string{
+		"-c",
+		// spawn but not as a child process (fork off in the bash subprocess).
+		spawnPath + ` "$@" &`,
+		spawnPath,
+	}
+
+	if tty != nil {
+		bashFlags = append(bashFlags, "-tty")
+
+		if tty.WindowSize != nil {
+			bashFlags = append(
+				bashFlags,
+				fmt.Sprintf("-windowColumns=%d", tty.WindowSize.Columns),
+				fmt.Sprintf("-windowRows=%d", tty.WindowSize.Rows),
+			)
+		}
+	}
+
+	bashFlags = append(bashFlags, "spawn", processSock, cmd.Path)
+
 	spawn := &exec.Cmd{
 		Path: "bash",
-		Args: append([]string{
-			"-c",
-			// spawn but not as a child process (fork off in the bash subprocess).
-			spawnPath + ` "$@" &`,
-			spawnPath,
-			fmt.Sprintf("-tty=%v", p.withTty),
-			"spawn",
-			processSock,
-			cmd.Path,
-		}, cmd.Args...),
-		Env: cmd.Env,
+		Args: append(bashFlags, cmd.Args...),
+		Env:  cmd.Env,
 	}
 
 	spawnR, err := spawn.StdoutPipe()

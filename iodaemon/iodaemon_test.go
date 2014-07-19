@@ -129,6 +129,58 @@ var _ = Describe("Iodaemon", func() {
 			Eventually(linkS).Should(gexec.Exit(0))
 		})
 
+		Describe("and -windowColumns and -windowRows", func() {
+			It("starts with the given window size, and can be resized", func() {
+				spawnS, err := gexec.Start(exec.Command(
+					iodaemon,
+					"-tty",
+					"-windowColumns=123",
+					"-windowRows=456",
+					"spawn",
+					socketPath,
+					winsizeReporter,
+				), GinkgoWriter, GinkgoWriter)
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Eventually(spawnS).Should(gbytes.Say("ready\n"))
+
+				pty, tty, err := pty.Open()
+				Ω(err).ShouldNot(HaveOccurred())
+
+				ptyDone := make(chan struct{})
+
+				go func() {
+					io.Copy(os.Stderr, pty)
+					close(ptyDone)
+				}()
+
+				link := exec.Command(iodaemon, "link", socketPath)
+				link.Stdin = tty
+
+				linkS, err := gexec.Start(link, GinkgoWriter, GinkgoWriter)
+				Ω(err).ShouldNot(HaveOccurred())
+
+				// close our end of the pipe now that the child has its own
+				err = tty.Close()
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Eventually(linkS).Should(gbytes.Say("rows: 456, cols: 123\r\n"))
+
+				err = ptyutil.SetWinSize(pty, 111, 222)
+				Ω(err).ShouldNot(HaveOccurred())
+
+				err = link.Process.Signal(syscall.SIGWINCH)
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Eventually(linkS).Should(gbytes.Say("rows: 222, cols: 111\r\n"))
+
+				Eventually(spawnS).Should(gexec.Exit(0))
+				Eventually(linkS).Should(gexec.Exit(0))
+
+				Eventually(ptyDone).Should(BeClosed(), "pty should have closed")
+			})
+		})
+
 		It("starts with an 80x24 tty, and can be resized", func() {
 			spawnS, err := gexec.Start(exec.Command(
 				iodaemon,
