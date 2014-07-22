@@ -15,7 +15,7 @@ import (
 	"github.com/kr/pty"
 )
 
-func spawn(socketPath string, path string, argv []string, timeout time.Duration, withTty bool) {
+func spawn(socketPath string, path string, argv []string, timeout time.Duration, withTty bool, windowColumns int, windowRows int) {
 	err := os.MkdirAll(filepath.Dir(socketPath), 0755)
 	if err != nil {
 		fatal(err)
@@ -59,7 +59,7 @@ func spawn(socketPath string, path string, argv []string, timeout time.Duration,
 		stdoutW = tty
 		stderrW = tty
 
-		ptyutil.SetWinSize(stdinW, 80, 24)
+		ptyutil.SetWinSize(stdinW, windowColumns, windowRows)
 
 		cmd.SysProcAttr.Setctty = true
 		cmd.SysProcAttr.Setsid = true

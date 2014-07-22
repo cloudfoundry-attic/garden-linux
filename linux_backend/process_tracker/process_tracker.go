@@ -10,7 +10,7 @@ import (
 )
 
 type ProcessTracker interface {
-	Run(*exec.Cmd, warden.ProcessIO, bool) (LinuxProcess, error)
+	Run(*exec.Cmd, warden.ProcessIO, *warden.TTYSpec) (LinuxProcess, error)
 	Attach(uint32, warden.ProcessIO) (LinuxProcess, error)
 	Restore(processID uint32, tty bool)
 	ActiveProcesses() []LinuxProcess
@@ -51,19 +51,19 @@ func New(containerPath string, runner command_runner.CommandRunner) ProcessTrack
 	}
 }
 
-func (t *processTracker) Run(cmd *exec.Cmd, processIO warden.ProcessIO, tty bool) (LinuxProcess, error) {
+func (t *processTracker) Run(cmd *exec.Cmd, processIO warden.ProcessIO, tty *warden.TTYSpec) (LinuxProcess, error) {
 	t.processesMutex.Lock()
 
 	processID := t.nextProcessID
 	t.nextProcessID++
 
-	process := NewProcess(processID, tty, t.containerPath, t.runner)
+	process := NewProcess(processID, tty != nil, t.containerPath, t.runner)
 
 	t.processes[processID] = process
 
 	t.processesMutex.Unlock()
 
-	ready, active := process.Spawn(cmd)
+	ready, active := process.Spawn(cmd, tty)
 
 	err := <-ready
 	if err != nil {

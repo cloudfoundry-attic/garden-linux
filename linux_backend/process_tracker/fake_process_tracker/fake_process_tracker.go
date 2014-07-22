@@ -9,12 +9,12 @@ import (
 )
 
 type FakeProcessTracker struct {
-	RunStub        func(*exec.Cmd, warden.ProcessIO, bool) (process_tracker.LinuxProcess, error)
+	RunStub        func(*exec.Cmd, warden.ProcessIO, *warden.TTYSpec) (process_tracker.LinuxProcess, error)
 	runMutex       sync.RWMutex
 	runArgsForCall []struct {
 		arg1 *exec.Cmd
 		arg2 warden.ProcessIO
-		arg3 bool
+		arg3 *warden.TTYSpec
 	}
 	runReturns struct {
 		result1 process_tracker.LinuxProcess
@@ -47,13 +47,13 @@ type FakeProcessTracker struct {
 	unlinkAllArgsForCall []struct{}
 }
 
-func (fake *FakeProcessTracker) Run(arg1 *exec.Cmd, arg2 warden.ProcessIO, arg3 bool) (process_tracker.LinuxProcess, error) {
+func (fake *FakeProcessTracker) Run(arg1 *exec.Cmd, arg2 warden.ProcessIO, arg3 *warden.TTYSpec) (process_tracker.LinuxProcess, error) {
 	fake.runMutex.Lock()
 	defer fake.runMutex.Unlock()
 	fake.runArgsForCall = append(fake.runArgsForCall, struct {
 		arg1 *exec.Cmd
 		arg2 warden.ProcessIO
-		arg3 bool
+		arg3 *warden.TTYSpec
 	}{arg1, arg2, arg3})
 	if fake.RunStub != nil {
 		return fake.RunStub(arg1, arg2, arg3)
@@ -68,13 +68,14 @@ func (fake *FakeProcessTracker) RunCallCount() int {
 	return len(fake.runArgsForCall)
 }
 
-func (fake *FakeProcessTracker) RunArgsForCall(i int) (*exec.Cmd, warden.ProcessIO, bool) {
+func (fake *FakeProcessTracker) RunArgsForCall(i int) (*exec.Cmd, warden.ProcessIO, *warden.TTYSpec) {
 	fake.runMutex.RLock()
 	defer fake.runMutex.RUnlock()
 	return fake.runArgsForCall[i].arg1, fake.runArgsForCall[i].arg2, fake.runArgsForCall[i].arg3
 }
 
 func (fake *FakeProcessTracker) RunReturns(result1 process_tracker.LinuxProcess, result2 error) {
+	fake.RunStub = nil
 	fake.runReturns = struct {
 		result1 process_tracker.LinuxProcess
 		result2 error
@@ -108,6 +109,7 @@ func (fake *FakeProcessTracker) AttachArgsForCall(i int) (uint32, warden.Process
 }
 
 func (fake *FakeProcessTracker) AttachReturns(result1 process_tracker.LinuxProcess, result2 error) {
+	fake.AttachStub = nil
 	fake.attachReturns = struct {
 		result1 process_tracker.LinuxProcess
 		result2 error
@@ -156,6 +158,7 @@ func (fake *FakeProcessTracker) ActiveProcessesCallCount() int {
 }
 
 func (fake *FakeProcessTracker) ActiveProcessesReturns(result1 []process_tracker.LinuxProcess) {
+	fake.ActiveProcessesStub = nil
 	fake.activeProcessesReturns = struct {
 		result1 []process_tracker.LinuxProcess
 	}{result1}

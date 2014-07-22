@@ -137,15 +137,20 @@ var _ = Describe("Creating a container", func() {
 		})
 
 		Context("with a tty", func() {
-			It("executes the process with a raw tty", func() {
+			It("executes the process with a raw tty with the given window size", func() {
 				stdout := gbytes.NewBuffer()
 
 				inR, inW := io.Pipe()
 
 				process, err := container.Run(warden.ProcessSpec{
 					Path: "bash",
-					Args: []string{"-c", "read foo"},
-					TTY:  true,
+					Args: []string{"-c", "read foo; stty -a"},
+					TTY: &warden.TTYSpec{
+						WindowSize: &warden.WindowSize{
+							Columns: 123,
+							Rows:    456,
+						},
+					},
 				}, warden.ProcessIO{
 					Stdin:  inR,
 					Stdout: stdout,
@@ -159,6 +164,8 @@ var _ = Describe("Creating a container", func() {
 
 				_, err = inW.Write([]byte("\n"))
 				Ω(err).ShouldNot(HaveOccurred())
+
+				Eventually(stdout).Should(gbytes.Say("rows 456; columns 123;"))
 
 				Ω(process.Wait()).Should(Equal(0))
 			})
@@ -179,7 +186,7 @@ var _ = Describe("Creating a container", func() {
 						done
 						`,
 					},
-					TTY: true,
+					TTY: &warden.TTYSpec{},
 				}, warden.ProcessIO{
 					Stdout: stdout,
 				})
@@ -187,7 +194,12 @@ var _ = Describe("Creating a container", func() {
 
 				Eventually(stdout).Should(gbytes.Say("waiting"))
 
-				err = process.SetWindowSize(123, 456)
+				err = process.SetTTY(warden.TTYSpec{
+					WindowSize: &warden.WindowSize{
+						Columns: 123,
+						Rows:    456,
+					},
+				})
 				Ω(err).ShouldNot(HaveOccurred())
 
 				Eventually(stdout).Should(gbytes.Say("rows 456; columns 123;"))
