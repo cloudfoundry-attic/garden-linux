@@ -59,6 +59,8 @@ int msg_rlimit_export(msg__rlimit_t *);
 int msg_user_import(msg__user_t *u, const char *name);
 int msg_user_export(msg__user_t *u, struct passwd *pw);
 
+int msg_dir_import(msg__dir_t *d, const char *dir);
+
 void msg_request_init(msg_request_t *req);
 void msg_response_init(msg_response_t *res);
 
