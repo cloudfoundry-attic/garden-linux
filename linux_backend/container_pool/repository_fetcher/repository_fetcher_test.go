@@ -5,9 +5,9 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/dotcloud/docker/archive"
-	"github.com/dotcloud/docker/image"
-	"github.com/dotcloud/docker/registry"
+	"github.com/docker/docker/archive"
+	"github.com/docker/docker/image"
+	"github.com/docker/docker/registry"
 
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool/fake_graph"
 	. "github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool/repository_fetcher"
@@ -47,7 +47,6 @@ var _ = Describe("RepositoryFetcher", func() {
 					w.Write([]byte(`{"id":"layer-3","parent":"parent-3"}`))
 				}),
 			),
-			ghttp.VerifyRequest("HEAD", "/v1/images/layer-3/layer"),
 			ghttp.CombineHandlers(
 				ghttp.VerifyRequest("GET", "/v1/images/layer-3/layer"),
 				http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -61,7 +60,6 @@ var _ = Describe("RepositoryFetcher", func() {
 					w.Write([]byte(`{"id":"layer-2","parent":"parent-2"}`))
 				}),
 			),
-			ghttp.VerifyRequest("HEAD", "/v1/images/layer-2/layer"),
 			ghttp.CombineHandlers(
 				ghttp.VerifyRequest("GET", "/v1/images/layer-2/layer"),
 				http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -75,7 +73,6 @@ var _ = Describe("RepositoryFetcher", func() {
 					w.Write([]byte(`{"id":"layer-1","parent":"parent-1"}`))
 				}),
 			),
-			ghttp.VerifyRequest("HEAD", "/v1/images/layer-1/layer"),
 			ghttp.CombineHandlers(
 				ghttp.VerifyRequest("GET", "/v1/images/layer-1/layer"),
 				http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -206,7 +203,6 @@ var _ = Describe("RepositoryFetcher", func() {
 							w.Write([]byte(`{"id":"layer-3","parent":"parent-3"}`))
 						}),
 					),
-					ghttp.VerifyRequest("HEAD", "/v1/images/layer-3/layer"),
 					ghttp.CombineHandlers(
 						ghttp.VerifyRequest("GET", "/v1/images/layer-3/layer"),
 						http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -220,7 +216,6 @@ var _ = Describe("RepositoryFetcher", func() {
 							w.Write([]byte(`{"id":"layer-1","parent":"parent-1"}`))
 						}),
 					),
-					ghttp.VerifyRequest("HEAD", "/v1/images/layer-1/layer"),
 					ghttp.CombineHandlers(
 						ghttp.VerifyRequest("GET", "/v1/images/layer-1/layer"),
 						http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {

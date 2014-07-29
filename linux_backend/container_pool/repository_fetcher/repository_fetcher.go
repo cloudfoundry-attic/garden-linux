@@ -6,9 +6,9 @@ import (
 	"log"
 	"sync"
 
-	"github.com/dotcloud/docker/archive"
-	"github.com/dotcloud/docker/image"
-	"github.com/dotcloud/docker/registry"
+	"github.com/docker/docker/archive"
+	"github.com/docker/docker/image"
+	"github.com/docker/docker/registry"
 )
 
 type RepositoryFetcher interface {

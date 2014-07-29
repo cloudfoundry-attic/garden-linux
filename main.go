@@ -10,11 +10,11 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/dotcloud/docker/daemon/graphdriver"
-	_ "github.com/dotcloud/docker/daemon/graphdriver/aufs"
-	_ "github.com/dotcloud/docker/daemon/graphdriver/vfs"
-	"github.com/dotcloud/docker/graph"
-	"github.com/dotcloud/docker/registry"
+	"github.com/docker/docker/daemon/graphdriver"
+	_ "github.com/docker/docker/daemon/graphdriver/aufs"
+	_ "github.com/docker/docker/daemon/graphdriver/vfs"
+	"github.com/docker/docker/graph"
+	"github.com/docker/docker/registry"
 
 	"github.com/cloudfoundry-incubator/garden/server"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend"

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/url"
 
-	"github.com/dotcloud/docker/daemon/graphdriver"
+	"github.com/docker/docker/daemon/graphdriver"
 
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool/repository_fetcher"
 )

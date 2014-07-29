@@ -3,8 +3,8 @@ package fake_graph
 import (
 	"sync"
 
-	"github.com/dotcloud/docker/archive"
-	"github.com/dotcloud/docker/image"
+	"github.com/docker/docker/archive"
+	"github.com/docker/docker/image"
 )
 
 type FakeGraph struct {
