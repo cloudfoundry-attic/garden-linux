@@ -16,6 +16,7 @@ import (
 	"github.com/docker/docker/graph"
 	"github.com/docker/docker/registry"
 
+	"github.com/cloudfoundry-incubator/cf-debug-server"
 	"github.com/cloudfoundry-incubator/cf-lager"
 	"github.com/cloudfoundry-incubator/garden/server"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend"
@@ -153,6 +154,8 @@ var tag = flag.String(
 
 func main() {
 	flag.Parse()
+
+	cf_debug_server.Run()
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
 

@@ -23,6 +23,10 @@
 			"Rev": "e28b8c12c6771eefcfef8654002dc513f42eb673"
 		},
 		{
+			"ImportPath": "github.com/cloudfoundry-incubator/cf-debug-server",
+			"Rev": "9423f9d0c1282337332ee35f2f5b0be10c83279b"
+		},
+		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/client",
 			"Comment": "go-wshd-588-g0f405bf",
 			"Rev": "0f405bf6d6a71492dd84c5dd6a47dd60bdc050c9"
