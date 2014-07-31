@@ -427,7 +427,10 @@ func (c *LinuxContainer) StreamOut(srcPath string) (io.ReadCloser, error) {
 		compressArg = "."
 	}
 
-	tarRead, tarWrite := io.Pipe()
+	tarRead, tarWrite, err := os.Pipe()
+	if err != nil {
+		return nil, err
+	}
 
 	tar := &exec.Cmd{
 		Path: wshPath,
@@ -439,15 +442,15 @@ func (c *LinuxContainer) StreamOut(srcPath string) (io.ReadCloser, error) {
 		Stdout: tarWrite,
 	}
 
-	err := c.runner.Background(tar)
+	err = c.runner.Background(tar)
 	if err != nil {
 		return nil, err
 	}
 
-	go func() {
-		c.runner.Wait(tar)
-		tarWrite.Close()
-	}()
+	// close our end of the tar pipe
+	tarWrite.Close()
+
+	go c.runner.Wait(tar)
 
 	return tarRead, nil
 }

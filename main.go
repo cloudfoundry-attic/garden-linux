@@ -16,6 +16,7 @@ import (
 	"github.com/docker/docker/graph"
 	"github.com/docker/docker/registry"
 
+	"github.com/cloudfoundry-incubator/cf-lager"
 	"github.com/cloudfoundry-incubator/garden/server"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool"
@@ -153,10 +154,9 @@ var tag = flag.String(
 func main() {
 	flag.Parse()
 
-	maxProcs := runtime.NumCPU()
-	prevMaxProcs := runtime.GOMAXPROCS(maxProcs)
+	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	log.Println("set GOMAXPROCS to", maxProcs, "was", prevMaxProcs)
+	logger := cf_lager.New("warden-linux")
 
 	if *binPath == "" {
 		log.Fatalln("must specify -bin with linux backend")
@@ -252,7 +252,7 @@ func main() {
 
 	graceTime := *containerGraceTime
 
-	wardenServer := server.New(*listenNetwork, *listenAddr, graceTime, backend)
+	wardenServer := server.New(*listenNetwork, *listenAddr, graceTime, backend, logger)
 
 	err = wardenServer.Start()
 	if err != nil {

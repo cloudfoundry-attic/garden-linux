@@ -746,7 +746,9 @@ var _ = Describe("Linux containers", func() {
 					},
 				},
 				func(cmd *exec.Cmd) error {
-					go cmd.Stdout.Write([]byte("the-compressed-content"))
+					_, err := cmd.Stdout.Write([]byte("the-compressed-content"))
+					Ω(err).ShouldNot(HaveOccurred())
+
 					return nil
 				},
 			)
@@ -757,6 +759,33 @@ var _ = Describe("Linux containers", func() {
 			bytes, err := ioutil.ReadAll(reader)
 			Ω(err).ShouldNot(HaveOccurred())
 			Ω(string(bytes)).Should(Equal("the-compressed-content"))
+		})
+
+		It("closes the server-side dupe of of the pipe's write end", func() {
+			var outPipe io.Writer
+
+			fakeRunner.WhenRunning(
+				fake_command_runner.CommandSpec{
+					Path: "/depot/some-id/bin/wsh",
+					Args: []string{
+						"--socket", "/depot/some-id/run/wshd.sock",
+						"--user", "vcap",
+						"tar", "cf", "-", "-C", "/some/directory", "dst",
+					},
+				},
+				func(cmd *exec.Cmd) error {
+					outPipe = cmd.Stdout
+					return nil
+				},
+			)
+
+			_, err := container.StreamOut("/some/directory/dst")
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(outPipe).ShouldNot(BeNil())
+
+			_, err = outPipe.Write([]byte("sup"))
+			Ω(err).Should(HaveOccurred())
 		})
 
 		Context("when there's a trailing slash", func() {
@@ -774,7 +803,6 @@ var _ = Describe("Linux containers", func() {
 						},
 					},
 				))
-
 			})
 		})
 
