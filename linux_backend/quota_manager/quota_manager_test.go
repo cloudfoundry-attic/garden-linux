@@ -6,6 +6,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/pivotal-golang/lager/lagertest"
 
 	"github.com/cloudfoundry-incubator/garden/warden"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/quota_manager"
@@ -13,53 +14,15 @@ import (
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
 )
 
-var _ = Describe("Linux Quota Manager initialization", func() {
-	var fakeRunner *fake_command_runner.FakeCommandRunner
-
-	BeforeEach(func() {
-		fakeRunner = fake_command_runner.New()
-	})
-
-	Context("when df fails", func() {
-		disaster := errors.New("oh no!")
-
-		BeforeEach(func() {
-			fakeRunner.WhenRunning(fake_command_runner.CommandSpec{
-				Path: "df",
-			}, func(*exec.Cmd) error {
-				return disaster
-			})
-		})
-
-		It("returns the error", func() {
-			_, err := quota_manager.New("/bogus/path", "/root/path", fakeRunner)
-			Ω(err).Should(Equal(disaster))
-		})
-	})
-})
-
 var _ = Describe("Linux Quota manager", func() {
 	var fakeRunner *fake_command_runner.FakeCommandRunner
+	var logger *lagertest.TestLogger
 	var quotaManager *quota_manager.LinuxQuotaManager
 
 	BeforeEach(func() {
 		fakeRunner = fake_command_runner.New()
-
-		fakeRunner.WhenRunning(fake_command_runner.CommandSpec{
-			Path: "df",
-			Args: []string{"-P", "/some/depot"},
-		}, func(cmd *exec.Cmd) error {
-			cmd.Stdout.Write([]byte(`Filesystem   512-blocks      Used Available Capacity  Mounted on
-/dev/disk0s2  488555536 423563328  64480208    87%    /some/mount/point
-`))
-
-			return nil
-		})
-
-		var err error
-
-		quotaManager, err = quota_manager.New("/some/depot", "/root/path", fakeRunner)
-		Ω(err).ShouldNot(HaveOccurred())
+		logger = lagertest.NewTestLogger("test")
+		quotaManager = quota_manager.New(fakeRunner, "/some/mount/point", "/root/path")
 	})
 
 	Describe("setting quotas", func() {
@@ -72,7 +35,7 @@ var _ = Describe("Linux Quota manager", func() {
 		}
 
 		It("executes setquota on the container depo's mount point", func() {
-			err := quotaManager.SetLimits(1234, limits)
+			err := quotaManager.SetLimits(logger, 1234, limits)
 
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -86,7 +49,6 @@ var _ = Describe("Linux Quota manager", func() {
 					},
 				},
 			))
-
 		})
 
 		Context("when bytes are given", func() {
@@ -99,7 +61,7 @@ var _ = Describe("Linux Quota manager", func() {
 			}
 
 			It("executes setquota with them converted to blocks", func() {
-				err := quotaManager.SetLimits(1234, limits)
+				err := quotaManager.SetLimits(logger, 1234, limits)
 
 				Ω(err).ShouldNot(HaveOccurred())
 
@@ -113,7 +75,6 @@ var _ = Describe("Linux Quota manager", func() {
 						},
 					},
 				))
-
 			})
 		})
 
@@ -131,7 +92,7 @@ var _ = Describe("Linux Quota manager", func() {
 			})
 
 			It("returns the error", func() {
-				err := quotaManager.SetLimits(1234, limits)
+				err := quotaManager.SetLimits(logger, 1234, limits)
 				Ω(err).Should(Equal(nastyError))
 			})
 		})
@@ -142,7 +103,7 @@ var _ = Describe("Linux Quota manager", func() {
 			})
 
 			It("runs nothing", func() {
-				err := quotaManager.SetLimits(1234, limits)
+				err := quotaManager.SetLimits(logger, 1234, limits)
 
 				Ω(err).ShouldNot(HaveOccurred())
 
@@ -151,22 +112,12 @@ var _ = Describe("Linux Quota manager", func() {
 						Path: "setquota",
 					},
 				))
-
 			})
 		})
 	})
 
 	Describe("getting quotas limits", func() {
-		It("executes repquota in the root path", func(done Done) {
-			fakeRunner.WhenWaitingFor(
-				fake_command_runner.CommandSpec{
-					Path: "/root/path/repquota",
-				}, func(cmd *exec.Cmd) error {
-					close(done)
-					return nil
-				},
-			)
-
+		It("executes repquota in the root path", func() {
 			fakeRunner.WhenRunning(
 				fake_command_runner.CommandSpec{
 					Path: "/root/path/repquota",
@@ -178,7 +129,7 @@ var _ = Describe("Linux Quota manager", func() {
 				},
 			)
 
-			limits, err := quotaManager.GetLimits(1234)
+			limits, err := quotaManager.GetLimits(logger, 1234)
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(limits.BlockSoft).Should(Equal(uint64(222)))
@@ -203,7 +154,7 @@ var _ = Describe("Linux Quota manager", func() {
 			})
 
 			It("returns the error", func() {
-				_, err := quotaManager.GetLimits(1234)
+				_, err := quotaManager.GetLimits(logger, 1234)
 				Ω(err).Should(Equal(disaster))
 			})
 		})
@@ -221,7 +172,7 @@ var _ = Describe("Linux Quota manager", func() {
 					},
 				)
 
-				_, err := quotaManager.GetLimits(1234)
+				_, err := quotaManager.GetLimits(logger, 1234)
 				Ω(err).Should(HaveOccurred())
 			})
 		})
@@ -232,7 +183,7 @@ var _ = Describe("Linux Quota manager", func() {
 			})
 
 			It("runs nothing", func() {
-				limits, err := quotaManager.GetLimits(1234)
+				limits, err := quotaManager.GetLimits(logger, 1234)
 				Ω(err).ShouldNot(HaveOccurred())
 
 				Ω(limits).Should(BeZero())
@@ -242,22 +193,12 @@ var _ = Describe("Linux Quota manager", func() {
 						Path: "/root/path/bin/repquota",
 					},
 				))
-
 			})
 		})
 	})
 
 	Describe("getting usage", func() {
-		It("executes repquota in the root path", func(done Done) {
-			fakeRunner.WhenWaitingFor(
-				fake_command_runner.CommandSpec{
-					Path: "/root/path/repquota",
-				}, func(cmd *exec.Cmd) error {
-					close(done)
-					return nil
-				},
-			)
-
+		It("executes repquota in the root path", func() {
 			fakeRunner.WhenRunning(
 				fake_command_runner.CommandSpec{
 					Path: "/root/path/repquota",
@@ -269,7 +210,7 @@ var _ = Describe("Linux Quota manager", func() {
 				},
 			)
 
-			limits, err := quotaManager.GetUsage(1234)
+			limits, err := quotaManager.GetUsage(logger, 1234)
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(limits.BytesUsed).Should(Equal(uint64(111)))
@@ -291,7 +232,7 @@ var _ = Describe("Linux Quota manager", func() {
 			})
 
 			It("returns the error", func() {
-				_, err := quotaManager.GetUsage(1234)
+				_, err := quotaManager.GetUsage(logger, 1234)
 				Ω(err).Should(Equal(disaster))
 			})
 		})
@@ -309,7 +250,7 @@ var _ = Describe("Linux Quota manager", func() {
 					},
 				)
 
-				_, err := quotaManager.GetUsage(1234)
+				_, err := quotaManager.GetUsage(logger, 1234)
 				Ω(err).Should(HaveOccurred())
 			})
 		})
@@ -320,7 +261,7 @@ var _ = Describe("Linux Quota manager", func() {
 			})
 
 			It("runs nothing", func() {
-				usage, err := quotaManager.GetUsage(1234)
+				usage, err := quotaManager.GetUsage(logger, 1234)
 				Ω(err).ShouldNot(HaveOccurred())
 
 				Ω(usage).Should(BeZero())
@@ -330,7 +271,6 @@ var _ = Describe("Linux Quota manager", func() {
 						Path: "/root/path/repquota",
 					},
 				))
-
 			})
 		})
 	})

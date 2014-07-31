@@ -9,15 +9,17 @@ import (
 	"strconv"
 
 	"github.com/cloudfoundry-incubator/garden/warden"
+	"github.com/cloudfoundry-incubator/warden-linux/logging"
 	"github.com/cloudfoundry/gunk/command_runner"
+	"github.com/pivotal-golang/lager"
 )
 
 var IN_RATE_PATTERN = regexp.MustCompile(`qdisc tbf [0-9a-f]+: root refcnt \d+ rate (\d+)([KMG]?)bit burst (\d+)([KMG]?)b`)
 var OUT_RATE_PATTERN = regexp.MustCompile(`police 0x[0-9a-f]+ rate (\d+)([KMG]?)bit burst (\d+)([KMG]?)b`)
 
 type BandwidthManager interface {
-	SetLimits(warden.BandwidthLimits) error
-	GetLimits() (warden.ContainerBandwidthStat, error)
+	SetLimits(lager.Logger, warden.BandwidthLimits) error
+	GetLimits(lager.Logger) (warden.ContainerBandwidthStat, error)
 }
 
 type ContainerBandwidthManager struct {
@@ -36,32 +38,39 @@ func New(containerPath, containerID string, runner command_runner.CommandRunner)
 	}
 }
 
-func (m *ContainerBandwidthManager) SetLimits(limits warden.BandwidthLimits) error {
-	return m.runner.Run(&exec.Cmd{
-		Path: path.Join(m.containerPath, "net_rate.sh"),
-		Env: []string{
-			fmt.Sprintf("BURST=%d", limits.BurstRateInBytesPerSecond),
-			fmt.Sprintf("RATE=%d", limits.RateInBytesPerSecond*8),
-		},
-	})
+func (m *ContainerBandwidthManager) SetLimits(
+	logger lager.Logger,
+	limits warden.BandwidthLimits,
+) error {
+	runner := logging.Runner{
+		CommandRunner: m.runner,
+		Logger:        logger,
+	}
+
+	setRate := exec.Command(path.Join(m.containerPath, "net_rate.sh"))
+	setRate.Env = []string{
+		fmt.Sprintf("BURST=%d", limits.BurstRateInBytesPerSecond),
+		fmt.Sprintf("RATE=%d", limits.RateInBytesPerSecond*8),
+	}
+
+	return runner.Run(setRate)
 }
 
-func (m *ContainerBandwidthManager) GetLimits() (warden.ContainerBandwidthStat, error) {
+func (m *ContainerBandwidthManager) GetLimits(logger lager.Logger) (warden.ContainerBandwidthStat, error) {
 	limits := warden.ContainerBandwidthStat{}
+
+	runner := logging.Runner{
+		CommandRunner: m.runner,
+		Logger:        logger,
+	}
 
 	egressOut := new(bytes.Buffer)
 
-	egress := &exec.Cmd{
-		Path: path.Join(m.containerPath, "net.sh"),
-		Args: []string{"get_egress_info"},
-		Env: []string{
-			"ID=" + m.containerID,
-		},
-		Stdout: egressOut,
-		Stderr: egressOut,
-	}
+	egress := exec.Command(path.Join(m.containerPath, "net.sh"), "get_egress_info")
+	egress.Env = []string{"ID=" + m.containerID}
+	egress.Stdout = egressOut
 
-	err := m.runner.Run(egress)
+	err := runner.Run(egress)
 	if err != nil {
 		return limits, err
 	}
@@ -87,18 +96,11 @@ func (m *ContainerBandwidthManager) GetLimits() (warden.ContainerBandwidthStat, 
 
 	ingressOut := new(bytes.Buffer)
 
-	ingress := &exec.Cmd{
-		Path: path.Join(m.containerPath, "net.sh"),
-		Args: []string{"get_ingress_info"},
-		Env: []string{
-			"ID=" + m.containerID,
-		},
+	ingress := exec.Command(path.Join(m.containerPath, "net.sh"), "get_ingress_info")
+	ingress.Env = []string{"ID=" + m.containerID}
+	ingress.Stdout = ingressOut
 
-		Stdout: ingressOut,
-		Stderr: ingressOut,
-	}
-
-	err = m.runner.Run(ingress)
+	err = runner.Run(ingress)
 	if err != nil {
 		return limits, err
 	}

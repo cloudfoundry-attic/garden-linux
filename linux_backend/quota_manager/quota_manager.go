@@ -6,16 +6,18 @@ import (
 	"os"
 	"os/exec"
 	"path"
-	"strings"
 
 	"github.com/cloudfoundry-incubator/garden/warden"
+	"github.com/cloudfoundry-incubator/warden-linux/logging"
 	"github.com/cloudfoundry/gunk/command_runner"
+	"github.com/pivotal-golang/lager"
 )
 
 type QuotaManager interface {
-	SetLimits(uid uint32, limits warden.DiskLimits) error
-	GetLimits(uid uint32) (warden.DiskLimits, error)
-	GetUsage(uid uint32) (warden.ContainerDiskStat, error)
+	SetLimits(logger lager.Logger, uid uint32, limits warden.DiskLimits) error
+	GetLimits(logger lager.Logger, uid uint32) (warden.DiskLimits, error)
+	GetUsage(logger lager.Logger, uid uint32) (warden.ContainerDiskStat, error)
+
 	MountPoint() string
 	Disable()
 	IsEnabled() bool
@@ -32,23 +34,7 @@ type LinuxQuotaManager struct {
 
 const QUOTA_BLOCK_SIZE = 1024
 
-func New(containerDepotPath, binPath string, runner command_runner.CommandRunner) (*LinuxQuotaManager, error) {
-	dfOut := new(bytes.Buffer)
-
-	df := &exec.Cmd{
-		Path:   "df",
-		Args:   []string{"-P", containerDepotPath},
-		Stdout: dfOut,
-	}
-
-	err := runner.Run(df)
-	if err != nil {
-		return nil, err
-	}
-
-	dfOutputWords := strings.Split(string(dfOut.Bytes()), " ")
-	mountPoint := strings.Trim(dfOutputWords[len(dfOutputWords)-1], "\n")
-
+func New(runner command_runner.CommandRunner, mountPoint, binPath string) *LinuxQuotaManager {
 	return &LinuxQuotaManager{
 		enabled: true,
 
@@ -56,14 +42,14 @@ func New(containerDepotPath, binPath string, runner command_runner.CommandRunner
 		runner:  runner,
 
 		mountPoint: mountPoint,
-	}, nil
+	}
 }
 
 func (m *LinuxQuotaManager) Disable() {
 	m.enabled = false
 }
 
-func (m *LinuxQuotaManager) SetLimits(uid uint32, limits warden.DiskLimits) error {
+func (m *LinuxQuotaManager) SetLimits(logger lager.Logger, uid uint32, limits warden.DiskLimits) error {
 	if !m.enabled {
 		return nil
 	}
@@ -76,31 +62,31 @@ func (m *LinuxQuotaManager) SetLimits(uid uint32, limits warden.DiskLimits) erro
 		limits.BlockHard = (limits.ByteHard + QUOTA_BLOCK_SIZE - 1) / QUOTA_BLOCK_SIZE
 	}
 
-	return m.runner.Run(
-		&exec.Cmd{
-			Path: "setquota",
-			Args: []string{
-				"-u",
-				fmt.Sprintf("%d", uid),
-				fmt.Sprintf("%d", limits.BlockSoft),
-				fmt.Sprintf("%d", limits.BlockHard),
-				fmt.Sprintf("%d", limits.InodeSoft),
-				fmt.Sprintf("%d", limits.InodeHard),
-				m.mountPoint,
-			},
-		},
+	runner := logging.Runner{
+		Logger:        logger,
+		CommandRunner: m.runner,
+	}
+
+	return runner.Run(
+		exec.Command(
+			"setquota",
+			"-u",
+			fmt.Sprintf("%d", uid),
+			fmt.Sprintf("%d", limits.BlockSoft),
+			fmt.Sprintf("%d", limits.BlockHard),
+			fmt.Sprintf("%d", limits.InodeSoft),
+			fmt.Sprintf("%d", limits.InodeHard),
+			m.mountPoint,
+		),
 	)
 }
 
-func (m *LinuxQuotaManager) GetLimits(uid uint32) (warden.DiskLimits, error) {
+func (m *LinuxQuotaManager) GetLimits(logger lager.Logger, uid uint32) (warden.DiskLimits, error) {
 	if !m.enabled {
 		return warden.DiskLimits{}, nil
 	}
 
-	repquota := &exec.Cmd{
-		Path: path.Join(m.binPath, "repquota"),
-		Args: []string{m.mountPoint, fmt.Sprintf("%d", uid)},
-	}
+	repquota := exec.Command(path.Join(m.binPath, "repquota"), m.mountPoint, fmt.Sprintf("%d", uid))
 
 	limits := warden.DiskLimits{}
 
@@ -114,12 +100,17 @@ func (m *LinuxQuotaManager) GetLimits(uid uint32) (warden.DiskLimits, error) {
 
 	repquota.Stdout = repW
 
-	err = m.runner.Start(repquota)
+	runner := logging.Runner{
+		Logger:        logger,
+		CommandRunner: m.runner,
+	}
+
+	err = runner.Start(repquota)
 	if err != nil {
 		return limits, err
 	}
 
-	defer m.runner.Wait(repquota)
+	defer runner.Wait(repquota)
 
 	var skip uint32
 
@@ -139,39 +130,33 @@ func (m *LinuxQuotaManager) GetLimits(uid uint32) (warden.DiskLimits, error) {
 	return limits, err
 }
 
-func (m *LinuxQuotaManager) GetUsage(uid uint32) (warden.ContainerDiskStat, error) {
+func (m *LinuxQuotaManager) GetUsage(logger lager.Logger, uid uint32) (warden.ContainerDiskStat, error) {
 	if !m.enabled {
 		return warden.ContainerDiskStat{}, nil
 	}
 
-	repquota := &exec.Cmd{
-		Path: path.Join(m.binPath, "repquota"),
-		Args: []string{m.mountPoint, fmt.Sprintf("%d", uid)},
-	}
+	repquota := exec.Command(path.Join(m.binPath, "repquota"), m.mountPoint, fmt.Sprintf("%d", uid))
 
 	usage := warden.ContainerDiskStat{}
 
-	repR, repW, err := os.Pipe()
+	out := new(bytes.Buffer)
+
+	repquota.Stdout = out
+
+	runner := logging.Runner{
+		Logger:        logger,
+		CommandRunner: m.runner,
+	}
+
+	err := runner.Run(repquota)
 	if err != nil {
 		return usage, err
 	}
-
-	defer repR.Close()
-	defer repW.Close()
-
-	repquota.Stdout = repW
-
-	err = m.runner.Start(repquota)
-	if err != nil {
-		return usage, err
-	}
-
-	defer m.runner.Wait(repquota)
 
 	var skip uint32
 
 	_, err = fmt.Fscanf(
-		repR,
+		out,
 		"%d %d %d %d %d %d %d %d",
 		&skip,
 		&usage.BytesUsed,

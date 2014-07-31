@@ -1,8 +1,12 @@
 package rootfs_provider
 
-import "net/url"
+import (
+	"net/url"
+
+	"github.com/pivotal-golang/lager"
+)
 
 type RootFSProvider interface {
-	ProvideRootFS(id string, rootfs *url.URL) (mountpoint string, err error)
-	CleanupRootFS(id string) error
+	ProvideRootFS(logger lager.Logger, id string, rootfs *url.URL) (mountpoint string, err error)
+	CleanupRootFS(logger lager.Logger, id string) error
 }

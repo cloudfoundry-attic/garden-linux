@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"path"
 	"sync"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden/warden"
 	"github.com/cloudfoundry-incubator/warden-linux/system_info"
+	"github.com/pivotal-golang/lager"
 )
 
 type Container interface {
@@ -37,6 +37,8 @@ type ContainerPool interface {
 }
 
 type LinuxBackend struct {
+	logger lager.Logger
+
 	containerPool ContainerPool
 	systemInfo    system_info.Provider
 	snapshotsPath string
@@ -61,8 +63,10 @@ func (e FailedToSnapshotError) Error() string {
 	return fmt.Sprintf("failed to save snapshot: %s", e.OriginalError)
 }
 
-func New(containerPool ContainerPool, systemInfo system_info.Provider, snapshotsPath string) *LinuxBackend {
+func New(logger lager.Logger, containerPool ContainerPool, systemInfo system_info.Provider, snapshotsPath string) *LinuxBackend {
 	return &LinuxBackend{
+		logger: logger,
+
 		containerPool: containerPool,
 		systemInfo:    systemInfo,
 		snapshotsPath: snapshotsPath,
@@ -201,30 +205,40 @@ func (b *LinuxBackend) Stop() {
 		container.Cleanup()
 		err := b.saveSnapshot(container)
 		if err != nil {
-			log.Println(err)
+			b.logger.Error("failed-to-save-snapshot", err, lager.Data{
+				"container": container.ID(),
+			})
 		}
 	}
 }
 
 func (b *LinuxBackend) restoreSnapshots() {
+	sLog := b.logger.Session("restore")
+
 	entries, err := ioutil.ReadDir(b.snapshotsPath)
 	if err != nil {
-		log.Println("failed to read snapshots", b.snapshotsPath, err)
+		b.logger.Error("failed-to-read-snapshots", err, lager.Data{
+			"from": b.snapshotsPath,
+		})
 	}
 
 	for _, entry := range entries {
 		snapshot := path.Join(b.snapshotsPath, entry.Name())
 
-		log.Println("loading snapshot for", entry.Name())
+		lLog := sLog.Session("load", lager.Data{
+			"snapshot": entry.Name(),
+		})
+
+		lLog.Debug("loading")
 
 		file, err := os.Open(snapshot)
 		if err != nil {
-			log.Println("failed to open", entry.Name(), err)
+			lLog.Error("failed-to-open", err)
 		}
 
 		_, err = b.restore(file)
 		if err != nil {
-			log.Println("failed to restore", entry.Name(), err)
+			lLog.Error("failed-to-restore", err)
 		}
 	}
 }
@@ -234,7 +248,9 @@ func (b *LinuxBackend) saveSnapshot(container Container) error {
 		return nil
 	}
 
-	log.Println("saving snapshot for", container.ID())
+	b.logger.Info("save-snapshot", lager.Data{
+		"container": container.ID(),
+	})
 
 	snapshotPath := path.Join(b.snapshotsPath, container.ID())
 

@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"github.com/cloudfoundry-incubator/garden/warden"
+	"github.com/pivotal-golang/lager"
 )
 
 type FakeQuotaManager struct {
@@ -31,7 +32,7 @@ func New() *FakeQuotaManager {
 	}
 }
 
-func (m *FakeQuotaManager) SetLimits(uid uint32, limits warden.DiskLimits) error {
+func (m *FakeQuotaManager) SetLimits(logger lager.Logger, uid uint32, limits warden.DiskLimits) error {
 	if m.SetLimitsError != nil {
 		return m.SetLimitsError
 	}
@@ -44,7 +45,7 @@ func (m *FakeQuotaManager) SetLimits(uid uint32, limits warden.DiskLimits) error
 	return nil
 }
 
-func (m *FakeQuotaManager) GetLimits(uid uint32) (warden.DiskLimits, error) {
+func (m *FakeQuotaManager) GetLimits(logger lager.Logger, uid uint32) (warden.DiskLimits, error) {
 	if m.GetLimitsError != nil {
 		return warden.DiskLimits{}, m.GetLimitsError
 	}
@@ -55,7 +56,7 @@ func (m *FakeQuotaManager) GetLimits(uid uint32) (warden.DiskLimits, error) {
 	return m.GetLimitsResult, nil
 }
 
-func (m *FakeQuotaManager) GetUsage(uid uint32) (warden.ContainerDiskStat, error) {
+func (m *FakeQuotaManager) GetUsage(logger lager.Logger, uid uint32) (warden.ContainerDiskStat, error) {
 	if m.GetUsageError != nil {
 		return warden.ContainerDiskStat{}, m.GetUsageError
 	}

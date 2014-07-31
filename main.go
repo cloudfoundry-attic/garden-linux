@@ -1,10 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"flag"
-	"log"
 	"net"
 	"os"
+	"os/exec"
 	"os/signal"
 	"runtime"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	_ "github.com/docker/docker/daemon/graphdriver/vfs"
 	"github.com/docker/docker/graph"
 	"github.com/docker/docker/registry"
+	"github.com/pivotal-golang/lager"
 
 	"github.com/cloudfoundry-incubator/cf-debug-server"
 	"github.com/cloudfoundry-incubator/cf-lager"
@@ -86,12 +88,6 @@ var containerGraceTime = flag.Duration(
 	"time after which to destroy idle containers",
 )
 
-var debug = flag.Bool(
-	"debug",
-	false,
-	"show low-level command output",
-)
-
 var networkPool = flag.String(
 	"networkPool",
 	"10.254.0.0/22",
@@ -160,28 +156,26 @@ func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	logger := cf_lager.New("warden-linux")
+	backendLogger := logger.Session("backend")
+	serverLogger := logger.Session("garden")
 
 	if *binPath == "" {
-		log.Fatalln("must specify -bin with linux backend")
+		missing("-bin")
 	}
 
 	if *depotPath == "" {
-		log.Fatalln("must specify -depot with linux backend")
+		missing("-depot")
 	}
 
 	if *overlaysPath == "" {
-		log.Fatalln("must specify -overlays with linux backend")
-	}
-
-	if *rootFSPath == "" {
-		log.Fatalln("must specify -rootfs with linux backend")
+		missing("-overlays")
 	}
 
 	uidPool := uid_pool.New(uint32(*uidPoolStart), uint32(*uidPoolSize))
 
 	_, ipNet, err := net.ParseCIDR(*networkPool)
 	if err != nil {
-		log.Fatalln("error parsing CIDR:", err)
+		logger.Fatal("malformed-network-pool", err)
 	}
 
 	networkPool := network_pool.New(ipNet)
@@ -191,34 +185,31 @@ func main() {
 
 	config := sysconfig.NewConfig(*tag)
 
-	runner := sysconfig.NewRunner(config, linux_command_runner.New(*debug))
+	runner := sysconfig.NewRunner(config, linux_command_runner.New())
 
-	quotaManager, err := quota_manager.New(*depotPath, *binPath, runner)
-	if err != nil {
-		log.Fatalln("error creating quota manager:", err)
-	}
+	quotaManager := quota_manager.New(runner, getMountPoint(logger, *depotPath), *binPath)
 
 	if *disableQuotas {
 		quotaManager.Disable()
 	}
 
 	if err := os.MkdirAll(*graphRoot, 0755); err != nil {
-		log.Fatalln("error creating graph directory:", err)
+		logger.Fatal("failed-to-create-graph-directory", err)
 	}
 
 	graphDriver, err := graphdriver.New(*graphRoot, nil)
 	if err != nil {
-		log.Fatalln("error constructing graph driver:", err)
+		logger.Fatal("failed-to-construct-graph-driver", err)
 	}
 
 	graph, err := graph.NewGraph(*graphRoot, graphDriver)
 	if err != nil {
-		log.Fatalln("error constructing graph:", err)
+		logger.Fatal("failed-to-construct-graph", err)
 	}
 
 	reg, err := registry.NewRegistry(nil, nil, *dockerRegistry, true)
 	if err != nil {
-		log.Fatalln(err)
+		logger.Fatal("failed-to-construct-registry", err)
 	}
 
 	repoFetcher := repository_fetcher.Retryable{repository_fetcher.New(reg, graph)}
@@ -229,6 +220,7 @@ func main() {
 	}
 
 	pool := container_pool.New(
+		backendLogger.Session("pool"),
 		*binPath,
 		*depotPath,
 		config,
@@ -244,31 +236,31 @@ func main() {
 
 	systemInfo := system_info.NewProvider(*depotPath)
 
-	backend := linux_backend.New(pool, systemInfo, *snapshotsPath)
-
-	log.Println("setting up backend")
+	backend := linux_backend.New(backendLogger, pool, systemInfo, *snapshotsPath)
 
 	err = backend.Setup()
 	if err != nil {
-		log.Fatalln("failed to set up backend:", err)
+		logger.Fatal("failed-to-set-up-backend", err)
 	}
 
 	graceTime := *containerGraceTime
 
-	wardenServer := server.New(*listenNetwork, *listenAddr, graceTime, backend, logger)
+	wardenServer := server.New(*listenNetwork, *listenAddr, graceTime, backend, serverLogger)
 
 	err = wardenServer.Start()
 	if err != nil {
-		log.Fatalln("failed to start:", err)
+		logger.Fatal("failed-to-start-server", err)
 	}
 
-	log.Println("server started; listening with", *listenNetwork, "on", *listenAddr)
+	logger.Info("started", lager.Data{
+		"network": *listenNetwork,
+		"addr":    *listenAddr,
+	})
 
 	signals := make(chan os.Signal, 1)
 
 	go func() {
 		<-signals
-		log.Println("stopping...")
 		wardenServer.Stop()
 		os.Exit(0)
 	}()
@@ -276,4 +268,27 @@ func main() {
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 
 	select {}
+}
+
+func getMountPoint(logger lager.Logger, depotPath string) string {
+	dfOut := new(bytes.Buffer)
+
+	df := exec.Command("df", depotPath)
+	df.Stdout = dfOut
+	df.Stderr = os.Stderr
+
+	err := df.Run()
+	if err != nil {
+		logger.Fatal("failed-to-get-mount-info", err)
+	}
+
+	dfOutputWords := strings.Split(string(dfOut.Bytes()), " ")
+
+	return strings.Trim(dfOutputWords[len(dfOutputWords)-1], "\n")
+}
+
+func missing(flagName string) {
+	println("missing " + flagName)
+	println()
+	flag.Usage()
 }

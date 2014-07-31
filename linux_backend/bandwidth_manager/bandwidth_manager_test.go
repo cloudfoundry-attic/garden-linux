@@ -7,6 +7,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/pivotal-golang/lager/lagertest"
 
 	"github.com/cloudfoundry-incubator/garden/warden"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/bandwidth_manager"
@@ -15,11 +16,13 @@ import (
 )
 
 var fakeRunner *fake_command_runner.FakeCommandRunner
+var logger *lagertest.TestLogger
 var bandwidthManager *bandwidth_manager.ContainerBandwidthManager
 
 var _ = Describe("setting rate limits", func() {
 	BeforeEach(func() {
 		fakeRunner = fake_command_runner.New()
+		logger = lagertest.NewTestLogger("test")
 		bandwidthManager = bandwidth_manager.New("/depot/some-id", "some-id", fakeRunner)
 	})
 
@@ -29,7 +32,7 @@ var _ = Describe("setting rate limits", func() {
 			BurstRateInBytesPerSecond: 256,
 		}
 
-		err := bandwidthManager.SetLimits(limits)
+		err := bandwidthManager.SetLimits(logger, limits)
 		Ω(err).ShouldNot(HaveOccurred())
 
 		Ω(fakeRunner).Should(HaveExecutedSerially(
@@ -41,7 +44,6 @@ var _ = Describe("setting rate limits", func() {
 				},
 			},
 		))
-
 	})
 
 	Context("when net_rate.sh fails", func() {
@@ -58,7 +60,7 @@ var _ = Describe("setting rate limits", func() {
 		})
 
 		It("returns the error", func() {
-			err := bandwidthManager.SetLimits(warden.BandwidthLimits{
+			err := bandwidthManager.SetLimits(logger, warden.BandwidthLimits{
 				RateInBytesPerSecond:      128,
 				BurstRateInBytesPerSecond: 256,
 			})
@@ -70,6 +72,7 @@ var _ = Describe("setting rate limits", func() {
 var _ = Describe("getting bandwidth limits", func() {
 	BeforeEach(func() {
 		fakeRunner = fake_command_runner.New()
+		logger = lagertest.NewTestLogger("test")
 		bandwidthManager = bandwidth_manager.New("/depot/some-id", "some-id", fakeRunner)
 	})
 
@@ -100,7 +103,7 @@ ref 1 bind 1
 			return nil
 		})
 
-		usage, err := bandwidthManager.GetLimits()
+		usage, err := bandwidthManager.GetLimits(logger)
 		Ω(err).ShouldNot(HaveOccurred())
 
 		Ω(usage.InRate).Should(Equal(uint64(1024)))
@@ -124,7 +127,7 @@ ref 1 bind 1
 		})
 
 		It("returns the error", func() {
-			_, err := bandwidthManager.GetLimits()
+			_, err := bandwidthManager.GetLimits(logger)
 			Ω(err).Should(Equal(disaster))
 		})
 	})
@@ -156,7 +159,7 @@ ref 1 bind 1
 				return nil
 			})
 
-			usage, err := bandwidthManager.GetLimits()
+			usage, err := bandwidthManager.GetLimits(logger)
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(usage.InRate).Should(Equal(uint64(0)))
@@ -181,7 +184,7 @@ ref 1 bind 1
 		})
 
 		It("returns the error", func() {
-			_, err := bandwidthManager.GetLimits()
+			_, err := bandwidthManager.GetLimits(logger)
 			Ω(err).Should(Equal(disaster))
 		})
 	})
@@ -208,7 +211,7 @@ qdisc ingress ffff: parent ffff:fff1 ----------------
 				return nil
 			})
 
-			usage, err := bandwidthManager.GetLimits()
+			usage, err := bandwidthManager.GetLimits(logger)
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(usage.InRate).Should(Equal(uint64(1024)))

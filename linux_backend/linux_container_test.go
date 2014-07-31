@@ -18,6 +18,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
+	"github.com/pivotal-golang/lager/lagertest"
 
 	"github.com/cloudfoundry-incubator/garden/warden"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend"
@@ -68,6 +69,7 @@ var _ = Describe("Linux containers", func() {
 		)
 
 		container = linux_backend.NewLinuxContainer(
+			lagertest.NewTestLogger("test"),
 			"some-id",
 			"some-handle",
 			"/depot/some-id",
@@ -384,7 +386,6 @@ var _ = Describe("Linux containers", func() {
 					Args: []string{"out"},
 				},
 			))
-
 		})
 
 		for _, cmd := range []string{"setup", "in", "out"} {
@@ -856,6 +857,7 @@ var _ = Describe("Linux containers", func() {
 			Ω(ranCmd.Path).Should(Equal("/depot/some-id/bin/wsh"))
 
 			Ω(ranCmd.Args).Should(Equal([]string{
+				"/depot/some-id/bin/wsh",
 				"--socket", "/depot/some-id/run/wshd.sock",
 				"--user", "vcap",
 				"/some/script",
@@ -892,6 +894,7 @@ var _ = Describe("Linux containers", func() {
 
 			ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
 			Ω(ranCmd.Args).Should(Equal([]string{
+				"/depot/some-id/bin/wsh",
 				"--socket", "/depot/some-id/run/wshd.sock",
 				"--user", "vcap",
 				"--env", `ESCAPED=kurt "russell"`,
@@ -910,6 +913,7 @@ var _ = Describe("Linux containers", func() {
 
 			ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
 			Ω(ranCmd.Args).Should(Equal([]string{
+				"/depot/some-id/bin/wsh",
 				"--socket", "/depot/some-id/run/wshd.sock",
 				"--user", "vcap",
 				"--dir", "/some/dir",
@@ -1008,6 +1012,7 @@ var _ = Describe("Linux containers", func() {
 			Ω(ranCmd.Path).Should(Equal("/depot/some-id/bin/wsh"))
 
 			Ω(ranCmd.Args).Should(Equal([]string{
+				"/depot/some-id/bin/wsh",
 				"--socket", "/depot/some-id/run/wshd.sock",
 				"--user", "vcap",
 				"/some/script",
@@ -1038,6 +1043,7 @@ var _ = Describe("Linux containers", func() {
 				Ω(ranCmd.Path).Should(Equal("/depot/some-id/bin/wsh"))
 
 				Ω(ranCmd.Args).Should(Equal([]string{
+					"/depot/some-id/bin/wsh",
 					"--socket", "/depot/some-id/run/wshd.sock",
 					"--user", "root",
 					"/some/script",

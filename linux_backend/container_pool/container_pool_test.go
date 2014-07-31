@@ -15,6 +15,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/pivotal-golang/lager/lagertest"
 
 	"github.com/cloudfoundry-incubator/garden/warden"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend"
@@ -60,6 +61,7 @@ var _ = Describe("Container pool", func() {
 		Ω(err).ShouldNot(HaveOccurred())
 
 		pool = container_pool.New(
+			lagertest.NewTestLogger("test"),
 			"/root/path",
 			depotPath,
 			sysconfig.NewConfig("0"),
@@ -425,7 +427,6 @@ var _ = Describe("Container pool", func() {
 						},
 					},
 				))
-
 			})
 
 			Context("when appending to hook-child-before-pivot.sh fails", func() {

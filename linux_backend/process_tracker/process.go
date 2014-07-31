@@ -135,13 +135,10 @@ func (p *Process) Spawn(cmd *exec.Cmd, tty *warden.TTYSpec) (ready, active chan 
 		}
 	}
 
-	bashFlags = append(bashFlags, "spawn", processSock, cmd.Path)
+	bashFlags = append(bashFlags, "spawn", processSock)
 
-	spawn := &exec.Cmd{
-		Path: "bash",
-		Args: append(bashFlags, cmd.Args...),
-		Env:  cmd.Env,
-	}
+	spawn := exec.Command("bash", append(bashFlags, cmd.Args...)...)
+	spawn.Env = cmd.Env
 
 	spawnR, err := spawn.StdoutPipe()
 	if err != nil {
@@ -248,17 +245,16 @@ func (p *Process) runLinker() {
 
 	p.stdin.AddSink(inW)
 
-	p.link = &exec.Cmd{
-		Path: linkPath,
-		Args: []string{
-			fmt.Sprintf("-tty=%v", p.withTty),
-			"link",
-			processSock,
-		},
-		Stdin:  inR,
-		Stdout: p.stdout,
-		Stderr: p.stderr,
-	}
+	p.link = exec.Command(
+		linkPath,
+		fmt.Sprintf("-tty=%v", p.withTty),
+		"link",
+		processSock,
+	)
+
+	p.link.Stdin = inR
+	p.link.Stdout = p.stdout
+	p.link.Stderr = p.stderr
 
 	err = p.runner.Start(p.link)
 	if err != nil {

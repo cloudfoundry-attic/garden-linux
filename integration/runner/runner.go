@@ -84,7 +84,7 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 		"--overlays", overlaysPath,
 		"--snapshots", snapshotsPath,
 		"--graph", graphPath,
-		"--debug",
+		"--logLevel", "debug",
 		"--disableQuotas",
 		"--networkPool", fmt.Sprintf("10.250.%d.0/24", ginkgo.GinkgoParallelNode()),
 		"--portPoolStart", strconv.Itoa(51000+(1000*ginkgo.GinkgoParallelNode())),
@@ -101,7 +101,7 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 		Name:              "warden-linux",
 		Command:           r.Command,
 		AnsiColorCode:     "31m",
-		StartCheck:        "server started",
+		StartCheck:        "warden-linux.started",
 		StartCheckTimeout: 10 * time.Second,
 		Cleanup: func() {
 			if signal == syscall.SIGKILL {

@@ -5,7 +5,9 @@ import (
 	"os/exec"
 	"path"
 
+	"github.com/cloudfoundry-incubator/warden-linux/logging"
 	"github.com/cloudfoundry/gunk/command_runner"
+	"github.com/pivotal-golang/lager"
 )
 
 type overlayRootFSProvider struct {
@@ -29,16 +31,23 @@ func NewOverlay(
 	}
 }
 
-func (provider *overlayRootFSProvider) ProvideRootFS(id string, rootfs *url.URL) (string, error) {
+func (provider *overlayRootFSProvider) ProvideRootFS(logger lager.Logger, id string, rootfs *url.URL) (string, error) {
 	rootFSPath := provider.defaultRootFS
 	if rootfs.Path != "" {
 		rootFSPath = rootfs.Path
 	}
 
-	err := provider.runner.Run(&exec.Cmd{
-		Path: path.Join(provider.binPath, "overlay.sh"),
-		Args: []string{"create", path.Join(provider.overlaysPath, id), rootFSPath},
-	})
+	pRunner := logging.Runner{
+		CommandRunner: provider.runner,
+		Logger:        logger,
+	}
+
+	createOverlay := exec.Command(
+		path.Join(provider.binPath, "overlay.sh"),
+		"create", path.Join(provider.overlaysPath, id), rootFSPath,
+	)
+
+	err := pRunner.Run(createOverlay)
 	if err != nil {
 		return "", err
 	}
@@ -46,9 +55,16 @@ func (provider *overlayRootFSProvider) ProvideRootFS(id string, rootfs *url.URL)
 	return path.Join(provider.overlaysPath, id, "rootfs"), nil
 }
 
-func (provider *overlayRootFSProvider) CleanupRootFS(id string) error {
-	return provider.runner.Run(&exec.Cmd{
-		Path: path.Join(provider.binPath, "overlay.sh"),
-		Args: []string{"cleanup", path.Join(provider.overlaysPath, id)},
-	})
+func (provider *overlayRootFSProvider) CleanupRootFS(logger lager.Logger, id string) error {
+	pRunner := logging.Runner{
+		CommandRunner: provider.runner,
+		Logger:        logger,
+	}
+
+	destroyOverlay := exec.Command(
+		path.Join(provider.binPath, "overlay.sh"),
+		"cleanup", path.Join(provider.overlaysPath, id),
+	)
+
+	return pRunner.Run(destroyOverlay)
 }

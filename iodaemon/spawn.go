@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/gob"
 	"fmt"
-	"log"
 	"net"
 	"os"
 	"os/exec"
@@ -15,7 +14,7 @@ import (
 	"github.com/kr/pty"
 )
 
-func spawn(socketPath string, path string, argv []string, timeout time.Duration, withTty bool, windowColumns int, windowRows int) {
+func spawn(socketPath string, argv []string, timeout time.Duration, withTty bool, windowColumns int, windowRows int) {
 	err := os.MkdirAll(filepath.Dir(socketPath), 0755)
 	if err != nil {
 		fatal(err)
@@ -26,7 +25,7 @@ func spawn(socketPath string, path string, argv []string, timeout time.Duration,
 		fatal(err)
 	}
 
-	bin, err := exec.LookPath(path)
+	bin, err := exec.LookPath(argv[0])
 	if err != nil {
 		fatal(err)
 	}
@@ -103,7 +102,6 @@ func spawn(socketPath string, path string, argv []string, timeout time.Duration,
 
 		_, _, err = conn.(*net.UnixConn).WriteMsgUnix([]byte{}, rights, nil)
 		if err != nil {
-			log.Println("ERROR WRITING UNIX:", err)
 			break
 		}
 

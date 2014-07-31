@@ -3,6 +3,8 @@ package fake_rootfs_provider
 import (
 	"net/url"
 	"sync"
+
+	"github.com/pivotal-golang/lager"
 )
 
 type FakeRootFSProvider struct {
@@ -27,7 +29,7 @@ func New() *FakeRootFSProvider {
 	}
 }
 
-func (provider *FakeRootFSProvider) ProvideRootFS(id string, url *url.URL) (string, error) {
+func (provider *FakeRootFSProvider) ProvideRootFS(logger lager.Logger, id string, url *url.URL) (string, error) {
 	if provider.ProvideError != nil {
 		return "", provider.ProvideError
 	}
@@ -39,7 +41,7 @@ func (provider *FakeRootFSProvider) ProvideRootFS(id string, url *url.URL) (stri
 	return provider.ProvideResult, nil
 }
 
-func (provider *FakeRootFSProvider) CleanupRootFS(id string) error {
+func (provider *FakeRootFSProvider) CleanupRootFS(logger lager.Logger, id string) error {
 	if provider.CleanupError != nil {
 		return provider.CleanupError
 	}

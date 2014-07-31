@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"os/exec"
 	"path"
@@ -20,10 +19,14 @@ import (
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/cgroups_manager"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/process_tracker"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/quota_manager"
+	"github.com/cloudfoundry-incubator/warden-linux/logging"
 	"github.com/cloudfoundry/gunk/command_runner"
+	"github.com/pivotal-golang/lager"
 )
 
 type LinuxContainer struct {
+	logger lager.Logger
+
 	id     string
 	handle string
 	path   string
@@ -97,6 +100,7 @@ const (
 )
 
 func NewLinuxContainer(
+	logger lager.Logger,
 	id, handle, path string,
 	properties warden.Properties,
 	graceTime time.Duration,
@@ -109,6 +113,8 @@ func NewLinuxContainer(
 	processTracker process_tracker.ProcessTracker,
 ) *LinuxContainer {
 	return &LinuxContainer{
+		logger: logger,
+
 		id:     id,
 		handle: handle,
 		path:   path,
@@ -130,7 +136,7 @@ func NewLinuxContainer(
 		quotaManager:     quotaManager,
 		bandwidthManager: bandwidthManager,
 
-		processTracker: processTracker, //process_tracker.New(path, runner),
+		processTracker: processTracker,
 	}
 }
 
@@ -173,6 +179,10 @@ func (c *LinuxContainer) Resources() *Resources {
 }
 
 func (c *LinuxContainer) Snapshot(out io.Writer) error {
+	cLog := c.logger.Session("snapshot")
+
+	cLog.Debug("saving")
+
 	c.bandwidthMutex.RLock()
 	defer c.bandwidthMutex.RUnlock()
 
@@ -203,40 +213,61 @@ func (c *LinuxContainer) Snapshot(out io.Writer) error {
 		)
 	}
 
-	return json.NewEncoder(out).Encode(
-		ContainerSnapshot{
-			ID:     c.id,
-			Handle: c.handle,
+	snapshot := ContainerSnapshot{
+		ID:     c.id,
+		Handle: c.handle,
 
-			GraceTime: c.graceTime,
+		GraceTime: c.graceTime,
 
-			State:  string(c.State()),
-			Events: c.Events(),
+		State:  string(c.State()),
+		Events: c.Events(),
 
-			Limits: LimitsSnapshot{
-				Bandwidth: c.currentBandwidthLimits,
-				CPU:       c.currentCPULimits,
-				Disk:      c.currentDiskLimits,
-				Memory:    c.currentMemoryLimits,
-			},
-
-			Resources: ResourcesSnapshot{
-				UID:     c.resources.UID,
-				Network: c.resources.Network,
-				Ports:   c.resources.Ports,
-			},
-
-			NetIns:  c.netIns,
-			NetOuts: c.netOuts,
-
-			Processes: processSnapshots,
-
-			Properties: c.Properties(),
+		Limits: LimitsSnapshot{
+			Bandwidth: c.currentBandwidthLimits,
+			CPU:       c.currentCPULimits,
+			Disk:      c.currentDiskLimits,
+			Memory:    c.currentMemoryLimits,
 		},
-	)
+
+		Resources: ResourcesSnapshot{
+			UID:     c.resources.UID,
+			Network: c.resources.Network,
+			Ports:   c.resources.Ports,
+		},
+
+		NetIns:  c.netIns,
+		NetOuts: c.netOuts,
+
+		Processes: processSnapshots,
+
+		Properties: c.Properties(),
+	}
+
+	err := json.NewEncoder(out).Encode(snapshot)
+	if err != nil {
+		cLog.Error("failed-to-save", err, lager.Data{
+			"snapshot": snapshot,
+		})
+		return err
+	}
+
+	cLog.Info("saved", lager.Data{
+		"snapshot": snapshot,
+	})
+
+	return nil
 }
 
 func (c *LinuxContainer) Restore(snapshot ContainerSnapshot) error {
+	cLog := c.logger.Session("restore")
+
+	cLog.Debug("restoring")
+
+	cRunner := logging.Runner{
+		CommandRunner: c.runner,
+		Logger:        cLog,
+	}
+
 	c.setState(State(snapshot.State))
 
 	for _, ev := range snapshot.Events {
@@ -246,6 +277,7 @@ func (c *LinuxContainer) Restore(snapshot ContainerSnapshot) error {
 	if snapshot.Limits.Memory != nil {
 		err := c.LimitMemory(*snapshot.Limits.Memory)
 		if err != nil {
+			cLog.Error("failed-to-limit-memory", err)
 			return err
 		}
 	}
@@ -254,19 +286,18 @@ func (c *LinuxContainer) Restore(snapshot ContainerSnapshot) error {
 		c.processTracker.Restore(process.ID, process.TTY)
 	}
 
-	net := &exec.Cmd{
-		Path: path.Join(c.path, "net.sh"),
-		Args: []string{"setup"},
-	}
+	net := exec.Command(path.Join(c.path, "net.sh"), "setup")
 
-	err := c.runner.Run(net)
+	err := cRunner.Run(net)
 	if err != nil {
+		cLog.Error("failed-to-reenforce-network-rules", err)
 		return err
 	}
 
 	for _, in := range snapshot.NetIns {
 		_, _, err = c.NetIn(in.HostPort, in.ContainerPort)
 		if err != nil {
+			cLog.Error("failed-to-reenforce-port-mapping", err)
 			return err
 		}
 	}
@@ -274,41 +305,55 @@ func (c *LinuxContainer) Restore(snapshot ContainerSnapshot) error {
 	for _, out := range snapshot.NetOuts {
 		err = c.NetOut(out.Network, out.Port)
 		if err != nil {
+			cLog.Error("failed-to-reenforce-allowed-traffic", err)
 			return err
 		}
 	}
+
+	cLog.Info("restored")
 
 	return nil
 }
 
 func (c *LinuxContainer) Start() error {
-	log.Println(c.id, "starting")
+	cLog := c.logger.Session("start")
 
-	start := &exec.Cmd{
-		Path: path.Join(c.path, "start.sh"),
-		Env: []string{
-			"id=" + c.id,
-			"container_iface_mtu=1500",
-			"PATH=" + os.Getenv("PATH"),
-		},
+	cLog.Debug("starting")
+
+	start := exec.Command(path.Join(c.path, "start.sh"))
+	start.Env = []string{
+		"id=" + c.id,
+		"container_iface_mtu=1500",
+		"PATH=" + os.Getenv("PATH"),
 	}
 
 	err := c.runner.Run(start)
 	if err != nil {
+		cLog.Error("failed-to-start", err)
 		return err
 	}
 
 	c.setState(StateActive)
 
+	cLog.Info("started")
+
 	return nil
 }
 
-func (c *LinuxContainer) Stop(kill bool) error {
-	log.Println(c.id, "stopping")
+func (c *LinuxContainer) Cleanup() {
+	cLog := c.logger.Session("cleanup")
 
-	stop := &exec.Cmd{
-		Path: path.Join(c.path, "stop.sh"),
-	}
+	cLog.Debug("stopping-oom-notifier")
+	c.stopOomNotifier()
+
+	cLog.Debug("detaching-from-processes")
+	c.processTracker.UnlinkAll()
+
+	cLog.Info("done")
+}
+
+func (c *LinuxContainer) Stop(kill bool) error {
+	stop := exec.Command(path.Join(c.path, "stop.sh"))
 
 	if kill {
 		stop.Args = append(stop.Args, "-w", "0")
@@ -326,14 +371,8 @@ func (c *LinuxContainer) Stop(kill bool) error {
 	return nil
 }
 
-func (c *LinuxContainer) Cleanup() {
-	c.stopOomNotifier()
-
-	c.processTracker.UnlinkAll()
-}
-
 func (c *LinuxContainer) Info() (warden.ContainerInfo, error) {
-	log.Println(c.id, "info")
+	cLog := c.logger.Session("info")
 
 	memoryStat, err := c.cgroupsManager.Get("memory", "memory.stat")
 	if err != nil {
@@ -350,12 +389,12 @@ func (c *LinuxContainer) Info() (warden.ContainerInfo, error) {
 		return warden.ContainerInfo{}, err
 	}
 
-	diskStat, err := c.quotaManager.GetUsage(c.resources.UID)
+	diskStat, err := c.quotaManager.GetUsage(cLog, c.resources.UID)
 	if err != nil {
 		return warden.ContainerInfo{}, err
 	}
 
-	bandwidthStat, err := c.bandwidthManager.GetLimits()
+	bandwidthStat, err := c.bandwidthManager.GetLimits(cLog)
 	if err != nil {
 		return warden.ContainerInfo{}, err
 	}
@@ -395,28 +434,22 @@ func (c *LinuxContainer) Info() (warden.ContainerInfo, error) {
 }
 
 func (c *LinuxContainer) StreamIn(dstPath string, tarStream io.Reader) error {
-	log.Println(c.id, "writing data to:", dstPath)
-
 	wshPath := path.Join(c.path, "bin", "wsh")
 	sockPath := path.Join(c.path, "run", "wshd.sock")
 
-	tar := &exec.Cmd{
-		Path: wshPath,
-		Args: []string{
-			"--socket", sockPath,
-			"--user", "vcap",
-			"bash", "-c",
-			fmt.Sprintf("mkdir -p %s && tar xf - -C %s", dstPath, dstPath),
-		},
-		Stdin: tarStream,
-	}
+	tar := exec.Command(
+		wshPath,
+		"--socket", sockPath,
+		"--user", "vcap",
+		"bash", "-c", fmt.Sprintf("mkdir -p %s && tar xf - -C %s", dstPath, dstPath),
+	)
+
+	tar.Stdin = tarStream
 
 	return c.runner.Run(tar)
 }
 
 func (c *LinuxContainer) StreamOut(srcPath string) (io.ReadCloser, error) {
-	log.Println(c.id, "reading data from:", srcPath)
-
 	wshPath := path.Join(c.path, "bin", "wsh")
 	sockPath := path.Join(c.path, "run", "wshd.sock")
 
@@ -432,15 +465,14 @@ func (c *LinuxContainer) StreamOut(srcPath string) (io.ReadCloser, error) {
 		return nil, err
 	}
 
-	tar := &exec.Cmd{
-		Path: wshPath,
-		Args: []string{
-			"--socket", sockPath,
-			"--user", "vcap",
-			"tar", "cf", "-", "-C", workingDir, compressArg,
-		},
-		Stdout: tarWrite,
-	}
+	tar := exec.Command(
+		wshPath,
+		"--socket", sockPath,
+		"--user", "vcap",
+		"tar", "cf", "-", "-C", workingDir, compressArg,
+	)
+
+	tar.Stdout = tarWrite
 
 	err = c.runner.Background(tar)
 	if err != nil {
@@ -456,15 +488,9 @@ func (c *LinuxContainer) StreamOut(srcPath string) (io.ReadCloser, error) {
 }
 
 func (c *LinuxContainer) LimitBandwidth(limits warden.BandwidthLimits) error {
-	log.Println(
-		c.id,
-		"limiting bandwidth to",
-		limits.RateInBytesPerSecond,
-		"bytes per second; burst",
-		limits.BurstRateInBytesPerSecond,
-	)
+	cLog := c.logger.Session("limit-bandwidth")
 
-	err := c.bandwidthManager.SetLimits(limits)
+	err := c.bandwidthManager.SetLimits(cLog, limits)
 	if err != nil {
 		return err
 	}
@@ -489,9 +515,9 @@ func (c *LinuxContainer) CurrentBandwidthLimits() (warden.BandwidthLimits, error
 }
 
 func (c *LinuxContainer) LimitDisk(limits warden.DiskLimits) error {
-	log.Println(c.id, "limiting disk", limits)
+	cLog := c.logger.Session("limit-disk")
 
-	err := c.quotaManager.SetLimits(c.resources.UID, limits)
+	err := c.quotaManager.SetLimits(cLog, c.resources.UID, limits)
 	if err != nil {
 		return err
 	}
@@ -505,12 +531,11 @@ func (c *LinuxContainer) LimitDisk(limits warden.DiskLimits) error {
 }
 
 func (c *LinuxContainer) CurrentDiskLimits() (warden.DiskLimits, error) {
-	return c.quotaManager.GetLimits(c.resources.UID)
+	cLog := c.logger.Session("current-disk-limits")
+	return c.quotaManager.GetLimits(cLog, c.resources.UID)
 }
 
 func (c *LinuxContainer) LimitMemory(limits warden.MemoryLimits) error {
-	log.Println(c.id, "limiting memory to", limits.LimitInBytes, "bytes")
-
 	err := c.startOomNotifier()
 	if err != nil {
 		return err
@@ -555,8 +580,6 @@ func (c *LinuxContainer) CurrentMemoryLimits() (warden.MemoryLimits, error) {
 }
 
 func (c *LinuxContainer) LimitCPU(limits warden.CPULimits) error {
-	log.Println(c.id, "limiting CPU to", limits.LimitInShares, "shares")
-
 	limit := fmt.Sprintf("%d", limits.LimitInShares)
 
 	err := c.cgroupsManager.Set("cpu", "cpu.shares", limit)
@@ -587,8 +610,6 @@ func (c *LinuxContainer) CurrentCPULimits() (warden.CPULimits, error) {
 }
 
 func (c *LinuxContainer) Run(spec warden.ProcessSpec, processIO warden.ProcessIO) (warden.Process, error) {
-	log.Println(c.id, "running process:", spec.Path, spec.Args)
-
 	wshPath := path.Join(c.path, "bin", "wsh")
 	sockPath := path.Join(c.path, "run", "wshd.sock")
 
@@ -608,10 +629,7 @@ func (c *LinuxContainer) Run(spec warden.ProcessSpec, processIO warden.ProcessIO
 
 	args = append(args, spec.Path)
 
-	wsh := &exec.Cmd{
-		Path: wshPath,
-		Args: append(args, spec.Args...),
-	}
+	wsh := exec.Command(wshPath, append(args, spec.Args...)...)
 
 	setRLimitsEnv(wsh, spec.Limits)
 
@@ -619,7 +637,6 @@ func (c *LinuxContainer) Run(spec warden.ProcessSpec, processIO warden.ProcessIO
 }
 
 func (c *LinuxContainer) Attach(processID uint32, processIO warden.ProcessIO) (warden.Process, error) {
-	log.Println(c.id, "attaching to process", processID)
 	return c.processTracker.Attach(processID, processIO)
 }
 
@@ -639,22 +656,11 @@ func (c *LinuxContainer) NetIn(hostPort uint32, containerPort uint32) (uint32, u
 		containerPort = hostPort
 	}
 
-	log.Println(
-		c.id,
-		"mapping host port",
-		hostPort,
-		"to container port",
-		containerPort,
-	)
-
-	net := &exec.Cmd{
-		Path: path.Join(c.path, "net.sh"),
-		Args: []string{"in"},
-		Env: []string{
-			fmt.Sprintf("HOST_PORT=%d", hostPort),
-			fmt.Sprintf("CONTAINER_PORT=%d", containerPort),
-			"PATH=" + os.Getenv("PATH"),
-		},
+	net := exec.Command(path.Join(c.path, "net.sh"), "in")
+	net.Env = []string{
+		fmt.Sprintf("HOST_PORT=%d", hostPort),
+		fmt.Sprintf("CONTAINER_PORT=%d", containerPort),
+		"PATH=" + os.Getenv("PATH"),
 	}
 
 	err := c.runner.Run(net)
@@ -671,20 +677,9 @@ func (c *LinuxContainer) NetIn(hostPort uint32, containerPort uint32) (uint32, u
 }
 
 func (c *LinuxContainer) NetOut(network string, port uint32) error {
-	net := &exec.Cmd{
-		Path: path.Join(c.path, "net.sh"),
-		Args: []string{"out"},
-	}
+	net := exec.Command(path.Join(c.path, "net.sh"), "out")
 
 	if port != 0 {
-		log.Println(
-			c.id,
-			"permitting traffic to",
-			network,
-			"with port",
-			port,
-		)
-
 		net.Env = []string{
 			"NETWORK=" + network,
 			fmt.Sprintf("PORT=%d", port),
@@ -694,8 +689,6 @@ func (c *LinuxContainer) NetOut(network string, port uint32) error {
 		if network == "" {
 			return fmt.Errorf("network and/or port must be provided")
 		}
-
-		log.Println(c.id, "permitting traffic to", network)
 
 		net.Env = []string{
 			"NETWORK=" + network,
@@ -741,10 +734,7 @@ func (c *LinuxContainer) startOomNotifier() error {
 
 	oomPath := path.Join(c.path, "bin", "oom")
 
-	c.oomNotifier = &exec.Cmd{
-		Path: oomPath,
-		Args: []string{c.cgroupsManager.SubsystemPath("memory")},
-	}
+	c.oomNotifier = exec.Command(oomPath, c.cgroupsManager.SubsystemPath("memory"))
 
 	err := c.runner.Start(c.oomNotifier)
 	if err != nil {
@@ -768,11 +758,8 @@ func (c *LinuxContainer) stopOomNotifier() {
 func (c *LinuxContainer) watchForOom(oom *exec.Cmd) {
 	err := c.runner.Wait(oom)
 	if err == nil {
-		log.Println(c.id, "out of memory")
 		c.registerEvent("out of memory")
 		c.Stop(false)
-	} else {
-		log.Println(c.id, "oom failed:", err)
 	}
 
 	// TODO: handle case where oom notifier itself failed? kill container?

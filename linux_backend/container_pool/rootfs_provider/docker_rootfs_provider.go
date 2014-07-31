@@ -5,6 +5,7 @@ import (
 	"net/url"
 
 	"github.com/docker/docker/daemon/graphdriver"
+	"github.com/pivotal-golang/lager"
 
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool/repository_fetcher"
 )
@@ -28,7 +29,7 @@ func NewDocker(
 	}
 }
 
-func (provider *dockerRootFSProvider) ProvideRootFS(id string, url *url.URL) (string, error) {
+func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id string, url *url.URL) (string, error) {
 	if len(url.Path) == 0 {
 		return "", ErrInvalidDockerURL
 	}
@@ -40,7 +41,7 @@ func (provider *dockerRootFSProvider) ProvideRootFS(id string, url *url.URL) (st
 		tag = url.Fragment
 	}
 
-	imageID, err := provider.repoFetcher.Fetch(repoName, tag)
+	imageID, err := provider.repoFetcher.Fetch(logger, repoName, tag)
 	if err != nil {
 		return "", err
 	}
@@ -53,7 +54,7 @@ func (provider *dockerRootFSProvider) ProvideRootFS(id string, url *url.URL) (st
 	return provider.graphDriver.Get(id, "")
 }
 
-func (provider *dockerRootFSProvider) CleanupRootFS(id string) error {
+func (provider *dockerRootFSProvider) CleanupRootFS(logger lager.Logger, id string) error {
 	provider.graphDriver.Put(id)
 
 	return provider.graphDriver.Remove(id)

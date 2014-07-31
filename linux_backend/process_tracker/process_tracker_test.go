@@ -60,7 +60,7 @@ var _ = Describe("Running processes", func() {
 	})
 
 	It("runs the command asynchronously via iodaemon spawn", func() {
-		cmd := &exec.Cmd{Path: "/bin/bash", Args: []string{"-l"}}
+		cmd := exec.Command("/bin/bash", "-l")
 
 		setupSuccessfulSpawn()
 
@@ -215,7 +215,7 @@ var _ = Describe("Running processes", func() {
 
 	Context("with a tty", func() {
 		It("spawns and links with -tty", func() {
-			cmd := &exec.Cmd{Path: "/bin/bash", Args: []string{"-l"}}
+			cmd := exec.Command("/bin/bash", "-l")
 
 			setupSuccessfulSpawn()
 
@@ -252,7 +252,7 @@ var _ = Describe("Running processes", func() {
 
 		Describe("and a window size", func() {
 			It("spawns with -windowColumns and -windowRows", func() {
-				cmd := &exec.Cmd{Path: "/bin/bash", Args: []string{"-l"}}
+				cmd := exec.Command("/bin/bash", "-l")
 
 				setupSuccessfulSpawn()
 
@@ -327,7 +327,7 @@ var _ = Describe("Restoring processes", func() {
 
 		processTracker.Restore(0, false)
 
-		cmd := &exec.Cmd{Path: "/bin/bash"}
+		cmd := exec.Command("/bin/bash")
 
 		cmd.Stdin = bytes.NewBufferString("echo hi")
 
@@ -337,7 +337,7 @@ var _ = Describe("Restoring processes", func() {
 
 		processTracker.Restore(5, false)
 
-		cmd = &exec.Cmd{Path: "/bin/bash"}
+		cmd = exec.Command("/bin/bash")
 
 		cmd.Stdin = bytes.NewBufferString("echo hi")
 

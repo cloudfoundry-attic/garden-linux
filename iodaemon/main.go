@@ -52,7 +52,7 @@ func main() {
 			usage()
 		}
 
-		spawn(args[1], args[2], args[2:], *timeout, *tty, *windowColumns, *windowRows)
+		spawn(args[1], args[2:], *timeout, *tty, *windowColumns, *windowRows)
 
 	case "link":
 		if len(args) < 2 {

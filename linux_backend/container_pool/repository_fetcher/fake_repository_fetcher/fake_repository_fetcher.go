@@ -1,6 +1,10 @@
 package fake_repository_fetcher
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/pivotal-golang/lager"
+)
 
 type FakeRepositoryFetcher struct {
 	fetched     []FetchSpec
@@ -21,7 +25,7 @@ func New() *FakeRepositoryFetcher {
 	}
 }
 
-func (fetcher *FakeRepositoryFetcher) Fetch(repoName string, tag string) (string, error) {
+func (fetcher *FakeRepositoryFetcher) Fetch(logger lager.Logger, repoName string, tag string) (string, error) {
 	if fetcher.FetchError != nil {
 		return "", fetcher.FetchError
 	}

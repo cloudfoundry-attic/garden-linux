@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/url"
 	"os"
 	"os/exec"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden/warden"
 	"github.com/cloudfoundry/gunk/command_runner"
+	"github.com/pivotal-golang/lager"
 
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/bandwidth_manager"
@@ -26,12 +26,15 @@ import (
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/process_tracker"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/quota_manager"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/uid_pool"
+	"github.com/cloudfoundry-incubator/warden-linux/logging"
 	"github.com/cloudfoundry-incubator/warden-linux/sysconfig"
 )
 
 var ErrUnknownRootFSProvider = errors.New("unknown rootfs provider")
 
 type LinuxContainerPool struct {
+	logger lager.Logger
+
 	binPath   string
 	depotPath string
 
@@ -54,6 +57,7 @@ type LinuxContainerPool struct {
 }
 
 func New(
+	logger lager.Logger,
 	binPath, depotPath string,
 	sysconfig sysconfig.Config,
 	rootfsProviders map[string]rootfs_provider.RootFSProvider,
@@ -65,6 +69,8 @@ func New(
 	quotaManager quota_manager.QuotaManager,
 ) *LinuxContainerPool {
 	pool := &LinuxContainerPool{
+		logger: logger,
+
 		binPath:   binPath,
 		depotPath: depotPath,
 
@@ -101,17 +107,15 @@ func (p *LinuxContainerPool) MaxContainers() int {
 }
 
 func (p *LinuxContainerPool) Setup() error {
-	setup := &exec.Cmd{
-		Path: path.Join(p.binPath, "setup.sh"),
-		Env: []string{
-			"POOL_NETWORK=" + p.networkPool.Network().String(),
-			"DENY_NETWORKS=" + formatNetworks(p.denyNetworks),
-			"ALLOW_NETWORKS=" + formatNetworks(p.allowNetworks),
-			"CONTAINER_DEPOT_PATH=" + p.depotPath,
-			"CONTAINER_DEPOT_MOUNT_POINT_PATH=" + p.quotaManager.MountPoint(),
-			fmt.Sprintf("DISK_QUOTA_ENABLED=%v", p.quotaManager.IsEnabled()),
-			"PATH=" + os.Getenv("PATH"),
-		},
+	setup := exec.Command(path.Join(p.binPath, "setup.sh"))
+	setup.Env = []string{
+		"POOL_NETWORK=" + p.networkPool.Network().String(),
+		"DENY_NETWORKS=" + formatNetworks(p.denyNetworks),
+		"ALLOW_NETWORKS=" + formatNetworks(p.allowNetworks),
+		"CONTAINER_DEPOT_PATH=" + p.depotPath,
+		"CONTAINER_DEPOT_MOUNT_POINT_PATH=" + p.quotaManager.MountPoint(),
+		fmt.Sprintf("DISK_QUOTA_ENABLED=%v", p.quotaManager.IsEnabled()),
+		"PATH=" + os.Getenv("PATH"),
 	}
 
 	err := p.runner.Run(setup)
@@ -143,9 +147,13 @@ func (p *LinuxContainerPool) Prune(keep map[string]bool) error {
 			continue
 		}
 
-		log.Println("pruning", id)
+		pLog := p.logger.Session("prune", lager.Data{
+			"id": id,
+		})
 
-		err = p.destroy(id)
+		pLog.Info("pruning")
+
+		err = p.destroy(pLog, id)
 		if err != nil {
 			return err
 		}
@@ -189,12 +197,15 @@ func (p *LinuxContainerPool) Create(spec warden.ContainerSpec) (linux_backend.Co
 		return nil, ErrUnknownRootFSProvider
 	}
 
-	rootfsPath, err := provider.ProvideRootFS(id, rootfsURL)
+	pLog := p.logger.Session(id)
+
+	rootfsPath, err := provider.ProvideRootFS(pLog.Session("create-rootfs"), id, rootfsURL)
 	if err != nil {
 		return nil, err
 	}
 
 	container := linux_backend.NewLinuxContainer(
+		pLog,
 		id,
 		handle,
 		containerPath,
@@ -209,18 +220,15 @@ func (p *LinuxContainerPool) Create(spec warden.ContainerSpec) (linux_backend.Co
 		process_tracker.New(containerPath, p.runner),
 	)
 
-	create := &exec.Cmd{
-		Path: path.Join(p.binPath, "create.sh"),
-		Args: []string{containerPath},
-		Env: []string{
-			"id=" + container.ID(),
-			"rootfs_path=" + rootfsPath,
-			fmt.Sprintf("user_uid=%d", uid),
-			fmt.Sprintf("network_host_ip=%s", network.HostIP()),
-			fmt.Sprintf("network_container_ip=%s", network.ContainerIP()),
+	create := exec.Command(path.Join(p.binPath, "create.sh"), containerPath)
+	create.Env = []string{
+		"id=" + container.ID(),
+		"rootfs_path=" + rootfsPath,
+		fmt.Sprintf("user_uid=%d", uid),
+		fmt.Sprintf("network_host_ip=%s", network.HostIP()),
+		fmt.Sprintf("network_container_ip=%s", network.ContainerIP()),
 
-			"PATH=" + os.Getenv("PATH"),
-		},
+		"PATH=" + os.Getenv("PATH"),
 	}
 
 	err = p.runner.Run(create)
@@ -253,7 +261,11 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 
 	id := containerSnapshot.ID
 
-	log.Println("restoring", id)
+	rLog := p.logger.Session("restore", lager.Data{
+		"id": id,
+	})
+
+	rLog.Debug("restoring")
 
 	resources := containerSnapshot.Resources
 
@@ -289,6 +301,7 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 	bandwidthManager := bandwidth_manager.New(containerPath, id, p.runner)
 
 	container := linux_backend.NewLinuxContainer(
+		p.logger.Session(id),
 		id,
 		containerSnapshot.Handle,
 		containerPath,
@@ -312,11 +325,19 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 		return nil, err
 	}
 
+	rLog.Info("restored")
+
 	return container, nil
 }
 
 func (p *LinuxContainerPool) Destroy(container linux_backend.Container) error {
-	err := p.destroy(container.ID())
+	pLog := p.logger.Session("destroy", lager.Data{
+		"id": container.ID(),
+	})
+
+	pLog.Info("destroying")
+
+	err := p.destroy(pLog, container.ID())
 	if err != nil {
 		return err
 	}
@@ -336,10 +357,15 @@ func (p *LinuxContainerPool) Destroy(container linux_backend.Container) error {
 	return nil
 }
 
-func (p *LinuxContainerPool) destroy(id string) error {
+func (p *LinuxContainerPool) destroy(logger lager.Logger, id string) error {
 	rootfsProvider, err := ioutil.ReadFile(path.Join(p.depotPath, id, "rootfs-provider"))
 	if err != nil {
 		rootfsProvider = []byte("")
+	}
+
+	pRunner := logging.Runner{
+		CommandRunner: p.runner,
+		Logger:        logger,
 	}
 
 	provider, found := p.rootfsProviders[string(rootfsProvider)]
@@ -347,17 +373,14 @@ func (p *LinuxContainerPool) destroy(id string) error {
 		return ErrUnknownRootFSProvider
 	}
 
-	destroy := &exec.Cmd{
-		Path: path.Join(p.binPath, "destroy.sh"),
-		Args: []string{path.Join(p.depotPath, id)},
-	}
+	destroy := exec.Command(path.Join(p.binPath, "destroy.sh"), path.Join(p.depotPath, id))
 
-	err = p.runner.Run(destroy)
+	err = pRunner.Run(destroy)
 	if err != nil {
 		return err
 	}
 
-	return provider.CleanupRootFS(id)
+	return provider.CleanupRootFS(logger, id)
 }
 
 func (p *LinuxContainerPool) generateContainerIDs() string {
@@ -396,55 +419,25 @@ func (p *LinuxContainerPool) writeBindMounts(
 			mode = "rw"
 		}
 
-		linebreak := &exec.Cmd{
-			Path: "bash",
-			Args: []string{
-				"-c",
-				"echo >> " + hook,
-			},
-		}
-
+		linebreak := exec.Command("bash", "-c", "echo >> "+hook)
 		err := p.runner.Run(linebreak)
 		if err != nil {
 			return err
 		}
 
-		mkdir := &exec.Cmd{
-			Path: "bash",
-			Args: []string{
-				"-c",
-				"echo mkdir -p " + dstMount + " >> " + hook,
-			},
-		}
-
+		mkdir := exec.Command("bash", "-c", "echo mkdir -p "+dstMount+" >> "+hook)
 		err = p.runner.Run(mkdir)
 		if err != nil {
 			return err
 		}
 
-		mount := &exec.Cmd{
-			Path: "bash",
-			Args: []string{
-				"-c",
-				"echo mount -n --bind " + srcPath + " " + dstMount +
-					" >> " + hook,
-			},
-		}
-
+		mount := exec.Command("bash", "-c", "echo mount -n --bind "+srcPath+" "+dstMount+" >> "+hook)
 		err = p.runner.Run(mount)
 		if err != nil {
 			return err
 		}
 
-		remount := &exec.Cmd{
-			Path: "bash",
-			Args: []string{
-				"-c",
-				"echo mount -n --bind -o remount," + mode + " " + srcPath + " " + dstMount +
-					" >> " + hook,
-			},
-		}
-
+		remount := exec.Command("bash", "-c", "echo mount -n --bind -o remount,"+mode+" "+srcPath+" "+dstMount+" >> "+hook)
 		err = p.runner.Run(remount)
 		if err != nil {
 			return err

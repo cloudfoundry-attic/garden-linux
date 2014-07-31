@@ -3,16 +3,17 @@ package repository_fetcher
 import (
 	"fmt"
 	"io"
-	"log"
 	"sync"
+	"time"
 
 	"github.com/docker/docker/archive"
 	"github.com/docker/docker/image"
 	"github.com/docker/docker/registry"
+	"github.com/pivotal-golang/lager"
 )
 
 type RepositoryFetcher interface {
-	Fetch(repoName string, tag string) (imageID string, err error)
+	Fetch(logger lager.Logger, repoName string, tag string) (imageID string, err error)
 }
 
 // apes docker's *registry.Registry
@@ -49,8 +50,13 @@ func New(registry Registry, graph Graph) RepositoryFetcher {
 	}
 }
 
-func (fetcher *DockerRepositoryFetcher) Fetch(repoName string, tag string) (string, error) {
-	log.Println("fetching", repoName+":"+tag)
+func (fetcher *DockerRepositoryFetcher) Fetch(logger lager.Logger, repoName string, tag string) (string, error) {
+	fLog := logger.Session("fetch", lager.Data{
+		"repo": repoName,
+		"tag":  tag,
+	})
+
+	fLog.Debug("fetching")
 
 	repoData, err := fetcher.registry.GetRepositoryData(repoName)
 	if err != nil {
@@ -70,8 +76,12 @@ func (fetcher *DockerRepositoryFetcher) Fetch(repoName string, tag string) (stri
 	token := repoData.Tokens
 
 	for _, endpoint := range repoData.Endpoints {
-		log.Println("trying endpoint", endpoint, "for", imgID)
-		err = fetcher.fetchFromEndpoint(endpoint, imgID, token)
+		fLog.Debug("trying", lager.Data{
+			"endpoint": endpoint,
+			"image":    imgID,
+		})
+
+		err = fetcher.fetchFromEndpoint(fLog, endpoint, imgID, token)
 		if err == nil {
 			return imgID, nil
 		}
@@ -80,14 +90,14 @@ func (fetcher *DockerRepositoryFetcher) Fetch(repoName string, tag string) (stri
 	return "", fmt.Errorf("all endpoints failed: %s", err)
 }
 
-func (fetcher *DockerRepositoryFetcher) fetchFromEndpoint(endpoint string, imgID string, token []string) error {
+func (fetcher *DockerRepositoryFetcher) fetchFromEndpoint(logger lager.Logger, endpoint string, imgID string, token []string) error {
 	history, err := fetcher.registry.GetRemoteHistory(imgID, endpoint, token)
 	if err != nil {
 		return err
 	}
 
 	for i := len(history) - 1; i >= 0; i-- {
-		err := fetcher.fetchLayer(endpoint, history[i], token)
+		err := fetcher.fetchLayer(logger, endpoint, history[i], token)
 		if err != nil {
 			return err
 		}
@@ -96,14 +106,17 @@ func (fetcher *DockerRepositoryFetcher) fetchFromEndpoint(endpoint string, imgID
 	return nil
 }
 
-func (fetcher *DockerRepositoryFetcher) fetchLayer(endpoint string, layerID string, token []string) error {
+func (fetcher *DockerRepositoryFetcher) fetchLayer(logger lager.Logger, endpoint string, layerID string, token []string) error {
 	for acquired := false; !acquired; acquired = fetcher.fetching(layerID) {
 	}
 
 	defer fetcher.doneFetching(layerID)
 
 	if fetcher.graph.Exists(layerID) {
-		log.Println("already exists:", layerID)
+		logger.Debug("skipping", lager.Data{
+			"layer": layerID,
+		})
+
 		return nil
 	}
 
@@ -124,14 +137,21 @@ func (fetcher *DockerRepositoryFetcher) fetchLayer(endpoint string, layerID stri
 
 	defer layer.Close()
 
-	log.Println("downloading layer:", layerID)
+	started := time.Now()
+
+	logger.Info("downloading", lager.Data{
+		"layer": layerID,
+	})
 
 	err = fetcher.graph.Register(imgJSON, layer, img)
 	if err != nil {
 		return err
 	}
 
-	log.Println("finished downloading:", layerID)
+	logger.Info("downloaded", lager.Data{
+		"layer": layerID,
+		"took":  time.Since(started),
+	})
 
 	return nil
 }

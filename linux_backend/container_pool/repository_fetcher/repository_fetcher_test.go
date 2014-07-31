@@ -8,6 +8,7 @@ import (
 	"github.com/docker/docker/archive"
 	"github.com/docker/docker/image"
 	"github.com/docker/docker/registry"
+	"github.com/pivotal-golang/lager/lagertest"
 
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool/fake_graph"
 	. "github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool/repository_fetcher"
@@ -19,6 +20,8 @@ import (
 var _ = Describe("RepositoryFetcher", func() {
 	var graph *fake_graph.FakeGraph
 	var fetcher RepositoryFetcher
+
+	var logger *lagertest.TestLogger
 
 	var server *ghttp.Server
 	var endpoint1 *ghttp.Server
@@ -36,6 +39,8 @@ var _ = Describe("RepositoryFetcher", func() {
 		Ω(err).ShouldNot(HaveOccurred())
 
 		fetcher = New(registry, graph)
+
+		logger = lagertest.NewTestLogger("test")
 	})
 
 	setupSuccessfulFetch := func(endpoint *ghttp.Server) {
@@ -145,7 +150,7 @@ var _ = Describe("RepositoryFetcher", func() {
 					return nil
 				}
 
-				imageID, err := fetcher.Fetch("some-repo", "some-tag")
+				imageID, err := fetcher.Fetch(logger, "some-repo", "some-tag")
 				Ω(err).ShouldNot(HaveOccurred())
 
 				Ω(imageID).Should(Equal("id-1"))
@@ -170,7 +175,7 @@ var _ = Describe("RepositoryFetcher", func() {
 				})
 
 				It("retries with the next endpoint", func() {
-					imageID, err := fetcher.Fetch("some-repo", "some-tag")
+					imageID, err := fetcher.Fetch(logger, "some-repo", "some-tag")
 					Ω(err).ShouldNot(HaveOccurred())
 
 					Ω(imageID).Should(Equal("id-1"))
@@ -184,7 +189,7 @@ var _ = Describe("RepositoryFetcher", func() {
 					})
 
 					It("returns an error", func() {
-						_, err := fetcher.Fetch("some-repo", "some-tag")
+						_, err := fetcher.Fetch(logger, "some-repo", "some-tag")
 						Ω(err).Should(HaveOccurred())
 					})
 				})
@@ -250,7 +255,7 @@ var _ = Describe("RepositoryFetcher", func() {
 					return nil
 				}
 
-				imageID, err := fetcher.Fetch("some-repo", "some-tag")
+				imageID, err := fetcher.Fetch(logger, "some-repo", "some-tag")
 				Ω(err).ShouldNot(HaveOccurred())
 
 				Ω(imageID).Should(Equal("id-1"))
@@ -265,7 +270,7 @@ var _ = Describe("RepositoryFetcher", func() {
 			})
 
 			It("returns an error", func() {
-				_, err := fetcher.Fetch("some-repo", "some-tag")
+				_, err := fetcher.Fetch(logger, "some-repo", "some-tag")
 				Ω(err).Should(HaveOccurred())
 			})
 		})
@@ -292,7 +297,7 @@ var _ = Describe("RepositoryFetcher", func() {
 			})
 
 			It("tries the next endpoint", func() {
-				_, err := fetcher.Fetch("some-repo", "some-tag")
+				_, err := fetcher.Fetch(logger, "some-repo", "some-tag")
 				Ω(err).ShouldNot(HaveOccurred())
 			})
 
@@ -304,7 +309,7 @@ var _ = Describe("RepositoryFetcher", func() {
 				})
 
 				It("returns an error", func() {
-					_, err := fetcher.Fetch("some-repo", "some-tag")
+					_, err := fetcher.Fetch(logger, "some-repo", "some-tag")
 					Ω(err).Should(HaveOccurred())
 				})
 			})
