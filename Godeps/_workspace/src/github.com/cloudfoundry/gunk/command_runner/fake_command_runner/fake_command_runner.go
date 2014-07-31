@@ -3,6 +3,7 @@ package fake_command_runner
 import (
 	"os"
 	"os/exec"
+	"path/filepath"
 	"reflect"
 
 	"sync"
@@ -31,7 +32,7 @@ type CommandSpec struct {
 }
 
 func (s CommandSpec) Matches(cmd *exec.Cmd) bool {
-	if s.Path != "" && s.Path != cmd.Path {
+	if s.Path != "" && !(s.Path == cmd.Path || s.Path == filepath.Base(cmd.Path)) {
 		return false
 	}
 
@@ -39,7 +40,7 @@ func (s CommandSpec) Matches(cmd *exec.Cmd) bool {
 		return false
 	}
 
-	if len(s.Args) > 0 && !reflect.DeepEqual(s.Args, cmd.Args) {
+	if len(s.Args) > 0 && !reflect.DeepEqual(s.Args, cmd.Args[1:]) {
 		return false
 	}
 

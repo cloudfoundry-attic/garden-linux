@@ -13,9 +13,9 @@ import (
 
 var _ = Describe("Running commands", func() {
 	It("runs the command and returns nil", func() {
-		runner := linux_command_runner.New(false)
+		runner := linux_command_runner.New()
 
-		cmd := &exec.Cmd{Path: "ls"}
+		cmd := exec.Command("ls")
 		Expect(cmd.ProcessState).To(BeNil())
 
 		err := runner.Run(cmd)
@@ -24,29 +24,11 @@ var _ = Describe("Running commands", func() {
 		Expect(cmd.ProcessState).ToNot(BeNil())
 	})
 
-	It("wires in debugging to stdout/stderr", func() {
-		runner := linux_command_runner.New(true)
-
-		cmd := &exec.Cmd{
-			Path: "/bin/bash",
-			Args: []string{"-c", "exit 0"},
-		}
-
-		err := runner.Run(cmd)
-		Expect(err).ToNot(HaveOccurred())
-
-		Expect(cmd.Stdout).ToNot(BeNil())
-		Expect(cmd.Stderr).ToNot(BeNil())
-	})
-
 	Context("when the command fails", func() {
 		It("returns an error", func() {
-			runner := linux_command_runner.New(false)
+			runner := linux_command_runner.New()
 
-			err := runner.Run(&exec.Cmd{
-				Path: "/bin/bash",
-				Args: []string{"-c", "exit 1"},
-			})
+			err := runner.Run(exec.Command("/bin/bash", "-c", "exit 1"))
 
 			Expect(err).To(HaveOccurred())
 		})
@@ -55,9 +37,9 @@ var _ = Describe("Running commands", func() {
 
 var _ = Describe("Starting commands", func() {
 	It("starts the command and does not block on it", func() {
-		runner := linux_command_runner.New(false)
+		runner := linux_command_runner.New()
 
-		cmd := &exec.Cmd{Path: "bash", Args: []string{"-c", "read foo"}}
+		cmd := exec.Command("bash", "-c", "read foo")
 		Expect(cmd.ProcessState).To(BeNil())
 
 		in, err := cmd.StdinPipe()
@@ -74,31 +56,13 @@ var _ = Describe("Starting commands", func() {
 
 		Expect(cmd.ProcessState).ToNot(BeNil())
 	})
-
-	It("wires in debugging to stdout/stderr", func() {
-		runner := linux_command_runner.New(true)
-
-		cmd := &exec.Cmd{
-			Path: "/bin/bash",
-			Args: []string{"-c", "exit 0"},
-		}
-
-		err := runner.Start(cmd)
-		Expect(err).ToNot(HaveOccurred())
-
-		Expect(cmd.Stdout).ToNot(BeNil())
-		Expect(cmd.Stderr).ToNot(BeNil())
-	})
 })
 
 var _ = Describe("Spawning background processes", func() {
 	It("does not propagate signals to the child", func() {
-		runner := linux_command_runner.New(false)
+		runner := linux_command_runner.New()
 
-		cmd := &exec.Cmd{
-			Path: "/bin/bash",
-			Args: []string{"-c", "exit 0"},
-		}
+		cmd := exec.Command("bash", "-c", "exit 0")
 
 		err := runner.Start(cmd)
 		Expect(err).ToNot(HaveOccurred())
@@ -106,28 +70,13 @@ var _ = Describe("Spawning background processes", func() {
 		Expect(cmd.SysProcAttr).ToNot(BeNil())
 		Expect(cmd.SysProcAttr.Setpgid).To(BeTrue())
 	})
-
-	It("does not wire in debugging to stdout/stderr", func() {
-		runner := linux_command_runner.New(true)
-
-		cmd := &exec.Cmd{
-			Path: "/bin/bash",
-			Args: []string{"-c", "exit 0"},
-		}
-
-		err := runner.Background(cmd)
-		Expect(err).ToNot(HaveOccurred())
-
-		Expect(cmd.Stdout).To(BeNil())
-		Expect(cmd.Stderr).To(BeNil())
-	})
 })
 
 var _ = Describe("Waiting on commands", func() {
 	It("blocks on the command's completion", func() {
-		runner := linux_command_runner.New(false)
+		runner := linux_command_runner.New()
 
-		cmd := &exec.Cmd{Path: "bash", Args: []string{"-c", "sleep 0.1"}}
+		cmd := exec.Command("bash", "-c", "sleep 0.1")
 		Expect(cmd.ProcessState).To(BeNil())
 
 		err := runner.Start(cmd)
@@ -144,9 +93,9 @@ var _ = Describe("Waiting on commands", func() {
 
 var _ = Describe("Killing commands", func() {
 	It("terminates the command's process", func() {
-		runner := linux_command_runner.New(false)
+		runner := linux_command_runner.New()
 
-		cmd := &exec.Cmd{Path: "bash", Args: []string{"-c", "sleep 10"}}
+		cmd := exec.Command("bash", "-c", "sleep 10")
 		Expect(cmd.ProcessState).To(BeNil())
 
 		err := runner.Start(cmd)
@@ -165,9 +114,9 @@ var _ = Describe("Killing commands", func() {
 
 	Context("when the command is not running", func() {
 		It("returns an error", func() {
-			runner := linux_command_runner.New(false)
+			runner := linux_command_runner.New()
 
-			cmd := &exec.Cmd{Path: "bash", Args: []string{"-c", "sleep 10"}}
+			cmd := exec.Command("bash", "-c", "sleep 10")
 			Expect(cmd.ProcessState).To(BeNil())
 
 			err := runner.Kill(cmd)
@@ -178,9 +127,9 @@ var _ = Describe("Killing commands", func() {
 
 var _ = Describe("Signalling commands", func() {
 	It("sends the given signal to the process", func() {
-		runner := linux_command_runner.New(false)
+		runner := linux_command_runner.New()
 
-		cmd := &exec.Cmd{Path: "bash", Args: []string{"-c", "sleep 10"}}
+		cmd := exec.Command("bash", "-c", "sleep 10")
 		Expect(cmd.ProcessState).To(BeNil())
 
 		err := runner.Start(cmd)
@@ -199,9 +148,9 @@ var _ = Describe("Signalling commands", func() {
 
 	Context("when the command is not running", func() {
 		It("returns an error", func() {
-			runner := linux_command_runner.New(false)
+			runner := linux_command_runner.New()
 
-			cmd := &exec.Cmd{Path: "bash", Args: []string{"-c", "read foo"}}
+			cmd := exec.Command("bash", "-c", "read foo")
 			Expect(cmd.ProcessState).To(BeNil())
 
 			err := runner.Signal(cmd, os.Interrupt)
