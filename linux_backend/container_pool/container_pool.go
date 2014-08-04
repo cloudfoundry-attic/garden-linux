@@ -69,7 +69,7 @@ func New(
 	quotaManager quota_manager.QuotaManager,
 ) *LinuxContainerPool {
 	pool := &LinuxContainerPool{
-		logger: logger,
+		logger: logger.Session("pool"),
 
 		binPath:   binPath,
 		depotPath: depotPath,
@@ -165,12 +165,14 @@ func (p *LinuxContainerPool) Prune(keep map[string]bool) error {
 func (p *LinuxContainerPool) Create(spec warden.ContainerSpec) (linux_backend.Container, error) {
 	uid, err := p.uidPool.Acquire()
 	if err != nil {
+		p.logger.Error("uid-acquire-failed", err)
 		return nil, err
 	}
 
 	network, err := p.networkPool.Acquire()
 	if err != nil {
 		p.uidPool.Release(uid)
+		p.logger.Error("network-acquire-failed", err)
 		return nil, err
 	}
 
@@ -189,11 +191,17 @@ func (p *LinuxContainerPool) Create(spec warden.ContainerSpec) (linux_backend.Co
 
 	rootfsURL, err := url.Parse(spec.RootFSPath)
 	if err != nil {
+		p.logger.Error("parse-rootfs-path-failed", err, lager.Data{
+			"RootFSPath": spec.RootFSPath,
+		})
 		return nil, err
 	}
 
 	provider, found := p.rootfsProviders[rootfsURL.Scheme]
 	if !found {
+		p.logger.Error("unknown-rootfs-provider", err, lager.Data{
+			"provider": rootfsURL.Scheme,
+		})
 		return nil, ErrUnknownRootFSProvider
 	}
 
@@ -201,6 +209,7 @@ func (p *LinuxContainerPool) Create(spec warden.ContainerSpec) (linux_backend.Co
 
 	rootfsPath, err := provider.ProvideRootFS(pLog.Session("create-rootfs"), id, rootfsURL)
 	if err != nil {
+		p.logger.Error("provide-rootfs-failed", err)
 		return nil, err
 	}
 
@@ -220,7 +229,8 @@ func (p *LinuxContainerPool) Create(spec warden.ContainerSpec) (linux_backend.Co
 		process_tracker.New(containerPath, p.runner),
 	)
 
-	create := exec.Command(path.Join(p.binPath, "create.sh"), containerPath)
+	createCmd := path.Join(p.binPath, "create.sh")
+	create := exec.Command(createCmd, containerPath)
 	create.Env = []string{
 		"id=" + container.ID(),
 		"rootfs_path=" + rootfsPath,
@@ -233,6 +243,10 @@ func (p *LinuxContainerPool) Create(spec warden.ContainerSpec) (linux_backend.Co
 
 	err = p.runner.Run(create)
 	if err != nil {
+		p.logger.Error("create-command-failed", err, lager.Data{
+			"CreateCmd": createCmd,
+			"Env":       create.Env,
+		})
 		p.uidPool.Release(uid)
 		p.networkPool.Release(network)
 		return nil, err
@@ -240,11 +254,16 @@ func (p *LinuxContainerPool) Create(spec warden.ContainerSpec) (linux_backend.Co
 
 	err = p.saveRootFSProvider(id, rootfsURL.Scheme)
 	if err != nil {
+		p.logger.Error("save-rootfs-provider-failed", err, lager.Data{
+			"Id":     id,
+			"rootfs": rootfsURL.String(),
+		})
 		return nil, err
 	}
 
 	err = p.writeBindMounts(containerPath, spec.BindMounts)
 	if err != nil {
+		p.logger.Error("bind-mounts-failed", err)
 		return nil, err
 	}
 

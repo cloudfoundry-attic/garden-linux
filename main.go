@@ -156,8 +156,6 @@ func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	logger := cf_lager.New("warden-linux")
-	backendLogger := logger.Session("backend")
-	serverLogger := logger.Session("garden")
 
 	if *binPath == "" {
 		missing("-bin")
@@ -220,7 +218,7 @@ func main() {
 	}
 
 	pool := container_pool.New(
-		backendLogger.Session("pool"),
+		logger,
 		*binPath,
 		*depotPath,
 		config,
@@ -236,7 +234,7 @@ func main() {
 
 	systemInfo := system_info.NewProvider(*depotPath)
 
-	backend := linux_backend.New(backendLogger, pool, systemInfo, *snapshotsPath)
+	backend := linux_backend.New(logger, pool, systemInfo, *snapshotsPath)
 
 	err = backend.Setup()
 	if err != nil {
@@ -245,7 +243,7 @@ func main() {
 
 	graceTime := *containerGraceTime
 
-	wardenServer := server.New(*listenNetwork, *listenAddr, graceTime, backend, serverLogger)
+	wardenServer := server.New(*listenNetwork, *listenAddr, graceTime, backend, logger)
 
 	err = wardenServer.Start()
 	if err != nil {

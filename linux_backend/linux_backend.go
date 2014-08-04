@@ -65,7 +65,7 @@ func (e FailedToSnapshotError) Error() string {
 
 func New(logger lager.Logger, containerPool ContainerPool, systemInfo system_info.Provider, snapshotsPath string) *LinuxBackend {
 	return &LinuxBackend{
-		logger: logger,
+		logger: logger.Session("backend"),
 
 		containerPool: containerPool,
 		systemInfo:    systemInfo,
