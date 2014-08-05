@@ -18,6 +18,7 @@ import (
 
 var binPath = "../../linux_backend/bin"
 var rootFSPath = os.Getenv("WARDEN_TEST_ROOTFS")
+var graphPath = os.Getenv("WARDEN_TEST_GRAPHPATH")
 
 var wardenBin string
 
@@ -29,7 +30,7 @@ var client warden.Client
 func startWarden(argv ...string) warden.Client {
 	wardenAddr := fmt.Sprintf("/tmp/warden_%d.sock", GinkgoParallelNode())
 
-	wardenRunner = Runner.New("unix", wardenAddr, wardenBin, binPath, rootFSPath, argv...)
+	wardenRunner = Runner.New("unix", wardenAddr, wardenBin, binPath, rootFSPath, graphPath, argv...)
 
 	wardenProcess = ifrit.Envoke(wardenRunner)
 

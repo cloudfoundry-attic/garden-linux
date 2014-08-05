@@ -36,6 +36,10 @@ type Runner struct {
 }
 
 func New(network, addr string, bin, binPath, rootFSPath, graphPath string, argv ...string) *Runner {
+	if graphPath == "" {
+		graphPath = os.TempDir()
+	}
+
 	return &Runner{
 		network: network,
 		addr:    addr,
