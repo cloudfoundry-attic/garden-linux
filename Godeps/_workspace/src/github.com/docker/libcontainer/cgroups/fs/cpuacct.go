@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/docker/libcontainer/cgroups"
-	"github.com/docker/libcontainer/system"
+	"github.com/dotcloud/docker/pkg/system"
 )
 
 var (
