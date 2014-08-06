@@ -34,6 +34,7 @@ var _ = Describe("When a client connects", func() {
 
 	var wardenServer *server.WardenServer
 	var wardenClient warden.Client
+	var isRunning bool
 
 	BeforeEach(func() {
 		logger = lagertest.NewTestLogger("test")
@@ -56,9 +57,17 @@ var _ = Describe("When a client connects", func() {
 		err = wardenServer.Start()
 		Ω(err).ShouldNot(HaveOccurred())
 
+		isRunning = true
+
 		Eventually(ErrorDialing("unix", socketPath)).ShouldNot(HaveOccurred())
 
 		wardenClient = client.New(connection.New("unix", socketPath))
+	})
+
+	AfterEach(func() {
+		if isRunning {
+			wardenServer.Stop()
+		}
 	})
 
 	Context("and the client sends a PingRequest", func() {
@@ -80,6 +89,7 @@ var _ = Describe("When a client connects", func() {
 
 		Context("when the server is not up", func() {
 			BeforeEach(func() {
+				isRunning = false
 				wardenServer.Stop()
 			})
 
@@ -1059,6 +1069,16 @@ var _ = Describe("When a client connects", func() {
 					_, err := container.Attach(123, warden.ProcessIO{})
 					Ω(err).Should(HaveOccurred())
 				})
+
+				It("closes the stdin writer", func(done Done) {
+					container.Attach(123, warden.ProcessIO{})
+
+					_, processIO := fakeContainer.AttachArgsForCall(0)
+					_, err := processIO.Stdin.Read([]byte{})
+					Ω(err).Should(Equal(io.EOF))
+
+					close(done)
+				})
 			})
 		})
 
@@ -1133,7 +1153,7 @@ var _ = Describe("When a client connects", func() {
 					}
 				})
 
-				It("runs the process and streams the output", func() {
+				It("runs the process and streams the output", func(done Done) {
 					stdout := gbytes.NewBuffer()
 					stderr := gbytes.NewBuffer()
 
@@ -1146,7 +1166,7 @@ var _ = Describe("When a client connects", func() {
 					process, err := container.Run(processSpec, processIO)
 					Ω(err).ShouldNot(HaveOccurred())
 
-					ranSpec, _ := fakeContainer.RunArgsForCall(0)
+					ranSpec, processIO := fakeContainer.RunArgsForCall(0)
 					Ω(ranSpec).Should(Equal(processSpec))
 
 					Eventually(stdout).Should(gbytes.Say("stdout data"))
@@ -1156,6 +1176,11 @@ var _ = Describe("When a client connects", func() {
 					status, err := process.Wait()
 					Ω(err).ShouldNot(HaveOccurred())
 					Ω(status).Should(Equal(123))
+
+					_, err = processIO.Stdin.Read([]byte{})
+					Ω(err).Should(Equal(io.EOF))
+
+					close(done)
 				})
 
 				itResetsGraceTimeWhenHandling(func() {
@@ -1167,6 +1192,40 @@ var _ = Describe("When a client connects", func() {
 					status, err := process.Wait()
 					Ω(err).ShouldNot(HaveOccurred())
 					Ω(status).Should(Equal(123))
+				})
+			})
+
+			Describe("when the server is shut down while there is a process running", func() {
+				BeforeEach(func() {
+					process := &fakes.FakeProcess{
+						WaitStub: func() (int, error) {
+							select {}
+							return 0, nil
+						},
+					}
+					process.IDReturns(42)
+					fakeContainer.RunReturns(process, nil)
+				})
+
+				It("does not close the process's stdin", func() {
+					pipeR, _ := io.Pipe()
+					_, err := container.Run(processSpec, warden.ProcessIO{Stdin: pipeR})
+					Ω(err).ShouldNot(HaveOccurred())
+
+					wardenServer.Stop()
+					isRunning = false
+
+					_, processIO := fakeContainer.RunArgsForCall(0)
+
+					readExited := make(chan struct{})
+					go func() {
+						_, err = ioutil.ReadAll(processIO.Stdin)
+						close(readExited)
+					}()
+
+					Eventually(readExited).Should(BeClosed())
+					Ω(err).Should(HaveOccurred())
+					Ω(err).ShouldNot(Equal(io.EOF))
 				})
 			})
 

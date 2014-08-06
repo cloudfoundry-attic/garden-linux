@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net"
 	"net/http"
 	"time"
@@ -806,6 +805,7 @@ func (s *WardenServer) handleRun(w http.ResponseWriter, r *http.Request) {
 	conn, br, err := w.(http.Hijacker).Hijack()
 	if err != nil {
 		s.writeError(w, err, hLog)
+		stdinW.Close()
 		return
 	}
 
@@ -817,7 +817,7 @@ func (s *WardenServer) handleRun(w http.ResponseWriter, r *http.Request) {
 
 	go s.streamInput(json.NewDecoder(br), stdinW, process)
 
-	s.streamProcess(hLog, conn, process, stdout, stderr)
+	s.streamProcess(hLog, conn, process, stdout, stderr, stdinW)
 }
 
 func (s *WardenServer) handleAttach(w http.ResponseWriter, r *http.Request) {
@@ -862,6 +862,7 @@ func (s *WardenServer) handleAttach(w http.ResponseWriter, r *http.Request) {
 	process, err := container.Attach(processID, processIO)
 	if err != nil {
 		s.writeError(w, err, hLog)
+		stdinW.Close()
 		return
 	}
 
@@ -875,6 +876,7 @@ func (s *WardenServer) handleAttach(w http.ResponseWriter, r *http.Request) {
 	conn, br, err := w.(http.Hijacker).Hijack()
 	if err != nil {
 		s.writeError(w, err, hLog)
+		stdinW.Close()
 		return
 	}
 
@@ -882,7 +884,7 @@ func (s *WardenServer) handleAttach(w http.ResponseWriter, r *http.Request) {
 
 	go s.streamInput(json.NewDecoder(br), stdinW, process)
 
-	s.streamProcess(hLog, conn, process, stdout, stderr)
+	s.streamProcess(hLog, conn, process, stdout, stderr, stdinW)
 }
 
 func (s *WardenServer) handleInfo(w http.ResponseWriter, r *http.Request) {
@@ -1053,11 +1055,12 @@ func convertEnv(env []*protocol.EnvironmentVariable) []string {
 	return converted
 }
 
-func (s *WardenServer) streamInput(decoder *json.Decoder, in io.WriteCloser, process warden.Process) {
+func (s *WardenServer) streamInput(decoder *json.Decoder, in *io.PipeWriter, process warden.Process) {
 	for {
 		var payload protocol.ProcessPayload
 		err := decoder.Decode(&payload)
 		if err != nil {
+			in.CloseWithError(errors.New("Connection closed"))
 			return
 		}
 
@@ -1067,24 +1070,24 @@ func (s *WardenServer) streamInput(decoder *json.Decoder, in io.WriteCloser, pro
 
 		case payload.Source != nil:
 			if payload.Data == nil {
-				err := in.Close()
-				if err != nil {
-					return
-				}
+				in.Close()
+				return
 			} else {
 				_, err := in.Write([]byte(payload.GetData()))
 				if err != nil {
 					return
 				}
 			}
+
 		default:
-			log.Println("received unknown process payload:", payload)
+			s.logger.Error("stream-input-unknown-process-payload", nil, lager.Data{"payload": payload})
+			in.Close()
 			return
 		}
 	}
 }
 
-func (s *WardenServer) streamProcess(logger lager.Logger, conn net.Conn, process warden.Process, stdout <-chan []byte, stderr <-chan []byte) {
+func (s *WardenServer) streamProcess(logger lager.Logger, conn net.Conn, process warden.Process, stdout <-chan []byte, stderr <-chan []byte, stdinPipe *io.PipeWriter) {
 	stdoutSource := protocol.ProcessPayload_stdout
 	stderrSource := protocol.ProcessPayload_stderr
 
@@ -1131,6 +1134,7 @@ func (s *WardenServer) streamProcess(logger lager.Logger, conn net.Conn, process
 				ExitStatus: proto.Uint32(uint32(status)),
 			})
 
+			stdinPipe.Close()
 			return
 
 		case err := <-errCh:
@@ -1139,6 +1143,7 @@ func (s *WardenServer) streamProcess(logger lager.Logger, conn net.Conn, process
 				Error:     proto.String(err.Error()),
 			})
 
+			stdinPipe.Close()
 			return
 
 		case <-s.stopping:
