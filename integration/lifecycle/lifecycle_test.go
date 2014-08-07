@@ -45,22 +45,28 @@ var _ = Describe("Creating a container", func() {
 		Ω(process.Wait()).Should(Equal(0))
 	})
 
-	It("provides 64k of /dev/shm within the container", func() {
+	It("provides /dev/shm as tmpfs in the container", func() {
 		process, err := container.Run(warden.ProcessSpec{
 			Path: "dd",
-			Args: []string{"if=/dev/urandom", "of=/dev/shm/just-enough", "count=64", "bs=1k"},
+			Args: []string{"if=/dev/urandom", "of=/dev/shm/some-data", "count=64", "bs=1k"},
 		}, warden.ProcessIO{})
 		Ω(err).ShouldNot(HaveOccurred())
 
 		Ω(process.Wait()).Should(Equal(0))
 
+		outBuf := gbytes.NewBuffer()
+
 		process, err = container.Run(warden.ProcessSpec{
-			Path: "dd",
-			Args: []string{"if=/dev/urandom", "of=/dev/shm/just-over", "count=1", "bs=1k"},
-		}, warden.ProcessIO{})
+			Path: "cat",
+			Args: []string{"/proc/mounts"},
+		}, warden.ProcessIO{
+			Stdout: outBuf,
+		})
 		Ω(err).ShouldNot(HaveOccurred())
 
-		Ω(process.Wait()).Should(Equal(1))
+		Ω(process.Wait()).Should(Equal(0))
+
+		Ω(outBuf).Should(gbytes.Say("tmpfs /dev/shm tmpfs rw,relatime 0 0"))
 	})
 
 	Context("and sending a List request", func() {
@@ -134,6 +140,27 @@ var _ = Describe("Creating a container", func() {
 			// there's some noise in 'open files' check, but it shouldn't grow
 			// linearly with the number of processes spawned
 			Ω(len(filesAfter)).Should(BeNumerically("~", len(filesBefore), 5))
+		})
+
+		Context("with a memory limit", func() {
+			BeforeEach(func() {
+				err := container.LimitMemory(warden.MemoryLimits{
+					LimitInBytes: 64 * 1024 * 1024,
+				})
+				Ω(err).ShouldNot(HaveOccurred())
+			})
+
+			Context("when the process writes too much to /dev/shm", func() {
+				It("is killed", func() {
+					process, err := container.Run(warden.ProcessSpec{
+						Path: "dd",
+						Args: []string{"if=/dev/urandom", "of=/dev/shm/too-big", "bs=1M", "count=65"},
+					}, warden.ProcessIO{})
+					Ω(err).ShouldNot(HaveOccurred())
+
+					Ω(process.Wait()).ShouldNot(Equal(0))
+				})
+			})
 		})
 
 		Context("with a tty", func() {
