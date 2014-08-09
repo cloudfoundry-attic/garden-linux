@@ -4,10 +4,12 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
+	"syscall"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -211,6 +213,62 @@ var _ = Describe("Running processes", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		Eventually(stdout).Should(gbytes.Say("roundtripped hi in\n"))
+	})
+
+	dupFile := func(f *os.File) *os.File {
+		dupFd, err := syscall.Dup(int(f.Fd()))
+		Ω(err).ShouldNot(HaveOccurred())
+		return os.NewFile(uintptr(dupFd), "the-file")
+	}
+
+	Context("when there is an error reading the stdin stream", func() {
+		It("does not close the process's stdin", func() {
+			setupSuccessfulSpawn()
+
+			stdinClosed := make(chan struct{})
+
+			expectedCmd := fake_command_runner.CommandSpec{
+				Path: binPath("iodaemon"),
+				Args: []string{
+					"-tty=false",
+					"link",
+					tmpdir + "/depot/some-id/processes/1.sock",
+				},
+			}
+
+			fakeRunner.WhenRunning(
+				expectedCmd,
+				func(cmd *exec.Cmd) error {
+					// Since this code is not actually spawned as a subprocess,
+					// we need to manually dup stdin
+					stdin := dupFile(cmd.Stdin.(*os.File))
+
+					go func() {
+						ioutil.ReadAll(stdin)
+						close(stdinClosed)
+					}()
+
+					return nil
+				},
+			)
+
+			fakeRunner.WhenWaitingFor(expectedCmd, func(cmd *exec.Cmd) error {
+				select {}
+				return nil
+			})
+
+			pipeR, pipeW := io.Pipe()
+
+			_, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{
+				Stdin: pipeR,
+			}, nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			pipeW.Write([]byte("Hello stdin!"))
+			pipeW.CloseWithError(errors.New("Failed"))
+
+			Consistently(stdinClosed).ShouldNot(BeClosed())
+		})
 	})
 
 	Context("with a tty", func() {

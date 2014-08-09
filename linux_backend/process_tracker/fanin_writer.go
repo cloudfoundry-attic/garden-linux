@@ -51,7 +51,9 @@ func (w *faninWriter) AddSink(sink io.WriteCloser) {
 
 func (w *faninWriter) AddSource(source io.Reader) {
 	go func() {
-		io.Copy(w, source)
-		w.Close()
+		_, err := io.Copy(w, source)
+		if err == nil {
+			w.Close()
+		}
 	}()
 }
