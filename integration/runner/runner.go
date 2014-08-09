@@ -12,7 +12,6 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden/client"
 	"github.com/cloudfoundry-incubator/garden/client/connection"
-	"github.com/cloudfoundry-incubator/garden/warden"
 	"github.com/onsi/ginkgo"
 	"github.com/pivotal-golang/lager"
 	"github.com/tedsuo/ifrit"
@@ -33,6 +32,8 @@ type Runner struct {
 
 	tmpdir    string
 	graphPath string
+
+	debugAddr string
 }
 
 func New(network, addr string, bin, binPath, rootFSPath, graphPath string, argv ...string) *Runner {
@@ -54,7 +55,12 @@ func New(network, addr string, bin, binPath, rootFSPath, graphPath string, argv 
 			os.TempDir(),
 			fmt.Sprintf("test-warden-%d", ginkgo.GinkgoParallelNode()),
 		),
+		debugAddr: fmt.Sprintf("0.0.0.0:%d", 15000+ginkgo.GinkgoParallelNode()),
 	}
+}
+
+func (r *Runner) DebugAddr() string {
+	return r.debugAddr
 }
 
 func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
@@ -85,6 +91,7 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 		"--bin", r.binPath,
 		"--rootfs", r.rootFSPath,
 		"--depot", depotPath,
+		"--debugAddr", r.debugAddr,
 		"--overlays", overlaysPath,
 		"--snapshots", snapshotsPath,
 		"--graph", r.graphPath,
@@ -158,7 +165,7 @@ func (r *Runner) TryDial() error {
 	return dialErr
 }
 
-func (r *Runner) NewClient() warden.Client {
+func (r *Runner) NewClient() client.Client {
 	return client.New(connection.New(r.network, r.addr))
 }
 

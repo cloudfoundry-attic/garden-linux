@@ -7,7 +7,7 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/cloudfoundry-incubator/garden/warden"
+	gardenClient "github.com/cloudfoundry-incubator/garden/client"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
@@ -25,9 +25,9 @@ var wardenBin string
 var wardenRunner *Runner.Runner
 var wardenProcess ifrit.Process
 
-var client warden.Client
+var client gardenClient.Client
 
-func startWarden(argv ...string) warden.Client {
+func startWarden(argv ...string) gardenClient.Client {
 	wardenAddr := fmt.Sprintf("/tmp/warden_%d.sock", GinkgoParallelNode())
 
 	wardenRunner = Runner.New("unix", wardenAddr, wardenBin, binPath, rootFSPath, graphPath, argv...)

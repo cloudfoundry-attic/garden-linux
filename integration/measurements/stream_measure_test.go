@@ -1,8 +1,15 @@
 package measurements_test
 
 import (
+	"bufio"
+	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"os"
 	"runtime"
+	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -27,20 +34,127 @@ func (w *byteCounterWriter) Close() error {
 var _ = Describe("The Warden server", func() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
+	var container warden.Container
+	var firstGoroutineCount uint64
+
 	BeforeEach(func() {
+		firstGoroutineCount = 0
 		client = startWarden()
+
+		var err error
+		container, err = client.Create(warden.ContainerSpec{})
+		Ω(err).ShouldNot(HaveOccurred())
+	})
+
+	getGoroutineCount := func(printIt ...bool) uint64 {
+		resp, err := http.Get(fmt.Sprintf("http://%s/debug/pprof/goroutine?debug=1", wardenRunner.DebugAddr()))
+		Ω(err).ShouldNot(HaveOccurred())
+
+		line, _, err := bufio.NewReader(resp.Body).ReadLine()
+		Ω(err).ShouldNot(HaveOccurred())
+
+		if len(printIt) > 0 && printIt[0] {
+			io.Copy(os.Stdout, resp.Body)
+		}
+
+		words := strings.Split(string(line), " ")
+
+		goroutineCount, err := strconv.ParseUint(words[len(words)-1], 10, 64)
+		Ω(err).ShouldNot(HaveOccurred())
+
+		return goroutineCount
+	}
+
+	Describe("repeatedly running processes", func() {
+		Measure("does not leak goroutines", func(b Benchmarker) {
+			iterations := 50
+
+			for i := 1; i <= iterations; i++ {
+				process, err := container.Run(warden.ProcessSpec{
+					Path: "echo",
+					Args: []string{"hi"},
+				}, warden.ProcessIO{})
+				Ω(err).ShouldNot(HaveOccurred())
+
+				status, err := process.Wait()
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(status).Should(Equal(0))
+
+				if i == 1 {
+					firstGoroutineCount = getGoroutineCount()
+					b.RecordValue("first goroutine count", float64(firstGoroutineCount))
+				}
+
+				if i == iterations {
+					lastGoroutineCount := getGoroutineCount()
+					b.RecordValue("last goroutine count", float64(lastGoroutineCount))
+
+					Ω(lastGoroutineCount).ShouldNot(BeNumerically(">", firstGoroutineCount+5))
+				}
+			}
+		}, 1)
+	})
+
+	Describe("repeatedly attaching to a running process", func() {
+		var processID uint32
+
+		BeforeEach(func() {
+			process, err := container.Run(warden.ProcessSpec{
+				Path: "cat",
+			}, warden.ProcessIO{})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			processID = process.ID()
+		})
+
+		Measure("does not leak goroutines", func(b Benchmarker) {
+			iterations := 50
+
+			for i := 1; i <= iterations; i++ {
+				stdoutR, stdoutW := io.Pipe()
+				stdinR, stdinW := io.Pipe()
+
+				_, err := container.Attach(processID, warden.ProcessIO{
+					Stdin:  stdinR,
+					Stdout: stdoutW,
+				})
+				Ω(err).ShouldNot(HaveOccurred())
+
+				stdinData := fmt.Sprintf("hello %d", i)
+
+				_, err = stdinW.Write([]byte(stdinData + "\n"))
+				Ω(err).ShouldNot(HaveOccurred())
+
+				var line []byte
+				doneReading := make(chan struct{})
+				go func() {
+					line, _, err = bufio.NewReader(stdoutR).ReadLine()
+					close(doneReading)
+				}()
+
+				Eventually(doneReading).Should(BeClosed())
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(string(line)).Should(Equal(stdinData))
+
+				stdinW.CloseWithError(errors.New("going away now"))
+
+				if i == 1 {
+					firstGoroutineCount = getGoroutineCount()
+					b.RecordValue("first goroutine count", float64(firstGoroutineCount))
+				}
+
+				if i == iterations {
+					lastGoroutineCount := getGoroutineCount()
+					b.RecordValue("last goroutine count", float64(lastGoroutineCount))
+
+					// TODO - we have a leak more.
+					// Ω(lastGoroutineCount).ShouldNot(BeNumerically(">", firstGoroutineCount+5))
+				}
+			}
+		}, 1)
 	})
 
 	Describe("streaming output from a chatty job", func() {
-		var container warden.Container
-
-		BeforeEach(func() {
-			var err error
-
-			container, err = client.Create(warden.ContainerSpec{})
-			Ω(err).ShouldNot(HaveOccurred())
-		})
-
 		streamCounts := []int{0}
 
 		for i := 1; i <= 128; i *= 2 {
