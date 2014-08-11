@@ -35,6 +35,9 @@ type WardenServer struct {
 
 	conns map[net.Conn]net.Conn
 	mu    sync.Mutex
+
+	destroys  map[string]struct{}
+	destroysL *sync.Mutex
 }
 
 type UnhandledRequestError struct {
@@ -64,6 +67,9 @@ func New(
 
 		handling: new(sync.WaitGroup),
 		conns:    make(map[net.Conn]net.Conn),
+
+		destroys:  make(map[string]struct{}),
+		destroysL: new(sync.Mutex),
 	}
 
 	handlers := map[string]http.Handler{
@@ -105,7 +111,7 @@ func New(
 		ConnState: func(conn net.Conn, state http.ConnState) {
 			switch state {
 			case http.StateNew:
-				conLogger.Info("open", lager.Data{"local_addr": conn.LocalAddr(), "remote_addr": conn.RemoteAddr()})
+				conLogger.Debug("open", lager.Data{"local_addr": conn.LocalAddr(), "remote_addr": conn.RemoteAddr()})
 				s.handling.Add(1)
 			case http.StateActive:
 				s.mu.Lock()
@@ -124,7 +130,7 @@ func New(
 				s.mu.Lock()
 				delete(s.conns, conn)
 				s.mu.Unlock()
-				conLogger.Info("closed", lager.Data{"local_addr": conn.LocalAddr(), "remote_addr": conn.RemoteAddr()})
+				conLogger.Debug("closed", lager.Data{"local_addr": conn.LocalAddr(), "remote_addr": conn.RemoteAddr()})
 				s.handling.Done()
 			}
 		},
