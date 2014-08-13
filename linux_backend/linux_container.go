@@ -327,7 +327,12 @@ func (c *LinuxContainer) Start() error {
 		"PATH=" + os.Getenv("PATH"),
 	}
 
-	err := c.runner.Run(start)
+	cRunner := logging.Runner{
+		CommandRunner: c.runner,
+		Logger:        cLog,
+	}
+
+	err := cRunner.Run(start)
 	if err != nil {
 		cLog.Error("failed-to-start", err)
 		return err

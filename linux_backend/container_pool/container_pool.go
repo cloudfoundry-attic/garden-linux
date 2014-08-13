@@ -241,7 +241,12 @@ func (p *LinuxContainerPool) Create(spec warden.ContainerSpec) (linux_backend.Co
 		"PATH=" + os.Getenv("PATH"),
 	}
 
-	err = p.runner.Run(create)
+	pRunner := logging.Runner{
+		CommandRunner: p.runner,
+		Logger:        p.logger,
+	}
+
+	err = pRunner.Run(create)
 	if err != nil {
 		p.logger.Error("create-command-failed", err, lager.Data{
 			"CreateCmd": createCmd,
