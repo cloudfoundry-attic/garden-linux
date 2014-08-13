@@ -86,13 +86,14 @@ then
 nameserver $network_host_ip
 EOS
 else
+  # some images may have something set up here; warden's should be the source
+  # of truth
+  rm -f $rootfs_path/etc/resolv.conf
+
   cp /etc/resolv.conf $rootfs_path/etc/
 fi
 
 # Add vcap user if not already present
-$(which chroot) $rootfs_path env -i /bin/bash -l <<-EOS
-if ! id vcap > /dev/null 2>&1
-then
-  useradd -mU -u $user_uid -s /bin/bash vcap
+if ! chroot $rootfs_path id vcap >/dev/null 2>&1; then
+  useradd -R $rootfs_path -mU -u $user_uid -s /bin/bash vcap
 fi
-EOS

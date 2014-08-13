@@ -1,12 +1,11 @@
-#!/bin/bash
+#!/bin/sh
 
 [ -n "$DEBUG" ] && set -o xtrace
 set -o nounset
 set -o errexit
-shopt -s nullglob
 
 cd $(dirname $0)/../
 
-source etc/config
+. etc/config
 
 # Placeholder
