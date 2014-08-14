@@ -194,7 +194,7 @@ func (p *Process) Unlink() error {
 		return nil
 	}
 
-	return p.runner.Signal(p.link, os.Interrupt)
+	return p.runner.Signal(p.link, os.Kill)
 }
 
 func (p *Process) Attach(processIO warden.ProcessIO) {

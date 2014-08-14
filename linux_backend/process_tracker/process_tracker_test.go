@@ -522,7 +522,7 @@ var _ = Describe("Unlinking active processes", func() {
 		processTracker = process_tracker.New(tmpdir+"/depot/some-id", fakeRunner)
 	})
 
-	It("sends SIGINT to in-flight iodaemon links", func() {
+	It("sends SIGKILL to in-flight iodaemon links", func() {
 		setupSuccessfulSpawn()
 
 		linked := make(chan bool, 2)
@@ -558,7 +558,7 @@ var _ = Describe("Unlinking active processes", func() {
 					tmpdir + "/depot/some-id/processes/1.sock",
 				},
 			},
-			os.Interrupt,
+			os.Kill,
 		))
 
 		Ω(fakeRunner).Should(HaveSignalled(
@@ -570,7 +570,7 @@ var _ = Describe("Unlinking active processes", func() {
 					tmpdir + "/depot/some-id/processes/2.sock",
 				},
 			},
-			os.Interrupt,
+			os.Kill,
 		))
 	})
 })

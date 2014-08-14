@@ -283,6 +283,10 @@ func (c *LinuxContainer) Restore(snapshot ContainerSnapshot) error {
 	}
 
 	for _, process := range snapshot.Processes {
+		cLog.Info("restoring-process", lager.Data{
+			"process": process,
+		})
+
 		c.processTracker.Restore(process.ID, process.TTY)
 	}
 
