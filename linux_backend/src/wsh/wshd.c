@@ -701,6 +701,13 @@ int child_run(void *data) {
     abort();
   }
 
+  /* Ensure /tmp is world-writable as part of container contract */
+  rv = chmod("tmp", 0777);
+  if (rv == -1) {
+    perror("chmod");
+    abort();
+  }
+
   rv = mkdir("tmp/warden-host", 0700);
   if (rv == -1 && errno != EEXIST) {
     perror("mkdir");
@@ -743,7 +750,13 @@ int child_continue(int argc, char **argv) {
     setproctitle(argv, w->title);
   }
 
+  /* Clean up temporary pivot_root dir */
   rv = umount2("/tmp/warden-host", MNT_DETACH);
+  if (rv == -1) {
+    exit(1);
+  }
+
+  rv = rmdir("/tmp/warden-host");
   if (rv == -1) {
     exit(1);
   }
