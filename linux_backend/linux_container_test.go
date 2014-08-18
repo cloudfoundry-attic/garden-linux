@@ -691,7 +691,7 @@ var _ = Describe("Linux containers", func() {
 					Args: []string{
 						"--socket", "/depot/some-id/run/wshd.sock",
 						"--user", "vcap",
-						"bash", "-c", `mkdir -p /some/directory/dst && tar xf - -C /some/directory/dst`,
+						"sh", "-c", `mkdir -p /some/directory/dst && tar xf - -C /some/directory/dst`,
 					},
 				},
 				func(cmd *exec.Cmd) error {

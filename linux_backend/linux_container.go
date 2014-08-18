@@ -450,12 +450,19 @@ func (c *LinuxContainer) StreamIn(dstPath string, tarStream io.Reader) error {
 		wshPath,
 		"--socket", sockPath,
 		"--user", "vcap",
-		"bash", "-c", fmt.Sprintf("mkdir -p %s && tar xf - -C %s", dstPath, dstPath),
+		"sh", "-c", fmt.Sprintf("mkdir -p %s && tar xf - -C %s", dstPath, dstPath),
 	)
 
 	tar.Stdin = tarStream
 
-	return c.runner.Run(tar)
+	cLog := c.logger.Session("stream-in")
+
+	cRunner := logging.Runner{
+		CommandRunner: c.runner,
+		Logger:        cLog,
+	}
+
+	return cRunner.Run(tar)
 }
 
 func (c *LinuxContainer) StreamOut(srcPath string) (io.ReadCloser, error) {
