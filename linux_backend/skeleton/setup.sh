@@ -95,5 +95,12 @@ fi
 
 # Add vcap user if not already present
 if ! chroot $rootfs_path id vcap >/dev/null 2>&1; then
-  useradd -R $rootfs_path -mU -u $user_uid -s /bin/bash vcap
+  mkdir -p $rootfs_path/home
+
+  shell=/bin/sh
+  if [ -f $rootfs_path/bin/bash ]; then
+    shell=/bin/bash
+  fi
+
+  useradd -R $rootfs_path -mU -u $user_uid -s $shell vcap
 fi
