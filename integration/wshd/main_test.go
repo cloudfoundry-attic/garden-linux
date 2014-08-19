@@ -133,7 +133,10 @@ function setup_fs() {
   overlay_directory_in_rootfs /var rw
 
   mkdir -p tmp/rootfs/tmp
-  chmod 777 tmp/rootfs/tmp
+
+  # test asserts that wshd changes this to 0777
+  chmod 755 tmp/rootfs/tmp
+
   overlay_directory_in_rootfs /tmp rw
 }
 
@@ -231,8 +234,8 @@ setup_fs
 		cat := exec.Command("/bin/cat", "/proc/mounts")
 		catSession, err := Start(cat, GinkgoWriter, GinkgoWriter)
 		Ω(err).ShouldNot(HaveOccurred())
-		Ω(catSession).ShouldNot(Say("gnome"))
 		Eventually(catSession).Should(Exit(0))
+		Ω(catSession).ShouldNot(Say("gnome"))
 	})
 
 	It("places the daemon in each cgroup subsystem", func() {
@@ -256,8 +259,8 @@ setup_fs
 		localIfconfig := exec.Command("ifconfig")
 		localIfconfigSession, err := Start(localIfconfig, GinkgoWriter, GinkgoWriter)
 		Ω(err).ShouldNot(HaveOccurred())
-		Ω(localIfconfigSession).ShouldNot(Say("lo:0"))
 		Eventually(localIfconfigSession).Should(Exit(0))
+		Ω(localIfconfigSession).ShouldNot(Say("lo:0"))
 	})
 
 	It("starts the daemon with a new IPC namespace", func() {
@@ -291,22 +294,35 @@ setup_fs
 		hostname := exec.Command(wsh, "--socket", socketPath, "/bin/hostname", "newhostname")
 		hostnameSession, err := Start(hostname, GinkgoWriter, GinkgoWriter)
 		Ω(err).ShouldNot(HaveOccurred())
-
 		Eventually(hostnameSession).Should(Exit(0))
 
 		localHostname := exec.Command("hostname")
 		localHostnameSession, err := Start(localHostname, GinkgoWriter, GinkgoWriter)
+		Eventually(localHostnameSession).Should(Exit(0))
 		Ω(localHostnameSession).ShouldNot(Say("newhostname"))
 	})
 
 	It("does not leak any shared memory to the child", func() {
-		createRemote, err := Start(
+		ipcs, err := Start(
 			exec.Command(wsh, "--socket", socketPath, "ipcs"),
 			GinkgoWriter,
 			GinkgoWriter,
 		)
 		Ω(err).ShouldNot(HaveOccurred())
-		Ω(createRemote).ShouldNot(Say("deadbeef"))
+		Eventually(ipcs).Should(Exit(0))
+		Ω(ipcs).ShouldNot(Say("deadbeef"))
+	})
+
+	It("ensures /tmp is world-writable", func() {
+		ls, err := Start(
+			exec.Command(wsh, "--socket", socketPath, "stat", "/tmp"),
+			GinkgoWriter,
+			GinkgoWriter,
+		)
+		Ω(err).ShouldNot(HaveOccurred())
+		Eventually(ls).Should(Exit(0))
+
+		Ω(ls).Should(Say(`Access: \(0777/drwxrwxrwx\)`))
 	})
 
 	It("unmounts /tmp/warden-host* in the child", func() {
@@ -315,8 +331,18 @@ setup_fs
 		catSession, err := Start(cat, GinkgoWriter, GinkgoWriter)
 		Ω(err).ShouldNot(HaveOccurred())
 
-		Ω(catSession).ShouldNot(Say(" /tmp/warden-host"))
 		Eventually(catSession).Should(Exit(0))
+		Ω(catSession).ShouldNot(Say(" /tmp/warden-host"))
+	})
+
+	It("cleans up the /tmp/warden-host pivot_root directory", func() {
+		ls, err := Start(
+			exec.Command(wsh, "--socket", socketPath, "ls", "/tmp/warden-host"),
+			GinkgoWriter,
+			GinkgoWriter,
+		)
+		Ω(err).ShouldNot(HaveOccurred())
+		Eventually(ls).Should(Exit(2))
 	})
 
 	Context("when mount points on the host are deleted", func() {
@@ -354,8 +380,8 @@ setup_fs
 			catSession, err := Start(cat, GinkgoWriter, GinkgoWriter)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Ω(catSession).ShouldNot(Say("(deleted)"))
 			Eventually(catSession).Should(Exit(0))
+			Ω(catSession).ShouldNot(Say("(deleted)"))
 		})
 	})
 
