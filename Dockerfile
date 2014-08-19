@@ -10,14 +10,12 @@ ENV PATH /root/go/bin:/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin
 
 RUN mkdir -p /root/go
 
-RUN echo "deb http://mirror.anl.gov/pub/ubuntu trusty main universe" > /etc/apt/sources.list
-RUN apt-get update
-RUN apt-get install -y build-essential mercurial git-core subversion wget
+RUN apt-get update && apt-get install -y build-essential mercurial git-core subversion wget
 
-RUN wget -qO- https://storage.googleapis.com/golang/go1.3.linux-amd64.tar.gz | tar -C /usr/local -xzf -
+RUN wget -qO- https://storage.googleapis.com/golang/go1.3.1.linux-amd64.tar.gz | tar -C /usr/local -xzf -
 
 # pull in dependencies for the server
-RUN apt-get -y install iptables quota rsync net-tools protobuf-compiler
+RUN apt-get update && apt-get -y install iptables quota rsync net-tools protobuf-compiler
 
 # pull in the prebuilt rootfs
 ADD warden-test-rootfs.tar /opt/warden/rootfs
