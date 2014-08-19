@@ -702,7 +702,7 @@ int child_run(void *data) {
   }
 
   /* Ensure /tmp is world-writable as part of container contract */
-  rv = chmod("tmp", 0777);
+  rv = chmod("tmp", 01777);
   if (rv == -1) {
     perror("chmod");
     abort();
