@@ -322,7 +322,7 @@ setup_fs
 		Ω(err).ShouldNot(HaveOccurred())
 		Eventually(ls).Should(Exit(0))
 
-		Ω(ls).Should(Say(`Access: \(0777/drwxrwxrwx\)`))
+		Ω(ls).Should(Say(`Access: \(1777/drwxrwxrwt\)`))
 	})
 
 	It("unmounts /tmp/warden-host* in the child", func() {
