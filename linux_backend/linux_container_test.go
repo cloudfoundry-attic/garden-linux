@@ -11,6 +11,7 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -41,6 +42,7 @@ var containerResources *linux_backend.Resources
 var container *linux_backend.LinuxContainer
 var fakePortPool *fake_port_pool.FakePortPool
 var fakeProcessTracker *fake_process_tracker.FakeProcessTracker
+var containerDir string
 
 var _ = Describe("Linux containers", func() {
 	BeforeEach(func() {
@@ -62,6 +64,14 @@ var _ = Describe("Linux containers", func() {
 		network, err := networkPool.Acquire()
 		Ω(err).ShouldNot(HaveOccurred())
 
+		containerDir, err = ioutil.TempDir("", "depot")
+		Ω(err).ShouldNot(HaveOccurred())
+
+		err = os.Mkdir(filepath.Join(containerDir, "run"), 0755)
+		Ω(err).ShouldNot(HaveOccurred())
+		err = ioutil.WriteFile(filepath.Join(containerDir, "run", "wshd.pid"), []byte("12345\n"), 0644)
+		Ω(err).ShouldNot(HaveOccurred())
+
 		containerResources = linux_backend.NewResources(
 			1234,
 			network,
@@ -72,7 +82,7 @@ var _ = Describe("Linux containers", func() {
 			lagertest.NewTestLogger("test"),
 			"some-id",
 			"some-handle",
-			"/depot/some-id",
+			containerDir,
 			map[string]string{
 				"property-name": "property-value",
 			},
@@ -366,23 +376,23 @@ var _ = Describe("Linux containers", func() {
 
 			Ω(fakeRunner).Should(HaveExecutedSerially(
 				fake_command_runner.CommandSpec{
-					Path: "/depot/some-id/net.sh",
+					Path: containerDir + "/net.sh",
 					Args: []string{"setup"},
 				},
 				fake_command_runner.CommandSpec{
-					Path: "/depot/some-id/net.sh",
+					Path: containerDir + "/net.sh",
 					Args: []string{"in"},
 				},
 				fake_command_runner.CommandSpec{
-					Path: "/depot/some-id/net.sh",
+					Path: containerDir + "/net.sh",
 					Args: []string{"in"},
 				},
 				fake_command_runner.CommandSpec{
-					Path: "/depot/some-id/net.sh",
+					Path: containerDir + "/net.sh",
 					Args: []string{"out"},
 				},
 				fake_command_runner.CommandSpec{
-					Path: "/depot/some-id/net.sh",
+					Path: containerDir + "/net.sh",
 					Args: []string{"out"},
 				},
 			))
@@ -397,7 +407,7 @@ var _ = Describe("Linux containers", func() {
 				BeforeEach(func() {
 					fakeRunner.WhenRunning(
 						fake_command_runner.CommandSpec{
-							Path: "/depot/some-id/net.sh",
+							Path: containerDir + "/net.sh",
 							Args: []string{command},
 						}, func(*exec.Cmd) error {
 							return disaster
@@ -514,7 +524,7 @@ var _ = Describe("Linux containers", func() {
 
 			Ω(fakeRunner).Should(HaveExecutedSerially(
 				fake_command_runner.CommandSpec{
-					Path: "/depot/some-id/start.sh",
+					Path: containerDir + "/start.sh",
 					Env: []string{
 						"id=some-id",
 						"container_iface_mtu=1500",
@@ -540,7 +550,7 @@ var _ = Describe("Linux containers", func() {
 			BeforeEach(func() {
 				fakeRunner.WhenRunning(
 					fake_command_runner.CommandSpec{
-						Path: "/depot/some-id/start.sh",
+						Path: containerDir + "/start.sh",
 					}, func(*exec.Cmd) error {
 						return nastyError
 					},
@@ -570,7 +580,7 @@ var _ = Describe("Linux containers", func() {
 
 			Ω(fakeRunner).Should(HaveExecutedSerially(
 				fake_command_runner.CommandSpec{
-					Path: "/depot/some-id/stop.sh",
+					Path: containerDir + "/stop.sh",
 				},
 			))
 
@@ -593,7 +603,7 @@ var _ = Describe("Linux containers", func() {
 
 				Ω(fakeRunner).Should(HaveExecutedSerially(
 					fake_command_runner.CommandSpec{
-						Path: "/depot/some-id/stop.sh",
+						Path: containerDir + "/stop.sh",
 						Args: []string{"-w", "0"},
 					},
 				))
@@ -607,7 +617,7 @@ var _ = Describe("Linux containers", func() {
 			BeforeEach(func() {
 				fakeRunner.WhenRunning(
 					fake_command_runner.CommandSpec{
-						Path: "/depot/some-id/stop.sh",
+						Path: containerDir + "/stop.sh",
 					}, func(*exec.Cmd) error {
 						return nastyError
 					},
@@ -643,7 +653,7 @@ var _ = Describe("Linux containers", func() {
 				Ω(err).ShouldNot(HaveOccurred())
 
 				Ω(fakeRunner).Should(HaveKilled(fake_command_runner.CommandSpec{
-					Path: "/depot/some-id/bin/oom",
+					Path: containerDir + "/bin/oom",
 				}))
 
 			})
@@ -670,7 +680,7 @@ var _ = Describe("Linux containers", func() {
 				container.Cleanup()
 
 				Ω(fakeRunner).Should(HaveKilled(fake_command_runner.CommandSpec{
-					Path: "/depot/some-id/bin/oom",
+					Path: containerDir + "/bin/oom",
 				}))
 
 			})
@@ -687,11 +697,15 @@ var _ = Describe("Linux containers", func() {
 		It("streams the input to tar xf in the container", func() {
 			fakeRunner.WhenRunning(
 				fake_command_runner.CommandSpec{
-					Path: "/depot/some-id/bin/wsh",
+					Path: "nsenter",
 					Args: []string{
-						"--socket", "/depot/some-id/run/wshd.sock",
-						"--user", "vcap",
-						"sh", "-c", `mkdir -p /some/directory/dst && tar xf - -C /some/directory/dst`,
+						"-m",
+						"-t", "12345",
+						"--",
+						"su",
+						"vcap",
+						"-c",
+						`cd && mkdir -p /some/directory/dst && tar xf - -C /some/directory/dst`,
 					},
 				},
 				func(cmd *exec.Cmd) error {
@@ -714,7 +728,7 @@ var _ = Describe("Linux containers", func() {
 			BeforeEach(func() {
 				fakeRunner.WhenRunning(
 					fake_command_runner.CommandSpec{
-						Path: "/depot/some-id/bin/wsh",
+						Path: "nsenter",
 					},
 					func(cmd *exec.Cmd) error {
 						return disaster
@@ -739,9 +753,9 @@ var _ = Describe("Linux containers", func() {
 		It("streams the output of tar cf to the destination", func() {
 			fakeRunner.WhenRunning(
 				fake_command_runner.CommandSpec{
-					Path: "/depot/some-id/bin/wsh",
+					Path: containerDir + "/bin/wsh",
 					Args: []string{
-						"--socket", "/depot/some-id/run/wshd.sock",
+						"--socket", containerDir + "/run/wshd.sock",
 						"--user", "vcap",
 						"tar", "cf", "-", "-C", "/some/directory", "dst",
 					},
@@ -767,9 +781,9 @@ var _ = Describe("Linux containers", func() {
 
 			fakeRunner.WhenRunning(
 				fake_command_runner.CommandSpec{
-					Path: "/depot/some-id/bin/wsh",
+					Path: containerDir + "/bin/wsh",
 					Args: []string{
-						"--socket", "/depot/some-id/run/wshd.sock",
+						"--socket", containerDir + "/run/wshd.sock",
 						"--user", "vcap",
 						"tar", "cf", "-", "-C", "/some/directory", "dst",
 					},
@@ -796,9 +810,9 @@ var _ = Describe("Linux containers", func() {
 
 				Ω(fakeRunner).Should(HaveBackgrounded(
 					fake_command_runner.CommandSpec{
-						Path: "/depot/some-id/bin/wsh",
+						Path: containerDir + "/bin/wsh",
 						Args: []string{
-							"--socket", "/depot/some-id/run/wshd.sock",
+							"--socket", containerDir + "/run/wshd.sock",
 							"--user", "vcap",
 							"tar", "cf", "-", "-C", "/some/directory/dst/", ".",
 						},
@@ -813,7 +827,7 @@ var _ = Describe("Linux containers", func() {
 			BeforeEach(func() {
 				fakeRunner.WhenRunning(
 					fake_command_runner.CommandSpec{
-						Path: "/depot/some-id/bin/wsh",
+						Path: containerDir + "/bin/wsh",
 					}, func(*exec.Cmd) error {
 						return disaster
 					},
@@ -854,11 +868,11 @@ var _ = Describe("Linux containers", func() {
 			Ω(err).ShouldNot(HaveOccurred())
 
 			ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
-			Ω(ranCmd.Path).Should(Equal("/depot/some-id/bin/wsh"))
+			Ω(ranCmd.Path).Should(Equal(containerDir + "/bin/wsh"))
 
 			Ω(ranCmd.Args).Should(Equal([]string{
-				"/depot/some-id/bin/wsh",
-				"--socket", "/depot/some-id/run/wshd.sock",
+				containerDir + "/bin/wsh",
+				"--socket", containerDir + "/run/wshd.sock",
 				"--user", "vcap",
 				"/some/script",
 				"arg1",
@@ -894,8 +908,8 @@ var _ = Describe("Linux containers", func() {
 
 			ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
 			Ω(ranCmd.Args).Should(Equal([]string{
-				"/depot/some-id/bin/wsh",
-				"--socket", "/depot/some-id/run/wshd.sock",
+				containerDir + "/bin/wsh",
+				"--socket", containerDir + "/run/wshd.sock",
 				"--user", "vcap",
 				"--env", `ESCAPED=kurt "russell"`,
 				"--env", "UNESCAPED=isaac\nhayes",
@@ -913,8 +927,8 @@ var _ = Describe("Linux containers", func() {
 
 			ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
 			Ω(ranCmd.Args).Should(Equal([]string{
-				"/depot/some-id/bin/wsh",
-				"--socket", "/depot/some-id/run/wshd.sock",
+				containerDir + "/bin/wsh",
+				"--socket", containerDir + "/run/wshd.sock",
 				"--user", "vcap",
 				"--dir", "/some/dir",
 				"/some/script",
@@ -1009,11 +1023,11 @@ var _ = Describe("Linux containers", func() {
 			Ω(err).ShouldNot(HaveOccurred())
 
 			ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
-			Ω(ranCmd.Path).Should(Equal("/depot/some-id/bin/wsh"))
+			Ω(ranCmd.Path).Should(Equal(containerDir + "/bin/wsh"))
 
 			Ω(ranCmd.Args).Should(Equal([]string{
-				"/depot/some-id/bin/wsh",
-				"--socket", "/depot/some-id/run/wshd.sock",
+				containerDir + "/bin/wsh",
+				"--socket", containerDir + "/run/wshd.sock",
 				"--user", "vcap",
 				"/some/script",
 			}))
@@ -1040,11 +1054,11 @@ var _ = Describe("Linux containers", func() {
 				Ω(err).ToNot(HaveOccurred())
 
 				ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
-				Ω(ranCmd.Path).Should(Equal("/depot/some-id/bin/wsh"))
+				Ω(ranCmd.Path).Should(Equal(containerDir + "/bin/wsh"))
 
 				Ω(ranCmd.Args).Should(Equal([]string{
-					"/depot/some-id/bin/wsh",
-					"--socket", "/depot/some-id/run/wshd.sock",
+					containerDir + "/bin/wsh",
+					"--socket", containerDir + "/run/wshd.sock",
 					"--user", "root",
 					"/some/script",
 				}))
@@ -1214,7 +1228,7 @@ var _ = Describe("Linux containers", func() {
 
 			Ω(fakeRunner).Should(HaveStartedExecuting(
 				fake_command_runner.CommandSpec{
-					Path: "/depot/some-id/bin/oom",
+					Path: containerDir + "/bin/oom",
 					Args: []string{"/cgroups/memory/instance-some-id"},
 				},
 			))
@@ -1256,7 +1270,7 @@ var _ = Describe("Linux containers", func() {
 				started := 0
 
 				fakeRunner.WhenRunning(fake_command_runner.CommandSpec{
-					Path: "/depot/some-id/bin/oom",
+					Path: containerDir + "/bin/oom",
 				}, func(*exec.Cmd) error {
 					started++
 					return nil
@@ -1279,7 +1293,7 @@ var _ = Describe("Linux containers", func() {
 		Context("when the oom notifier exits 0", func() {
 			BeforeEach(func() {
 				fakeRunner.WhenWaitingFor(fake_command_runner.CommandSpec{
-					Path: "/depot/some-id/bin/oom",
+					Path: containerDir + "/bin/oom",
 				}, func(cmd *exec.Cmd) error {
 					return nil
 				})
@@ -1295,7 +1309,7 @@ var _ = Describe("Linux containers", func() {
 
 				Eventually(fakeRunner).Should(HaveExecutedSerially(
 					fake_command_runner.CommandSpec{
-						Path: "/depot/some-id/stop.sh",
+						Path: containerDir + "/stop.sh",
 					},
 				))
 			})
@@ -1393,7 +1407,7 @@ var _ = Describe("Linux containers", func() {
 
 			BeforeEach(func() {
 				fakeRunner.WhenRunning(fake_command_runner.CommandSpec{
-					Path: "/depot/some-id/bin/oom",
+					Path: containerDir + "/bin/oom",
 				}, func(cmd *exec.Cmd) error {
 					return disaster
 				})
@@ -1582,7 +1596,7 @@ var _ = Describe("Linux containers", func() {
 
 			Ω(fakeRunner).Should(HaveExecutedSerially(
 				fake_command_runner.CommandSpec{
-					Path: "/depot/some-id/net.sh",
+					Path: containerDir + "/net.sh",
 					Args: []string{"in"},
 					Env: []string{
 						"HOST_PORT=123",
@@ -1633,7 +1647,7 @@ var _ = Describe("Linux containers", func() {
 
 				Ω(fakeRunner).Should(HaveExecutedSerially(
 					fake_command_runner.CommandSpec{
-						Path: "/depot/some-id/net.sh",
+						Path: containerDir + "/net.sh",
 						Args: []string{"in"},
 						Env: []string{
 							"HOST_PORT=123",
@@ -1654,7 +1668,7 @@ var _ = Describe("Linux containers", func() {
 
 					Ω(fakeRunner).Should(HaveExecutedSerially(
 						fake_command_runner.CommandSpec{
-							Path: "/depot/some-id/net.sh",
+							Path: containerDir + "/net.sh",
 							Args: []string{"in"},
 							Env: []string{
 								"HOST_PORT=1000",
@@ -1676,7 +1690,7 @@ var _ = Describe("Linux containers", func() {
 			BeforeEach(func() {
 				fakeRunner.WhenRunning(
 					fake_command_runner.CommandSpec{
-						Path: "/depot/some-id/net.sh",
+						Path: containerDir + "/net.sh",
 					}, func(*exec.Cmd) error {
 						return disaster
 					},
@@ -1697,7 +1711,7 @@ var _ = Describe("Linux containers", func() {
 
 			Ω(fakeRunner).Should(HaveExecutedSerially(
 				fake_command_runner.CommandSpec{
-					Path: "/depot/some-id/net.sh",
+					Path: containerDir + "/net.sh",
 					Args: []string{"out"},
 					Env: []string{
 						"NETWORK=1.2.3.4/22",
@@ -1716,7 +1730,7 @@ var _ = Describe("Linux containers", func() {
 
 				Ω(fakeRunner).Should(HaveExecutedSerially(
 					fake_command_runner.CommandSpec{
-						Path: "/depot/some-id/net.sh",
+						Path: containerDir + "/net.sh",
 						Args: []string{"out"},
 						Env: []string{
 							"NETWORK=1.2.3.4/22",
@@ -1742,7 +1756,7 @@ var _ = Describe("Linux containers", func() {
 			BeforeEach(func() {
 				fakeRunner.WhenRunning(
 					fake_command_runner.CommandSpec{
-						Path: "/depot/some-id/net.sh",
+						Path: containerDir + "/net.sh",
 					}, func(*exec.Cmd) error {
 						return disaster
 					},
@@ -1789,7 +1803,7 @@ var _ = Describe("Linux containers", func() {
 		It("returns the container's path", func() {
 			info, err := container.Info()
 			Ω(err).ShouldNot(HaveOccurred())
-			Ω(info.ContainerPath).Should(Equal("/depot/some-id"))
+			Ω(info.ContainerPath).Should(Equal(containerDir))
 		})
 
 		It("returns the container's mapped ports", func() {

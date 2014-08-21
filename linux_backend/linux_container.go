@@ -443,14 +443,25 @@ func (c *LinuxContainer) Info() (warden.ContainerInfo, error) {
 }
 
 func (c *LinuxContainer) StreamIn(dstPath string, tarStream io.Reader) error {
-	wshPath := path.Join(c.path, "bin", "wsh")
-	sockPath := path.Join(c.path, "run", "wshd.sock")
+	pidPath := path.Join(c.path, "run", "wshd.pid")
+
+	pidFile, err := os.Open(pidPath)
+	if err != nil {
+		return err
+	}
+
+	var pid int
+	_, err = fmt.Fscanf(pidFile, "%d", &pid)
+	if err != nil {
+		return err
+	}
 
 	tar := exec.Command(
-		wshPath,
-		"--socket", sockPath,
-		"--user", "vcap",
-		"sh", "-c", fmt.Sprintf("mkdir -p %s && tar xf - -C %s", dstPath, dstPath),
+		"nsenter",
+		"-m",
+		"-t", strconv.Itoa(pid),
+		"--",
+		"su", "vcap", "-c", fmt.Sprintf("cd && mkdir -p %s && tar xf - -C %s", dstPath, dstPath),
 	)
 
 	tar.Stdin = tarStream

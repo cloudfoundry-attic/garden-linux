@@ -411,7 +411,7 @@ var _ = Describe("Creating a container", func() {
 			Ω(err).ShouldNot(HaveOccurred())
 		})
 
-		It("creates the files in the container", func() {
+		It("creates the files in the container, as the vcap user", func() {
 			err := container.StreamIn("/tmp/some-container-dir", tarStream)
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -419,6 +419,35 @@ var _ = Describe("Creating a container", func() {
 				Path: "bash",
 				Args: []string{"-c", `test -f /tmp/some-container-dir/some-temp-dir/some-temp-file`},
 			}, warden.ProcessIO{})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(process.Wait()).Should(Equal(0))
+
+			output := gbytes.NewBuffer()
+			process, err = container.Run(warden.ProcessSpec{
+				Path: "bash",
+				Args: []string{"-c", `ls -al /tmp/some-container-dir/some-temp-dir/some-temp-file`},
+			}, warden.ProcessIO{
+				Stdout: output,
+			})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(process.Wait()).Should(Equal(0))
+
+			// output should look like -rwxrwxrwx 1 vcap vcap 9 Jan  1  1970 /tmp/some-container-dir/some-temp-dir/some-temp-file
+			Ω(output).Should(gbytes.Say("vcap"))
+			Ω(output).Should(gbytes.Say("vcap"))
+		})
+
+		It("streams in relative to the user's home directory", func() {
+			err := container.StreamIn(".", tarStream)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			process, err := container.Run(warden.ProcessSpec{
+				Path: "bash",
+				Args: []string{"-c", `test -f $HOME/some-temp-dir/some-temp-file`},
+			}, warden.ProcessIO{})
+			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(process.Wait()).Should(Equal(0))
 		})
