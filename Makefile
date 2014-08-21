@@ -20,3 +20,7 @@ warden-test-rootfs.tar: warden-test-rootfs.cid
 ci-image: warden-test-rootfs.tar
 	docker build -t cloudfoundry/warden-ci --rm .
 	rm warden-test-rootfs.tar
+
+dev-ci-image: warden-test-rootfs.tar
+	docker build -t cloudfoundry/warden-ci:dev --rm .
+	rm warden-test-rootfs.tar
