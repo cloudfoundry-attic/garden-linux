@@ -710,15 +710,11 @@ var _ = Describe("Linux containers", func() {
 		It("streams the input to tar xf in the container", func() {
 			fakeRunner.WhenRunning(
 				fake_command_runner.CommandSpec{
-					Path: "nsenter",
+					Path: containerDir + "/bin/nstar",
 					Args: []string{
-						"-m",
-						"-t", "12345",
-						"--",
-						"su",
-						"vcap",
-						"-c",
-						`cd && mkdir -p /some/directory/dst && tar xf - -C /some/directory/dst`,
+						"12345",
+						fmt.Sprintf("%d", containerResources.UID),
+						"/some/directory/dst",
 					},
 				},
 				func(cmd *exec.Cmd) error {
@@ -741,7 +737,7 @@ var _ = Describe("Linux containers", func() {
 			BeforeEach(func() {
 				fakeRunner.WhenRunning(
 					fake_command_runner.CommandSpec{
-						Path: "nsenter",
+						Path: containerDir + "/bin/nstar",
 					},
 					func(cmd *exec.Cmd) error {
 						return disaster

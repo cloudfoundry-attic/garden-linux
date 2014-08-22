@@ -6,6 +6,7 @@ skeleton:
 	cp linux_backend/src/wsh/wshd linux_backend/skeleton/bin
 	cp linux_backend/src/wsh/wsh linux_backend/skeleton/bin
 	cp linux_backend/src/oom/oom linux_backend/skeleton/bin
+	cp linux_backend/src/nstar/nstar linux_backend/skeleton/bin
 	cp linux_backend/src/repquota/repquota linux_backend/bin
 
 warden-test-rootfs.cid: integration/rootfs/Dockerfile

@@ -452,6 +452,7 @@ func (c *LinuxContainer) Info() (warden.ContainerInfo, error) {
 }
 
 func (c *LinuxContainer) StreamIn(dstPath string, tarStream io.Reader) error {
+	nsTarPath := path.Join(c.path, "bin", "nstar")
 	pidPath := path.Join(c.path, "run", "wshd.pid")
 
 	pidFile, err := os.Open(pidPath)
@@ -466,11 +467,10 @@ func (c *LinuxContainer) StreamIn(dstPath string, tarStream io.Reader) error {
 	}
 
 	tar := exec.Command(
-		"nsenter",
-		"-m",
-		"-t", strconv.Itoa(pid),
-		"--",
-		"su", "vcap", "-c", fmt.Sprintf("cd && mkdir -p %s && tar xf - -C %s", dstPath, dstPath),
+		nsTarPath,
+		strconv.Itoa(pid),
+		fmt.Sprintf("%d", c.resources.UID),
+		dstPath,
 	)
 
 	tar.Stdin = tarStream

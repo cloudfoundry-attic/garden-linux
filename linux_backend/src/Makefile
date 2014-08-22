@@ -4,6 +4,7 @@ default: all
 %:
 	cd wsh && $(MAKE) $@
 	cd oom && $(MAKE) $@
+	cd nstar && $(MAKE) $@
 	cd repquota && $(MAKE) $@
 
 .PHONY: default
