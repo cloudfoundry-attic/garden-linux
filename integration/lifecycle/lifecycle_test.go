@@ -412,12 +412,12 @@ var _ = Describe("Creating a container", func() {
 		})
 
 		It("creates the files in the container, as the vcap user", func() {
-			err := container.StreamIn("/tmp/some-container-dir", tarStream)
+			err := container.StreamIn("/tmp/some/container/dir", tarStream)
 			Ω(err).ShouldNot(HaveOccurred())
 
 			process, err := container.Run(warden.ProcessSpec{
 				Path: "bash",
-				Args: []string{"-c", `test -f /tmp/some-container-dir/some-temp-dir/some-temp-file`},
+				Args: []string{"-c", `test -f /tmp/some/container/dir/some-temp-dir/some-temp-file`},
 			}, warden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -426,7 +426,7 @@ var _ = Describe("Creating a container", func() {
 			output := gbytes.NewBuffer()
 			process, err = container.Run(warden.ProcessSpec{
 				Path: "bash",
-				Args: []string{"-c", `ls -al /tmp/some-container-dir/some-temp-dir/some-temp-file`},
+				Args: []string{"-c", `ls -al /tmp/some/container/dir/some-temp-dir/some-temp-file`},
 			}, warden.ProcessIO{
 				Stdout: output,
 			})
@@ -464,8 +464,9 @@ var _ = Describe("Creating a container", func() {
 			It("streams the directory", func() {
 				process, err := container.Run(warden.ProcessSpec{
 					Path: "bash",
-					Args: []string{"-c", `mkdir -p some-outer-dir/some-inner-dir; touch some-outer-dir/some-inner-dir/some-file;`},
+					Args: []string{"-c", `pwd; ls -al; id; whoami; mkdir -p some-outer-dir/some-inner-dir && touch some-outer-dir/some-inner-dir/some-file`},
 				}, warden.ProcessIO{})
+				Ω(err).ShouldNot(HaveOccurred())
 
 				Ω(process.Wait()).Should(Equal(0))
 
@@ -487,8 +488,9 @@ var _ = Describe("Creating a container", func() {
 				It("streams the contents of the directory", func() {
 					process, err := container.Run(warden.ProcessSpec{
 						Path: "bash",
-						Args: []string{"-c", `mkdir -p some-container-dir; touch some-container-dir/some-file;`},
+						Args: []string{"-c", `pwd; ls -al; id; whoami; mkdir -p some-container-dir && touch some-container-dir/some-file`},
 					}, warden.ProcessIO{})
+					Ω(err).ShouldNot(HaveOccurred())
 
 					Ω(process.Wait()).Should(Equal(0))
 
