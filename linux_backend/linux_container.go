@@ -73,6 +73,8 @@ type LinuxContainer struct {
 
 	netOuts      []NetOutSpec
 	netOutsMutex sync.RWMutex
+
+	envvars []string
 }
 
 type NetInSpec struct {
@@ -111,6 +113,7 @@ func NewLinuxContainer(
 	quotaManager quota_manager.QuotaManager,
 	bandwidthManager bandwidth_manager.BandwidthManager,
 	processTracker process_tracker.ProcessTracker,
+	envvars []string,
 ) *LinuxContainer {
 	return &LinuxContainer{
 		logger: logger,
@@ -137,6 +140,8 @@ func NewLinuxContainer(
 		bandwidthManager: bandwidthManager,
 
 		processTracker: processTracker,
+
+		envvars: envvars,
 	}
 }
 
@@ -241,6 +246,8 @@ func (c *LinuxContainer) Snapshot(out io.Writer) error {
 		Processes: processSnapshots,
 
 		Properties: c.Properties(),
+
+		EnvVars: c.envvars,
 	}
 
 	err := json.NewEncoder(out).Encode(snapshot)
@@ -269,6 +276,8 @@ func (c *LinuxContainer) Restore(snapshot ContainerSnapshot) error {
 	}
 
 	c.setState(State(snapshot.State))
+
+	c.envvars = snapshot.EnvVars
 
 	for _, ev := range snapshot.Events {
 		c.registerEvent(ev)
@@ -646,6 +655,11 @@ func (c *LinuxContainer) Run(spec warden.ProcessSpec, processIO warden.ProcessIO
 	}
 
 	args := []string{"--socket", sockPath, "--user", user}
+
+	for _, envVar := range c.envvars {
+		args = append(args, "--env", envVar)
+	}
+
 	for _, envVar := range spec.Env {
 		args = append(args, "--env", envVar)
 	}
@@ -735,6 +749,10 @@ func (c *LinuxContainer) NetOut(network string, port uint32) error {
 	c.netOuts = append(c.netOuts, NetOutSpec{network, port})
 
 	return nil
+}
+
+func (c *LinuxContainer) CurrentEnvVars() []string {
+	return c.envvars
 }
 
 func (c *LinuxContainer) setState(state State) {

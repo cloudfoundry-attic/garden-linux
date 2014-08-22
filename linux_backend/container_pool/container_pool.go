@@ -227,6 +227,7 @@ func (p *LinuxContainerPool) Create(spec warden.ContainerSpec) (linux_backend.Co
 		p.quotaManager,
 		bandwidthManager,
 		process_tracker.New(containerPath, p.runner),
+		spec.EnvVariables,
 	)
 
 	createCmd := path.Join(p.binPath, "create.sh")
@@ -342,6 +343,7 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 		p.quotaManager,
 		bandwidthManager,
 		process_tracker.New(containerPath, p.runner),
+		containerSnapshot.EnvVars,
 	)
 
 	err = container.Restore(containerSnapshot)

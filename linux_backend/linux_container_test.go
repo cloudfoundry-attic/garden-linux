@@ -94,6 +94,7 @@ var _ = Describe("Linux containers", func() {
 			fakeQuotaManager,
 			fakeBandwidthManager,
 			fakeProcessTracker,
+			[]string{"env1=env1Value", "env2=env2Value"},
 		)
 	})
 
@@ -231,6 +232,8 @@ var _ = Describe("Linux containers", func() {
 			Ω(snapshot.Properties).Should(Equal(warden.Properties(map[string]string{
 				"property-name": "property-value",
 			})))
+
+			Ω(snapshot.EnvVars).Should(Equal([]string{"env1=env1Value", "env2=env2Value"}))
 		})
 
 		Context("with limits set", func() {
@@ -343,6 +346,16 @@ var _ = Describe("Linux containers", func() {
 			pid, tty = fakeProcessTracker.RestoreArgsForCall(1)
 			Ω(pid).Should(Equal(uint32(1)))
 			Ω(tty).Should(BeTrue())
+		})
+
+		It("restores environment variables", func() {
+			err := container.Restore(linux_backend.ContainerSnapshot{
+				EnvVars: []string{"env1=env1value", "env2=env2Value"},
+			})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(container.CurrentEnvVars()).Should(Equal([]string{"env1=env1value", "env2=env2Value"}))
+
 		})
 
 		It("redoes network setup and net-in/net-outs", func() {
@@ -874,6 +887,8 @@ var _ = Describe("Linux containers", func() {
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
 				"--user", "vcap",
+				"--env", "env1=env1Value",
+				"--env", "env2=env2Value",
 				"/some/script",
 				"arg1",
 				"arg2",
@@ -911,6 +926,8 @@ var _ = Describe("Linux containers", func() {
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
 				"--user", "vcap",
+				"--env", "env1=env1Value",
+				"--env", "env2=env2Value",
 				"--env", `ESCAPED=kurt "russell"`,
 				"--env", "UNESCAPED=isaac\nhayes",
 				"/some/script",
@@ -930,6 +947,8 @@ var _ = Describe("Linux containers", func() {
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
 				"--user", "vcap",
+				"--env", "env1=env1Value",
+				"--env", "env2=env2Value",
 				"--dir", "/some/dir",
 				"/some/script",
 			}))
@@ -1029,6 +1048,8 @@ var _ = Describe("Linux containers", func() {
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
 				"--user", "vcap",
+				"--env", "env1=env1Value",
+				"--env", "env2=env2Value",
 				"/some/script",
 			}))
 
@@ -1060,6 +1081,8 @@ var _ = Describe("Linux containers", func() {
 					containerDir + "/bin/wsh",
 					"--socket", containerDir + "/run/wshd.sock",
 					"--user", "root",
+					"--env", "env1=env1Value",
+					"--env", "env2=env2Value",
 					"/some/script",
 				}))
 			})

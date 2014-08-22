@@ -27,6 +27,8 @@ type ContainerSnapshot struct {
 	NetOuts []NetOutSpec
 
 	Properties warden.Properties
+
+	EnvVars []string
 }
 
 type LimitsSnapshot struct {
