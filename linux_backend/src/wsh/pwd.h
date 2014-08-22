@@ -8,8 +8,8 @@
 struct passwd {
   char *pw_name;   /* Username. */
   char *pw_passwd; /* Password. */
-  uint16_t pw_uid; /* User ID. */
-  uint16_t pw_gid; /* Group ID. */
+  uint32_t pw_uid; /* User ID. */
+  uint32_t pw_gid; /* Group ID. */
   char *pw_gecos;  /* Real name. */
   char *pw_dir;    /* Home directory. */
   char *pw_shell;  /* Shell program. */
