@@ -227,7 +227,7 @@ func (p *LinuxContainerPool) Create(spec warden.ContainerSpec) (linux_backend.Co
 		p.quotaManager,
 		bandwidthManager,
 		process_tracker.New(containerPath, p.runner),
-		spec.EnvVariables,
+		spec.Env,
 	)
 
 	createCmd := path.Join(p.binPath, "create.sh")

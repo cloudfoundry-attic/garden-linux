@@ -236,7 +236,7 @@ var _ = Describe("Stop", func() {
 	})
 
 	It("takes a snapshot of each container", func() {
-		container1, err := linuxBackend.Create(warden.ContainerSpec{EnvVariables: []string{"env1=env1Value", "env2=env2Value"}, Handle: "some-handle"})
+		container1, err := linuxBackend.Create(warden.ContainerSpec{Env: []string{"env1=env1Value", "env2=env2Value"}, Handle: "some-handle"})
 		Ω(err).ShouldNot(HaveOccurred())
 
 		container2, err := linuxBackend.Create(warden.ContainerSpec{Handle: "some-other-handle"})
