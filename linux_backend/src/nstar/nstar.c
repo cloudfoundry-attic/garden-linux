@@ -12,10 +12,35 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <linux/sched.h>
-#include <pwd.h>
 #include <string.h>
 #include <sys/param.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
+
+ #include "pwd.h"
+
+/* create a directory; chown only if newly created */
+int mkdir_as(const char *dir, uid_t uid, gid_t gid) {
+  int rv;
+
+  rv = mkdir(dir, 0755);
+  if(rv == 0) {
+    /* new directory; set ownership */
+    return chown(dir, uid, gid);
+  } else {
+    if(errno == EEXIST) {
+      /* if directory already exists, leave ownership as-is */
+      return 0;
+    } else {
+      /* if any other error, abort */
+      return rv;
+    }
+  }
+
+  /* unreachable */
+  return -1;
+}
 
 /* recursively mkdir with directories owned by a given user */
 int mkdir_p_as(const char *dir, uid_t uid, gid_t gid) {
@@ -32,19 +57,14 @@ int mkdir_p_as(const char *dir, uid_t uid, gid_t gid) {
   if(tmp[len - 1] == '/')
     tmp[len - 1] = 0;
 
-  for(p = tmp + 1; *p; p++)
+  for(p = tmp + 1; *p; p++) {
     if(*p == '/') {
       /* temporarily null-terminte the string so that mkdir only creates this
        * path segment */
       *p = 0;
 
       /* mkdir with truncated path segment */
-      rv = mkdir(tmp, 0755);
-      if(rv == -1 && errno != EEXIST) {
-        return rv;
-      }
-
-      rv = chown(tmp, uid, gid);
+      rv = mkdir_as(tmp, uid, gid);
       if(rv == -1) {
         return rv;
       }
@@ -52,20 +72,16 @@ int mkdir_p_as(const char *dir, uid_t uid, gid_t gid) {
       /* restore path separator */
       *p = '/';
     }
-
-  /* create final destination */
-  rv = mkdir(tmp, S_IRWXU);
-  if(rv == -1 && errno != EEXIST) {
-    return rv;
   }
 
-  return chown(tmp, uid, uid);
+  /* create final destination */
+  return mkdir_as(tmp, uid, gid);
 }
 
 int main(int argc, char **argv) {
   int rv;
   int nsfd;
-  int uid;
+  char *user;
   char *destination;
   int tpid;
   int hostrootfd;
@@ -73,7 +89,7 @@ int main(int argc, char **argv) {
   struct passwd *pw;
 
   if(argc < 4) {
-    fprintf(stderr, "Usage: %s <wshd pid> <uid> <destination>\n", argv[0]);
+    fprintf(stderr, "Usage: %s <wshd pid> <user> <destination>\n", argv[0]);
     return 1;
   }
 
@@ -83,26 +99,25 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  rv = sscanf(argv[2], "%d", &uid);
-  if(rv != 1) {
-    fprintf(stderr, "invalid uid\n");
-    return 1;
-  }
-
+  user = argv[2];
   destination = argv[3];
 
   char nspath[PATH_MAX];
-  snprintf(nspath, sizeof(nspath), "/proc/%u/ns/mnt", tpid);
+  rv = snprintf(nspath, sizeof(nspath), "/proc/%u/ns/mnt", tpid);
+  if(rv == -1) {
+    perror("snprintf ns path");
+    return 1;
+  }
 
   nsfd = open(nspath, O_RDONLY);
   if(nsfd == -1) {
-    perror("open");
+    perror("open namespace");
     return 1;
   }
 
   hostrootfd = open("/", O_RDONLY);
   if(hostrootfd == -1) {
-    perror("open");
+    perror("open host rootfs");
     return 1;
   }
 
@@ -112,66 +127,73 @@ int main(int argc, char **argv) {
     perror("setns");
     return 1;
   }
-
   close(nsfd);
 
-  pw = getpwuid(uid);
+  pw = getpwnam(user);
   if(pw == NULL) {
-    perror("getpwuid");
+    perror("getpwnam");
     return 1;
   }
 
   rv = chdir(pw->pw_dir);
   if(rv == -1) {
-    perror("chdir");
+    perror("chdir to user home");
     return 1;
   }
 
   /* create destination directory */
-  rv = mkdir_p_as(destination, uid, uid);
-  if(rv == -1 && errno != EEXIST) {
-    perror("mkdir");
+  rv = mkdir_p_as(destination, pw->pw_uid, pw->pw_gid);
+  if(rv == -1) {
+    perror("mkdir_p_as");
     return 1;
   }
 
   /* save off destination dir for switching back to it later */
   containerdestfd = open(destination, O_RDONLY);
   if(containerdestfd == -1) {
-    perror("open");
+    perror("open container destination");
     return 1;
   }
 
   /* switch to original host rootfs */
   rv = fchdir(hostrootfd);
   if(rv == -1) {
-    perror("fchdir");
+    perror("fchdir to host rootfs");
     return 1;
   }
 
   rv = chroot(".");
   if(rv == -1) {
-    perror("chroot");
+    perror("failed to chroot to host rootfs");
     return 1;
   }
 
-  close(hostrootfd);
+  rv = close(hostrootfd);
+  if(rv == -1) {
+    perror("close host destination");
+    return 1;
+  }
 
   /* switch to container's destination directory, with host still as rootfs */
   rv = fchdir(containerdestfd);
   if(rv == -1) {
-    perror("fchdir");
+    perror("fchdir to container destination");
     return 1;
   }
 
-  close(containerdestfd);
+  rv = close(containerdestfd);
+  if(rv == -1) {
+    perror("close container destination");
+    return 1;
+  }
 
-  rv = setgid(uid);
+  rv = setgid(pw->pw_uid);
   if(rv == -1) {
     perror("setgid");
     return 1;
   }
 
-  rv = setuid(uid);
+  rv = setuid(pw->pw_gid);
   if(rv == -1) {
     perror("setuid");
     return 1;
