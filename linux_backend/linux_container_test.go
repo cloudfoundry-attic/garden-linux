@@ -762,11 +762,12 @@ var _ = Describe("Linux containers", func() {
 		It("streams the output of tar cf to the destination", func() {
 			fakeRunner.WhenRunning(
 				fake_command_runner.CommandSpec{
-					Path: containerDir + "/bin/wsh",
+					Path: containerDir + "/bin/nstar",
 					Args: []string{
-						"--socket", containerDir + "/run/wshd.sock",
-						"--user", "vcap",
-						"tar", "cf", "-", "-C", "/some/directory", "dst",
+						"12345",
+						"vcap",
+						"/some/directory",
+						"dst",
 					},
 				},
 				func(cmd *exec.Cmd) error {
@@ -790,11 +791,12 @@ var _ = Describe("Linux containers", func() {
 
 			fakeRunner.WhenRunning(
 				fake_command_runner.CommandSpec{
-					Path: containerDir + "/bin/wsh",
+					Path: containerDir + "/bin/nstar",
 					Args: []string{
-						"--socket", containerDir + "/run/wshd.sock",
-						"--user", "vcap",
-						"tar", "cf", "-", "-C", "/some/directory", "dst",
+						"12345",
+						"vcap",
+						"/some/directory",
+						"dst",
 					},
 				},
 				func(cmd *exec.Cmd) error {
@@ -819,11 +821,12 @@ var _ = Describe("Linux containers", func() {
 
 				Ω(fakeRunner).Should(HaveBackgrounded(
 					fake_command_runner.CommandSpec{
-						Path: containerDir + "/bin/wsh",
+						Path: containerDir + "/bin/nstar",
 						Args: []string{
-							"--socket", containerDir + "/run/wshd.sock",
-							"--user", "vcap",
-							"tar", "cf", "-", "-C", "/some/directory/dst/", ".",
+							"12345",
+							"vcap",
+							"/some/directory/dst/",
+							".",
 						},
 					},
 				))
@@ -836,7 +839,7 @@ var _ = Describe("Linux containers", func() {
 			BeforeEach(func() {
 				fakeRunner.WhenRunning(
 					fake_command_runner.CommandSpec{
-						Path: containerDir + "/bin/wsh",
+						Path: containerDir + "/bin/nstar",
 					}, func(*exec.Cmd) error {
 						return disaster
 					},

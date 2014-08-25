@@ -84,15 +84,16 @@ int setns(int fd, int nstype);
 int main(int argc, char **argv) {
   int rv;
   int nsfd;
-  char *user;
-  char *destination;
+  char *user = NULL;
+  char *destination = NULL;
   int tpid;
   int hostrootfd;
-  int containerdestfd;
+  int containerworkdir;
+  char *compress = NULL;
   struct passwd *pw;
 
   if(argc < 4) {
-    fprintf(stderr, "Usage: %s <wshd pid> <user> <destination>\n", argv[0]);
+    fprintf(stderr, "Usage: %s <wshd pid> <user> <destination> [files to compress]\n", argv[0]);
     return 1;
   }
 
@@ -104,6 +105,10 @@ int main(int argc, char **argv) {
 
   user = argv[2];
   destination = argv[3];
+
+  if(argc > 4) {
+    compress = argv[4];
+  }
 
   char nspath[PATH_MAX];
   rv = snprintf(nspath, sizeof(nspath), "/proc/%u/ns/mnt", tpid);
@@ -152,8 +157,8 @@ int main(int argc, char **argv) {
   }
 
   /* save off destination dir for switching back to it later */
-  containerdestfd = open(destination, O_RDONLY);
-  if(containerdestfd == -1) {
+  containerworkdir = open(destination, O_RDONLY);
+  if(containerworkdir == -1) {
     perror("open container destination");
     return 1;
   }
@@ -178,13 +183,13 @@ int main(int argc, char **argv) {
   }
 
   /* switch to container's destination directory, with host still as rootfs */
-  rv = fchdir(containerdestfd);
+  rv = fchdir(containerworkdir);
   if(rv == -1) {
     perror("fchdir to container destination");
     return 1;
   }
 
-  rv = close(containerdestfd);
+  rv = close(containerworkdir);
   if(rv == -1) {
     perror("close container destination");
     return 1;
@@ -202,11 +207,18 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  /* extract from host into container's destination, as the user */
-  rv = execl("/bin/tar", "tar", "xf", "-", NULL);
-  if(rv == -1) {
-    perror("execl");
-    return 1;
+  if(compress != NULL) {
+    rv = execl("/bin/tar", "tar", "cf", "-", compress, NULL);
+    if(rv == -1) {
+      perror("execl");
+      return 1;
+    }
+  } else {
+    rv = execl("/bin/tar", "tar", "xf", "-", NULL);
+    if(rv == -1) {
+      perror("execl");
+      return 1;
+    }
   }
 
   // unreachable

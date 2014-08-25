@@ -486,9 +486,6 @@ func (c *LinuxContainer) StreamIn(dstPath string, tarStream io.Reader) error {
 }
 
 func (c *LinuxContainer) StreamOut(srcPath string) (io.ReadCloser, error) {
-	wshPath := path.Join(c.path, "bin", "wsh")
-	sockPath := path.Join(c.path, "run", "wshd.sock")
-
 	workingDir := filepath.Dir(srcPath)
 	compressArg := filepath.Base(srcPath)
 	if strings.HasSuffix(srcPath, "/") {
@@ -496,17 +493,32 @@ func (c *LinuxContainer) StreamOut(srcPath string) (io.ReadCloser, error) {
 		compressArg = "."
 	}
 
-	tarRead, tarWrite, err := os.Pipe()
+	nsTarPath := path.Join(c.path, "bin", "nstar")
+	pidPath := path.Join(c.path, "run", "wshd.pid")
+
+	pidFile, err := os.Open(pidPath)
+	if err != nil {
+		return nil, err
+	}
+
+	var pid int
+	_, err = fmt.Fscanf(pidFile, "%d", &pid)
 	if err != nil {
 		return nil, err
 	}
 
 	tar := exec.Command(
-		wshPath,
-		"--socket", sockPath,
-		"--user", "vcap",
-		"tar", "cf", "-", "-C", workingDir, compressArg,
+		nsTarPath,
+		strconv.Itoa(pid),
+		"vcap",
+		workingDir,
+		compressArg,
 	)
+
+	tarRead, tarWrite, err := os.Pipe()
+	if err != nil {
+		return nil, err
+	}
 
 	tar.Stdout = tarWrite
 
