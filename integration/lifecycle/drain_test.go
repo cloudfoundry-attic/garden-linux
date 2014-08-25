@@ -36,7 +36,7 @@ var _ = Describe("Through a restart", func() {
 	Describe("a started process", func() {
 		It("continues to stream", func() {
 			process, err := container.Run(warden.ProcessSpec{
-				Path: "bash",
+				Path: "sh",
 				Args: []string{"-c", "while true; do echo hi; sleep 0.5; done"},
 			}, warden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
@@ -52,7 +52,7 @@ var _ = Describe("Through a restart", func() {
 			})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Eventually(stdout).Should(gbytes.Say("hi\n"))
+			Eventually(stdout, 5.0).Should(gbytes.Say("hi\n"))
 		})
 
 		It("can still accept stdin", func() {
@@ -61,7 +61,7 @@ var _ = Describe("Through a restart", func() {
 			stdout := gbytes.NewBuffer()
 
 			process, err := container.Run(warden.ProcessSpec{
-				Path: "bash",
+				Path: "sh",
 				Args: []string{"-c", "cat <&0"},
 			}, warden.ProcessIO{
 				Stdin:  r,
@@ -93,10 +93,12 @@ var _ = Describe("Through a restart", func() {
 		})
 
 		It("can still have its tty window resized", func() {
+			stdout := gbytes.NewBuffer()
+
 			process, err := container.Run(warden.ProcessSpec{
-				Path: "ruby",
+				Path: "sh",
 				Args: []string{
-					"-e",
+					"-c",
 
 					// apparently, processes may receive SIGWINCH immediately upon
 					// spawning. the initial approach was to exit after receiving the
@@ -105,9 +107,15 @@ var _ = Describe("Through a restart", func() {
 					// so, instead, print whenever we receive SIGWINCH, and only exit
 					// when a line of text is entered.
 					`
-					$stdout.sync = true
-					trap("WINCH") { system "stty -a" }
-					gets
+						trap "stty -a" SIGWINCH
+
+						# continuously read so that the trap can keep firing
+						while true; do
+							echo waiting
+							if read; then
+								exit 0
+							fi
+						done
 					`,
 				},
 				TTY: &warden.TTYSpec{
@@ -116,8 +124,12 @@ var _ = Describe("Through a restart", func() {
 						Rows:    24,
 					},
 				},
-			}, warden.ProcessIO{})
+			}, warden.ProcessIO{
+				Stdout: stdout,
+			})
 			Ω(err).ShouldNot(HaveOccurred())
+
+			Eventually(stdout).Should(gbytes.Say("waiting"))
 
 			restartWarden()
 
@@ -125,8 +137,6 @@ var _ = Describe("Through a restart", func() {
 			Ω(err).Should(HaveOccurred())
 
 			inR, inW := io.Pipe()
-
-			stdout := gbytes.NewBuffer()
 
 			process, err = container.Attach(process.ID(), warden.ProcessIO{
 				Stdin:  inR,
@@ -152,7 +162,7 @@ var _ = Describe("Through a restart", func() {
 
 		It("does not have its job ID repeated", func() {
 			process1, err := container.Run(warden.ProcessSpec{
-				Path: "bash",
+				Path: "sh",
 				Args: []string{"-c", "while true; do echo hi; sleep 0.5; done"},
 			}, warden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
@@ -160,7 +170,7 @@ var _ = Describe("Through a restart", func() {
 			restartWarden()
 
 			process2, err := container.Run(warden.ProcessSpec{
-				Path: "bash",
+				Path: "sh",
 				Args: []string{"-c", "while true; do echo hi; sleep 0.5; done"},
 			}, warden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
@@ -173,7 +183,7 @@ var _ = Describe("Through a restart", func() {
 				receivedNumbers := make(chan int, 16)
 
 				process, err := container.Run(warden.ProcessSpec{
-					Path: "bash",
+					Path: "sh",
 					Args: []string{"-c", "for i in $(seq 10); do echo $i; sleep 0.5; done; echo -1; while true; do sleep 1; done"},
 				}, warden.ProcessIO{})
 				Ω(err).ShouldNot(HaveOccurred())
@@ -222,14 +232,14 @@ var _ = Describe("Through a restart", func() {
 
 	Describe("a memory limit", func() {
 		It("is still enforced", func() {
-			err := container.LimitMemory(warden.MemoryLimits{32 * 1024 * 1024})
+			err := container.LimitMemory(warden.MemoryLimits{4 * 1024 * 1024})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			restartWarden()
 
 			process, err := container.Run(warden.ProcessSpec{
-				Path: "ruby",
-				Args: []string{"-e", "$stdout.sync = true; puts :hello; puts (\"x\" * 64 * 1024 * 1024).size; puts :goodbye; exit 42"},
+				Path: "sh",
+				Args: []string{"-c", "echo $(yes | head -c 67108864); echo goodbye; exit 42"},
 			}, warden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -244,7 +254,7 @@ var _ = Describe("Through a restart", func() {
 	Describe("a container's active job", func() {
 		It("is still tracked", func() {
 			process, err := container.Run(warden.ProcessSpec{
-				Path: "bash",
+				Path: "sh",
 				Args: []string{"-c", "while true; do echo hi; sleep 0.5; done"},
 			}, warden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
@@ -265,8 +275,8 @@ var _ = Describe("Through a restart", func() {
 
 			// trigger 'out of memory' event
 			process, err := container.Run(warden.ProcessSpec{
-				Path: "ruby",
-				Args: []string{"-e", "$stdout.sync = true; puts :hello; puts (\"x\" * 5 * 1024 * 1024).size; puts :goodbye; exit 42"},
+				Path: "sh",
+				Args: []string{"-c", "echo $(yes | head -c 67108864); echo goodbye; exit 42"},
 			}, warden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 

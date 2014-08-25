@@ -90,7 +90,7 @@ var _ = Describe("Creating a container", func() {
 			stderr := gbytes.NewBuffer()
 
 			process, err := container.Run(warden.ProcessSpec{
-				Path: "bash",
+				Path: "sh",
 				Args: []string{"-c", "sleep 0.5; echo $FIRST; sleep 0.5; echo $SECOND >&2; sleep 0.5; exit 42"},
 				Env:  []string{"FIRST=hello", "SECOND=goodbye"},
 			}, warden.ProcessIO{
@@ -108,7 +108,7 @@ var _ = Describe("Creating a container", func() {
 			stdout := gbytes.NewBuffer()
 
 			process, err := container.Run(warden.ProcessSpec{
-				Path: "bash",
+				Path: "sh",
 				Args: []string{"-c", "cat <&0"},
 			}, warden.ProcessIO{
 				Stdin:  bytes.NewBufferString("hello\nworld"),
@@ -170,7 +170,7 @@ var _ = Describe("Creating a container", func() {
 				inR, inW := io.Pipe()
 
 				process, err := container.Run(warden.ProcessSpec{
-					Path: "bash",
+					Path: "sh",
 					Args: []string{"-c", "read foo; stty -a"},
 					TTY: &warden.TTYSpec{
 						WindowSize: &warden.WindowSize{
@@ -200,21 +200,27 @@ var _ = Describe("Creating a container", func() {
 			It("can have its terminal resized", func() {
 				stdout := gbytes.NewBuffer()
 
+				inR, inW := io.Pipe()
+
 				process, err := container.Run(warden.ProcessSpec{
-					Path: "bash",
+					Path: "sh",
 					Args: []string{
 						"-c",
 						`
-						trap 'stty -a; exit 42' WINCH
+							trap "stty -a" SIGWINCH
 
-						while true; do
-							echo waiting
-							sleep 0.5
-						done
+							# continuously read so that the trap can keep firing
+							while true; do
+								echo waiting
+								if read; then
+									exit 0
+								fi
+							done
 						`,
 					},
 					TTY: &warden.TTYSpec{},
 				}, warden.ProcessIO{
+					Stdin:  inR,
 					Stdout: stdout,
 				})
 				Ω(err).ShouldNot(HaveOccurred())
@@ -231,7 +237,10 @@ var _ = Describe("Creating a container", func() {
 
 				Eventually(stdout).Should(gbytes.Say("rows 456; columns 123;"))
 
-				Ω(process.Wait()).Should(Equal(42))
+				_, err = fmt.Fprintf(inW, "ok\n")
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Ω(process.Wait()).Should(Equal(0))
 			})
 		})
 
@@ -258,7 +267,7 @@ var _ = Describe("Creating a container", func() {
 				stdout2 := gbytes.NewBuffer()
 
 				process, err := container.Run(warden.ProcessSpec{
-					Path: "bash",
+					Path: "sh",
 					Args: []string{"-c", "sleep 2; echo hello; sleep 0.5; echo goodbye; sleep 0.5; exit 42"},
 				}, warden.ProcessIO{
 					Stdout: stdout1,
@@ -290,7 +299,7 @@ var _ = Describe("Creating a container", func() {
 				stdout := gbytes.NewBuffer()
 
 				process, err := container.Run(warden.ProcessSpec{
-					Path: "bash",
+					Path: "sh",
 					Args: []string{
 						"-c",
 						`
@@ -322,7 +331,7 @@ var _ = Describe("Creating a container", func() {
 				stdout := gbytes.NewBuffer()
 
 				process, err := container.Run(warden.ProcessSpec{
-					Path: "bash",
+					Path: "sh",
 					Args: []string{
 						"-c",
 						`
@@ -330,7 +339,7 @@ var _ = Describe("Creating a container", func() {
 						trap wait SIGTERM
 
 						# spawn child that exits when it receives TERM
-						bash -c 'sleep 100 & wait' &
+						sh -c 'sleep 100 & wait' &
 
 						# sync with test
 						echo waiting
@@ -362,8 +371,17 @@ var _ = Describe("Creating a container", func() {
 					defer close(done)
 
 					process, err := container.Run(warden.ProcessSpec{
-						Path: "ruby",
-						Args: []string{"-e", `trap("TERM") { puts "cant touch this" }; sleep 1000`},
+						Path: "sh",
+						Args: []string{
+							"-c",
+							`
+                trap "echo cant touch this; sleep 1000" SIGTERM
+
+                echo waiting
+                sleep 1000 &
+                wait
+              `,
+						},
 					}, warden.ProcessIO{})
 
 					Ω(err).ShouldNot(HaveOccurred())
@@ -416,8 +434,8 @@ var _ = Describe("Creating a container", func() {
 			Ω(err).ShouldNot(HaveOccurred())
 
 			process, err := container.Run(warden.ProcessSpec{
-				Path: "bash",
-				Args: []string{"-c", `test -f /tmp/some/container/dir/some-temp-dir/some-temp-file`},
+				Path: "test",
+				Args: []string{"-f", "/tmp/some/container/dir/some-temp-dir/some-temp-file"},
 			}, warden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -425,8 +443,8 @@ var _ = Describe("Creating a container", func() {
 
 			output := gbytes.NewBuffer()
 			process, err = container.Run(warden.ProcessSpec{
-				Path: "bash",
-				Args: []string{"-c", `ls -al /tmp/some/container/dir/some-temp-dir/some-temp-file`},
+				Path: "ls",
+				Args: []string{"-al", "/tmp/some/container/dir/some-temp-dir/some-temp-file"},
 			}, warden.ProcessIO{
 				Stdout: output,
 			})
@@ -439,13 +457,13 @@ var _ = Describe("Creating a container", func() {
 			Ω(output).Should(gbytes.Say("vcap"))
 		})
 
-		It("streams in relative to the user's home directory", func() {
+		It("streams in relative to the default run directory", func() {
 			err := container.StreamIn(".", tarStream)
 			Ω(err).ShouldNot(HaveOccurred())
 
 			process, err := container.Run(warden.ProcessSpec{
-				Path: "bash",
-				Args: []string{"-c", `test -f $HOME/some-temp-dir/some-temp-file`},
+				Path: "test",
+				Args: []string{"-f", "some-temp-dir/some-temp-file"},
 			}, warden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -463,8 +481,8 @@ var _ = Describe("Creating a container", func() {
 		Context("and then copying them out", func() {
 			It("streams the directory", func() {
 				process, err := container.Run(warden.ProcessSpec{
-					Path: "bash",
-					Args: []string{"-c", `pwd; ls -al; id; whoami; mkdir -p some-outer-dir/some-inner-dir && touch some-outer-dir/some-inner-dir/some-file`},
+					Path: "sh",
+					Args: []string{"-c", `mkdir -p some-outer-dir/some-inner-dir && touch some-outer-dir/some-inner-dir/some-file`},
 				}, warden.ProcessIO{})
 				Ω(err).ShouldNot(HaveOccurred())
 
@@ -487,8 +505,8 @@ var _ = Describe("Creating a container", func() {
 			Context("with a trailing slash", func() {
 				It("streams the contents of the directory", func() {
 					process, err := container.Run(warden.ProcessSpec{
-						Path: "bash",
-						Args: []string{"-c", `pwd; ls -al; id; whoami; mkdir -p some-container-dir && touch some-container-dir/some-file`},
+						Path: "sh",
+						Args: []string{"-c", `mkdir -p some-container-dir && touch some-container-dir/some-file`},
 					}, warden.ProcessIO{})
 					Ω(err).ShouldNot(HaveOccurred())
 

@@ -80,18 +80,21 @@ var _ = Describe("Denying access to network ranges", func() {
 
 	runInContainer := func(container warden.Container, script string) warden.Process {
 		process, err := container.Run(warden.ProcessSpec{
-			Path: "bash",
+			Path: "sh",
 			Args: []string{"-c", script},
-		}, warden.ProcessIO{})
+		}, warden.ProcessIO{
+			Stdout: GinkgoWriter,
+			Stderr: GinkgoWriter,
+		})
 		Ω(err).ShouldNot(HaveOccurred())
 
 		return process
 	}
 
 	It("makes that block of ip addresses inaccessible to the container", func() {
-		runInContainer(blockedListener, "nc -l 12345")
-		runInContainer(unblockedListener, "nc -l 12345")
-		runInContainer(allowedListener, "nc -l 12345")
+		runInContainer(blockedListener, "nc -l 0.0.0.0:12345")
+		runInContainer(unblockedListener, "nc -l 0.0.0.0:12345")
+		runInContainer(allowedListener, "nc -l 0.0.0.0:12345")
 
 		// a bit of time for the listeners to start, since they block
 		time.Sleep(time.Second)

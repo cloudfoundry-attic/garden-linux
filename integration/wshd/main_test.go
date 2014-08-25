@@ -55,11 +55,10 @@ var _ = Describe("Running wshd", func() {
 		err = copyFile(wshd, path.Join(binDir, "wshd"))
 		Ω(err).ShouldNot(HaveOccurred())
 
-		ioutil.WriteFile(path.Join(libDir, "hook-parent-before-clone.sh"), []byte(`#!/bin/bash
+		ioutil.WriteFile(path.Join(libDir, "hook-parent-before-clone.sh"), []byte(`#!/bin/sh
 
 set -o nounset
 set -o errexit
-shopt -s nullglob
 
 cd $(dirname $0)/../
 
@@ -67,38 +66,35 @@ cp bin/wshd mnt/sbin/wshd
 chmod 700 mnt/sbin/wshd
 `), 0755)
 
-		ioutil.WriteFile(path.Join(libDir, "hook-parent-after-clone.sh"), []byte(`#!/bin/bash
+		ioutil.WriteFile(path.Join(libDir, "hook-parent-after-clone.sh"), []byte(`#!/bin/sh
 set -o nounset
 set -o errexit
-shopt -s nullglob
 
 cd $(dirname $0)/../
 
 echo $PID > ./run/wshd.pid
 `), 0755)
 
-		ioutil.WriteFile(path.Join(libDir, "hook-child-before-pivot.sh"), []byte(`#!/bin/bash
+		ioutil.WriteFile(path.Join(libDir, "hook-child-before-pivot.sh"), []byte(`#!/bin/sh
 `), 0755)
 
-		ioutil.WriteFile(path.Join(libDir, "hook-child-after-pivot.sh"), []byte(`#!/bin/bash
+		ioutil.WriteFile(path.Join(libDir, "hook-child-after-pivot.sh"), []byte(`#!/bin/sh
 
 set -o nounset
 set -o errexit
-shopt -s nullglob
 
 cd $(dirname $0)/../
 
 mkdir -p /proc
 mount -t proc none /proc
 
-useradd -mU -u 10000 -s /bin/bash vcap
+adduser -h /home/vcap -s /bin/sh -D -u 10000 vcap
 `), 0755)
 
 		ioutil.WriteFile(path.Join(libDir, "set-up-root.sh"), []byte(`#!/bin/bash
 
 set -o nounset
 set -o errexit
-shopt -s nullglob
 
 rootfs_path=$1
 
@@ -200,19 +196,13 @@ setup_fs
 	})
 
 	It("starts the daemon as a session leader with process isolation and the given title", func() {
-		ps := exec.Command(wsh, "--socket", socketPath, "/bin/ps", "-o", "pid,command")
+		ps := exec.Command(wsh, "--socket", socketPath, "/bin/ps", "-o", "pid,comm")
 
 		psSession, err := Start(ps, GinkgoWriter, GinkgoWriter)
 		Ω(err).ShouldNot(HaveOccurred())
 
-		Eventually(psSession).Should(Say(`  PID COMMAND
-    1 test wshd\s+
-   \d+ /bin/ps -o pid,command
-`))
-
+		Eventually(psSession).Should(Say(`\s+1\s+wshd`))
 		Eventually(psSession).Should(Exit(0))
-
-		Expect(psSession).ShouldNot(Say("."))
 	})
 
 	It("starts the daemon with mount space isolation", func() {
@@ -239,7 +229,7 @@ setup_fs
 	})
 
 	It("places the daemon in each cgroup subsystem", func() {
-		cat := exec.Command(wsh, "--socket", socketPath, "bash", "-c", "cat /proc/$$/cgroup")
+		cat := exec.Command(wsh, "--socket", socketPath, "sh", "-c", "cat /proc/$$/cgroup")
 		catSession, err := Start(cat, GinkgoWriter, GinkgoWriter)
 		Ω(err).ShouldNot(HaveOccurred())
 		Eventually(catSession).Should(Exit(0))
@@ -315,14 +305,14 @@ setup_fs
 
 	It("ensures /tmp is world-writable", func() {
 		ls, err := Start(
-			exec.Command(wsh, "--socket", socketPath, "stat", "/tmp"),
+			exec.Command(wsh, "--socket", socketPath, "ls", "-al", "/tmp"),
 			GinkgoWriter,
 			GinkgoWriter,
 		)
 		Ω(err).ShouldNot(HaveOccurred())
 		Eventually(ls).Should(Exit(0))
 
-		Ω(ls).Should(Say(`Access: \(1777/drwxrwxrwt\)`))
+		Ω(ls).Should(Say(`drwxrwxrwt`))
 	})
 
 	It("unmounts /tmp/warden-host* in the child", func() {
@@ -342,7 +332,8 @@ setup_fs
 			GinkgoWriter,
 		)
 		Ω(err).ShouldNot(HaveOccurred())
-		Eventually(ls).Should(Exit(2))
+
+		Eventually(ls).Should(Exit(1))
 	})
 
 	Context("when mount points on the host are deleted", func() {
@@ -387,38 +378,38 @@ setup_fs
 
 	Context("when running a command in a working dir", func() {
 		It("executes with setuid and setgid", func() {
-			bash := exec.Command(wsh, "--socket", socketPath, "--dir", "/usr", "pwd")
+			pwd := exec.Command(wsh, "--socket", socketPath, "--dir", "/usr", "pwd")
 
-			bashSession, err := Start(bash, GinkgoWriter, GinkgoWriter)
+			pwdSession, err := Start(pwd, GinkgoWriter, GinkgoWriter)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Eventually(bashSession).Should(Say("^/usr\n"))
-			Eventually(bashSession).Should(Exit(0))
+			Eventually(pwdSession).Should(Say("^/usr\n"))
+			Eventually(pwdSession).Should(Exit(0))
 		})
 	})
 
 	Context("when running a command as a user", func() {
 		It("executes with setuid and setgid", func() {
-			bash := exec.Command(wsh, "--socket", socketPath, "--user", "vcap", "/bin/bash", "-c", "id -u; id -g")
+			sh := exec.Command(wsh, "--socket", socketPath, "--user", "vcap", "/bin/sh", "-c", "id -u; id -g")
 
-			bashSession, err := Start(bash, GinkgoWriter, GinkgoWriter)
+			shSession, err := Start(sh, GinkgoWriter, GinkgoWriter)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Eventually(bashSession).Should(Say("^10000\n"))
-			Eventually(bashSession).Should(Say("^10000\n"))
-			Eventually(bashSession).Should(Exit(0))
+			Eventually(shSession).Should(Say("^10000\n"))
+			Eventually(shSession).Should(Say("^10000\n"))
+			Eventually(shSession).Should(Exit(0))
 		})
 
 		It("sets $HOME, $USER, and $PATH", func() {
-			bash := exec.Command(wsh, "--socket", socketPath, "--user", "vcap", "/bin/bash", "-c", "env | sort")
+			sh := exec.Command(wsh, "--socket", socketPath, "--user", "vcap", "/bin/sh", "-c", "env | sort")
 
-			bashSession, err := Start(bash, GinkgoWriter, GinkgoWriter)
+			shSession, err := Start(sh, GinkgoWriter, GinkgoWriter)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Eventually(bashSession).Should(Say("HOME=/home/vcap\n"))
-			Eventually(bashSession).Should(Say("PATH=/usr/local/bin:/usr/bin:/bin\n"))
-			Eventually(bashSession).Should(Say("USER=vcap\n"))
-			Eventually(bashSession).Should(Exit(0))
+			Eventually(shSession).Should(Say("HOME=/home/vcap\n"))
+			Eventually(shSession).Should(Say("PATH=/usr/local/bin:/usr/bin:/bin\n"))
+			Eventually(shSession).Should(Say("USER=vcap\n"))
+			Eventually(shSession).Should(Exit(0))
 		})
 
 		It("executes in their home directory", func() {
@@ -437,7 +428,7 @@ setup_fs
 				"--user", "vcap",
 				"--env", "VAR1=VALUE1",
 				"--env", "VAR2=VALUE2",
-				"bash", "-c", "env | sort",
+				"sh", "-c", "env | sort",
 			)
 
 			session, err := Start(pwd, GinkgoWriter, GinkgoWriter)
@@ -450,26 +441,26 @@ setup_fs
 
 	Context("when running a command as root", func() {
 		It("executes with setuid and setgid", func() {
-			bash := exec.Command(wsh, "--socket", socketPath, "--user", "root", "/bin/bash", "-c", "id -u; id -g")
+			sh := exec.Command(wsh, "--socket", socketPath, "--user", "root", "/bin/sh", "-c", "id -u; id -g")
 
-			bashSession, err := Start(bash, GinkgoWriter, GinkgoWriter)
+			shSession, err := Start(sh, GinkgoWriter, GinkgoWriter)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Eventually(bashSession).Should(Say("^0\n"))
-			Eventually(bashSession).Should(Say("^0\n"))
-			Eventually(bashSession).Should(Exit(0))
+			Eventually(shSession).Should(Say("^0\n"))
+			Eventually(shSession).Should(Say("^0\n"))
+			Eventually(shSession).Should(Exit(0))
 		})
 
 		It("sets $HOME, $USER, and a $PATH with sbin dirs", func() {
-			bash := exec.Command(wsh, "--socket", socketPath, "--user", "root", "/bin/bash", "-c", "env | sort")
+			sh := exec.Command(wsh, "--socket", socketPath, "--user", "root", "/bin/sh", "-c", "env | sort")
 
-			bashSession, err := Start(bash, GinkgoWriter, GinkgoWriter)
+			shSession, err := Start(sh, GinkgoWriter, GinkgoWriter)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Eventually(bashSession).Should(Say("HOME=/root\n"))
-			Eventually(bashSession).Should(Say("PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n"))
-			Eventually(bashSession).Should(Say("USER=root\n"))
-			Eventually(bashSession).Should(Exit(0))
+			Eventually(shSession).Should(Say("HOME=/root\n"))
+			Eventually(shSession).Should(Say("PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n"))
+			Eventually(shSession).Should(Say("USER=root\n"))
+			Eventually(shSession).Should(Exit(0))
 		})
 
 		It("executes in their home directory", func() {
@@ -485,84 +476,19 @@ setup_fs
 
 	Context("when piping stdin", func() {
 		It("terminates when the input stream terminates", func() {
-			bash := exec.Command(wsh, "--socket", socketPath, "/bin/bash")
+			sh := exec.Command(wsh, "--socket", socketPath, "/bin/sh")
 
-			stdin, err := bash.StdinPipe()
+			stdin, err := sh.StdinPipe()
 			Ω(err).ShouldNot(HaveOccurred())
 
-			bashSession, err := Start(bash, GinkgoWriter, GinkgoWriter)
+			shSession, err := Start(sh, GinkgoWriter, GinkgoWriter)
 			Ω(err).ShouldNot(HaveOccurred())
 
 			stdin.Write([]byte("echo hello"))
 			stdin.Close()
 
-			Eventually(bashSession).Should(Say("hello\n"))
-			Eventually(bashSession).Should(Exit(0))
-		})
-	})
-
-	Context("when in rsh compatibility mode", func() {
-		It("respects -l, discards -t [X], -46dn, skips the host, and runs the command", func() {
-			pwd := exec.Command(
-				wsh,
-				"--socket", socketPath,
-				"--user", "root",
-				"--rsh",
-				"-l", "vcap",
-				"-t", "1",
-				"-4",
-				"-6",
-				"-d",
-				"-n",
-				"somehost",
-				"/bin/pwd",
-			)
-
-			pwdSession, err := Start(pwd, GinkgoWriter, GinkgoWriter)
-			Ω(err).ShouldNot(HaveOccurred())
-
-			Eventually(pwdSession).Should(Say("/home/vcap\n"))
-			Eventually(pwdSession).Should(Exit(0))
-		})
-
-		It("doesn't cause rsh-like flags to be consumed", func() {
-			cmd := exec.Command(
-				wsh,
-				"--socket", socketPath,
-				"--user", "root",
-				"/bin/echo",
-				"-l", "vcap",
-				"-t", "1",
-				"-4",
-				"-6",
-				"-d",
-				"-n",
-				"somehost",
-			)
-
-			cmdSession, err := Start(cmd, GinkgoWriter, GinkgoWriter)
-			Ω(err).ShouldNot(HaveOccurred())
-
-			Eventually(cmdSession).Should(Say("-l vcap -t 1 -4 -6 -d -n somehost\n"))
-			Eventually(cmdSession).Should(Exit(0))
-		})
-
-		It("can be used to rsync files", func() {
-			cmd := exec.Command(
-				"rsync",
-				"-e",
-				wsh+" --socket "+socketPath+" --rsh",
-				"-r",
-				"-p",
-				"--links",
-				wsh, // send wsh binary
-				"vcap@container:wsh",
-			)
-
-			cmdSession, err := Start(cmd, GinkgoWriter, GinkgoWriter)
-			Ω(err).ShouldNot(HaveOccurred())
-
-			Eventually(cmdSession).Should(Exit(0))
+			Eventually(shSession).Should(Say("hello\n"))
+			Eventually(shSession).Should(Exit(0))
 		})
 	})
 })
