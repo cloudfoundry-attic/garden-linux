@@ -713,7 +713,7 @@ var _ = Describe("Linux containers", func() {
 					Path: containerDir + "/bin/nstar",
 					Args: []string{
 						"12345",
-						fmt.Sprintf("%d", containerResources.UID),
+						"vcap",
 						"/some/directory/dst",
 					},
 				},
