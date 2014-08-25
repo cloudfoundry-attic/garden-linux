@@ -78,6 +78,9 @@ int mkdir_p_as(const char *dir, uid_t uid, gid_t gid) {
   return mkdir_as(tmp, uid, gid);
 }
 
+/* nothing seems to define this... */
+int setns(int fd, int nstype);
+
 int main(int argc, char **argv) {
   int rv;
   int nsfd;
