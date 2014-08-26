@@ -668,11 +668,11 @@ func (c *LinuxContainer) Run(spec warden.ProcessSpec, processIO warden.ProcessIO
 
 	args := []string{"--socket", sockPath, "--user", user}
 
-	for _, envVar := range c.envvars {
-		args = append(args, "--env", envVar)
-	}
+	envVars := []string{}
+	envVars = append(append(envVars, c.envvars...), spec.Env...)
+	envVars = c.dedup(envVars)
 
-	for _, envVar := range spec.Env {
+	for _, envVar := range envVars {
 		args = append(args, "--env", envVar)
 	}
 
@@ -997,4 +997,19 @@ func setRLimitsEnv(cmd *exec.Cmd, rlimits warden.ResourceLimits) {
 	if rlimits.Stack != nil {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("RLIMIT_STACK=%d", *rlimits.Stack))
 	}
+}
+
+func (c *LinuxContainer) dedup(envVars []string) []string {
+	seenArgs := map[string]string{}
+	result := []string{}
+	for i := len(envVars) - 1; i >= 0; i-- {
+		envVar := envVars[i]
+		keyValue := strings.SplitN(envVar, "=", 2)
+		_, containsKey := seenArgs[keyValue[0]]
+		if len(keyValue) == 2 && !containsKey {
+			result = append([]string{envVar}, result...)
+			seenArgs[keyValue[0]] = envVar
+		}
+	}
+	return (result)
 }

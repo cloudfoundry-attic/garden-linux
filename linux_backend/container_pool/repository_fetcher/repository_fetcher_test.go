@@ -49,7 +49,7 @@ var _ = Describe("RepositoryFetcher", func() {
 				ghttp.VerifyRequest("GET", "/v1/images/layer-3/json"),
 				http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 					w.Header().Add("X-Docker-Size", "123")
-					w.Write([]byte(`{"id":"layer-3","parent":"parent-3"}`))
+					w.Write([]byte(`{"id":"layer-3","parent":"parent-3","Config":{"env": ["env2=env2Value"]}}`))
 				}),
 			),
 			ghttp.CombineHandlers(
@@ -62,7 +62,7 @@ var _ = Describe("RepositoryFetcher", func() {
 				ghttp.VerifyRequest("GET", "/v1/images/layer-2/json"),
 				http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 					w.Header().Add("X-Docker-Size", "456")
-					w.Write([]byte(`{"id":"layer-2","parent":"parent-2"}`))
+					w.Write([]byte(`{"id":"layer-2","parent":"parent-2","Config":{"env": ["env1=env1Value", "env2=env2BadValue"]}}`))
 				}),
 			),
 			ghttp.CombineHandlers(
@@ -132,11 +132,25 @@ var _ = Describe("RepositoryFetcher", func() {
 				expectedLayerNum := 3
 
 				graph.WhenRegistering = func(imageJSON []byte, layer archive.ArchiveReader, image *image.Image) error {
-					Ω(string(imageJSON)).Should(Equal(fmt.Sprintf(
-						`{"id":"layer-%d","parent":"parent-%d"}`,
-						expectedLayerNum,
-						expectedLayerNum,
-					)))
+					if expectedLayerNum == 3 {
+						Ω(string(imageJSON)).Should(Equal(fmt.Sprintf(
+							`{"id":"layer-%d","parent":"parent-%d","Config":{"env": ["env2=env2Value"]}}`,
+							expectedLayerNum,
+							expectedLayerNum,
+						)))
+					} else if expectedLayerNum == 2 {
+						Ω(string(imageJSON)).Should(Equal(fmt.Sprintf(
+							`{"id":"layer-%d","parent":"parent-%d","Config":{"env": ["env1=env1Value", "env2=env2BadValue"]}}`,
+							expectedLayerNum,
+							expectedLayerNum,
+						)))
+					} else {
+						Ω(string(imageJSON)).Should(Equal(fmt.Sprintf(
+							`{"id":"layer-%d","parent":"parent-%d"}`,
+							expectedLayerNum,
+							expectedLayerNum,
+						)))
+					}
 
 					Ω(image.ID).Should(Equal(fmt.Sprintf("layer-%d", expectedLayerNum)))
 					Ω(image.Parent).Should(Equal(fmt.Sprintf("parent-%d", expectedLayerNum)))
@@ -150,9 +164,10 @@ var _ = Describe("RepositoryFetcher", func() {
 					return nil
 				}
 
-				imageID, err := fetcher.Fetch(logger, "some-repo", "some-tag")
-				Ω(err).ShouldNot(HaveOccurred())
+				imageID, envvars, err := fetcher.Fetch(logger, "some-repo", "some-tag")
 
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(envvars).Should(Equal([]string{"env2=env2Value", "env1=env1Value"}))
 				Ω(imageID).Should(Equal("id-1"))
 			})
 
@@ -175,7 +190,7 @@ var _ = Describe("RepositoryFetcher", func() {
 				})
 
 				It("retries with the next endpoint", func() {
-					imageID, err := fetcher.Fetch(logger, "some-repo", "some-tag")
+					imageID, _, err := fetcher.Fetch(logger, "some-repo", "some-tag")
 					Ω(err).ShouldNot(HaveOccurred())
 
 					Ω(imageID).Should(Equal("id-1"))
@@ -189,7 +204,7 @@ var _ = Describe("RepositoryFetcher", func() {
 					})
 
 					It("returns an error", func() {
-						_, err := fetcher.Fetch(logger, "some-repo", "some-tag")
+						_, _, err := fetcher.Fetch(logger, "some-repo", "some-tag")
 						Ω(err).Should(HaveOccurred())
 					})
 				})
@@ -255,7 +270,7 @@ var _ = Describe("RepositoryFetcher", func() {
 					return nil
 				}
 
-				imageID, err := fetcher.Fetch(logger, "some-repo", "some-tag")
+				imageID, _, err := fetcher.Fetch(logger, "some-repo", "some-tag")
 				Ω(err).ShouldNot(HaveOccurred())
 
 				Ω(imageID).Should(Equal("id-1"))
@@ -270,7 +285,7 @@ var _ = Describe("RepositoryFetcher", func() {
 			})
 
 			It("returns an error", func() {
-				_, err := fetcher.Fetch(logger, "some-repo", "some-tag")
+				_, _, err := fetcher.Fetch(logger, "some-repo", "some-tag")
 				Ω(err).Should(HaveOccurred())
 			})
 		})
@@ -297,7 +312,7 @@ var _ = Describe("RepositoryFetcher", func() {
 			})
 
 			It("tries the next endpoint", func() {
-				_, err := fetcher.Fetch(logger, "some-repo", "some-tag")
+				_, _, err := fetcher.Fetch(logger, "some-repo", "some-tag")
 				Ω(err).ShouldNot(HaveOccurred())
 			})
 
@@ -309,7 +324,7 @@ var _ = Describe("RepositoryFetcher", func() {
 				})
 
 				It("returns an error", func() {
-					_, err := fetcher.Fetch(logger, "some-repo", "some-tag")
+					_, _, err := fetcher.Fetch(logger, "some-repo", "some-tag")
 					Ω(err).Should(HaveOccurred())
 				})
 			})

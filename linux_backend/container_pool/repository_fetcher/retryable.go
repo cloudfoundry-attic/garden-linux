@@ -8,12 +8,13 @@ type Retryable struct {
 	RepositoryFetcher
 }
 
-func (retryable Retryable) Fetch(logger lager.Logger, repoName string, tag string) (string, error) {
+func (retryable Retryable) Fetch(logger lager.Logger, repoName string, tag string) (string, []string, error) {
 	var res string
 	var err error
+	var envvars []string
 
 	for attempt := 1; attempt <= 3; attempt++ {
-		res, err = retryable.RepositoryFetcher.Fetch(logger, repoName, tag)
+		res, envvars, err = retryable.RepositoryFetcher.Fetch(logger, repoName, tag)
 		if err == nil {
 			break
 		}
@@ -24,5 +25,5 @@ func (retryable Retryable) Fetch(logger lager.Logger, repoName string, tag strin
 		})
 	}
 
-	return res, err
+	return res, envvars, err
 }

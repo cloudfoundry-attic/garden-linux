@@ -36,7 +36,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 			fakeRepositoryFetcher.FetchResult = "some-image-id"
 			fakeGraphDriver.GetResult = "/some/graph/driver/mount/point"
 
-			mountpoint, err := provider.ProvideRootFS(logger, "some-id", parseURL("docker:///some-repository-name"))
+			mountpoint, envvars, err := provider.ProvideRootFS(logger, "some-id", parseURL("docker:///some-repository-name"))
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(fakeGraphDriver.Created()).Should(ContainElement(
@@ -54,18 +54,19 @@ var _ = Describe("DockerRootFSProvider", func() {
 			))
 
 			Ω(mountpoint).Should(Equal("/some/graph/driver/mount/point"))
+			Ω(envvars).Should(Equal([]string{"env1", "env1Value", "env2", "env2Value"}))
 		})
 
 		Context("when the url is missing a path", func() {
 			It("returns an error", func() {
-				_, err := provider.ProvideRootFS(logger, "some-id", parseURL("docker://"))
+				_, _, err := provider.ProvideRootFS(logger, "some-id", parseURL("docker://"))
 				Ω(err).Should(Equal(ErrInvalidDockerURL))
 			})
 		})
 
 		Context("and a tag is specified via a fragment", func() {
 			It("uses it when fetching the repository", func() {
-				_, err := provider.ProvideRootFS(logger, "some-id", parseURL("docker:///some-repository-name#some-tag"))
+				_, _, err := provider.ProvideRootFS(logger, "some-id", parseURL("docker:///some-repository-name#some-tag"))
 				Ω(err).ShouldNot(HaveOccurred())
 
 				Ω(fakeRepositoryFetcher.Fetched()).Should(ContainElement(
@@ -85,7 +86,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 			})
 
 			It("returns the error", func() {
-				_, err := provider.ProvideRootFS(logger, "some-id", parseURL("docker:///some-repository-name"))
+				_, _, err := provider.ProvideRootFS(logger, "some-id", parseURL("docker:///some-repository-name"))
 				Ω(err).Should(Equal(disaster))
 			})
 		})
@@ -98,7 +99,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 			})
 
 			It("returns the error", func() {
-				_, err := provider.ProvideRootFS(logger, "some-id", parseURL("docker:///some-repository-name#some-tag"))
+				_, _, err := provider.ProvideRootFS(logger, "some-id", parseURL("docker:///some-repository-name#some-tag"))
 				Ω(err).Should(Equal(disaster))
 			})
 		})
@@ -111,7 +112,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 			})
 
 			It("returns the error", func() {
-				_, err := provider.ProvideRootFS(logger, "some-id", parseURL("docker:///some-repository-name#some-tag"))
+				_, _, err := provider.ProvideRootFS(logger, "some-id", parseURL("docker:///some-repository-name#some-tag"))
 				Ω(err).Should(Equal(disaster))
 			})
 		})

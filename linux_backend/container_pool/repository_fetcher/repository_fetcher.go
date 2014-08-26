@@ -3,6 +3,7 @@ package repository_fetcher
 import (
 	"fmt"
 	"io"
+	"strings"
 	"sync"
 	"time"
 
@@ -13,7 +14,7 @@ import (
 )
 
 type RepositoryFetcher interface {
-	Fetch(logger lager.Logger, repoName string, tag string) (imageID string, err error)
+	Fetch(logger lager.Logger, repoName string, tag string) (imageID string, envvars []string, err error)
 }
 
 // apes docker's *registry.Registry
@@ -38,6 +39,7 @@ type DockerRepositoryFetcher struct {
 
 	fetchingLayers map[string]chan struct{}
 	fetchingMutex  *sync.Mutex
+	envvars        map[string]string
 }
 
 func New(registry Registry, graph Graph) RepositoryFetcher {
@@ -47,10 +49,11 @@ func New(registry Registry, graph Graph) RepositoryFetcher {
 
 		fetchingLayers: map[string]chan struct{}{},
 		fetchingMutex:  new(sync.Mutex),
+		envvars:        map[string]string{},
 	}
 }
 
-func (fetcher *DockerRepositoryFetcher) Fetch(logger lager.Logger, repoName string, tag string) (string, error) {
+func (fetcher *DockerRepositoryFetcher) Fetch(logger lager.Logger, repoName string, tag string) (string, []string, error) {
 	fLog := logger.Session("fetch", lager.Data{
 		"repo": repoName,
 		"tag":  tag,
@@ -60,17 +63,17 @@ func (fetcher *DockerRepositoryFetcher) Fetch(logger lager.Logger, repoName stri
 
 	repoData, err := fetcher.registry.GetRepositoryData(repoName)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	tagsList, err := fetcher.registry.GetRemoteTags(repoData.Endpoints, repoName, repoData.Tokens)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	imgID, ok := tagsList[tag]
 	if !ok {
-		return "", fmt.Errorf("unknown tag: %s:%s", repoName, tag)
+		return "", nil, fmt.Errorf("unknown tag: %s:%s", repoName, tag)
 	}
 
 	token := repoData.Tokens
@@ -83,11 +86,20 @@ func (fetcher *DockerRepositoryFetcher) Fetch(logger lager.Logger, repoName stri
 
 		err = fetcher.fetchFromEndpoint(fLog, endpoint, imgID, token)
 		if err == nil {
-			return imgID, nil
+			var envvars []string
+			if len(fetcher.envvars) > 0 {
+				envvars = make([]string, len(fetcher.envvars))
+				index := 0
+				for key, value := range fetcher.envvars {
+					envvars[index] = key + "=" + value
+					index = index + 1
+				}
+			}
+			return imgID, envvars, nil
 		}
 	}
 
-	return "", fmt.Errorf("all endpoints failed: %s", err)
+	return "", nil, fmt.Errorf("all endpoints failed: %s", err)
 }
 
 func (fetcher *DockerRepositoryFetcher) fetchFromEndpoint(logger lager.Logger, endpoint string, imgID string, token []string) error {
@@ -128,6 +140,19 @@ func (fetcher *DockerRepositoryFetcher) fetchLayer(logger lager.Logger, endpoint
 	img, err := image.NewImgJSON(imgJSON)
 	if err != nil {
 		return err
+	}
+
+	if img.Config != nil {
+		//NOTE: We use a map for the env vars because they may appear in multiple layers, given
+		//we are fetching layer from the top down (back in time), the first occurance for the env
+		//name wins
+		for _, env := range img.Config.Env {
+			keyValue := strings.SplitN(env, "=", 2)
+			_, containsKey := fetcher.envvars[keyValue[0]]
+			if len(keyValue) == 2 && !containsKey {
+				fetcher.envvars[keyValue[0]] = keyValue[1]
+			}
+		}
 	}
 
 	layer, err := fetcher.registry.GetRemoteImageLayer(img.ID, endpoint, token, int64(imgSize))

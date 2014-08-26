@@ -31,7 +31,7 @@ func NewOverlay(
 	}
 }
 
-func (provider *overlayRootFSProvider) ProvideRootFS(logger lager.Logger, id string, rootfs *url.URL) (string, error) {
+func (provider *overlayRootFSProvider) ProvideRootFS(logger lager.Logger, id string, rootfs *url.URL) (string, []string, error) {
 	rootFSPath := provider.defaultRootFS
 	if rootfs.Path != "" {
 		rootFSPath = rootfs.Path
@@ -49,10 +49,10 @@ func (provider *overlayRootFSProvider) ProvideRootFS(logger lager.Logger, id str
 
 	err := pRunner.Run(createOverlay)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
-	return path.Join(provider.overlaysPath, id, "rootfs"), nil
+	return path.Join(provider.overlaysPath, id, "rootfs"), nil, nil
 }
 
 func (provider *overlayRootFSProvider) CleanupRootFS(logger lager.Logger, id string) error {

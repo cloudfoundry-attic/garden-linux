@@ -29,16 +29,16 @@ func New() *FakeRootFSProvider {
 	}
 }
 
-func (provider *FakeRootFSProvider) ProvideRootFS(logger lager.Logger, id string, url *url.URL) (string, error) {
+func (provider *FakeRootFSProvider) ProvideRootFS(logger lager.Logger, id string, url *url.URL) (string, []string, error) {
 	if provider.ProvideError != nil {
-		return "", provider.ProvideError
+		return "", nil, provider.ProvideError
 	}
 
 	provider.mutex.Lock()
 	provider.provided = append(provider.provided, ProvidedSpec{id, url})
 	provider.mutex.Unlock()
 
-	return provider.ProvideResult, nil
+	return provider.ProvideResult, nil, nil
 }
 
 func (provider *FakeRootFSProvider) CleanupRootFS(logger lager.Logger, id string) error {

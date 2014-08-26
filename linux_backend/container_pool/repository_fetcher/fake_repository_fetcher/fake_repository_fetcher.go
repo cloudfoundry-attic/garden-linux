@@ -25,16 +25,16 @@ func New() *FakeRepositoryFetcher {
 	}
 }
 
-func (fetcher *FakeRepositoryFetcher) Fetch(logger lager.Logger, repoName string, tag string) (string, error) {
+func (fetcher *FakeRepositoryFetcher) Fetch(logger lager.Logger, repoName string, tag string) (string, []string, error) {
 	if fetcher.FetchError != nil {
-		return "", fetcher.FetchError
+		return "", nil, fetcher.FetchError
 	}
 
 	fetcher.mutex.Lock()
 	fetcher.fetched = append(fetcher.fetched, FetchSpec{repoName, tag})
 	fetcher.mutex.Unlock()
-
-	return fetcher.FetchResult, nil
+	envvars := []string{"env1", "env1Value", "env2", "env2Value"}
+	return fetcher.FetchResult, envvars, nil
 }
 
 func (fetcher *FakeRepositoryFetcher) Fetched() []FetchSpec {

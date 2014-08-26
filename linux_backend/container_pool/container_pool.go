@@ -207,10 +207,20 @@ func (p *LinuxContainerPool) Create(spec warden.ContainerSpec) (linux_backend.Co
 
 	pLog := p.logger.Session(id)
 
-	rootfsPath, err := provider.ProvideRootFS(pLog.Session("create-rootfs"), id, rootfsURL)
+	rootfsPath, rootFSEnvVars, err := provider.ProvideRootFS(pLog.Session("create-rootfs"), id, rootfsURL)
 	if err != nil {
 		p.logger.Error("provide-rootfs-failed", err)
 		return nil, err
+	}
+
+	if len(rootFSEnvVars) > 0 {
+		if spec.Env == nil {
+			spec.Env = rootFSEnvVars
+		} else {
+			for i := range rootFSEnvVars {
+				spec.Env = append(spec.Env, rootFSEnvVars[i])
+			}
+		}
 	}
 
 	container := linux_backend.NewLinuxContainer(

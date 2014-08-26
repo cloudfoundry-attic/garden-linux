@@ -29,9 +29,9 @@ func NewDocker(
 	}
 }
 
-func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id string, url *url.URL) (string, error) {
+func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id string, url *url.URL) (string, []string, error) {
 	if len(url.Path) == 0 {
-		return "", ErrInvalidDockerURL
+		return "", nil, ErrInvalidDockerURL
 	}
 
 	repoName := url.Path[1:]
@@ -41,17 +41,22 @@ func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id stri
 		tag = url.Fragment
 	}
 
-	imageID, err := provider.repoFetcher.Fetch(logger, repoName, tag)
+	imageID, envvars, err := provider.repoFetcher.Fetch(logger, repoName, tag)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
 	err = provider.graphDriver.Create(id, imageID)
 	if err != nil {
-		return "", err
+		return "", nil, err
 	}
 
-	return provider.graphDriver.Get(id, "")
+	rootID, err := provider.graphDriver.Get(id, "")
+	if err != nil {
+		return "", nil, err
+	}
+
+	return rootID, envvars, nil
 }
 
 func (provider *dockerRootFSProvider) CleanupRootFS(logger lager.Logger, id string) error {
