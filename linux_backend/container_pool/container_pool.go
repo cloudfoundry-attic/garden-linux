@@ -255,6 +255,7 @@ func (p *LinuxContainerPool) Create(spec warden.ContainerSpec) (linux_backend.Co
 		})
 		p.uidPool.Release(uid)
 		p.networkPool.Release(network)
+		p.destroy(p.logger, container.ID())
 		return nil, err
 	}
 

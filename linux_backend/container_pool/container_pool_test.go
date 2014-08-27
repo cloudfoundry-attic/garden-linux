@@ -104,7 +104,6 @@ var _ = Describe("Container pool", func() {
 				Ω(pool.MaxContainers()).Should(Equal(42))
 			})
 		})
-
 	})
 
 	Describe("setup", func() {
@@ -490,13 +489,15 @@ var _ = Describe("Container pool", func() {
 		})
 
 		Context("when executing create.sh fails", func() {
+			var containerPath string
 			nastyError := errors.New("oh no!")
 
 			BeforeEach(func() {
 				fakeRunner.WhenRunning(
 					fake_command_runner.CommandSpec{
 						Path: "/root/path/create.sh",
-					}, func(*exec.Cmd) error {
+					}, func(cmd *exec.Cmd) error {
+						containerPath = cmd.Args[1]
 						return nastyError
 					},
 				)
@@ -508,6 +509,23 @@ var _ = Describe("Container pool", func() {
 
 				Ω(fakeUIDPool.Released).Should(ContainElement(uint32(10000)))
 				Ω(fakeNetworkPool.Released).Should(ContainElement("1.2.0.0/30"))
+			})
+
+			It("deletes the container's directory", func() {
+				pool.Create(warden.ContainerSpec{})
+
+				executedCommands := fakeRunner.ExecutedCommands()
+				lastCommand := executedCommands[len(executedCommands)-1]
+				Ω(lastCommand.Path).Should(Equal("/root/path/destroy.sh"))
+				Ω(lastCommand.Args[1]).Should(Equal(containerPath))
+			})
+
+			It("cleans up the rootfs for the container", func() {
+				pool.Create(warden.ContainerSpec{})
+
+				Ω(defaultFakeRootFSProvider.CleanedUp()).Should(Equal([]string{
+					defaultFakeRootFSProvider.Provided()[0].ID,
+				}))
 			})
 		})
 	})
