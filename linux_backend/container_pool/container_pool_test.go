@@ -948,7 +948,6 @@ var _ = Describe("Container pool", func() {
 					Args: []string{path.Join(depotPath, createdContainer.ID())},
 				},
 			))
-
 		})
 
 		It("releases the container's ports, uid, and network", func() {
@@ -989,6 +988,15 @@ var _ = Describe("Container pool", func() {
 				It("returns the error", func() {
 					err := pool.Destroy(createdContainer)
 					Ω(err).Should(Equal(disaster))
+				})
+
+				It("does not release the container's ports, uid, and network", func() {
+					pool.Destroy(createdContainer)
+
+					Ω(fakePortPool.Released).ShouldNot(ContainElement(uint32(123)))
+					Ω(fakePortPool.Released).ShouldNot(ContainElement(uint32(456)))
+					Ω(fakeUIDPool.Released).ShouldNot(ContainElement(uint32(10000)))
+					Ω(fakeNetworkPool.Released).ShouldNot(ContainElement("1.2.0.0/30"))
 				})
 			})
 		})
