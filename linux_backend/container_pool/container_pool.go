@@ -153,7 +153,7 @@ func (p *LinuxContainerPool) Prune(keep map[string]bool) error {
 
 		pLog.Info("pruning")
 
-		err = p.destroy(pLog, id)
+		err = p.releaseSystemResources(pLog, id)
 		if err != nil {
 			return err
 		}
@@ -163,143 +163,43 @@ func (p *LinuxContainerPool) Prune(keep map[string]bool) error {
 }
 
 func (p *LinuxContainerPool) Create(spec warden.ContainerSpec) (c linux_backend.Container, err error) {
-	cleanup := func(undo func()) {
-		if err != nil {
-			undo()
-		}
-	}
-
-	uid, err := p.uidPool.Acquire()
-	if err != nil {
-		p.logger.Error("uid-acquire-failed", err)
-		return nil, err
-	} else {
-		defer cleanup(func() {
-			p.uidPool.Release(uid)
-		})
-	}
-
-	network, err := p.networkPool.Acquire()
-	if err != nil {
-		p.logger.Error("network-acquire-failed", err)
-		return nil, err
-	} else {
-		defer cleanup(func() {
-			p.networkPool.Release(network)
-		})
-	}
-
 	id := <-p.containerIDs
-
 	containerPath := path.Join(p.depotPath, id)
-
-	cgroupsManager := cgroups_manager.New(p.sysconfig.CgroupPath, id)
-
-	bandwidthManager := bandwidth_manager.New(containerPath, id, p.runner)
-
-	handle := id
-	if spec.Handle != "" {
-		handle = spec.Handle
-	}
-
-	rootfsURL, err := url.Parse(spec.RootFSPath)
-	if err != nil {
-		p.logger.Error("parse-rootfs-path-failed", err, lager.Data{
-			"RootFSPath": spec.RootFSPath,
-		})
-		return nil, err
-	}
-
-	provider, found := p.rootfsProviders[rootfsURL.Scheme]
-	if !found {
-		p.logger.Error("unknown-rootfs-provider", err, lager.Data{
-			"provider": rootfsURL.Scheme,
-		})
-		return nil, ErrUnknownRootFSProvider
-	}
-
 	pLog := p.logger.Session(id)
 
-	rootfsPath, rootFSEnvVars, err := provider.ProvideRootFS(pLog.Session("create-rootfs"), id, rootfsURL)
+	pLog.Info("creating")
+
+	resources, err := p.aquirePoolResources()
 	if err != nil {
-		p.logger.Error("provide-rootfs-failed", err)
+		return nil, err
+	}
+	defer cleanup(&err, func() {
+		p.releasePoolResources(resources)
+	})
+
+	rootFSEnvVars, err := p.aquireSystemResources(id, containerPath, spec.RootFSPath, resources, spec.BindMounts, pLog)
+	if err != nil {
 		return nil, err
 	}
 
-	if len(rootFSEnvVars) > 0 {
-		if spec.Env == nil {
-			spec.Env = rootFSEnvVars
-		} else {
-			for i := range rootFSEnvVars {
-				spec.Env = append(spec.Env, rootFSEnvVars[i])
-			}
-		}
-	}
+	pLog.Info("created")
 
-	container := linux_backend.NewLinuxContainer(
+	return linux_backend.NewLinuxContainer(
 		pLog,
 		id,
-		handle,
+		getHandle(spec.Handle, id),
 		containerPath,
 		spec.Properties,
 		spec.GraceTime,
-		linux_backend.NewResources(uid, network, []uint32{}),
+		resources,
 		p.portPool,
 		p.runner,
-		cgroupsManager,
+		cgroups_manager.New(p.sysconfig.CgroupPath, id),
 		p.quotaManager,
-		bandwidthManager,
+		bandwidth_manager.New(containerPath, id, p.runner),
 		process_tracker.New(containerPath, p.runner),
-		spec.Env,
-	)
-
-	createCmd := path.Join(p.binPath, "create.sh")
-	create := exec.Command(createCmd, containerPath)
-	create.Env = []string{
-		"id=" + container.ID(),
-		"rootfs_path=" + rootfsPath,
-		fmt.Sprintf("user_uid=%d", uid),
-		fmt.Sprintf("network_host_ip=%s", network.HostIP()),
-		fmt.Sprintf("network_container_ip=%s", network.ContainerIP()),
-
-		"PATH=" + os.Getenv("PATH"),
-	}
-
-	pRunner := logging.Runner{
-		CommandRunner: p.runner,
-		Logger:        p.logger,
-	}
-
-	err = pRunner.Run(create)
-	if err != nil {
-		p.logger.Error("create-command-failed", err, lager.Data{
-			"CreateCmd": createCmd,
-			"Env":       create.Env,
-		})
-		p.safeDestroy(p.logger, container.ID())
-		return nil, err
-	} else {
-		defer cleanup(func() {
-			p.safeDestroy(p.logger, container.ID())
-		})
-	}
-
-	err = p.saveRootFSProvider(id, rootfsURL.Scheme)
-	if err != nil {
-		p.logger.Error("save-rootfs-provider-failed", err, lager.Data{
-			"Id":     id,
-			"rootfs": rootfsURL.String(),
-		})
-		return nil, err
-	}
-
-	err = p.writeBindMounts(containerPath, spec.BindMounts)
-	if err != nil {
-		p.logger.Error("bind-mounts-failed", err)
-		return nil, err
-	}
-
-	return container, nil
+		mergeEnv(spec.Env, rootFSEnvVars),
+	), nil
 }
 
 func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Container, error) {
@@ -389,57 +289,17 @@ func (p *LinuxContainerPool) Destroy(container linux_backend.Container) error {
 
 	pLog.Info("destroying")
 
-	err := p.destroy(pLog, container.ID())
+	err := p.releaseSystemResources(pLog, container.ID())
 	if err != nil {
 		return err
 	}
 
 	linuxContainer := container.(*linux_backend.LinuxContainer)
+	p.releasePoolResources(linuxContainer.Resources())
 
-	resources := linuxContainer.Resources()
-
-	for _, port := range resources.Ports {
-		p.portPool.Release(port)
-	}
-
-	p.uidPool.Release(resources.UID)
-
-	p.networkPool.Release(resources.Network)
+	pLog.Info("destroyed")
 
 	return nil
-}
-
-func (p *LinuxContainerPool) safeDestroy(logger lager.Logger, id string) {
-	err := p.destroy(logger, id)
-	if err != nil {
-		logger.Error("failed-to-undo-failed-create", err)
-	}
-}
-
-func (p *LinuxContainerPool) destroy(logger lager.Logger, id string) error {
-	rootfsProvider, err := ioutil.ReadFile(path.Join(p.depotPath, id, "rootfs-provider"))
-	if err != nil {
-		rootfsProvider = []byte("")
-	}
-
-	pRunner := logging.Runner{
-		CommandRunner: p.runner,
-		Logger:        logger,
-	}
-
-	provider, found := p.rootfsProviders[string(rootfsProvider)]
-	if !found {
-		return ErrUnknownRootFSProvider
-	}
-
-	destroy := exec.Command(path.Join(p.binPath, "destroy.sh"), path.Join(p.depotPath, id))
-
-	err = pRunner.Run(destroy)
-	if err != nil {
-		return err
-	}
-
-	return provider.CleanupRootFS(logger, id)
 }
 
 func (p *LinuxContainerPool) generateContainerIDs() string {
@@ -515,4 +375,161 @@ func (p *LinuxContainerPool) saveRootFSProvider(id string, provider string) erro
 	}
 
 	return ioutil.WriteFile(providerFile, []byte(provider), 0644)
+}
+
+func (p *LinuxContainerPool) aquirePoolResources() (*linux_backend.Resources, error) {
+	var err error
+	resources := linux_backend.NewResources(0, nil, nil)
+
+	resources.UID, err = p.uidPool.Acquire()
+	if err != nil {
+		p.logger.Error("uid-acquire-failed", err)
+		return nil, err
+	}
+
+	resources.Network, err = p.networkPool.Acquire()
+	if err != nil {
+		p.logger.Error("network-acquire-failed", err)
+		p.releasePoolResources(resources)
+		return nil, err
+	}
+
+	return resources, nil
+}
+
+func (p *LinuxContainerPool) releasePoolResources(resources *linux_backend.Resources) {
+	for _, port := range resources.Ports {
+		p.portPool.Release(port)
+	}
+
+	if resources.UID != 0 {
+		p.uidPool.Release(resources.UID)
+	}
+
+	if resources.Network != nil {
+		p.networkPool.Release(resources.Network)
+	}
+}
+
+func (p *LinuxContainerPool) aquireSystemResources(id, containerPath, rootFSPath string, resources *linux_backend.Resources, bindMounts []warden.BindMount, pLog lager.Logger) ([]string, error) {
+	rootfsURL, err := url.Parse(rootFSPath)
+	if err != nil {
+		pLog.Error("parse-rootfs-path-failed", err, lager.Data{
+			"RootFSPath": rootFSPath,
+		})
+		return nil, err
+	}
+
+	provider, found := p.rootfsProviders[rootfsURL.Scheme]
+	if !found {
+		pLog.Error("unknown-rootfs-provider", nil, lager.Data{
+			"provider": rootfsURL.Scheme,
+		})
+		return nil, ErrUnknownRootFSProvider
+	}
+
+	rootfsPath, rootFSEnvVars, err := provider.ProvideRootFS(pLog.Session("create-rootfs"), id, rootfsURL)
+	if err != nil {
+		pLog.Error("provide-rootfs-failed", err)
+		return nil, err
+	}
+
+	createCmd := path.Join(p.binPath, "create.sh")
+	create := exec.Command(createCmd, containerPath)
+	create.Env = []string{
+		"id=" + id,
+		"rootfs_path=" + rootfsPath,
+		fmt.Sprintf("user_uid=%d", resources.UID),
+		fmt.Sprintf("network_host_ip=%s", resources.Network.HostIP()),
+		fmt.Sprintf("network_container_ip=%s", resources.Network.ContainerIP()),
+		"PATH=" + os.Getenv("PATH"),
+	}
+
+	pRunner := logging.Runner{
+		CommandRunner: p.runner,
+		Logger:        p.logger,
+	}
+
+	err = pRunner.Run(create)
+	defer cleanup(&err, func() {
+		p.tryReleaseSystemResources(p.logger, id)
+	})
+
+	if err != nil {
+		p.logger.Error("create-command-failed", err, lager.Data{
+			"CreateCmd": createCmd,
+			"Env":       create.Env,
+		})
+		return nil, err
+	}
+
+	err = p.saveRootFSProvider(id, rootfsURL.Scheme)
+	if err != nil {
+		p.logger.Error("save-rootfs-provider-failed", err, lager.Data{
+			"Id":     id,
+			"rootfs": rootfsURL.String(),
+		})
+		return nil, err
+	}
+
+	err = p.writeBindMounts(containerPath, bindMounts)
+	if err != nil {
+		p.logger.Error("bind-mounts-failed", err)
+		return nil, err
+	}
+
+	return rootFSEnvVars, nil
+}
+
+func (p *LinuxContainerPool) tryReleaseSystemResources(logger lager.Logger, id string) {
+	err := p.releaseSystemResources(logger, id)
+	if err != nil {
+		logger.Error("failed-to-undo-failed-create", err)
+	}
+}
+
+func (p *LinuxContainerPool) releaseSystemResources(logger lager.Logger, id string) error {
+	rootfsProvider, err := ioutil.ReadFile(path.Join(p.depotPath, id, "rootfs-provider"))
+	if err != nil {
+		rootfsProvider = []byte("")
+	}
+
+	pRunner := logging.Runner{
+		CommandRunner: p.runner,
+		Logger:        logger,
+	}
+
+	provider, found := p.rootfsProviders[string(rootfsProvider)]
+	if !found {
+		return ErrUnknownRootFSProvider
+	}
+
+	destroy := exec.Command(path.Join(p.binPath, "destroy.sh"), path.Join(p.depotPath, id))
+
+	err = pRunner.Run(destroy)
+	if err != nil {
+		return err
+	}
+
+	return provider.CleanupRootFS(logger, id)
+}
+
+func getHandle(handle, id string) string {
+	if handle != "" {
+		return handle
+	}
+	return id
+}
+
+func mergeEnv(env1, env2 []string) []string {
+	for _, entry := range env2 {
+		env1 = append(env1, entry)
+	}
+	return env1
+}
+
+func cleanup(err *error, undo func()) {
+	if *err != nil {
+		undo()
+	}
 }
