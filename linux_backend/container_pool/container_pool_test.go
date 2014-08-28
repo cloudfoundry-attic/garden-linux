@@ -53,10 +53,10 @@ var _ = Describe("Container pool", func() {
 		fakeRunner = fake_command_runner.New()
 		fakeQuotaManager = fake_quota_manager.New()
 		fakePortPool = fake_port_pool.New(1000)
-		defaultFakeRootFSProvider = fake_rootfs_provider.New()
-		fakeRootFSProvider = fake_rootfs_provider.New()
+		defaultFakeRootFSProvider = new(fake_rootfs_provider.FakeRootFSProvider)
+		fakeRootFSProvider = new(fake_rootfs_provider.FakeRootFSProvider)
 
-		defaultFakeRootFSProvider.ProvideResult = "/provided/rootfs/path"
+		defaultFakeRootFSProvider.ProvideRootFSReturns("/provided/rootfs/path", nil, nil)
 
 		depotPath, err = ioutil.TempDir("", "depot-path")
 		Ω(err).ShouldNot(HaveOccurred())
@@ -181,9 +181,10 @@ var _ = Describe("Container pool", func() {
 
 		itCleansUpTheRootfs := func() {
 			It("cleans up the rootfs for the container", func() {
-				Ω(defaultFakeRootFSProvider.CleanedUp()).Should(Equal([]string{
-					defaultFakeRootFSProvider.Provided()[0].ID,
-				}))
+				Ω(defaultFakeRootFSProvider.CleanupRootFSCallCount()).Should(Equal(1))
+				_, providedID, _ := defaultFakeRootFSProvider.ProvideRootFSArgsForCall(0)
+				_, cleanedUpID := defaultFakeRootFSProvider.CleanupRootFSArgsForCall(0)
+				Ω(cleanedUpID).Should(Equal(providedID))
 			})
 		}
 
@@ -257,18 +258,17 @@ var _ = Describe("Container pool", func() {
 				})
 				Ω(err).ShouldNot(HaveOccurred())
 
-				Ω(fakeRootFSProvider.Provided()).Should(ContainElement(fake_rootfs_provider.ProvidedSpec{
-					ID: container.ID(),
-					URL: &url.URL{
-						Scheme: "fake",
-						Host:   "",
-						Path:   "/path/to/custom-rootfs",
-					},
+				_, id, uri := fakeRootFSProvider.ProvideRootFSArgsForCall(0)
+				Ω(id).Should(Equal(container.ID()))
+				Ω(uri).Should(Equal(&url.URL{
+					Scheme: "fake",
+					Host:   "",
+					Path:   "/path/to/custom-rootfs",
 				}))
 			})
 
 			It("passes the provided rootfs as $rootfs_path to create.sh", func() {
-				fakeRootFSProvider.ProvideResult = "/var/some/mount/point"
+				fakeRootFSProvider.ProvideRootFSReturns("/var/some/mount/point", nil, nil)
 
 				container, err := pool.Create(warden.ContainerSpec{
 					RootFSPath: "fake:///path/to/custom-rootfs",
@@ -340,9 +340,10 @@ var _ = Describe("Container pool", func() {
 
 			Context("when providing the mount point fails", func() {
 				var err error
+				providerErr := errors.New("oh no!")
 
 				BeforeEach(func() {
-					fakeRootFSProvider.ProvideError = errors.New("oh no!")
+					fakeRootFSProvider.ProvideRootFSReturns("", nil, providerErr)
 
 					_, err = pool.Create(warden.ContainerSpec{
 						RootFSPath: "fake:///path/to/custom-rootfs",
@@ -350,7 +351,7 @@ var _ = Describe("Container pool", func() {
 				})
 
 				It("returns the error", func() {
-					Ω(err).Should(Equal(fakeRootFSProvider.ProvideError))
+					Ω(err).Should(Equal(providerErr))
 				})
 
 				itReleasesTheUserID()
@@ -820,15 +821,15 @@ var _ = Describe("Container pool", func() {
 					err := pool.Prune(map[string]bool{})
 					Ω(err).ShouldNot(HaveOccurred())
 
-					Ω(fakeRootFSProvider.CleanedUp()).Should(Equal([]string{
-						"container-1",
-						"container-2",
-					}))
+					Ω(fakeRootFSProvider.CleanupRootFSCallCount()).Should(Equal(2))
+					_, id1 := fakeRootFSProvider.CleanupRootFSArgsForCall(0)
+					_, id2 := fakeRootFSProvider.CleanupRootFSArgsForCall(1)
+					Ω(id1).Should(Equal("container-1"))
+					Ω(id2).Should(Equal("container-2"))
 
-					Ω(defaultFakeRootFSProvider.CleanedUp()).Should(Equal([]string{
-						"container-3",
-					}))
-
+					Ω(defaultFakeRootFSProvider.CleanupRootFSCallCount()).Should(Equal(1))
+					_, id3 := defaultFakeRootFSProvider.CleanupRootFSArgsForCall(0)
+					Ω(id3).Should(Equal("container-3"))
 				})
 			})
 
@@ -842,11 +843,11 @@ var _ = Describe("Container pool", func() {
 					err := pool.Prune(map[string]bool{})
 					Ω(err).ShouldNot(HaveOccurred())
 
-					Ω(defaultFakeRootFSProvider.CleanedUp()).Should(Equal([]string{
-						"container-2",
-						"container-3",
-					}))
-
+					Ω(defaultFakeRootFSProvider.CleanupRootFSCallCount()).Should(Equal(2))
+					_, id1 := defaultFakeRootFSProvider.CleanupRootFSArgsForCall(0)
+					_, id2 := defaultFakeRootFSProvider.CleanupRootFSArgsForCall(1)
+					Ω(id1).Should(Equal("container-2"))
+					Ω(id2).Should(Equal("container-3"))
 				})
 
 				Context("when a container exists with an unknown rootfs provider", func() {
@@ -866,7 +867,7 @@ var _ = Describe("Container pool", func() {
 				disaster := errors.New("oh no!")
 
 				BeforeEach(func() {
-					fakeRootFSProvider.CleanupError = disaster
+					fakeRootFSProvider.CleanupRootFSReturns(disaster)
 				})
 
 				It("returns the error", func() {
@@ -893,7 +894,9 @@ var _ = Describe("Container pool", func() {
 					err := pool.Prune(map[string]bool{"container-2": true})
 					Ω(err).ShouldNot(HaveOccurred())
 
-					Ω(fakeRootFSProvider.CleanedUp()).ShouldNot(ContainElement("container-2"))
+					Ω(fakeRootFSProvider.CleanupRootFSCallCount()).Should(Equal(1))
+					_, prunedId := fakeRootFSProvider.CleanupRootFSArgsForCall(0)
+					Ω(prunedId).ShouldNot(Equal("container-2"))
 				})
 			})
 
@@ -919,7 +922,7 @@ var _ = Describe("Container pool", func() {
 					err := pool.Prune(map[string]bool{})
 					Ω(err).Should(HaveOccurred())
 
-					Ω(fakeRootFSProvider.CleanedUp()).Should(BeEmpty())
+					Ω(fakeRootFSProvider.CleanupRootFSCallCount()).Should(Equal(0))
 				})
 			})
 		})
@@ -975,14 +978,16 @@ var _ = Describe("Container pool", func() {
 				err := pool.Destroy(createdContainer)
 				Ω(err).ShouldNot(HaveOccurred())
 
-				Ω(fakeRootFSProvider.CleanedUp()).Should(ContainElement(createdContainer.ID()))
+				Ω(fakeRootFSProvider.CleanupRootFSCallCount()).Should(Equal(1))
+				_, id := fakeRootFSProvider.CleanupRootFSArgsForCall(0)
+				Ω(id).Should(Equal(createdContainer.ID()))
 			})
 
 			Context("when cleaning up the container's rootfs fails", func() {
 				disaster := errors.New("oh no!")
 
 				BeforeEach(func() {
-					fakeRootFSProvider.CleanupError = disaster
+					fakeRootFSProvider.CleanupRootFSReturns(disaster)
 				})
 
 				It("returns the error", func() {
@@ -1025,7 +1030,7 @@ var _ = Describe("Container pool", func() {
 				err := pool.Destroy(createdContainer)
 				Ω(err).Should(HaveOccurred())
 
-				Ω(fakeRootFSProvider.CleanedUp()).Should(BeEmpty())
+				Ω(fakeRootFSProvider.CleanupRootFSCallCount()).Should(Equal(0))
 			})
 
 			It("does not release the container's resources", func() {
