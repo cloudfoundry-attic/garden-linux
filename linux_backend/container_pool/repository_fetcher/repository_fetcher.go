@@ -30,7 +30,7 @@ type Registry interface {
 // apes docker's *graph.Graph
 type Graph interface {
 	Exists(imageID string) bool
-	Register(imageJSON []byte, layer archive.ArchiveReader, image *image.Image) error
+	Register(image *image.Image, imageJSON []byte, layer archive.ArchiveReader) error
 }
 
 type DockerRepositoryFetcher struct {
@@ -168,7 +168,7 @@ func (fetcher *DockerRepositoryFetcher) fetchLayer(logger lager.Logger, endpoint
 		"layer": layerID,
 	})
 
-	err = fetcher.graph.Register(imgJSON, layer, img)
+	err = fetcher.graph.Register(img, imgJSON, layer)
 	if err != nil {
 		return err
 	}

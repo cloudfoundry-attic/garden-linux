@@ -10,7 +10,7 @@ import (
 type FakeGraph struct {
 	exists map[string]bool
 
-	WhenRegistering func(imageJSON []byte, layer archive.ArchiveReader, image *image.Image) error
+	WhenRegistering func(image *image.Image, imageJSON []byte, layer archive.ArchiveReader) error
 
 	mutex *sync.RWMutex
 }
@@ -36,9 +36,9 @@ func (graph *FakeGraph) SetExists(imageID string, exists bool) {
 	graph.mutex.Unlock()
 }
 
-func (graph *FakeGraph) Register(imageJSON []byte, layer archive.ArchiveReader, image *image.Image) error {
+func (graph *FakeGraph) Register(image *image.Image, imageJSON []byte, layer archive.ArchiveReader) error {
 	if graph.WhenRegistering != nil {
-		return graph.WhenRegistering(imageJSON, layer, image)
+		return graph.WhenRegistering(image, imageJSON, layer)
 	}
 
 	return nil

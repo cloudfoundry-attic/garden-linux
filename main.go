@@ -205,7 +205,7 @@ func main() {
 		logger.Fatal("failed-to-construct-graph", err)
 	}
 
-	reg, err := registry.NewRegistry(nil, nil, *dockerRegistry, true)
+	reg, err := registry.NewSession(nil, nil, *dockerRegistry, true)
 	if err != nil {
 		logger.Fatal("failed-to-construct-registry", err)
 	}
