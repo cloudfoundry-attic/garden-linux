@@ -104,6 +104,21 @@ var _ = Describe("Creating a container", func() {
 			Ω(process.Wait()).Should(Equal(42))
 		})
 
+		It("collects the process's full output, even if it exits quickly after", func() {
+			for i := 0; i < 100; i++ {
+				stdout := gbytes.NewBuffer()
+
+				process, err := container.Run(warden.ProcessSpec{
+					Path: "echo",
+					Args: []string{"hi stdout"},
+				}, warden.ProcessIO{Stdout: stdout})
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(process.Wait()).Should(Equal(0))
+
+				Ω(stdout).Should(gbytes.Say("hi stdout\n"))
+			}
+		})
+
 		It("streams input to the process's stdin", func() {
 			stdout := gbytes.NewBuffer()
 
