@@ -304,6 +304,29 @@ var _ = Describe("Container pool", func() {
 				Ω(string(body)).Should(Equal("fake"))
 			})
 
+			It("merges the env vars associated with the rootfs with those in the spec", func() {
+				fakeRootFSProvider.ProvideRootFSReturns("/provided/rootfs/path", []string{
+					"var2=rootfs-value-2",
+					"var3=rootfs-value-3",
+				}, nil)
+
+				container, err := pool.Create(warden.ContainerSpec{
+					RootFSPath: "fake:///path/to/custom-rootfs",
+					Env: []string{
+						"var1=spec-value1",
+						"var2=spec-value2",
+					},
+				})
+
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(container.(*linux_backend.LinuxContainer).CurrentEnvVars()).Should(Equal([]string{
+					"var1=spec-value1",
+					"var2=spec-value2",
+					"var2=rootfs-value-2",
+					"var3=rootfs-value-3",
+				}))
+			})
+
 			Context("when the rootfs URL is not valid", func() {
 				var err error
 
