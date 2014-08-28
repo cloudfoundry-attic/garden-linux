@@ -162,18 +162,31 @@ func (p *LinuxContainerPool) Prune(keep map[string]bool) error {
 	return nil
 }
 
-func (p *LinuxContainerPool) Create(spec warden.ContainerSpec) (linux_backend.Container, error) {
+func (p *LinuxContainerPool) Create(spec warden.ContainerSpec) (c linux_backend.Container, err error) {
+	cleanup := func(undo func()) {
+		if err != nil {
+			undo()
+		}
+	}
+
 	uid, err := p.uidPool.Acquire()
 	if err != nil {
 		p.logger.Error("uid-acquire-failed", err)
 		return nil, err
+	} else {
+		defer cleanup(func() {
+			p.uidPool.Release(uid)
+		})
 	}
 
 	network, err := p.networkPool.Acquire()
 	if err != nil {
-		p.uidPool.Release(uid)
 		p.logger.Error("network-acquire-failed", err)
 		return nil, err
+	} else {
+		defer cleanup(func() {
+			p.networkPool.Release(network)
+		})
 	}
 
 	id := <-p.containerIDs
@@ -263,10 +276,12 @@ func (p *LinuxContainerPool) Create(spec warden.ContainerSpec) (linux_backend.Co
 			"CreateCmd": createCmd,
 			"Env":       create.Env,
 		})
-		p.uidPool.Release(uid)
-		p.networkPool.Release(network)
-		p.destroy(p.logger, container.ID())
+		p.safeDestroy(p.logger, container.ID())
 		return nil, err
+	} else {
+		defer cleanup(func() {
+			p.safeDestroy(p.logger, container.ID())
+		})
 	}
 
 	err = p.saveRootFSProvider(id, rootfsURL.Scheme)
@@ -392,6 +407,13 @@ func (p *LinuxContainerPool) Destroy(container linux_backend.Container) error {
 	p.networkPool.Release(resources.Network)
 
 	return nil
+}
+
+func (p *LinuxContainerPool) safeDestroy(logger lager.Logger, id string) {
+	err := p.destroy(logger, id)
+	if err != nil {
+		logger.Error("failed-to-undo-failed-create", err)
+	}
 }
 
 func (p *LinuxContainerPool) destroy(logger lager.Logger, id string) error {

@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -152,6 +153,40 @@ var _ = Describe("Container pool", func() {
 	})
 
 	Describe("creating", func() {
+		itReleasesTheUserID := func() {
+			It("returns the container's user ID to the pool", func() {
+				Ω(fakeUIDPool.Released).Should(Equal([]uint32{10000}))
+			})
+		}
+
+		itReleasesTheIPBlock := func() {
+			It("returns the container's IP block to the pool", func() {
+				Ω(fakeNetworkPool.Released).Should(Equal([]string{"1.2.0.0/30"}))
+			})
+		}
+
+		itDeletesTheContainerDirectory := func() {
+			It("deletes the container's directory", func() {
+				executedCommands := fakeRunner.ExecutedCommands()
+
+				createCommand := executedCommands[0]
+				Ω(createCommand.Path).Should(Equal("/root/path/create.sh"))
+				containerPath := createCommand.Args[1]
+
+				lastCommand := executedCommands[len(executedCommands)-1]
+				Ω(lastCommand.Path).Should(Equal("/root/path/destroy.sh"))
+				Ω(lastCommand.Args[1]).Should(Equal(containerPath))
+			})
+		}
+
+		itCleansUpTheRootfs := func() {
+			It("cleans up the rootfs for the container", func() {
+				Ω(defaultFakeRootFSProvider.CleanedUp()).Should(Equal([]string{
+					defaultFakeRootFSProvider.Provided()[0].ID,
+				}))
+			})
+		}
+
 		It("returns containers with unique IDs", func() {
 			container1, err := pool.Create(warden.ContainerSpec{})
 			Ω(err).ShouldNot(HaveOccurred())
@@ -203,7 +238,6 @@ var _ = Describe("Container pool", func() {
 					},
 				},
 			))
-
 		})
 
 		It("saves the determined rootfs provider to the depot", func() {
@@ -231,7 +265,6 @@ var _ = Describe("Container pool", func() {
 						Path:   "/path/to/custom-rootfs",
 					},
 				}))
-
 			})
 
 			It("passes the provided rootfs as $rootfs_path to create.sh", func() {
@@ -257,7 +290,6 @@ var _ = Describe("Container pool", func() {
 						},
 					},
 				))
-
 			})
 
 			It("saves the determined rootfs provider to the depot", func() {
@@ -272,41 +304,64 @@ var _ = Describe("Container pool", func() {
 				Ω(string(body)).Should(Equal("fake"))
 			})
 
-			Context("but its scheme is unknown", func() {
-				It("returns ErrUnknownRootFSProvider", func() {
-					_, err := pool.Create(warden.ContainerSpec{
+			Context("when the rootfs URL is not valid", func() {
+				var err error
+
+				BeforeEach(func() {
+					_, err = pool.Create(warden.ContainerSpec{
+						RootFSPath: "::::::",
+					})
+				})
+
+				It("returns an error", func() {
+					Ω(err).Should(BeAssignableToTypeOf(&url.Error{}))
+				})
+
+				itReleasesTheUserID()
+				itReleasesTheIPBlock()
+			})
+
+			Context("when its scheme is unknown", func() {
+				var err error
+
+				BeforeEach(func() {
+					_, err = pool.Create(warden.ContainerSpec{
 						RootFSPath: "unknown:///path/to/custom-rootfs",
 					})
+				})
+
+				It("returns ErrUnknownRootFSProvider", func() {
 					Ω(err).Should(Equal(container_pool.ErrUnknownRootFSProvider))
 				})
+
+				itReleasesTheUserID()
+				itReleasesTheIPBlock()
 			})
 
 			Context("when providing the mount point fails", func() {
-				disaster := errors.New("oh no!")
+				var err error
 
 				BeforeEach(func() {
-					fakeRootFSProvider.ProvideError = disaster
+					fakeRootFSProvider.ProvideError = errors.New("oh no!")
+
+					_, err = pool.Create(warden.ContainerSpec{
+						RootFSPath: "fake:///path/to/custom-rootfs",
+					})
 				})
 
 				It("returns the error", func() {
-					_, err := pool.Create(warden.ContainerSpec{
-						RootFSPath: "fake:///path/to/custom-rootfs",
-					})
-					Ω(err).Should(Equal(disaster))
+					Ω(err).Should(Equal(fakeRootFSProvider.ProvideError))
 				})
 
-				It("does not execute create.sh", func() {
-					_, err := pool.Create(warden.ContainerSpec{
-						RootFSPath: "fake:///path/to/custom-rootfs",
-					})
-					Ω(err).Should(HaveOccurred())
+				itReleasesTheUserID()
+				itReleasesTheIPBlock()
 
+				It("does not execute create.sh", func() {
 					Ω(fakeRunner).ShouldNot(HaveExecutedSerially(
 						fake_command_runner.CommandSpec{
 							Path: "/root/path/create.sh",
 						},
 					))
-
 				})
 			})
 		})
@@ -429,6 +484,7 @@ var _ = Describe("Container pool", func() {
 			})
 
 			Context("when appending to hook-child-before-pivot.sh fails", func() {
+				var err error
 				disaster := errors.New("oh no!")
 
 				BeforeEach(func() {
@@ -437,10 +493,8 @@ var _ = Describe("Container pool", func() {
 					}, func(*exec.Cmd) error {
 						return disaster
 					})
-				})
 
-				It("returns the error", func() {
-					_, err := pool.Create(warden.ContainerSpec{
+					_, err = pool.Create(warden.ContainerSpec{
 						BindMounts: []warden.BindMount{
 							{
 								SrcPath: "/src/path-ro",
@@ -454,9 +508,16 @@ var _ = Describe("Container pool", func() {
 							},
 						},
 					})
+				})
 
+				It("returns the error", func() {
 					Ω(err).Should(Equal(disaster))
 				})
+
+				itReleasesTheUserID()
+				itReleasesTheIPBlock()
+				itCleansUpTheRootfs()
+				itDeletesTheContainerDirectory()
 			})
 		})
 
@@ -501,6 +562,8 @@ var _ = Describe("Container pool", func() {
 						return nastyError
 					},
 				)
+
+				pool.Create(warden.ContainerSpec{})
 			})
 
 			It("returns the error and releases the uid and network", func() {
@@ -511,22 +574,43 @@ var _ = Describe("Container pool", func() {
 				Ω(fakeNetworkPool.Released).Should(ContainElement("1.2.0.0/30"))
 			})
 
-			It("deletes the container's directory", func() {
-				pool.Create(warden.ContainerSpec{})
+			itReleasesTheUserID()
+			itReleasesTheIPBlock()
+			itDeletesTheContainerDirectory()
+			itCleansUpTheRootfs()
+		})
 
-				executedCommands := fakeRunner.ExecutedCommands()
-				lastCommand := executedCommands[len(executedCommands)-1]
-				Ω(lastCommand.Path).Should(Equal("/root/path/destroy.sh"))
-				Ω(lastCommand.Args[1]).Should(Equal(containerPath))
+		Context("when saving the rootfs provider fails", func() {
+			var err error
+
+			BeforeEach(func() {
+				fakeRunner.WhenRunning(
+					fake_command_runner.CommandSpec{
+						Path: "/root/path/create.sh",
+					}, func(cmd *exec.Cmd) error {
+						containerPath := cmd.Args[1]
+						rootfsProviderPath := filepath.Join(containerPath, "rootfs-provider")
+
+						// creating a directory with this name will cause the write to the
+						// file to fail.
+						err := os.MkdirAll(rootfsProviderPath, 0755)
+						Ω(err).ShouldNot(HaveOccurred())
+
+						return nil
+					},
+				)
+
+				_, err = pool.Create(warden.ContainerSpec{})
 			})
 
-			It("cleans up the rootfs for the container", func() {
-				pool.Create(warden.ContainerSpec{})
-
-				Ω(defaultFakeRootFSProvider.CleanedUp()).Should(Equal([]string{
-					defaultFakeRootFSProvider.Provided()[0].ID,
-				}))
+			It("returns an error", func() {
+				Ω(err).Should(HaveOccurred())
 			})
+
+			itReleasesTheUserID()
+			itReleasesTheIPBlock()
+			itCleansUpTheRootfs()
+			itDeletesTheContainerDirectory()
 		})
 	})
 
