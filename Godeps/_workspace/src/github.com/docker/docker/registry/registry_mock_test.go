@@ -3,8 +3,6 @@ package registry
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/docker/docker/utils"
-	"github.com/gorilla/mux"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -14,6 +12,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gorilla/mux"
+
+	"github.com/docker/docker/pkg/log"
 )
 
 var (
@@ -96,7 +98,7 @@ func init() {
 
 func handlerAccessLog(handler http.Handler) http.Handler {
 	logHandler := func(w http.ResponseWriter, r *http.Request) {
-		utils.Debugf("%s \"%s %s\"", r.RemoteAddr, r.Method, r.URL)
+		log.Debugf("%s \"%s %s\"", r.RemoteAddr, r.Method, r.URL)
 		handler.ServeHTTP(w, r)
 	}
 	return http.HandlerFunc(logHandler)
@@ -234,6 +236,7 @@ func handlerGetDeleteTags(w http.ResponseWriter, r *http.Request) {
 	tags, exists := testRepositories[repositoryName]
 	if !exists {
 		apiError(w, "Repository not found", 404)
+		return
 	}
 	if r.Method == "DELETE" {
 		delete(testRepositories, repositoryName)
@@ -253,10 +256,12 @@ func handlerGetTag(w http.ResponseWriter, r *http.Request) {
 	tags, exists := testRepositories[repositoryName]
 	if !exists {
 		apiError(w, "Repository not found", 404)
+		return
 	}
 	tag, exists := tags[tagName]
 	if !exists {
 		apiError(w, "Tag not found", 404)
+		return
 	}
 	writeResponse(w, tag, 200)
 }

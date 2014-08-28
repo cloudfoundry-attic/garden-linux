@@ -6,7 +6,6 @@ import (
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -19,20 +18,14 @@ import (
 	"strings"
 	"sync"
 	"syscall"
-	"time"
 
 	"github.com/docker/docker/dockerversion"
+	"github.com/docker/docker/pkg/log"
 )
 
 type KeyValuePair struct {
 	Key   string
 	Value string
-}
-
-// A common interface to access the Fatal method of
-// both testing.B and testing.T.
-type Fataler interface {
-	Fatal(args ...interface{})
 }
 
 // Go is a basic promise implementation: it wraps calls a function in a goroutine,
@@ -54,31 +47,6 @@ func Download(url string) (resp *http.Response, err error) {
 		return nil, fmt.Errorf("Got HTTP status code >= 400: %s", resp.Status)
 	}
 	return resp, nil
-}
-
-func logf(level string, format string, a ...interface{}) {
-	// Retrieve the stack infos
-	_, file, line, ok := runtime.Caller(2)
-	if !ok {
-		file = "<unknown>"
-		line = -1
-	} else {
-		file = file[strings.LastIndex(file, "/")+1:]
-	}
-
-	fmt.Fprintf(os.Stderr, fmt.Sprintf("[%s] %s:%d %s\n", level, file, line, format), a...)
-}
-
-// Debug function, if the debug flag is set, then display. Do nothing otherwise
-// If Docker is in damon mode, also send the debug info on the socket
-func Debugf(format string, a ...interface{}) {
-	if os.Getenv("DEBUG") != "" {
-		logf("debug", format, a...)
-	}
-}
-
-func Errorf(format string, a ...interface{}) {
-	logf("error", format, a...)
 }
 
 func Trunc(s string, maxlen int) string {
@@ -264,45 +232,9 @@ func (r *bufReader) Close() error {
 	return closer.Close()
 }
 
-type JSONLog struct {
-	Log     string    `json:"log,omitempty"`
-	Stream  string    `json:"stream,omitempty"`
-	Created time.Time `json:"time"`
-}
-
-func (jl *JSONLog) Format(format string) (string, error) {
-	if format == "" {
-		return jl.Log, nil
-	}
-	if format == "json" {
-		m, err := json.Marshal(jl)
-		return string(m), err
-	}
-	return fmt.Sprintf("[%s] %s", jl.Created.Format(format), jl.Log), nil
-}
-
-func WriteLog(src io.Reader, dst io.WriteCloser, format string) error {
-	dec := json.NewDecoder(src)
-	for {
-		l := &JSONLog{}
-
-		if err := dec.Decode(l); err == io.EOF {
-			return nil
-		} else if err != nil {
-			Errorf("Error streaming logs: %s", err)
-			return err
-		}
-		line, err := l.Format(format)
-		if err != nil {
-			return err
-		}
-		fmt.Fprintf(dst, "%s", line)
-	}
-}
-
 func GetTotalUsedFds() int {
 	if fds, err := ioutil.ReadDir(fmt.Sprintf("/proc/%d/fd", os.Getpid())); err != nil {
-		Errorf("Error opening /proc/%d/fd: %s", os.Getpid(), err)
+		log.Errorf("Error opening /proc/%d/fd: %s", os.Getpid(), err)
 	} else {
 		return len(fds)
 	}
@@ -710,9 +642,10 @@ func ValidateContextDirectory(srcPath string, excludes []string) error {
 			return err
 		}
 		// skip checking if symlinks point to non-existing files, such symlinks can be useful
+		// also skip named pipes, because they hanging on open
 		lstat, _ := os.Lstat(filePath)
-		if lstat.Mode()&os.ModeSymlink == os.ModeSymlink {
-			return err
+		if lstat != nil && lstat.Mode()&(os.ModeSymlink|os.ModeNamedPipe) != 0 {
+			return nil
 		}
 
 		if !f.IsDir() {
@@ -743,15 +676,15 @@ func Matches(relFilePath string, patterns []string) (bool, error) {
 	for _, exclude := range patterns {
 		matched, err := filepath.Match(exclude, relFilePath)
 		if err != nil {
-			Errorf("Error matching: %s (pattern: %s)", relFilePath, exclude)
+			log.Errorf("Error matching: %s (pattern: %s)", relFilePath, exclude)
 			return false, err
 		}
 		if matched {
 			if filepath.Clean(relFilePath) == "." {
-				Errorf("Can't exclude whole path, excluding pattern: %s", exclude)
+				log.Errorf("Can't exclude whole path, excluding pattern: %s", exclude)
 				continue
 			}
-			Debugf("Skipping excluded path: %s", relFilePath)
+			log.Debugf("Skipping excluded path: %s", relFilePath)
 			return true, nil
 		}
 	}
