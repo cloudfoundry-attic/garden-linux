@@ -167,7 +167,8 @@ var _ = Describe("RepositoryFetcher", func() {
 				imageID, envvars, err := fetcher.Fetch(logger, "some-repo", "some-tag")
 
 				Ω(err).ShouldNot(HaveOccurred())
-				Ω(envvars).Should(Equal([]string{"env2=env2Value", "env1=env1Value"}))
+				Ω(envvars).Should(ContainElement("env2=env2Value"))
+				Ω(envvars).Should(ContainElement("env1=env1Value"))
 				Ω(imageID).Should(Equal("id-1"))
 			})
 
