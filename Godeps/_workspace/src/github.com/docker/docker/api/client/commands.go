@@ -861,24 +861,13 @@ func (cli *DockerCli) CmdTop(args ...string) error {
 }
 
 func (cli *DockerCli) CmdPort(args ...string) error {
-	cmd := cli.Subcmd("port", "CONTAINER PRIVATE_PORT", "Lookup the public-facing port that is NAT-ed to PRIVATE_PORT")
+	cmd := cli.Subcmd("port", "CONTAINER [PRIVATE_PORT[/PROTO]]", "List port mappings for the CONTAINER, or lookup the public-facing port that is NAT-ed to the PRIVATE_PORT")
 	if err := cmd.Parse(args); err != nil {
 		return nil
 	}
-	if cmd.NArg() != 2 {
+	if cmd.NArg() < 1 {
 		cmd.Usage()
 		return nil
-	}
-
-	var (
-		port  = cmd.Arg(1)
-		proto = "tcp"
-		parts = strings.SplitN(port, "/", 2)
-	)
-
-	if len(parts) == 2 && len(parts[1]) != 0 {
-		port = parts[0]
-		proto = parts[1]
 	}
 
 	steam, _, err := cli.call("GET", "/containers/"+cmd.Arg(0)+"/json", nil, false)
@@ -895,14 +884,34 @@ func (cli *DockerCli) CmdPort(args ...string) error {
 		return err
 	}
 
-	if frontends, exists := ports[nat.Port(port+"/"+proto)]; exists && frontends != nil {
-		for _, frontend := range frontends {
-			fmt.Fprintf(cli.out, "%s:%s\n", frontend.HostIp, frontend.HostPort)
+	if cmd.NArg() == 2 {
+		var (
+			port  = cmd.Arg(1)
+			proto = "tcp"
+			parts = strings.SplitN(port, "/", 2)
+		)
+
+		if len(parts) == 2 && len(parts[1]) != 0 {
+			port = parts[0]
+			proto = parts[1]
 		}
-		return nil
+		natPort := port + "/" + proto
+		if frontends, exists := ports[nat.Port(port+"/"+proto)]; exists && frontends != nil {
+			for _, frontend := range frontends {
+				fmt.Fprintf(cli.out, "%s:%s\n", frontend.HostIp, frontend.HostPort)
+			}
+			return nil
+		}
+		return fmt.Errorf("Error: No public port '%s' published for %s", natPort, cmd.Arg(0))
 	}
 
-	return fmt.Errorf("Error: No public port '%s' published for %s", cmd.Arg(1), cmd.Arg(0))
+	for from, frontends := range ports {
+		for _, frontend := range frontends {
+			fmt.Fprintf(cli.out, "%s -> %s:%s\n", from, frontend.HostIp, frontend.HostPort)
+		}
+	}
+
+	return nil
 }
 
 // 'docker rmi IMAGE' removes all images with the name IMAGE
@@ -2257,14 +2266,14 @@ func (cli *DockerCli) CmdCp(args ...string) error {
 }
 
 func (cli *DockerCli) CmdSave(args ...string) error {
-	cmd := cli.Subcmd("save", "IMAGE", "Save an image to a tar archive (streamed to STDOUT by default)")
+	cmd := cli.Subcmd("save", "IMAGE [IMAGE...]", "Save an image(s) to a tar archive (streamed to STDOUT by default)")
 	outfile := cmd.String([]string{"o", "-output"}, "", "Write to an file, instead of STDOUT")
 
 	if err := cmd.Parse(args); err != nil {
 		return err
 	}
 
-	if cmd.NArg() != 1 {
+	if cmd.NArg() < 1 {
 		cmd.Usage()
 		return nil
 	}
@@ -2279,9 +2288,19 @@ func (cli *DockerCli) CmdSave(args ...string) error {
 			return err
 		}
 	}
-	image := cmd.Arg(0)
-	if err := cli.stream("GET", "/images/"+image+"/get", nil, output, nil); err != nil {
-		return err
+	if len(cmd.Args()) == 1 {
+		image := cmd.Arg(0)
+		if err := cli.stream("GET", "/images/"+image+"/get", nil, output, nil); err != nil {
+			return err
+		}
+	} else {
+		v := url.Values{}
+		for _, arg := range cmd.Args() {
+			v.Add("names", arg)
+		}
+		if err := cli.stream("GET", "/images/get?"+v.Encode(), nil, output, nil); err != nil {
+			return err
+		}
 	}
 	return nil
 }

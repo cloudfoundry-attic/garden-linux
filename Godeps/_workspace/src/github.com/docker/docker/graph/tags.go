@@ -30,6 +30,24 @@ type TagStore struct {
 
 type Repository map[string]string
 
+// update Repository mapping with content of u
+func (r Repository) Update(u Repository) {
+	for k, v := range u {
+		r[k] = v
+	}
+}
+
+// return true if the contents of u Repository, are wholly contained in r Repository
+func (r Repository) Contains(u Repository) bool {
+	for k, v := range u {
+		// if u's key is not present in r OR u's key is present, but not the same value
+		if rv, ok := r[k]; !ok || (ok && rv != v) {
+			return false
+		}
+	}
+	return true
+}
+
 func NewTagStore(path string, graph *Graph) (*TagStore, error) {
 	abspath, err := filepath.Abs(path)
 	if err != nil {
@@ -270,42 +288,42 @@ func validateTagName(name string) error {
 	return nil
 }
 
-func (s *TagStore) poolAdd(kind, key string) (chan struct{}, error) {
-	s.Lock()
-	defer s.Unlock()
+func (store *TagStore) poolAdd(kind, key string) (chan struct{}, error) {
+	store.Lock()
+	defer store.Unlock()
 
-	if c, exists := s.pullingPool[key]; exists {
+	if c, exists := store.pullingPool[key]; exists {
 		return c, fmt.Errorf("pull %s is already in progress", key)
 	}
-	if c, exists := s.pushingPool[key]; exists {
+	if c, exists := store.pushingPool[key]; exists {
 		return c, fmt.Errorf("push %s is already in progress", key)
 	}
 
 	c := make(chan struct{})
 	switch kind {
 	case "pull":
-		s.pullingPool[key] = c
+		store.pullingPool[key] = c
 	case "push":
-		s.pushingPool[key] = c
+		store.pushingPool[key] = c
 	default:
 		return nil, fmt.Errorf("Unknown pool type")
 	}
 	return c, nil
 }
 
-func (s *TagStore) poolRemove(kind, key string) error {
-	s.Lock()
-	defer s.Unlock()
+func (store *TagStore) poolRemove(kind, key string) error {
+	store.Lock()
+	defer store.Unlock()
 	switch kind {
 	case "pull":
-		if c, exists := s.pullingPool[key]; exists {
+		if c, exists := store.pullingPool[key]; exists {
 			close(c)
-			delete(s.pullingPool, key)
+			delete(store.pullingPool, key)
 		}
 	case "push":
-		if c, exists := s.pushingPool[key]; exists {
+		if c, exists := store.pushingPool[key]; exists {
 			close(c)
-			delete(s.pushingPool, key)
+			delete(store.pushingPool, key)
 		}
 	default:
 		return fmt.Errorf("Unknown pool type")
