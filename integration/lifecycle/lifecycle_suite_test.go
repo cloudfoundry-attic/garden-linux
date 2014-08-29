@@ -50,16 +50,23 @@ func TestLifecycle(t *testing.T) {
 		return
 	}
 
-	BeforeSuite(func() {
-		var err error
-
-		wardenBin, err = gexec.Build("github.com/cloudfoundry-incubator/warden-linux", "-race")
+	SynchronizedBeforeSuite(func() []byte {
+		wardenPath, err := gexec.Build("github.com/cloudfoundry-incubator/warden-linux", "-race")
 		Ω(err).ShouldNot(HaveOccurred())
+		return []byte(wardenPath)
+	}, func(wardenPath []byte) {
+		wardenBin = string(wardenPath)
 	})
 
 	AfterEach(func() {
 		wardenProcess.Signal(syscall.SIGKILL)
 		Eventually(wardenProcess.Wait(), 10).Should(Receive())
+	})
+
+	SynchronizedAfterSuite(func() {
+		//noop
+	}, func() {
+		gexec.CleanupBuildArtifacts()
 	})
 
 	RegisterFailHandler(Fail)

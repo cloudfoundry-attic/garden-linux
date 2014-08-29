@@ -1,6 +1,7 @@
 package main_test
 
 import (
+	"encoding/json"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -18,17 +19,36 @@ var winsizeReporter string
 var tmpdir string
 var socketPath string
 
-var _ = BeforeSuite(func() {
+type CompiledAssets struct {
+	IoDaemon        string
+	WinSizeReporter string
+}
+
+var _ = SynchronizedBeforeSuite(func() []byte {
 	var err error
-
-	iodaemon, err = gexec.Build("github.com/cloudfoundry-incubator/warden-linux/iodaemon", "-race")
+	assets := CompiledAssets{}
+	assets.IoDaemon, err = gexec.Build("github.com/cloudfoundry-incubator/warden-linux/iodaemon", "-race")
 	Ω(err).ShouldNot(HaveOccurred())
 
-	winsizeReporter, err = gexec.Build("github.com/cloudfoundry-incubator/warden-linux/iodaemon/winsizereporter", "-race")
+	assets.WinSizeReporter, err = gexec.Build("github.com/cloudfoundry-incubator/warden-linux/iodaemon/winsizereporter", "-race")
 	Ω(err).ShouldNot(HaveOccurred())
+
+	marshalledAssets, err := json.Marshal(assets)
+	Ω(err).ShouldNot(HaveOccurred())
+	return marshalledAssets
+}, func(marshalledAssets []byte) {
+	assets := CompiledAssets{}
+	err := json.Unmarshal(marshalledAssets, &assets)
+	Ω(err).ShouldNot(HaveOccurred())
+	iodaemon = assets.IoDaemon
+	winsizeReporter = assets.WinSizeReporter
 })
 
-var _ = AfterSuite(gexec.CleanupBuildArtifacts)
+var _ = SynchronizedAfterSuite(func() {
+	//noop
+}, func() {
+	gexec.CleanupBuildArtifacts()
+})
 
 var _ = BeforeEach(func() {
 	var err error
