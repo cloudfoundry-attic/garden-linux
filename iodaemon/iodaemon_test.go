@@ -93,6 +93,35 @@ var _ = Describe("Iodaemon", func() {
 		Eventually(linkS).Should(gexec.Exit(42))
 	})
 
+	It("consistently executes a quickly-printing-and-exiting command", func() {
+		for i := 0; i < 100; i++ {
+			spawnS, err := gexec.Start(exec.Command(
+				iodaemon,
+				"spawn",
+				socketPath,
+				"echo", "hi",
+			), GinkgoWriter, GinkgoWriter)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Eventually(spawnS).Should(gbytes.Say("ready\n"))
+
+			link := exec.Command(iodaemon, "link", socketPath)
+
+			linkS, err := gexec.Start(link, GinkgoWriter, GinkgoWriter)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Eventually(spawnS).Should(gbytes.Say("pid:"))
+
+			Eventually(linkS).Should(gbytes.Say("hi"))
+			Eventually(linkS).Should(gexec.Exit(0))
+
+			Eventually(spawnS).Should(gexec.Exit(0))
+
+			err = os.Remove(socketPath)
+			Ω(err).ShouldNot(HaveOccurred())
+		}
+	})
+
 	Describe("spawning with -tty", func() {
 		It("transports stdin, stdout, and stderr", func() {
 			spawnS, err := gexec.Start(exec.Command(

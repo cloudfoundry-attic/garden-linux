@@ -117,6 +117,8 @@ func spawn(socketPath string, argv []string, timeout time.Duration, withTty bool
 			stdoutW.Close()
 			stderrW.Close()
 
+			fmt.Println("pid:", cmd.Process.Pid)
+
 			go func() {
 				cmd.Wait()
 
@@ -128,8 +130,6 @@ func spawn(socketPath string, argv []string, timeout time.Duration, withTty bool
 
 				os.Exit(0)
 			}()
-
-			fmt.Println("pid:", cmd.Process.Pid)
 
 			// detach from parent process
 			os.Stdin.Close()
