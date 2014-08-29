@@ -1,9 +1,13 @@
 package cgroups
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/docker/libcontainer/devices"
+)
+
+var (
+	ErrNotFound = errors.New("mountpoint not found")
 )
 
 type FreezerState string
@@ -13,29 +17,6 @@ const (
 	Frozen    FreezerState = "FROZEN"
 	Thawed    FreezerState = "THAWED"
 )
-
-type NotFoundError struct {
-	Subsystem string
-}
-
-func (e *NotFoundError) Error() string {
-	return fmt.Sprintf("mountpoint for %s not found", e.Subsystem)
-}
-
-func NewNotFoundError(sub string) error {
-	return &NotFoundError{
-		Subsystem: sub,
-	}
-}
-
-func IsNotFound(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	_, ok := err.(*NotFoundError)
-	return ok
-}
 
 type Cgroup struct {
 	Name   string `json:"name,omitempty"`
@@ -56,5 +37,4 @@ type Cgroup struct {
 
 type ActiveCgroup interface {
 	Cleanup() error
-	Paths() (map[string]string, error)
 }

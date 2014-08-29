@@ -16,10 +16,9 @@ type BlkioGroup struct {
 
 func (s *BlkioGroup) Set(d *data) error {
 	// we just want to join this group even though we don't set anything
-	if _, err := d.join("blkio"); err != nil && !cgroups.IsNotFound(err) {
+	if _, err := d.join("blkio"); err != nil && err != cgroups.ErrNotFound {
 		return err
 	}
-
 	return nil
 }
 

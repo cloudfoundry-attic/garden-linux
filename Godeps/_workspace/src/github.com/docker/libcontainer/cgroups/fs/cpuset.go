@@ -20,10 +20,19 @@ func (s *CpusetGroup) Set(d *data) error {
 		if err != nil {
 			return err
 		}
+		if err := s.ensureParent(dir); err != nil {
+			return err
+		}
 
-		return s.SetDir(dir, d.c.CpusetCpus, d.pid)
+		// because we are not using d.join we need to place the pid into the procs file
+		// unlike the other subsystems
+		if err := writeFile(dir, "cgroup.procs", strconv.Itoa(d.pid)); err != nil {
+			return err
+		}
+		if err := writeFile(dir, "cpuset.cpus", d.c.CpusetCpus); err != nil {
+			return err
+		}
 	}
-
 	return nil
 }
 
@@ -32,24 +41,6 @@ func (s *CpusetGroup) Remove(d *data) error {
 }
 
 func (s *CpusetGroup) GetStats(path string, stats *cgroups.Stats) error {
-	return nil
-}
-
-func (s *CpusetGroup) SetDir(dir, value string, pid int) error {
-	if err := s.ensureParent(dir); err != nil {
-		return err
-	}
-
-	// because we are not using d.join we need to place the pid into the procs file
-	// unlike the other subsystems
-	if err := writeFile(dir, "cgroup.procs", strconv.Itoa(pid)); err != nil {
-		return err
-	}
-
-	if err := writeFile(dir, "cpuset.cpus", value); err != nil {
-		return err
-	}
-
 	return nil
 }
 

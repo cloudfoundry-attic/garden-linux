@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -29,8 +28,7 @@ func FindCgroupMountpoint(subsystem string) (string, error) {
 			}
 		}
 	}
-
-	return "", NewNotFoundError(subsystem)
+	return "", ErrNotFound
 }
 
 type Mount struct {
@@ -154,41 +152,17 @@ func ReadProcsFile(dir string) ([]int, error) {
 
 func parseCgroupFile(subsystem string, r io.Reader) (string, error) {
 	s := bufio.NewScanner(r)
-
 	for s.Scan() {
 		if err := s.Err(); err != nil {
 			return "", err
 		}
-
 		text := s.Text()
 		parts := strings.Split(text, ":")
-
 		for _, subs := range strings.Split(parts[1], ",") {
 			if subs == subsystem {
 				return parts[2], nil
 			}
 		}
 	}
-
-	return "", NewNotFoundError(subsystem)
-}
-
-func pathExists(path string) bool {
-	if _, err := os.Stat(path); err != nil {
-		return false
-	}
-	return true
-}
-
-func EnterPid(cgroupPaths map[string]string, pid int) error {
-	for _, path := range cgroupPaths {
-		if pathExists(path) {
-			if err := ioutil.WriteFile(filepath.Join(path, "cgroup.procs"),
-				[]byte(strconv.Itoa(pid)), 0700); err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
+	return "", ErrNotFound
 }

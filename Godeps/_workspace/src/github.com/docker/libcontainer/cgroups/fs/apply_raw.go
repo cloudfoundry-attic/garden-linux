@@ -21,16 +21,12 @@ var (
 		"perf_event": &PerfEventGroup{},
 		"freezer":    &FreezerGroup{},
 	}
-	CgroupProcesses = "cgroup.procs"
 )
 
 type subsystem interface {
-	// Returns the stats, as 'stats', corresponding to the cgroup under 'path'.
-	GetStats(path string, stats *cgroups.Stats) error
-	// Removes the cgroup represented by 'data'.
-	Remove(*data) error
-	// Creates and joins the cgroup represented by data.
 	Set(*data) error
+	Remove(*data) error
+	GetStats(string, *cgroups.Stats) error
 }
 
 type data struct {
@@ -76,7 +72,7 @@ func GetStats(c *cgroups.Cgroup) (*cgroups.Stats, error) {
 		path, err := d.path(sysname)
 		if err != nil {
 			// Don't fail if a cgroup hierarchy was not found, just skip this subsystem
-			if cgroups.IsNotFound(err) {
+			if err == cgroups.ErrNotFound {
 				continue
 			}
 
@@ -153,47 +149,15 @@ func (raw *data) parent(subsystem string) (string, error) {
 	return filepath.Join(raw.root, subsystem, initPath), nil
 }
 
-func (raw *data) Paths() (map[string]string, error) {
-	paths := make(map[string]string)
-
-	for sysname := range subsystems {
-		path, err := raw.path(sysname)
-		if err != nil {
-			// Don't fail if a cgroup hierarchy was not found, just skip this subsystem
-			if cgroups.IsNotFound(err) {
-				continue
-			}
-
-			return nil, err
-		}
-
-		paths[sysname] = path
-	}
-
-	return paths, nil
-}
-
 func (raw *data) path(subsystem string) (string, error) {
 	// If the cgroup name/path is absolute do not look relative to the cgroup of the init process.
 	if filepath.IsAbs(raw.cgroup) {
-		path := filepath.Join(raw.root, subsystem, raw.cgroup)
-
-		if _, err := os.Stat(path); err != nil {
-			if os.IsNotExist(err) {
-				return "", cgroups.NewNotFoundError(subsystem)
-			}
-
-			return "", err
-		}
-
-		return path, nil
+		return filepath.Join(raw.root, subsystem, raw.cgroup), nil
 	}
-
 	parent, err := raw.parent(subsystem)
 	if err != nil {
 		return "", err
 	}
-
 	return filepath.Join(parent, raw.cgroup), nil
 }
 
@@ -205,7 +169,7 @@ func (raw *data) join(subsystem string) (string, error) {
 	if err := os.MkdirAll(path, 0755); err != nil && !os.IsExist(err) {
 		return "", err
 	}
-	if err := writeFile(path, CgroupProcesses, strconv.Itoa(raw.pid)); err != nil {
+	if err := writeFile(path, "cgroup.procs", strconv.Itoa(raw.pid)); err != nil {
 		return "", err
 	}
 	return path, nil

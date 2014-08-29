@@ -27,10 +27,9 @@ type CpuacctGroup struct {
 
 func (s *CpuacctGroup) Set(d *data) error {
 	// we just want to join this group even though we don't set anything
-	if _, err := d.join("cpuacct"); err != nil && !cgroups.IsNotFound(err) {
+	if _, err := d.join("cpuacct"); err != nil && err != cgroups.ErrNotFound {
 		return err
 	}
-
 	return nil
 }
 
@@ -55,7 +54,7 @@ func (s *CpuacctGroup) GetStats(path string, stats *cgroups.Stats) error {
 		return err
 	}
 	// sample for 100ms
-	time.Sleep(1000 * time.Millisecond)
+	time.Sleep(100 * time.Millisecond)
 	if kernelModeUsage, userModeUsage, err = getCpuUsage(path); err != nil {
 		return err
 	}
@@ -74,7 +73,7 @@ func (s *CpuacctGroup) GetStats(path string, stats *cgroups.Stats) error {
 		deltaUsage  = lastUsage - startUsage
 	)
 	if deltaSystem > 0.0 {
-		percentage = uint64((float64(deltaProc) / float64(deltaSystem)) * float64(clockTicks*cpuCount))
+		percentage = ((deltaProc / deltaSystem) * clockTicks) * cpuCount
 	}
 	// NOTE: a percentage over 100% is valid for POSIX because that means the
 	// processes is using multiple cores

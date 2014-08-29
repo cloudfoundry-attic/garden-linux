@@ -381,9 +381,6 @@ message Defaults {
 
   // Sub-message.
   optional SubDefaults sub = 18;
-
-  // Redundant but explicit defaults.
-  optional string str_zero = 19 [default=""];
 }
 
 message SubDefaults {
