@@ -91,8 +91,8 @@ int run(const char *p1, const char *p2) {
       abort();
     }
 
-    if (WEXITSTATUS(status) != 0) {
-      fprintf(stderr, "Process for \"%s\" exited with %d\n", path, WEXITSTATUS(status));
+    if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
+      fprintf(stderr, "Process for \"%s\" exited with %d (%d)\n", path, WEXITSTATUS(status), status);
       return -1;
     }
   }

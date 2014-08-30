@@ -727,7 +727,10 @@ int child_run(void *data) {
   }
 
   rv = run(pivoted_lib_path, "hook-child-after-pivot.sh");
-  assert(rv == 0);
+  if(rv != 0) {
+    perror("hook-child-after-pivot");
+    abort();
+  }
 
   child_save_to_shm(w);
 
