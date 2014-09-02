@@ -214,7 +214,7 @@ var _ = Describe("RepositoryFetcher", func() {
 
 		Context("when an image already exists in the graph", func() {
 			BeforeEach(func() {
-				graph.SetExists("layer-2", true)
+				graph.SetExists("layer-2", []byte(`{"id":"layer-2","parent":"parent-2","Config":{"env": ["env2=env2Value"]}}`))
 
 				endpoint1.AppendHandlers(
 					ghttp.CombineHandlers(
@@ -271,8 +271,9 @@ var _ = Describe("RepositoryFetcher", func() {
 					return nil
 				}
 
-				imageID, _, err := fetcher.Fetch(logger, "some-repo", "some-tag")
+				imageID, envVars, err := fetcher.Fetch(logger, "some-repo", "some-tag")
 				Ω(err).ShouldNot(HaveOccurred())
+				Ω(envVars).Should(ContainElement("env2=env2Value"))
 
 				Ω(imageID).Should(Equal("id-1"))
 			})

@@ -29,6 +29,7 @@ type Registry interface {
 
 // apes docker's *graph.Graph
 type Graph interface {
+	Get(name string) (*image.Image, error)
 	Exists(imageID string) bool
 	Register(image *image.Image, imageJSON []byte, layer archive.ArchiveReader) error
 }
@@ -124,11 +125,13 @@ func (fetcher *DockerRepositoryFetcher) fetchLayer(logger lager.Logger, endpoint
 
 	defer fetcher.doneFetching(layerID)
 
-	if fetcher.graph.Exists(layerID) {
-		logger.Debug("skipping", lager.Data{
+	img, err := fetcher.graph.Get(layerID)
+	if err == nil {
+		logger.Info("using-cached", lager.Data{
 			"layer": layerID,
 		})
-
+		// pull env vars from local graph storage since we have the image layer
+		fetcher.collectEnvVars(img)
 		return nil
 	}
 
@@ -137,23 +140,12 @@ func (fetcher *DockerRepositoryFetcher) fetchLayer(logger lager.Logger, endpoint
 		return err
 	}
 
-	img, err := image.NewImgJSON(imgJSON)
+	img, err = image.NewImgJSON(imgJSON)
 	if err != nil {
 		return err
 	}
 
-	if img.Config != nil {
-		//NOTE: We use a map for the env vars because they may appear in multiple layers, given
-		//we are fetching layer from the top down (back in time), the first occurance for the env
-		//name wins
-		for _, env := range img.Config.Env {
-			keyValue := strings.SplitN(env, "=", 2)
-			_, containsKey := fetcher.envvars[keyValue[0]]
-			if len(keyValue) == 2 && !containsKey {
-				fetcher.envvars[keyValue[0]] = keyValue[1]
-			}
-		}
-	}
+	fetcher.collectEnvVars(img)
 
 	layer, err := fetcher.registry.GetRemoteImageLayer(img.ID, endpoint, token, int64(imgSize))
 	if err != nil {
@@ -201,4 +193,19 @@ func (fetcher *DockerRepositoryFetcher) doneFetching(layerID string) {
 	close(fetcher.fetchingLayers[layerID])
 	delete(fetcher.fetchingLayers, layerID)
 	fetcher.fetchingMutex.Unlock()
+}
+
+func (fetcher *DockerRepositoryFetcher) collectEnvVars(img *image.Image) {
+	if img.Config != nil {
+		//NOTE: We use a map for the env vars because they may appear in multiple layers, given
+		//we are fetching layer from the top down (back in time), the first occurance for the env
+		//name wins
+		for _, env := range img.Config.Env {
+			keyValue := strings.SplitN(env, "=", 2)
+			_, containsKey := fetcher.envvars[keyValue[0]]
+			if len(keyValue) == 2 && !containsKey {
+				fetcher.envvars[keyValue[0]] = keyValue[1]
+			}
+		}
+	}
 }
