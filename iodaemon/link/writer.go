@@ -1,6 +1,9 @@
-package main
+package link
 
-import "encoding/gob"
+import (
+	"encoding/gob"
+	"net"
+)
 
 type Input struct {
 	Data       []byte
@@ -13,11 +16,15 @@ type WindowSize struct {
 	Rows    int
 }
 
-type inputWriter struct {
+type Writer struct {
 	enc *gob.Encoder
 }
 
-func (w *inputWriter) Write(d []byte) (int, error) {
+func NewWriter(conn net.Conn) *Writer {
+	return &Writer{enc: gob.NewEncoder(conn)}
+}
+
+func (w *Writer) Write(d []byte) (int, error) {
 	err := w.enc.Encode(Input{Data: d})
 	if err != nil {
 		return 0, err
@@ -26,11 +33,11 @@ func (w *inputWriter) Write(d []byte) (int, error) {
 	return len(d), nil
 }
 
-func (w *inputWriter) Close() error {
+func (w *Writer) Close() error {
 	return w.enc.Encode(Input{EOF: true})
 }
 
-func (w *inputWriter) SetWindowSize(cols, rows int) error {
+func (w *Writer) SetWindowSize(cols, rows int) error {
 	return w.enc.Encode(Input{
 		WindowSize: &WindowSize{
 			Columns: cols,

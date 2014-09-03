@@ -105,17 +105,27 @@ var _ = Describe("Creating a container", func() {
 		})
 
 		It("collects the process's full output, even if it exits quickly after", func() {
-			for i := 0; i < 100; i++ {
+			for i := 0; i < 1000; i++ {
 				stdout := gbytes.NewBuffer()
 
 				process, err := container.Run(warden.ProcessSpec{
-					Path: "echo",
-					Args: []string{"hi stdout"},
-				}, warden.ProcessIO{Stdout: stdout})
+					Path: "sh",
+					Args: []string{"-c", "cat <&0"},
+				}, warden.ProcessIO{
+					Stdin:  bytes.NewBuffer([]byte("hi stdout")),
+					Stderr: os.Stderr,
+					Stdout: stdout,
+				})
+
+				if err != nil {
+					println("ERROR: " + err.Error())
+					select {}
+				}
+
 				Ω(err).ShouldNot(HaveOccurred())
 				Ω(process.Wait()).Should(Equal(0))
 
-				Ω(stdout).Should(gbytes.Say("hi stdout\n"))
+				Ω(stdout).Should(gbytes.Say("hi stdout"))
 			}
 		})
 
@@ -136,10 +146,14 @@ var _ = Describe("Creating a container", func() {
 		})
 
 		It("does not leak open files", func() {
-			procFd := fmt.Sprintf("/proc/%d/fd", wardenRunner.Command.Process.Pid)
+			openFileCount := func() int {
+				procFd := fmt.Sprintf("/proc/%d/fd", wardenRunner.Command.Process.Pid)
+				files, err := ioutil.ReadDir(procFd)
+				Ω(err).ShouldNot(HaveOccurred())
+				return len(files)
+			}
 
-			filesBefore, err := ioutil.ReadDir(procFd)
-			Ω(err).ShouldNot(HaveOccurred())
+			initialOpenFileCount := openFileCount()
 
 			for i := 0; i < 50; i++ {
 				process, err := container.Run(warden.ProcessSpec{
@@ -149,12 +163,9 @@ var _ = Describe("Creating a container", func() {
 				Ω(process.Wait()).Should(Equal(0))
 			}
 
-			filesAfter, err := ioutil.ReadDir(procFd)
-			Ω(err).ShouldNot(HaveOccurred())
-
 			// there's some noise in 'open files' check, but it shouldn't grow
 			// linearly with the number of processes spawned
-			Ω(len(filesAfter)).Should(BeNumerically("~", len(filesBefore), 5))
+			Ω(openFileCount()).Should(BeNumerically("<", initialOpenFileCount+10))
 		})
 
 		Context("with a memory limit", func() {

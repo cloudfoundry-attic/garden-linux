@@ -9,7 +9,7 @@ import (
 )
 
 type FakeProcessTracker struct {
-	RunStub        func(*exec.Cmd, warden.ProcessIO, *warden.TTYSpec) (process_tracker.LinuxProcess, error)
+	RunStub        func(*exec.Cmd, warden.ProcessIO, *warden.TTYSpec) (warden.Process, error)
 	runMutex       sync.RWMutex
 	runArgsForCall []struct {
 		arg1 *exec.Cmd
@@ -17,37 +17,33 @@ type FakeProcessTracker struct {
 		arg3 *warden.TTYSpec
 	}
 	runReturns struct {
-		result1 process_tracker.LinuxProcess
+		result1 warden.Process
 		result2 error
 	}
-	AttachStub        func(uint32, warden.ProcessIO) (process_tracker.LinuxProcess, error)
+	AttachStub        func(uint32, warden.ProcessIO) (warden.Process, error)
 	attachMutex       sync.RWMutex
 	attachArgsForCall []struct {
 		arg1 uint32
 		arg2 warden.ProcessIO
 	}
 	attachReturns struct {
-		result1 process_tracker.LinuxProcess
+		result1 warden.Process
 		result2 error
 	}
-	RestoreStub        func(processID uint32, tty bool)
+	RestoreStub        func(processID uint32)
 	restoreMutex       sync.RWMutex
 	restoreArgsForCall []struct {
 		processID uint32
-		tty       bool
 	}
-	ActiveProcessesStub        func() []process_tracker.LinuxProcess
+	ActiveProcessesStub        func() []warden.Process
 	activeProcessesMutex       sync.RWMutex
 	activeProcessesArgsForCall []struct{}
 	activeProcessesReturns struct {
-		result1 []process_tracker.LinuxProcess
+		result1 []warden.Process
 	}
-	UnlinkAllStub        func()
-	unlinkAllMutex       sync.RWMutex
-	unlinkAllArgsForCall []struct{}
 }
 
-func (fake *FakeProcessTracker) Run(arg1 *exec.Cmd, arg2 warden.ProcessIO, arg3 *warden.TTYSpec) (process_tracker.LinuxProcess, error) {
+func (fake *FakeProcessTracker) Run(arg1 *exec.Cmd, arg2 warden.ProcessIO, arg3 *warden.TTYSpec) (warden.Process, error) {
 	fake.runMutex.Lock()
 	defer fake.runMutex.Unlock()
 	fake.runArgsForCall = append(fake.runArgsForCall, struct {
@@ -74,15 +70,15 @@ func (fake *FakeProcessTracker) RunArgsForCall(i int) (*exec.Cmd, warden.Process
 	return fake.runArgsForCall[i].arg1, fake.runArgsForCall[i].arg2, fake.runArgsForCall[i].arg3
 }
 
-func (fake *FakeProcessTracker) RunReturns(result1 process_tracker.LinuxProcess, result2 error) {
+func (fake *FakeProcessTracker) RunReturns(result1 warden.Process, result2 error) {
 	fake.RunStub = nil
 	fake.runReturns = struct {
-		result1 process_tracker.LinuxProcess
+		result1 warden.Process
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeProcessTracker) Attach(arg1 uint32, arg2 warden.ProcessIO) (process_tracker.LinuxProcess, error) {
+func (fake *FakeProcessTracker) Attach(arg1 uint32, arg2 warden.ProcessIO) (warden.Process, error) {
 	fake.attachMutex.Lock()
 	defer fake.attachMutex.Unlock()
 	fake.attachArgsForCall = append(fake.attachArgsForCall, struct {
@@ -108,23 +104,22 @@ func (fake *FakeProcessTracker) AttachArgsForCall(i int) (uint32, warden.Process
 	return fake.attachArgsForCall[i].arg1, fake.attachArgsForCall[i].arg2
 }
 
-func (fake *FakeProcessTracker) AttachReturns(result1 process_tracker.LinuxProcess, result2 error) {
+func (fake *FakeProcessTracker) AttachReturns(result1 warden.Process, result2 error) {
 	fake.AttachStub = nil
 	fake.attachReturns = struct {
-		result1 process_tracker.LinuxProcess
+		result1 warden.Process
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeProcessTracker) Restore(processID uint32, tty bool) {
+func (fake *FakeProcessTracker) Restore(processID uint32) {
 	fake.restoreMutex.Lock()
 	defer fake.restoreMutex.Unlock()
 	fake.restoreArgsForCall = append(fake.restoreArgsForCall, struct {
 		processID uint32
-		tty       bool
-	}{processID, tty})
+	}{processID})
 	if fake.RestoreStub != nil {
-		fake.RestoreStub(processID, tty)
+		fake.RestoreStub(processID)
 	}
 }
 
@@ -134,13 +129,13 @@ func (fake *FakeProcessTracker) RestoreCallCount() int {
 	return len(fake.restoreArgsForCall)
 }
 
-func (fake *FakeProcessTracker) RestoreArgsForCall(i int) (uint32, bool) {
+func (fake *FakeProcessTracker) RestoreArgsForCall(i int) uint32 {
 	fake.restoreMutex.RLock()
 	defer fake.restoreMutex.RUnlock()
-	return fake.restoreArgsForCall[i].processID, fake.restoreArgsForCall[i].tty
+	return fake.restoreArgsForCall[i].processID
 }
 
-func (fake *FakeProcessTracker) ActiveProcesses() []process_tracker.LinuxProcess {
+func (fake *FakeProcessTracker) ActiveProcesses() []warden.Process {
 	fake.activeProcessesMutex.Lock()
 	defer fake.activeProcessesMutex.Unlock()
 	fake.activeProcessesArgsForCall = append(fake.activeProcessesArgsForCall, struct{}{})
@@ -157,26 +152,11 @@ func (fake *FakeProcessTracker) ActiveProcessesCallCount() int {
 	return len(fake.activeProcessesArgsForCall)
 }
 
-func (fake *FakeProcessTracker) ActiveProcessesReturns(result1 []process_tracker.LinuxProcess) {
+func (fake *FakeProcessTracker) ActiveProcessesReturns(result1 []warden.Process) {
 	fake.ActiveProcessesStub = nil
 	fake.activeProcessesReturns = struct {
-		result1 []process_tracker.LinuxProcess
+		result1 []warden.Process
 	}{result1}
-}
-
-func (fake *FakeProcessTracker) UnlinkAll() {
-	fake.unlinkAllMutex.Lock()
-	defer fake.unlinkAllMutex.Unlock()
-	fake.unlinkAllArgsForCall = append(fake.unlinkAllArgsForCall, struct{}{})
-	if fake.UnlinkAllStub != nil {
-		fake.UnlinkAllStub()
-	}
-}
-
-func (fake *FakeProcessTracker) UnlinkAllCallCount() int {
-	fake.unlinkAllMutex.RLock()
-	defer fake.unlinkAllMutex.RUnlock()
-	return len(fake.unlinkAllArgsForCall)
 }
 
 var _ process_tracker.ProcessTracker = new(FakeProcessTracker)

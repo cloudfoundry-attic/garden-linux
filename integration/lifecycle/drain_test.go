@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"sync"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -178,55 +177,34 @@ var _ = Describe("Through a restart", func() {
 			Ω(process1.ID()).ShouldNot(Equal(process2.ID()))
 		})
 
-		Context("that prints monotonically increasing output", func() {
-			It("does not duplicate its output on reconnect", func() {
-				receivedNumbers := make(chan int, 16)
+		It("does not duplicate its output on reconnect", func() {
+			stdinR, stdinW := io.Pipe()
+			stdout := gbytes.NewBuffer()
 
-				process, err := container.Run(warden.ProcessSpec{
-					Path: "sh",
-					Args: []string{"-c", "for i in $(seq 10); do echo $i; sleep 0.5; done; echo -1; while true; do sleep 1; done"},
-				}, warden.ProcessIO{})
-				Ω(err).ShouldNot(HaveOccurred())
-
-				stdoutR, stdoutW := io.Pipe()
-
-				_, err = container.Attach(process.ID(), warden.ProcessIO{
-					Stdout: stdoutW,
-				})
-				Ω(err).ShouldNot(HaveOccurred())
-
-				firstStream := &sync.WaitGroup{}
-				firstStream.Add(1)
-
-				go func() {
-					streamNumbersTo(receivedNumbers, stdoutR)
-					firstStream.Done()
-				}()
-
-				// allow a bit of time to collect some output
-				time.Sleep(time.Second)
-
-				restartWarden()
-
-				// wait for first stream to end
-				stdoutW.Close()
-				firstStream.Wait()
-
-				stdoutR, stdoutW = io.Pipe()
-
-				_, err = container.Attach(process.ID(), warden.ProcessIO{
-					Stdout: stdoutW,
-				})
-				Ω(err).ShouldNot(HaveOccurred())
-
-				go streamNumbersTo(receivedNumbers, stdoutR)
-
-				lastNum := 0
-				for num := range receivedNumbers {
-					Ω(num).Should(BeNumerically(">", lastNum))
-					lastNum = num
-				}
+			process, err := container.Run(warden.ProcessSpec{
+				Path: "cat",
+			}, warden.ProcessIO{
+				Stdin:  stdinR,
+				Stdout: stdout,
 			})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			stdinW.Write([]byte("first-line\n"))
+			Eventually(stdout).Should(gbytes.Say("first-line\n"))
+
+			restartWarden()
+
+			stdinR, stdinW = io.Pipe()
+			stdout = gbytes.NewBuffer()
+
+			_, err = container.Attach(process.ID(), warden.ProcessIO{
+				Stdin:  stdinR,
+				Stdout: stdout,
+			})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			stdinW.Write([]byte("second-line\n"))
+			Eventually(stdout.Contents).Should(Equal([]byte("second-line\n")))
 		})
 	})
 
@@ -442,23 +420,4 @@ func getContainerHandles() []string {
 	}
 
 	return handles
-}
-
-func streamNumbersTo(destination chan<- int, source io.Reader) {
-	for {
-		var num int
-
-		_, err := fmt.Fscanf(source, "%d\n", &num)
-		if err == io.EOF {
-			break
-		}
-
-		// got end of stream
-		if num == -1 {
-			close(destination)
-			return
-		}
-
-		destination <- num
-	}
 }
