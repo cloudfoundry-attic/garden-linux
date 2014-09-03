@@ -695,6 +695,12 @@ int child_run(void *data) {
   pivoted_lib_path_len = strlen(pivoted_lib_path);
   realpath(w->lib_path, pivoted_lib_path + pivoted_lib_path_len);
 
+  rv = mount(w->root_path, w->root_path, NULL, MS_BIND|MS_REC, NULL);
+  if(rv == -1) {
+    perror("mount");
+    abort();
+  }
+
   rv = chdir(w->root_path);
   if (rv == -1) {
     perror("chdir");
