@@ -3,28 +3,23 @@ package process_tracker_test
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
-	"path"
-	"syscall"
-	"time"
+	"path/filepath"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
+	"github.com/onsi/gomega/gexec"
 
 	"github.com/cloudfoundry-incubator/garden/warden"
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/process_tracker"
-	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
-	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
+	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
 )
 
-var fakeRunner *fake_command_runner.FakeCommandRunner
 var processTracker process_tracker.ProcessTracker
-
 var tmpdir string
 
 var _ = BeforeEach(func() {
@@ -32,144 +27,56 @@ var _ = BeforeEach(func() {
 
 	tmpdir, err = ioutil.TempDir("", "process-tracker-tests")
 	Ω(err).ShouldNot(HaveOccurred())
+
+	iodaemon, err := gexec.Build("github.com/cloudfoundry-incubator/warden-linux/iodaemon")
+	Ω(err).ShouldNot(HaveOccurred())
+
+	err = os.MkdirAll(filepath.Join(tmpdir, "bin"), 0755)
+	Ω(err).ShouldNot(HaveOccurred())
+
+	err = os.Rename(iodaemon, filepath.Join(tmpdir, "bin", "iodaemon"))
+	Ω(err).ShouldNot(HaveOccurred())
 })
 
 var _ = AfterEach(func() {
 	os.RemoveAll(tmpdir)
 })
 
-func binPath(bin string) string {
-	return path.Join(tmpdir+"/depot/some-id", "bin", bin)
-}
-
-func setupSuccessfulSpawn() {
-	fakeRunner.WhenRunning(
-		fake_command_runner.CommandSpec{
-			Path: "bash",
-		},
-		func(cmd *exec.Cmd) error {
-			cmd.Stdout.Write([]byte("ready\n"))
-			cmd.Stdout.Write([]byte("active\n"))
-			return nil
-		},
-	)
-}
-
 var _ = Describe("Running processes", func() {
 	BeforeEach(func() {
-		fakeRunner = fake_command_runner.New()
-		processTracker = process_tracker.New(tmpdir+"/depot/some-id", fakeRunner)
+		processTracker = process_tracker.New(tmpdir, linux_command_runner.New())
 	})
 
-	It("runs the command asynchronously via iodaemon spawn", func() {
-		cmd := exec.Command("/bin/bash", "-l")
-
-		setupSuccessfulSpawn()
+	It("runs the process and returns its exit code", func() {
+		cmd := exec.Command("bash", "-c", "exit 42")
 
 		process, err := processTracker.Run(cmd, warden.ProcessIO{}, nil)
 		Expect(err).NotTo(HaveOccurred())
 
-		Eventually(fakeRunner).Should(HaveBackgrounded(
-			fake_command_runner.CommandSpec{
-				Path: "bash",
-				Args: []string{
-					"-c",
-					binPath("iodaemon") + ` "$@" &`,
-					binPath("iodaemon"),
-					"spawn",
-					fmt.Sprintf(tmpdir+"/depot/some-id/processes/%d.sock", process.ID()),
-					"/bin/bash",
-					"-l",
-				},
-			},
-		))
+		Ω(process.Wait()).Should(Equal(42))
 	})
 
-	It("initiates a link to the process after spawn is ready", func(done Done) {
-		linkSpec := fake_command_runner.CommandSpec{
-			Path: binPath("iodaemon"),
-			Args: []string{
-				"-tty=false",
-				"link",
-				tmpdir + "/depot/some-id/processes/1.sock",
-			},
-		}
-		wait := make(chan struct{})
-		fakeRunner.WhenRunning(
-			fake_command_runner.CommandSpec{
-				Path: "bash",
-			}, func(cmd *exec.Cmd) error {
-				go func() {
-					defer GinkgoRecover()
-
-					time.Sleep(100 * time.Millisecond)
-
-					Expect(fakeRunner).ToNot(HaveStartedExecuting(
-						linkSpec,
-					), "Executed iodaemon too early!")
-
-					Ω(cmd.Stdout).ShouldNot(BeNil())
-
-					fakeRunner.WhenWaitingFor(linkSpec, func(*exec.Cmd) error {
-						close(done)
-						return nil
-					})
-
-					cmd.Stdout.Write([]byte("xxx\n"))
-
-					Eventually(fakeRunner).Should(HaveStartedExecuting(linkSpec))
-					close(wait)
-				}()
-
-				return nil
-			},
-		)
-
-		processTracker.Run(exec.Command("xxx"), warden.ProcessIO{}, nil)
-		Eventually(wait).Should(Receive())
-	}, 10.0)
-
 	It("returns unique process IDs", func() {
-		setupSuccessfulSpawn()
-
-		process1, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{}, nil)
+		process1, err := processTracker.Run(exec.Command("/bin/echo"), warden.ProcessIO{}, nil)
 		Expect(err).NotTo(HaveOccurred())
 
-		process2, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{}, nil)
+		process2, err := processTracker.Run(exec.Command("/bin/date"), warden.ProcessIO{}, nil)
 		Expect(err).NotTo(HaveOccurred())
 
 		Ω(process1.ID()).ShouldNot(Equal(process2.ID()))
 	})
 
-	It("streams output from the process", func() {
-		setupSuccessfulSpawn()
-
-		fakeRunner.WhenRunning(
-			fake_command_runner.CommandSpec{
-				Path: binPath("iodaemon"),
-				Args: []string{
-					"-tty=false",
-					"link",
-					tmpdir + "/depot/some-id/processes/1.sock",
-				},
-			},
-			func(cmd *exec.Cmd) error {
-				cmd.Stdout.Write([]byte("hi out\n"))
-				cmd.Stderr.Write([]byte("hi err\n"))
-
-				dummyCmd := exec.Command("/bin/bash", "-c", "exit 42")
-				dummyCmd.Run()
-
-				cmd.ProcessState = dummyCmd.ProcessState
-
-				return nil
-			},
+	It("streams the process's stdout and stderr", func() {
+		cmd := exec.Command(
+			"/bin/bash",
+			"-c",
+			"echo 'hi out' && echo 'hi err' >&2",
 		)
 
 		stdout := gbytes.NewBuffer()
 		stderr := gbytes.NewBuffer()
 
-		_, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{
+		_, err := processTracker.Run(cmd, warden.ProcessIO{
 			Stdout: stdout,
 			Stderr: stderr,
 		}, nil)
@@ -180,234 +87,127 @@ var _ = Describe("Running processes", func() {
 	})
 
 	It("streams input to the process", func() {
-		setupSuccessfulSpawn()
-
-		fakeRunner.WhenRunning(
-			fake_command_runner.CommandSpec{
-				Path: binPath("iodaemon"),
-				Args: []string{
-					"-tty=false",
-					"link",
-					tmpdir + "/depot/some-id/processes/1.sock",
-				},
-			},
-			func(cmd *exec.Cmd) error {
-				stdin, err := ioutil.ReadAll(cmd.Stdin)
-				Ω(err).ShouldNot(HaveOccurred())
-
-				fmt.Fprintf(cmd.Stdout, "roundtripped %s\n", stdin)
-
-				dummyCmd := exec.Command("/bin/bash", "-c", "exit 42")
-				dummyCmd.Run()
-
-				cmd.ProcessState = dummyCmd.ProcessState
-
-				return nil
-			},
-		)
-
 		stdout := gbytes.NewBuffer()
 
-		_, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{
-			Stdin:  bytes.NewBufferString("hi in"),
+		_, err := processTracker.Run(exec.Command("cat"), warden.ProcessIO{
+			Stdin:  bytes.NewBufferString("stdin-line1\nstdin-line2\n"),
 			Stdout: stdout,
 		}, nil)
 		Expect(err).NotTo(HaveOccurred())
 
-		Eventually(stdout).Should(gbytes.Say("roundtripped hi in\n"))
+		Eventually(stdout).Should(gbytes.Say("stdin-line1\nstdin-line2\n"))
 	})
-
-	dupFile := func(f *os.File) *os.File {
-		dupFd, err := syscall.Dup(int(f.Fd()))
-		Ω(err).ShouldNot(HaveOccurred())
-		return os.NewFile(uintptr(dupFd), "the-file")
-	}
 
 	Context("when there is an error reading the stdin stream", func() {
 		It("does not close the process's stdin", func() {
-			setupSuccessfulSpawn()
-
-			stdinClosed := make(chan struct{})
-
-			expectedCmd := fake_command_runner.CommandSpec{
-				Path: binPath("iodaemon"),
-				Args: []string{
-					"-tty=false",
-					"link",
-					tmpdir + "/depot/some-id/processes/1.sock",
-				},
-			}
-
-			fakeRunner.WhenRunning(
-				expectedCmd,
-				func(cmd *exec.Cmd) error {
-					// Since this code is not actually spawned as a subprocess,
-					// we need to manually dup stdin
-					stdin := dupFile(cmd.Stdin.(*os.File))
-
-					go func() {
-						ioutil.ReadAll(stdin)
-						close(stdinClosed)
-					}()
-
-					return nil
-				},
-			)
-
-			fakeRunner.WhenWaitingFor(expectedCmd, func(cmd *exec.Cmd) error {
-				select {}
-				return nil
-			})
-
 			pipeR, pipeW := io.Pipe()
+			stdout := gbytes.NewBuffer()
 
-			_, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{
-				Stdin: pipeR,
+			process, err := processTracker.Run(exec.Command("cat"), warden.ProcessIO{
+				Stdin:  pipeR,
+				Stdout: stdout,
 			}, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			pipeW.Write([]byte("Hello stdin!"))
-			pipeW.CloseWithError(errors.New("Failed"))
+			Eventually(stdout).Should(gbytes.Say("Hello stdin!"))
 
-			Consistently(stdinClosed).ShouldNot(BeClosed())
+			pipeW.CloseWithError(errors.New("Failed"))
+			Consistently(stdout, 0.1).ShouldNot(gbytes.Say("."))
+
+			pipeR, pipeW = io.Pipe()
+			processTracker.Attach(process.ID(), warden.ProcessIO{
+				Stdin: pipeR,
+			})
+
+			pipeW.Write([]byte("Hello again, stdin!"))
+			Eventually(stdout).Should(gbytes.Say("Hello again, stdin!"))
+
+			pipeW.Close()
+			Ω(process.Wait()).Should(Equal(0))
 		})
 	})
 
 	Context("with a tty", func() {
-		It("spawns and links with -tty", func() {
-			cmd := exec.Command("/bin/bash", "-l")
+		It("forwards TTY signals to the process", func() {
+			cmd := exec.Command("/bin/bash", "-c", `
+				stty size 
+				trap "stty size; exit 123" SIGWINCH
+				read
+			`)
 
-			setupSuccessfulSpawn()
+			stdout := gbytes.NewBuffer()
 
-			process, err := processTracker.Run(cmd, warden.ProcessIO{}, &warden.TTYSpec{})
+			process, err := processTracker.Run(cmd, warden.ProcessIO{
+				Stdout: stdout,
+			}, &warden.TTYSpec{
+				WindowSize: &warden.WindowSize{
+					Columns: 95,
+					Rows:    13,
+				},
+			})
 			Expect(err).NotTo(HaveOccurred())
 
-			Eventually(fakeRunner).Should(HaveBackgrounded(
-				fake_command_runner.CommandSpec{
-					Path: "bash",
-					Args: []string{
-						"-c",
-						binPath("iodaemon") + ` "$@" &`,
-						binPath("iodaemon"),
-						"-tty",
-						"spawn",
-						fmt.Sprintf(tmpdir+"/depot/some-id/processes/%d.sock", process.ID()),
-						"/bin/bash",
-						"-l",
-					},
-				},
-			))
+			Eventually(stdout).Should(gbytes.Say("13 95"))
 
-			Eventually(fakeRunner).Should(HaveStartedExecuting(
-				fake_command_runner.CommandSpec{
-					Path: binPath("iodaemon"),
-					Args: []string{
-						"-tty=true",
-						"link",
-						fmt.Sprintf(tmpdir+"/depot/some-id/processes/%d.sock", process.ID()),
-					},
+			process.SetTTY(warden.TTYSpec{
+				WindowSize: &warden.WindowSize{
+					Columns: 101,
+					Rows:    27,
 				},
-			))
+			})
+
+			Eventually(stdout).Should(gbytes.Say("27 101"))
+			Ω(process.Wait()).Should(Equal(123))
 		})
 
-		Describe("and a window size", func() {
-			It("spawns with -windowColumns and -windowRows", func() {
-				cmd := exec.Command("/bin/bash", "-l")
+		Describe("when a window size is not specified", func() {
+			It("picks a default window size", func() {
+				cmd := exec.Command("/bin/bash", "-c", `
+					stty size 
+				`)
 
-				setupSuccessfulSpawn()
+				stdout := gbytes.NewBuffer()
 
-				process, err := processTracker.Run(cmd, warden.ProcessIO{}, &warden.TTYSpec{
-					WindowSize: &warden.WindowSize{
-						Columns: 80,
-						Rows:    24,
-					},
-				})
+				_, err := processTracker.Run(cmd, warden.ProcessIO{
+					Stdout: stdout,
+				}, &warden.TTYSpec{})
 				Expect(err).NotTo(HaveOccurred())
 
-				Eventually(fakeRunner).Should(HaveBackgrounded(
-					fake_command_runner.CommandSpec{
-						Path: "bash",
-						Args: []string{
-							"-c",
-							binPath("iodaemon") + ` "$@" &`,
-							binPath("iodaemon"),
-							"-tty",
-							"-windowColumns=80",
-							"-windowRows=24",
-							"spawn",
-							fmt.Sprintf(tmpdir+"/depot/some-id/processes/%d.sock", process.ID()),
-							"/bin/bash",
-							"-l",
-						},
-					},
-				))
-
-				Eventually(fakeRunner).Should(HaveStartedExecuting(
-					fake_command_runner.CommandSpec{
-						Path: binPath("iodaemon"),
-						Args: []string{
-							"-tty=true",
-							"link",
-							fmt.Sprintf(tmpdir+"/depot/some-id/processes/%d.sock", process.ID()),
-						},
-					},
-				))
+				Eventually(stdout).Should(gbytes.Say("24 80"))
 			})
 		})
 	})
 
 	Context("when spawning fails", func() {
-		disaster := errors.New("oh no!")
-
-		BeforeEach(func() {
-			fakeRunner.WhenRunning(
-				fake_command_runner.CommandSpec{
-					Path: "bash",
-				}, func(*exec.Cmd) error {
-					return disaster
-				},
-			)
-		})
-
 		It("returns the error", func() {
-			_, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{}, nil)
-			Ω(err).Should(Equal(disaster))
+			_, err := processTracker.Run(exec.Command("/bin/does-not-exist"), warden.ProcessIO{}, nil)
+			Ω(err).Should(HaveOccurred())
 		})
 	})
 })
 
 var _ = Describe("Restoring processes", func() {
 	BeforeEach(func() {
-		fakeRunner = fake_command_runner.New()
-		processTracker = process_tracker.New(tmpdir+"/depot/some-id", fakeRunner)
+		processTracker = process_tracker.New(tmpdir, linux_command_runner.New())
 	})
 
 	It("makes the next process ID be higher than the highest restored ID", func() {
-		setupSuccessfulSpawn()
+		processTracker.Restore(0)
 
-		processTracker.Restore(0, false)
-
-		cmd := exec.Command("/bin/bash")
-
-		cmd.Stdin = bytes.NewBufferString("echo hi")
-
-		process, err := processTracker.Run(cmd, warden.ProcessIO{}, nil)
+		process, err := processTracker.Run(exec.Command("date"), warden.ProcessIO{}, nil)
 		Ω(err).ShouldNot(HaveOccurred())
 		Ω(process.ID()).Should(Equal(uint32(1)))
 
-		processTracker.Restore(5, false)
+		processTracker.Restore(5)
 
-		cmd = exec.Command("/bin/bash")
-
-		cmd.Stdin = bytes.NewBufferString("echo hi")
-
-		process, err = processTracker.Run(cmd, warden.ProcessIO{}, nil)
+		process, err = processTracker.Run(exec.Command("date"), warden.ProcessIO{}, nil)
 		Ω(err).ShouldNot(HaveOccurred())
 		Ω(process.ID()).Should(Equal(uint32(6)))
 	})
 
 	It("tracks the restored process", func() {
-		processTracker.Restore(2, false)
+		processTracker.Restore(2)
 
 		activeProcesses := processTracker.ActiveProcesses()
 		Ω(activeProcesses).Should(HaveLen(1))
@@ -417,216 +217,63 @@ var _ = Describe("Restoring processes", func() {
 
 var _ = Describe("Attaching to running processes", func() {
 	BeforeEach(func() {
-		fakeRunner = fake_command_runner.New()
-		processTracker = process_tracker.New(tmpdir+"/depot/some-id", fakeRunner)
-
-		fakeRunner.WhenRunning(
-			fake_command_runner.CommandSpec{
-				Path: binPath("iodaemon"),
-				Args: []string{
-					"-tty=false",
-					"link",
-					tmpdir + "/depot/some-id/processes/1.sock",
-				},
-			},
-			func(cmd *exec.Cmd) error {
-				stdin, err := ioutil.ReadAll(cmd.Stdin)
-				Ω(err).ShouldNot(HaveOccurred())
-
-				fmt.Fprintf(cmd.Stdout, "roundtripped %s\n", stdin)
-
-				cmd.Stdout.Write([]byte("hi out\n"))
-				cmd.Stderr.Write([]byte("hi err\n"))
-
-				dummyCmd := exec.Command("/bin/bash", "-c", "exit 42")
-				dummyCmd.Run()
-
-				cmd.ProcessState = dummyCmd.ProcessState
-
-				return nil
-			},
-		)
+		processTracker = process_tracker.New(tmpdir, linux_command_runner.New())
 	})
 
 	It("streams stdout, stdin, and stderr", func() {
-		setupSuccessfulSpawn()
+		cmd := exec.Command("bash", "-c", `
+			stuff=$(cat)
+			echo "hi stdout" $stuff
+			echo "hi stderr" $stuff >&2
+		`)
+
+		process, err := processTracker.Run(cmd, warden.ProcessIO{}, nil)
+		Expect(err).NotTo(HaveOccurred())
 
 		stdout := gbytes.NewBuffer()
 		stderr := gbytes.NewBuffer()
 
-		process, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{}, nil)
-		Expect(err).NotTo(HaveOccurred())
-
 		process, err = processTracker.Attach(process.ID(), warden.ProcessIO{
-			Stdin:  bytes.NewBufferString("hi in"),
+			Stdin:  bytes.NewBufferString("this-is-stdin"),
 			Stdout: stdout,
 			Stderr: stderr,
 		})
 		Expect(err).NotTo(HaveOccurred())
 
-		Eventually(stdout).Should(gbytes.Say("roundtripped hi in\n"))
-		Eventually(stdout).Should(gbytes.Say("hi out\n"))
-		Eventually(stderr).Should(gbytes.Say("hi err\n"))
-	})
-
-	Context("when the process is not yet linked to", func() {
-		It("runs iodaemon link", func() {
-			setupSuccessfulSpawn()
-
-			processTracker.Restore(1, false)
-
-			Ω(fakeRunner).ShouldNot(HaveStartedExecuting(
-				fake_command_runner.CommandSpec{
-					Path: binPath("iodaemon"),
-					Args: []string{
-						"-tty=false",
-						"link",
-						tmpdir + "/depot/some-id/processes/1.sock",
-					},
-				},
-			))
-
-			_, err := processTracker.Attach(1, warden.ProcessIO{
-				Stdin: bytes.NewBufferString("hi in"),
-			})
-			Ω(err).ShouldNot(HaveOccurred())
-
-			Eventually(fakeRunner).Should(HaveStartedExecuting(
-				fake_command_runner.CommandSpec{
-					Path: binPath("iodaemon"),
-					Args: []string{
-						"-tty=false",
-						"link",
-						tmpdir + "/depot/some-id/processes/1.sock",
-					},
-				},
-			))
-		})
-	})
-
-	Context("when the process completes", func() {
-		It("yields the exit status and closes the channel", func() {
-			setupSuccessfulSpawn()
-
-			process, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{
-				Stdin: bytes.NewBufferString("hi in"),
-			}, nil)
-			Expect(err).NotTo(HaveOccurred())
-
-			Ω(process.Wait()).Should(Equal(42))
-		})
-	})
-})
-
-var _ = Describe("Unlinking active processes", func() {
-	BeforeEach(func() {
-		fakeRunner = fake_command_runner.New()
-		processTracker = process_tracker.New(tmpdir+"/depot/some-id", fakeRunner)
-	})
-
-	It("sends SIGKILL to in-flight iodaemon links", func() {
-		setupSuccessfulSpawn()
-
-		linked := make(chan bool, 2)
-
-		fakeRunner.WhenWaitingFor(
-			fake_command_runner.CommandSpec{
-				Path: binPath("iodaemon"),
-			},
-			func(cmd *exec.Cmd) error {
-				linked <- true
-				select {}
-				return nil
-			},
-		)
-
-		_, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{}, nil)
-		Ω(err).ShouldNot(HaveOccurred())
-
-		_, err = processTracker.Run(exec.Command("xxx"), warden.ProcessIO{}, nil)
-		Ω(err).ShouldNot(HaveOccurred())
-
-		Eventually(linked).Should(Receive())
-		Eventually(linked).Should(Receive())
-
-		processTracker.UnlinkAll()
-
-		Ω(fakeRunner).Should(HaveSignalled(
-			fake_command_runner.CommandSpec{
-				Path: tmpdir + "/depot/some-id/bin/iodaemon",
-				Args: []string{
-					"-tty=false",
-					"link",
-					tmpdir + "/depot/some-id/processes/1.sock",
-				},
-			},
-			os.Kill,
-		))
-
-		Ω(fakeRunner).Should(HaveSignalled(
-			fake_command_runner.CommandSpec{
-				Path: tmpdir + "/depot/some-id/bin/iodaemon",
-				Args: []string{
-					"-tty=false",
-					"link",
-					tmpdir + "/depot/some-id/processes/2.sock",
-				},
-			},
-			os.Kill,
-		))
+		Eventually(stdout).Should(gbytes.Say("hi stdout this-is-stdin"))
+		Eventually(stderr).Should(gbytes.Say("hi stderr this-is-stdin"))
 	})
 })
 
 var _ = Describe("Listing active process IDs", func() {
 	BeforeEach(func() {
-		fakeRunner = fake_command_runner.New()
-		processTracker = process_tracker.New(tmpdir+"/depot/some-id", fakeRunner)
+		processTracker = process_tracker.New(tmpdir, linux_command_runner.New())
 	})
 
 	It("includes running process IDs", func() {
-		setupSuccessfulSpawn()
+		stdin1, stdinWriter1 := io.Pipe()
+		stdin2, stdinWriter2 := io.Pipe()
 
-		running := make(chan []process_tracker.LinuxProcess, 2)
+		Ω(processTracker.ActiveProcesses()).Should(BeEmpty())
 
-		fakeRunner.WhenRunning(
-			fake_command_runner.CommandSpec{
-				Path: binPath("iodaemon"),
-				Args: []string{
-					"-tty=false",
-					"link",
-					tmpdir + "/depot/some-id/processes/1.sock",
-				},
-			},
-			func(cmd *exec.Cmd) error {
-				running <- processTracker.ActiveProcesses()
-				return nil
-			},
-		)
-
-		fakeRunner.WhenRunning(
-			fake_command_runner.CommandSpec{
-				Path: binPath("iodaemon"),
-				Args: []string{
-					"-tty=false",
-					"link",
-					tmpdir + "/depot/some-id/processes/2.sock",
-				},
-			},
-			func(cmd *exec.Cmd) error {
-				running <- processTracker.ActiveProcesses()
-				return nil
-			},
-		)
-
-		process1, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{}, nil)
+		process1, err := processTracker.Run(exec.Command("cat"), warden.ProcessIO{
+			Stdin: stdin1,
+		}, nil)
 		Ω(err).ShouldNot(HaveOccurred())
 
-		process2, err := processTracker.Run(exec.Command("xxx"), warden.ProcessIO{}, nil)
+		Eventually(processTracker.ActiveProcesses).Should(ConsistOf(process1))
+
+		process2, err := processTracker.Run(exec.Command("cat"), warden.ProcessIO{
+			Stdin: stdin2,
+		}, nil)
 		Ω(err).ShouldNot(HaveOccurred())
 
-		runningIDs := append(<-running, <-running...)
+		Eventually(processTracker.ActiveProcesses).Should(ConsistOf(process1, process2))
 
-		Ω(runningIDs).Should(ContainElement(process1))
-		Ω(runningIDs).Should(ContainElement(process2))
+		stdinWriter1.Close()
+		Eventually(processTracker.ActiveProcesses).Should(ConsistOf(process2))
+
+		stdinWriter2.Close()
+		Eventually(processTracker.ActiveProcesses).Should(BeEmpty())
 	})
 })

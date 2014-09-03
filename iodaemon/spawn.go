@@ -7,17 +7,37 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"syscall"
 	"time"
 
+	linkpkg "github.com/cloudfoundry-incubator/warden-linux/iodaemon/link"
 	"github.com/cloudfoundry-incubator/warden-linux/ptyutil"
 	"github.com/kr/pty"
 )
 
-func spawn(socketPath string, argv []string, timeout time.Duration, withTty bool, windowColumns int, windowRows int) {
+func spawn(socketPath string, argv []string, timeout time.Duration, withTty bool, windowColumns int, windowRows int, debug bool) {
 	err := os.MkdirAll(filepath.Dir(socketPath), 0755)
 	if err != nil {
 		fatal(err)
+	}
+
+	if debug {
+		ownPid := os.Getpid()
+
+		traceOut, err := os.Create(socketPath + ".trace")
+		if err != nil {
+			fatal(err)
+		}
+
+		strace := exec.Command("strace", "-f", "-p", strconv.Itoa(ownPid))
+		strace.Stdout = traceOut
+		strace.Stderr = traceOut
+
+		err = strace.Start()
+		if err != nil {
+			fatal(err)
+		}
 	}
 
 	listener, err := net.Listen("unix", socketPath)
@@ -124,8 +144,6 @@ func spawn(socketPath string, argv []string, timeout time.Duration, withTty bool
 
 				if cmd.ProcessState != nil {
 					fmt.Fprintf(statusW, "%d\n", cmd.ProcessState.Sys().(syscall.WaitStatus).ExitStatus())
-				} else {
-					fmt.Fprintf(statusW, "255\n")
 				}
 
 				os.Exit(0)
@@ -142,7 +160,7 @@ func spawn(socketPath string, argv []string, timeout time.Duration, withTty bool
 		decoder := gob.NewDecoder(conn)
 
 		for {
-			var input Input
+			var input linkpkg.Input
 			err := decoder.Decode(&input)
 			if err != nil {
 				break

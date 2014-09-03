@@ -41,6 +41,12 @@ var windowRows = flag.Int(
 	"initial window rows for the process's tty",
 )
 
+var debug = flag.Bool(
+	"debug",
+	false,
+	"emit debugging information beside socket file as .trace",
+)
+
 func main() {
 	flag.Parse()
 
@@ -52,7 +58,7 @@ func main() {
 			usage()
 		}
 
-		spawn(args[1], args[2:], *timeout, *tty, *windowColumns, *windowRows)
+		spawn(args[1], args[2:], *timeout, *tty, *windowColumns, *windowRows, *debug)
 
 	case "link":
 		if len(args) < 2 {

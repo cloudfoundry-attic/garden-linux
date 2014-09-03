@@ -212,8 +212,7 @@ func (c *LinuxContainer) Snapshot(out io.Writer) error {
 		processSnapshots = append(
 			processSnapshots,
 			ProcessSnapshot{
-				ID:  p.ID(),
-				TTY: p.WithTTY(),
+				ID: p.ID(),
 			},
 		)
 	}
@@ -296,7 +295,7 @@ func (c *LinuxContainer) Restore(snapshot ContainerSnapshot) error {
 			"process": process,
 		})
 
-		c.processTracker.Restore(process.ID, process.TTY)
+		c.processTracker.Restore(process.ID)
 	}
 
 	net := exec.Command(path.Join(c.path, "net.sh"), "setup")
@@ -363,9 +362,6 @@ func (c *LinuxContainer) Cleanup() {
 
 	cLog.Debug("stopping-oom-notifier")
 	c.stopOomNotifier()
-
-	cLog.Debug("detaching-from-processes")
-	c.processTracker.UnlinkAll()
 
 	cLog.Info("done")
 }

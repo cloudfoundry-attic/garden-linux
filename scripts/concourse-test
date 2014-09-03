@@ -9,4 +9,6 @@ export PATH=$GOPATH/bin:$PATH
 
 cd $(dirname $0)/..
 
+apt-get -y install strace
+
 ./scripts/drone-test "$@"
