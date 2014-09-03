@@ -31,6 +31,7 @@ import (
 	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/uid_pool"
 	"github.com/cloudfoundry-incubator/warden-linux/sysconfig"
 	"github.com/cloudfoundry-incubator/warden-linux/system_info"
+	_ "github.com/cloudfoundry/dropsonde/autowire"
 	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
 )
 

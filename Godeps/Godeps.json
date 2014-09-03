@@ -57,6 +57,10 @@
 			"Rev": "40d984940cfc36e6d552dc2985c4e7350881b059"
 		},
 		{
+			"ImportPath": "github.com/cloudfoundry/dropsonde",
+			"Rev": "745db2c25d3ab992140b84324787377f1c9b618a"
+		},
+		{
 			"ImportPath": "github.com/cloudfoundry/gosigar",
 			"Comment": "scotty_09012012-20-ga4cb008",
 			"Rev": "a4cb00834887e549c46e58cb5d5f4e53bd492f32"
