@@ -55,6 +55,14 @@ func (e UnknownHandleError) Error() string {
 	return "unknown handle: " + e.Handle
 }
 
+type HandleExistsError struct {
+	Handle string
+}
+
+func (e HandleExistsError) Error() string {
+	return fmt.Sprintf("handle already exists: %s", e.Handle)
+}
+
 type FailedToSnapshotError struct {
 	OriginalError error
 }
@@ -130,6 +138,16 @@ func (b *LinuxBackend) Capacity() (warden.Capacity, error) {
 }
 
 func (b *LinuxBackend) Create(spec warden.ContainerSpec) (warden.Container, error) {
+	if spec.Handle != "" {
+		b.containersMutex.RLock()
+		_, exists := b.containers[spec.Handle]
+		b.containersMutex.RUnlock()
+
+		if exists {
+			return nil, HandleExistsError{Handle: spec.Handle}
+		}
+	}
+
 	container, err := b.containerPool.Create(spec)
 	if err != nil {
 		return nil, err

@@ -368,6 +368,16 @@ var _ = Describe("Create", func() {
 		})
 	})
 
+	Context("when a container with the given handle already exists", func() {
+		It("returns a HandleExistsError", func() {
+			container, err := linuxBackend.Create(warden.ContainerSpec{})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			_, err = linuxBackend.Create(warden.ContainerSpec{Handle: container.Handle()})
+			Ω(err).Should(Equal(linux_backend.HandleExistsError{container.Handle()}))
+		})
+	})
+
 	Context("when starting the container fails", func() {
 		disaster := errors.New("failed to start")
 
