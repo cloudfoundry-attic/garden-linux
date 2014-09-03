@@ -94,7 +94,7 @@ var _ = Describe("Running processes", func() {
 				tmpdir + "/depot/some-id/processes/1.sock",
 			},
 		}
-
+		wait := make(chan struct{})
 		fakeRunner.WhenRunning(
 			fake_command_runner.CommandSpec{
 				Path: "bash",
@@ -118,6 +118,7 @@ var _ = Describe("Running processes", func() {
 					cmd.Stdout.Write([]byte("xxx\n"))
 
 					Eventually(fakeRunner).Should(HaveStartedExecuting(linkSpec))
+					close(wait)
 				}()
 
 				return nil
@@ -125,6 +126,7 @@ var _ = Describe("Running processes", func() {
 		)
 
 		processTracker.Run(exec.Command("xxx"), warden.ProcessIO{}, nil)
+		Eventually(wait).Should(Receive())
 	}, 10.0)
 
 	It("returns unique process IDs", func() {
