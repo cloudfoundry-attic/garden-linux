@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden/warden"
@@ -166,6 +167,26 @@ var _ = Describe("Creating a container", func() {
 			// there's some noise in 'open files' check, but it shouldn't grow
 			// linearly with the number of processes spawned
 			Ω(openFileCount()).Should(BeNumerically("<", initialOpenFileCount+10))
+		})
+
+		It("forwards the exit status even if stdin is still being written", func() {
+			// this covers the case of intermediaries shuffling i/o around (e.g. wsh)
+			// receiving SIGPIPE on write() due to the backing process exiting without
+			// flushing stdin
+			//
+			// in practice it's flaky; sometimes write() finishes just before the
+			// process exits, so run it ~10 times (observed it fail often in this range)
+
+			for i := 0; i < 10; i++ {
+				process, err := container.Run(warden.ProcessSpec{
+					Path: "ls",
+				}, warden.ProcessIO{
+					Stdin: bytes.NewBufferString(strings.Repeat("x", 1024)),
+				})
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Ω(process.Wait()).Should(Equal(0))
+			}
 		})
 
 		Context("with a memory limit", func() {

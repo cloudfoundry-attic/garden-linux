@@ -314,6 +314,8 @@ int main(int argc, char **argv) {
   int fd;
   msg_request_t req;
 
+  signal(SIGPIPE, SIG_IGN);
+
   w = calloc(1, sizeof(*w));
   assert(w != NULL);
 
