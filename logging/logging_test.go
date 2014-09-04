@@ -48,7 +48,7 @@ var _ = Describe("Logging", func() {
 
 		duration, err := time.ParseDuration(took)
 		Ω(err).ShouldNot(HaveOccurred())
-		Ω(duration).Should(BeNumerically("~", 1*time.Second, 100*time.Millisecond))
+		Ω(duration).Should(BeNumerically(">=", 1*time.Second))
 	})
 
 	It("logs the command's argv", func() {
