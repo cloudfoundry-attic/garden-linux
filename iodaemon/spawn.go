@@ -30,7 +30,7 @@ func spawn(socketPath string, argv []string, timeout time.Duration, withTty bool
 			fatal(err)
 		}
 
-		strace := exec.Command("strace", "-f", "-p", strconv.Itoa(ownPid))
+		strace := exec.Command("strace", "-f", "-s", "10240", "-p", strconv.Itoa(ownPid))
 		strace.Stdout = traceOut
 		strace.Stderr = traceOut
 
