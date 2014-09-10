@@ -8,7 +8,7 @@ shopt -s nullglob
 cd $(dirname $0)
 
 # Defaults for debugging the setup script
-iface_name_prefix="${WARDEN_NETWORK_INTERFACE_PREFIX}"
+iface_name_prefix="${GARDEN_NETWORK_INTERFACE_PREFIX}"
 max_id_len=$(expr 16 - ${#iface_name_prefix} - 2)
 iface_name=$(tail -c ${max_id_len} <<< ${id})
 id=${id:-test}

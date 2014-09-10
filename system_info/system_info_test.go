@@ -1,7 +1,7 @@
 package system_info_test
 
 import (
-	. "github.com/cloudfoundry-incubator/warden-linux/system_info"
+	. "github.com/cloudfoundry-incubator/garden-linux/system_info"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

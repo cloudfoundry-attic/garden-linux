@@ -13,12 +13,12 @@ import (
 	"github.com/onsi/gomega/gexec"
 	"github.com/tedsuo/ifrit"
 
-	Runner "github.com/cloudfoundry-incubator/warden-linux/integration/runner"
+	Runner "github.com/cloudfoundry-incubator/garden-linux/integration/runner"
 )
 
 var binPath = "../../linux_backend/bin"
-var rootFSPath = os.Getenv("WARDEN_TEST_ROOTFS")
-var graphPath = os.Getenv("WARDEN_TEST_GRAPHPATH")
+var rootFSPath = os.Getenv("GARDEN_TEST_ROOTFS")
+var graphPath = os.Getenv("GARDEN_TEST_GRAPHPATH")
 
 var wardenBin string
 
@@ -27,7 +27,7 @@ var wardenProcess ifrit.Process
 
 var client warden.Client
 
-func startWarden(argv ...string) warden.Client {
+func startGarden(argv ...string) warden.Client {
 	wardenAddr := fmt.Sprintf("/tmp/warden_%d.sock", GinkgoParallelNode())
 
 	wardenRunner = Runner.New("unix", wardenAddr, wardenBin, binPath, rootFSPath, graphPath, argv...)
@@ -37,21 +37,21 @@ func startWarden(argv ...string) warden.Client {
 	return wardenRunner.NewClient()
 }
 
-func restartWarden(argv ...string) {
+func restartGarden(argv ...string) {
 	wardenProcess.Signal(syscall.SIGINT)
 	Eventually(wardenProcess.Wait(), 10).Should(Receive())
 
-	startWarden(argv...)
+	startGarden(argv...)
 }
 
 func TestLifecycle(t *testing.T) {
 	if rootFSPath == "" {
-		log.Println("WARDEN_TEST_ROOTFS undefined; skipping")
+		log.Println("GARDEN_TEST_ROOTFS undefined; skipping")
 		return
 	}
 
 	SynchronizedBeforeSuite(func() []byte {
-		wardenPath, err := gexec.Build("github.com/cloudfoundry-incubator/warden-linux", "-race")
+		wardenPath, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux", "-race")
 		Ω(err).ShouldNot(HaveOccurred())
 		return []byte(wardenPath)
 	}, func(wardenPath []byte) {

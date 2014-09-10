@@ -14,12 +14,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/bandwidth_manager"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/cgroups_manager"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/process_tracker"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/quota_manager"
+	"github.com/cloudfoundry-incubator/garden-linux/logging"
 	"github.com/cloudfoundry-incubator/garden/warden"
-	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/bandwidth_manager"
-	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/cgroups_manager"
-	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/process_tracker"
-	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/quota_manager"
-	"github.com/cloudfoundry-incubator/warden-linux/logging"
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/pivotal-golang/lager"
 )

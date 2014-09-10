@@ -10,8 +10,8 @@ import (
 	"github.com/docker/docker/registry"
 	"github.com/pivotal-golang/lager/lagertest"
 
-	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool/fake_graph"
-	. "github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool/repository_fetcher"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/container_pool/fake_graph"
+	. "github.com/cloudfoundry-incubator/garden-linux/linux_backend/container_pool/repository_fetcher"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/ghttp"

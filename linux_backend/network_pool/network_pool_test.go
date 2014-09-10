@@ -6,8 +6,8 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/network"
-	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/network_pool"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/network"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/network_pool"
 )
 
 var _ = Describe("Network Pool", func() {

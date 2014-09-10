@@ -1,5 +1,5 @@
 {
-	"ImportPath": "github.com/cloudfoundry-incubator/warden-linux",
+	"ImportPath": "github.com/cloudfoundry-incubator/garden-linux",
 	"GoVersion": "go1.3.1",
 	"Packages": [
 		"./..."

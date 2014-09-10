@@ -7,8 +7,8 @@ import (
 	"os/exec"
 	"path"
 
+	"github.com/cloudfoundry-incubator/garden-linux/logging"
 	"github.com/cloudfoundry-incubator/garden/warden"
-	"github.com/cloudfoundry-incubator/warden-linux/logging"
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/pivotal-golang/lager"
 )

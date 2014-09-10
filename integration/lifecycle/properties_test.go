@@ -10,7 +10,7 @@ var _ = Describe("A container with properties", func() {
 	var container warden.Container
 
 	BeforeEach(func() {
-		client = startWarden()
+		client = startGarden()
 
 		var err error
 

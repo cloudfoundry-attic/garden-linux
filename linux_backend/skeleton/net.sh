@@ -9,13 +9,13 @@ cd $(dirname "${0}")
 
 source ./etc/config
 
-filter_forward_chain="${WARDEN_IPTABLES_FILTER_FORWARD_CHAIN}"
-filter_default_chain="${WARDEN_IPTABLES_FILTER_DEFAULT_CHAIN}"
-filter_instance_prefix="${WARDEN_IPTABLES_FILTER_INSTANCE_PREFIX}"
-nat_prerouting_chain="${WARDEN_IPTABLES_NAT_PREROUTING_CHAIN}"
-nat_postrouting_chain="${WARDEN_IPTABLES_NAT_POSTROUTING_CHAIN}"
-nat_instance_prefix="${WARDEN_IPTABLES_NAT_INSTANCE_PREFIX}"
-interface_name_prefix="${WARDEN_NETWORK_INTERFACE_PREFIX}"
+filter_forward_chain="${GARDEN_IPTABLES_FILTER_FORWARD_CHAIN}"
+filter_default_chain="${GARDEN_IPTABLES_FILTER_DEFAULT_CHAIN}"
+filter_instance_prefix="${GARDEN_IPTABLES_FILTER_INSTANCE_PREFIX}"
+nat_prerouting_chain="${GARDEN_IPTABLES_NAT_PREROUTING_CHAIN}"
+nat_postrouting_chain="${GARDEN_IPTABLES_NAT_POSTROUTING_CHAIN}"
+nat_instance_prefix="${GARDEN_IPTABLES_NAT_INSTANCE_PREFIX}"
+interface_name_prefix="${GARDEN_NETWORK_INTERFACE_PREFIX}"
 
 filter_instance_chain="${filter_instance_prefix}${id}"
 nat_instance_chain="${filter_instance_prefix}${id}"

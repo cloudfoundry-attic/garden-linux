@@ -5,13 +5,13 @@ set -o nounset
 set -o errexit
 shopt -s nullglob
 
-filter_forward_chain="${WARDEN_IPTABLES_FILTER_FORWARD_CHAIN}"
-filter_default_chain="${WARDEN_IPTABLES_FILTER_DEFAULT_CHAIN}"
-filter_instance_prefix="${WARDEN_IPTABLES_FILTER_INSTANCE_PREFIX}"
-nat_prerouting_chain="${WARDEN_IPTABLES_NAT_PREROUTING_CHAIN}"
-nat_postrouting_chain="${WARDEN_IPTABLES_NAT_POSTROUTING_CHAIN}"
-nat_instance_prefix="${WARDEN_IPTABLES_NAT_INSTANCE_PREFIX}"
-interface_name_prefix="${WARDEN_NETWORK_INTERFACE_PREFIX}"
+filter_forward_chain="${GARDEN_IPTABLES_FILTER_FORWARD_CHAIN}"
+filter_default_chain="${GARDEN_IPTABLES_FILTER_DEFAULT_CHAIN}"
+filter_instance_prefix="${GARDEN_IPTABLES_FILTER_INSTANCE_PREFIX}"
+nat_prerouting_chain="${GARDEN_IPTABLES_NAT_PREROUTING_CHAIN}"
+nat_postrouting_chain="${GARDEN_IPTABLES_NAT_POSTROUTING_CHAIN}"
+nat_instance_prefix="${GARDEN_IPTABLES_NAT_INSTANCE_PREFIX}"
+interface_name_prefix="${GARDEN_NETWORK_INTERFACE_PREFIX}"
 
 # Default ALLOW_NETWORKS/DENY_NETWORKS to empty
 ALLOW_NETWORKS=${ALLOW_NETWORKS:-}
@@ -105,7 +105,7 @@ function setup_filter() {
   done
 
   # Forward outbound traffic via ${filter_forward_chain}
-  iptables -w -A FORWARD -i ${WARDEN_NETWORK_INTERFACE_PREFIX}+ --jump ${filter_forward_chain}
+  iptables -w -A FORWARD -i ${GARDEN_NETWORK_INTERFACE_PREFIX}+ --jump ${filter_forward_chain}
 
   # Forward inbound traffic immediately
   default_interface=$(ip route show | grep default | cut -d' ' -f5 | head -1)

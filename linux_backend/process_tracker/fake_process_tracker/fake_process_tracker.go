@@ -4,8 +4,9 @@ package fake_process_tracker
 import (
 	"os/exec"
 	"sync"
+
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/process_tracker"
 	"github.com/cloudfoundry-incubator/garden/warden"
-	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/process_tracker"
 )
 
 type FakeProcessTracker struct {
@@ -38,7 +39,7 @@ type FakeProcessTracker struct {
 	ActiveProcessesStub        func() []warden.Process
 	activeProcessesMutex       sync.RWMutex
 	activeProcessesArgsForCall []struct{}
-	activeProcessesReturns struct {
+	activeProcessesReturns     struct {
 		result1 []warden.Process
 	}
 }

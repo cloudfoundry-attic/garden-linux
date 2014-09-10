@@ -2,7 +2,7 @@
 image: docker:///cloudfoundry/warden-ci
 
 paths:
-  warden-linux: gopath/src/github.com/cloudfoundry-incubator/warden-linux
+  garden-linux: gopath/src/github.com/cloudfoundry-incubator/garden-linux
 
 run:
-  path: gopath/src/github.com/cloudfoundry-incubator/warden-linux/scripts/concourse-test
+  path: gopath/src/github.com/cloudfoundry-incubator/garden-linux/scripts/concourse-test

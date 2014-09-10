@@ -7,7 +7,7 @@ shopt -s nullglob
 
 cd $(dirname "${0}")
 
-cgroup_path="${WARDEN_CGROUP_PATH}"
+cgroup_path="${GARDEN_CGROUP_PATH}"
 
 function mount_flat_cgroup() {
   cgroup_parent_path=$(dirname $1)

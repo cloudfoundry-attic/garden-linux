@@ -24,7 +24,7 @@ var _ = Describe("Running wshd", func() {
 
 	wsh := "../../linux_backend/skeleton/bin/wsh"
 
-	shmTest, err := Build("github.com/cloudfoundry-incubator/warden-linux/integration/wshd/shm_test")
+	shmTest, err := Build("github.com/cloudfoundry-incubator/garden-linux/integration/wshd/shm_test")
 	if err != nil {
 		panic(err)
 	}
@@ -139,7 +139,7 @@ function setup_fs() {
 setup_fs
 `), 0755)
 
-		setUpRoot := exec.Command(path.Join(libDir, "set-up-root.sh"), os.Getenv("WARDEN_TEST_ROOTFS"))
+		setUpRoot := exec.Command(path.Join(libDir, "set-up-root.sh"), os.Getenv("GARDEN_TEST_ROOTFS"))
 		setUpRoot.Dir = containerPath
 
 		setUpRootSession, err := Start(setUpRoot, GinkgoWriter, GinkgoWriter)

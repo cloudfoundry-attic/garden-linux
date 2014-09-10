@@ -6,7 +6,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	linkpkg "github.com/cloudfoundry-incubator/warden-linux/iodaemon/link"
+	linkpkg "github.com/cloudfoundry-incubator/garden-linux/iodaemon/link"
 	"github.com/kr/pty"
 )
 

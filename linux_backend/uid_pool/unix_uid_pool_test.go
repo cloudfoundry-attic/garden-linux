@@ -4,7 +4,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/uid_pool"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/uid_pool"
 )
 
 var _ = Describe("Unix UID pool", func() {

@@ -5,7 +5,7 @@ import (
 	"os/exec"
 	"time"
 
-	. "github.com/cloudfoundry-incubator/warden-linux/logging"
+	. "github.com/cloudfoundry-incubator/garden-linux/logging"
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"

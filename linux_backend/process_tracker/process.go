@@ -10,7 +10,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden/warden"
 	"github.com/cloudfoundry/gunk/command_runner"
 
-	"github.com/cloudfoundry-incubator/warden-linux/iodaemon/link"
+	"github.com/cloudfoundry-incubator/garden-linux/iodaemon/link"
 )
 
 type Process struct {

@@ -3,9 +3,9 @@ package rootfs_provider_test
 import (
 	"errors"
 
-	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool/fake_graph_driver"
-	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool/repository_fetcher/fake_repository_fetcher"
-	. "github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool/rootfs_provider"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/container_pool/fake_graph_driver"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/container_pool/repository_fetcher/fake_repository_fetcher"
+	. "github.com/cloudfoundry-incubator/garden-linux/linux_backend/container_pool/rootfs_provider"
 	"github.com/pivotal-golang/lager/lagertest"
 
 	. "github.com/onsi/ginkgo"

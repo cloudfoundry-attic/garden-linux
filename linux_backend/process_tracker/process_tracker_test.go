@@ -14,8 +14,8 @@ import (
 	"github.com/onsi/gomega/gbytes"
 	"github.com/onsi/gomega/gexec"
 
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/process_tracker"
 	"github.com/cloudfoundry-incubator/garden/warden"
-	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/process_tracker"
 	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
 )
 
@@ -28,7 +28,7 @@ var _ = BeforeEach(func() {
 	tmpdir, err = ioutil.TempDir("", "process-tracker-tests")
 	Ω(err).ShouldNot(HaveOccurred())
 
-	iodaemon, err := gexec.Build("github.com/cloudfoundry-incubator/warden-linux/iodaemon")
+	iodaemon, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/iodaemon")
 	Ω(err).ShouldNot(HaveOccurred())
 
 	err = os.MkdirAll(filepath.Join(tmpdir, "bin"), 0755)
@@ -131,7 +131,7 @@ var _ = Describe("Running processes", func() {
 	Context("with a tty", func() {
 		It("forwards TTY signals to the process", func() {
 			cmd := exec.Command("/bin/bash", "-c", `
-				stty size 
+				stty size
 				trap "stty size; exit 123" SIGWINCH
 				read
 			`)
@@ -164,7 +164,7 @@ var _ = Describe("Running processes", func() {
 		Describe("when a window size is not specified", func() {
 			It("picks a default window size", func() {
 				cmd := exec.Command("/bin/bash", "-c", `
-					stty size 
+					stty size
 				`)
 
 				stdout := gbytes.NewBuffer()

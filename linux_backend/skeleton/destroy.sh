@@ -11,7 +11,7 @@ source ./etc/config
 
 ./net.sh teardown
 
-cgroup_path="${WARDEN_CGROUP_PATH}"
+cgroup_path="${GARDEN_CGROUP_PATH}"
 
 if [ -f ./run/wshd.pid ]
 then

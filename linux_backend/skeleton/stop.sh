@@ -47,7 +47,7 @@ ms_start=$(ms)
 ms_end=$(($ms_start + ($WAIT * 1000)))
 
 pid=$(cat ./run/wshd.pid)
-path=${WARDEN_CGROUP_PATH}/cpu/instance-$id
+path=${GARDEN_CGROUP_PATH}/cpu/instance-$id
 tasks=$path/tasks
 
 while true

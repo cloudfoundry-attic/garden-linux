@@ -26,7 +26,7 @@ var _ = Describe("Denying access to network ranges", func() {
 	)
 
 	BeforeEach(func() {
-		client = startWarden()
+		client = startGarden()
 
 		var err error
 
@@ -51,7 +51,7 @@ var _ = Describe("Denying access to network ranges", func() {
 		Ω(err).ShouldNot(HaveOccurred())
 		allowedListenerIP = info.ContainerIP
 
-		restartWarden(
+		restartGarden(
 			"-denyNetworks", strings.Join([]string{
 				blockedListenerIP + "/32",
 				allowedListenerIP + "/32",

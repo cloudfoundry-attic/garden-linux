@@ -109,10 +109,10 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 	r.Command = exec.Command(r.bin, wardenArgs...)
 
 	process := ifrit.Envoke(&ginkgomon.Runner{
-		Name:              "warden-linux",
+		Name:              "garden-linux",
 		Command:           r.Command,
 		AnsiColorCode:     "31m",
-		StartCheck:        "warden-linux.started",
+		StartCheck:        "garden-linux.started",
 		StartCheckTimeout: 10 * time.Second,
 		Cleanup: func() {
 			if signal == syscall.SIGKILL {

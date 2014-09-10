@@ -31,7 +31,7 @@ func (w *byteCounterWriter) Close() error {
 	return nil
 }
 
-var _ = Describe("The Warden server", func() {
+var _ = Describe("The Garden server", func() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	var container warden.Container
@@ -39,7 +39,7 @@ var _ = Describe("The Warden server", func() {
 
 	BeforeEach(func() {
 		firstGoroutineCount = 0
-		client = startWarden()
+		client = startGarden()
 
 		var err error
 		container, err = client.Create(warden.ContainerSpec{})

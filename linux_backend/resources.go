@@ -3,7 +3,7 @@ package linux_backend
 import (
 	"sync"
 
-	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/network"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/network"
 )
 
 type Resources struct {

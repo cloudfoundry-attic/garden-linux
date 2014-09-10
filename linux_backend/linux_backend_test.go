@@ -11,10 +11,10 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/pivotal-golang/lager/lagertest"
 
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/container_pool/fake_container_pool"
+	"github.com/cloudfoundry-incubator/garden-linux/system_info/fake_system_info"
 	"github.com/cloudfoundry-incubator/garden/warden"
-	"github.com/cloudfoundry-incubator/warden-linux/linux_backend"
-	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool/fake_container_pool"
-	"github.com/cloudfoundry-incubator/warden-linux/system_info/fake_system_info"
 )
 
 var logger *lagertest.TestLogger

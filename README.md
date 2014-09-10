@@ -1,8 +1,7 @@
-Warden in Go, on linux
+Garden in Go, on linux
 
-* [![Coverage Status](https://coveralls.io/repos/cloudfoundry-incubator/warden-linux/badge.png)](https://coveralls.io/r/cloudfoundry-incubator/warden-linux)
+* [![Coverage Status](https://coveralls.io/repos/cloudfoundry-incubator/garden-linux/badge.png)](https://coveralls.io/r/cloudfoundry-incubator/garden-linux)
 * [Tracker](https://www.pivotaltracker.com/s/projects/962374)
-* [Warden](https://github.com/cloudfoundry/warden)
 
 # Running
 
@@ -19,13 +18,13 @@ vagrant up
 ssh-copy-id vagrant@192.168.50.5
 ssh vagrant@192.168.50.5 sudo cp -r .ssh/ /root/.ssh/
 ./scripts/add-route
-./scripts/run-warden-remote-linux
+./scripts/run-garden-remote-linux
 
 # or run from inside the vm:
 vagrant ssh
 sudo su -
-goto warden-linux
-./scripts/run-warden-linux
+goto garden-linux
+./scripts/run-garden-linux
 ```
 
 This runs the server locally and configures the Linux backend to do everything
@@ -36,7 +35,7 @@ over SSH to the Vagrant box.
 ## Pre-requisites
 
 * [Docker](https://www.docker.io/) v0.9.0 or later (for creating a root filesystem)
-* [git](http://git-scm.com/) (for warden and its dependencies on github)
+* [git](http://git-scm.com/) (for garden and its dependencies on github)
 * [mercurial](http://mercurial.selenic.com/) (for some dependencies not on github)
 
 Run **all** the following commands **as root**.
@@ -60,15 +59,15 @@ Extend `$GOPATH` and `$PATH`:
 # export PATH=$PATH:/root/go/bin
 ```
 
-Install [godep](https://github.com/kr/godep) (used to manage warden's dependencies):
+Install [godep](https://github.com/kr/godep) (used to manage garden's dependencies):
 ```
 # go get github.com/kr/godep
 ```
 
 Get garden and its dependencies:
 ```
-# go get github.com/cloudfoundry-incubator/warden-linux
-# cd /root/go/src/github.com/cloudfoundry-incubator/warden-linux
+# go get github.com/cloudfoundry-incubator/garden-linux
+# cd /root/go/src/github.com/cloudfoundry-incubator/garden-linux
 # godep restore
 ```
 
@@ -79,11 +78,11 @@ Make the C code:
 
 Create a root filesystem, extract it (still as root), and point to it:
 ```
-# make warden-test-rootfs.tar
-# gzip warden-test-rootfs.tar
-# mkdir -p /var/warden/rootfs
-# tar xzf warden-test-rootfs.tar.gz -C /var/warden/rootfs
-# export WARDEN_TEST_ROOTFS=/var/warden/rootfs
+# make garden-test-rootfs.tar
+# gzip garden-test-rootfs.tar
+# mkdir -p /var/garden/rootfs
+# tar xzf garden-test-rootfs.tar.gz -C /var/garden/rootfs
+# export GARDEN_TEST_ROOTFS=/var/garden/rootfs
 ```
 (You may wish to save the root filesystem tar.gz file for future use.)
 

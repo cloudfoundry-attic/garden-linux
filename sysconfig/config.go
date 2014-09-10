@@ -48,16 +48,16 @@ func NewConfig(tag string) Config {
 
 func (config Config) Environ() []string {
 	return []string{
-		"WARDEN_CGROUP_PATH=" + config.CgroupPath,
+		"GARDEN_CGROUP_PATH=" + config.CgroupPath,
 
-		"WARDEN_NETWORK_INTERFACE_PREFIX=" + config.NetworkInterfacePrefix,
+		"GARDEN_NETWORK_INTERFACE_PREFIX=" + config.NetworkInterfacePrefix,
 
-		"WARDEN_IPTABLES_FILTER_FORWARD_CHAIN=" + config.IPTables.Filter.ForwardChain,
-		"WARDEN_IPTABLES_FILTER_DEFAULT_CHAIN=" + config.IPTables.Filter.DefaultChain,
-		"WARDEN_IPTABLES_FILTER_INSTANCE_PREFIX=" + config.IPTables.Filter.InstancePrefix,
+		"GARDEN_IPTABLES_FILTER_FORWARD_CHAIN=" + config.IPTables.Filter.ForwardChain,
+		"GARDEN_IPTABLES_FILTER_DEFAULT_CHAIN=" + config.IPTables.Filter.DefaultChain,
+		"GARDEN_IPTABLES_FILTER_INSTANCE_PREFIX=" + config.IPTables.Filter.InstancePrefix,
 
-		"WARDEN_IPTABLES_NAT_PREROUTING_CHAIN=" + config.IPTables.NAT.PreroutingChain,
-		"WARDEN_IPTABLES_NAT_POSTROUTING_CHAIN=" + config.IPTables.NAT.PostroutingChain,
-		"WARDEN_IPTABLES_NAT_INSTANCE_PREFIX=" + config.IPTables.NAT.InstancePrefix,
+		"GARDEN_IPTABLES_NAT_PREROUTING_CHAIN=" + config.IPTables.NAT.PreroutingChain,
+		"GARDEN_IPTABLES_NAT_POSTROUTING_CHAIN=" + config.IPTables.NAT.PostroutingChain,
+		"GARDEN_IPTABLES_NAT_INSTANCE_PREFIX=" + config.IPTables.NAT.InstancePrefix,
 	}
 }

@@ -11,8 +11,8 @@ import (
 	"syscall"
 	"time"
 
-	linkpkg "github.com/cloudfoundry-incubator/warden-linux/iodaemon/link"
-	"github.com/cloudfoundry-incubator/warden-linux/ptyutil"
+	linkpkg "github.com/cloudfoundry-incubator/garden-linux/iodaemon/link"
+	"github.com/cloudfoundry-incubator/garden-linux/ptyutil"
 	"github.com/kr/pty"
 )
 

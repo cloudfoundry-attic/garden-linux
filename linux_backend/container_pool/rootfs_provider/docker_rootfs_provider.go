@@ -7,7 +7,7 @@ import (
 	"github.com/docker/docker/daemon/graphdriver"
 	"github.com/pivotal-golang/lager"
 
-	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool/repository_fetcher"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/container_pool/repository_fetcher"
 )
 
 type dockerRootFSProvider struct {

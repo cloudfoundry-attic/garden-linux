@@ -23,7 +23,7 @@ var _ = Describe("Creating a container", func() {
 	var container warden.Container
 
 	BeforeEach(func() {
-		client = startWarden()
+		client = startGarden()
 
 		var err error
 

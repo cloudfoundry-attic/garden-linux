@@ -10,7 +10,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/pivotal-golang/lager/lagertest"
 
-	. "github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool/rootfs_provider"
+	. "github.com/cloudfoundry-incubator/garden-linux/linux_backend/container_pool/rootfs_provider"
 )
 
 var _ = Describe("OverlayRootfsProvider", func() {

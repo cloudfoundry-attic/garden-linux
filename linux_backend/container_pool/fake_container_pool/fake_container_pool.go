@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden/warden"
-	"github.com/cloudfoundry-incubator/warden-linux/linux_backend"
 	"github.com/nu7hatch/gouuid"
 )
 

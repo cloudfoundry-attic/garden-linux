@@ -12,7 +12,7 @@ import (
 )
 
 func TestWshd(t *testing.T) {
-	if os.Getenv("WARDEN_TEST_ROOTFS") != "" {
+	if os.Getenv("GARDEN_TEST_ROOTFS") != "" {
 		RegisterFailHandler(Fail)
 		RunSpecs(t, "wshd Suite")
 	}

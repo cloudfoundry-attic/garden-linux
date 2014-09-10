@@ -10,7 +10,7 @@ var _ = Describe("A container with a grace time", func() {
 	var container warden.Container
 
 	BeforeEach(func() {
-		client = startWarden("--containerGraceTime", "3s")
+		client = startGarden("--containerGraceTime", "3s")
 
 		var err error
 

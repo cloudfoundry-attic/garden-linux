@@ -20,17 +20,17 @@ import (
 
 	"github.com/cloudfoundry-incubator/cf-debug-server"
 	"github.com/cloudfoundry-incubator/cf-lager"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/container_pool"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/container_pool/repository_fetcher"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/container_pool/rootfs_provider"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/network_pool"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/port_pool"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/quota_manager"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/uid_pool"
+	"github.com/cloudfoundry-incubator/garden-linux/sysconfig"
+	"github.com/cloudfoundry-incubator/garden-linux/system_info"
 	"github.com/cloudfoundry-incubator/garden/server"
-	"github.com/cloudfoundry-incubator/warden-linux/linux_backend"
-	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool"
-	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool/repository_fetcher"
-	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/container_pool/rootfs_provider"
-	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/network_pool"
-	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/port_pool"
-	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/quota_manager"
-	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/uid_pool"
-	"github.com/cloudfoundry-incubator/warden-linux/sysconfig"
-	"github.com/cloudfoundry-incubator/warden-linux/system_info"
 	_ "github.com/cloudfoundry/dropsonde/autowire"
 	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
 )
@@ -156,7 +156,7 @@ func main() {
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	logger := cf_lager.New("warden-linux")
+	logger := cf_lager.New("garden-linux")
 
 	if *binPath == "" {
 		missing("-bin")

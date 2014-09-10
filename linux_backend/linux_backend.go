@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cloudfoundry-incubator/garden-linux/system_info"
 	"github.com/cloudfoundry-incubator/garden/warden"
-	"github.com/cloudfoundry-incubator/warden-linux/system_info"
 	"github.com/pivotal-golang/lager"
 )
 

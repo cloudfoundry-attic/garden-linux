@@ -5,7 +5,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden/warden"
 
-	"github.com/cloudfoundry-incubator/warden-linux/linux_backend/network"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/network"
 )
 
 type ContainerSnapshot struct {
