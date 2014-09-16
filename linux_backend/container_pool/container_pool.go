@@ -319,18 +319,17 @@ func (p *LinuxContainerPool) generateContainerIDs() string {
 	}
 }
 
-func (p *LinuxContainerPool) writeBindMounts(
-	containerPath string,
-	bindMounts []warden.BindMount,
-) error {
+func (p *LinuxContainerPool) writeBindMounts(containerPath string,
+	rootfsPath string,
+	bindMounts []warden.BindMount) error {
 	hook := path.Join(containerPath, "lib", "hook-child-before-pivot.sh")
 
 	for _, bm := range bindMounts {
-		dstMount := path.Join(containerPath, "mnt", bm.DstPath)
+		dstMount := path.Join(rootfsPath, bm.DstPath)
 		srcPath := bm.SrcPath
 
 		if bm.Origin == warden.BindMountOriginContainer {
-			srcPath = path.Join(containerPath, "tmp", "rootfs", srcPath)
+			srcPath = path.Join(rootfsPath, srcPath)
 		}
 
 		mode := "ro"
@@ -472,7 +471,7 @@ func (p *LinuxContainerPool) aquireSystemResources(id, containerPath, rootFSPath
 		return nil, err
 	}
 
-	err = p.writeBindMounts(containerPath, bindMounts)
+	err = p.writeBindMounts(containerPath, rootfsPath, bindMounts)
 	if err != nil {
 		p.logger.Error("bind-mounts-failed", err)
 		return nil, err

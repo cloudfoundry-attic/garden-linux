@@ -416,6 +416,7 @@ var _ = Describe("Container pool", func() {
 				Ω(err).ShouldNot(HaveOccurred())
 
 				containerPath := path.Join(depotPath, container.ID())
+				rootfsPath := "/provided/rootfs/path"
 
 				Ω(fakeRunner).Should(HaveExecutedSerially(
 					fake_command_runner.CommandSpec{
@@ -429,7 +430,7 @@ var _ = Describe("Container pool", func() {
 						Path: "bash",
 						Args: []string{
 							"-c",
-							"echo mkdir -p " + containerPath + "/mnt/dst/path-ro" +
+							"echo mkdir -p " + rootfsPath + "/dst/path-ro" +
 								" >> " + containerPath + "/lib/hook-child-before-pivot.sh",
 						},
 					},
@@ -437,7 +438,7 @@ var _ = Describe("Container pool", func() {
 						Path: "bash",
 						Args: []string{
 							"-c",
-							"echo mount -n --bind /src/path-ro " + containerPath + "/mnt/dst/path-ro" +
+							"echo mount -n --bind /src/path-ro " + rootfsPath + "/dst/path-ro" +
 								" >> " + containerPath + "/lib/hook-child-before-pivot.sh",
 						},
 					},
@@ -445,7 +446,7 @@ var _ = Describe("Container pool", func() {
 						Path: "bash",
 						Args: []string{
 							"-c",
-							"echo mount -n --bind -o remount,ro /src/path-ro " + containerPath + "/mnt/dst/path-ro" +
+							"echo mount -n --bind -o remount,ro /src/path-ro " + rootfsPath + "/dst/path-ro" +
 								" >> " + containerPath + "/lib/hook-child-before-pivot.sh",
 						},
 					},
@@ -460,7 +461,7 @@ var _ = Describe("Container pool", func() {
 						Path: "bash",
 						Args: []string{
 							"-c",
-							"echo mkdir -p " + containerPath + "/mnt/dst/path-rw" +
+							"echo mkdir -p " + rootfsPath + "/dst/path-rw" +
 								" >> " + containerPath + "/lib/hook-child-before-pivot.sh",
 						},
 					},
@@ -468,7 +469,7 @@ var _ = Describe("Container pool", func() {
 						Path: "bash",
 						Args: []string{
 							"-c",
-							"echo mount -n --bind /src/path-rw " + containerPath + "/mnt/dst/path-rw" +
+							"echo mount -n --bind /src/path-rw " + rootfsPath + "/dst/path-rw" +
 								" >> " + containerPath + "/lib/hook-child-before-pivot.sh",
 						},
 					},
@@ -476,7 +477,7 @@ var _ = Describe("Container pool", func() {
 						Path: "bash",
 						Args: []string{
 							"-c",
-							"echo mount -n --bind -o remount,rw /src/path-rw " + containerPath + "/mnt/dst/path-rw" +
+							"echo mount -n --bind -o remount,rw /src/path-rw " + rootfsPath + "/dst/path-rw" +
 								" >> " + containerPath + "/lib/hook-child-before-pivot.sh",
 						},
 					},
@@ -484,7 +485,7 @@ var _ = Describe("Container pool", func() {
 						Path: "bash",
 						Args: []string{
 							"-c",
-							"echo mkdir -p " + containerPath + "/mnt/dst/path-rw" +
+							"echo mkdir -p " + rootfsPath + "/dst/path-rw" +
 								" >> " + containerPath + "/lib/hook-child-before-pivot.sh",
 						},
 					},
@@ -492,7 +493,7 @@ var _ = Describe("Container pool", func() {
 						Path: "bash",
 						Args: []string{
 							"-c",
-							"echo mount -n --bind " + containerPath + "/tmp/rootfs/src/path-rw " + containerPath + "/mnt/dst/path-rw" +
+							"echo mount -n --bind " + rootfsPath + "/src/path-rw " + rootfsPath + "/dst/path-rw" +
 								" >> " + containerPath + "/lib/hook-child-before-pivot.sh",
 						},
 					},
@@ -500,7 +501,7 @@ var _ = Describe("Container pool", func() {
 						Path: "bash",
 						Args: []string{
 							"-c",
-							"echo mount -n --bind -o remount,rw " + containerPath + "/tmp/rootfs/src/path-rw " + containerPath + "/mnt/dst/path-rw" +
+							"echo mount -n --bind -o remount,rw " + rootfsPath + "/src/path-rw " + rootfsPath + "/dst/path-rw" +
 								" >> " + containerPath + "/lib/hook-child-before-pivot.sh",
 						},
 					},
