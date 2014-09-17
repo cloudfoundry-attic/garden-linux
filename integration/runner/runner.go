@@ -50,10 +50,10 @@ func New(network, addr string, bin, binPath, rootFSPath, graphPath string, argv 
 
 		binPath:    binPath,
 		rootFSPath: rootFSPath,
-		graphPath:  filepath.Join(graphPath, fmt.Sprintf("test-warden-%d", ginkgo.GinkgoParallelNode())),
+		graphPath:  filepath.Join(graphPath, fmt.Sprintf("test-garden-%d", ginkgo.GinkgoParallelNode())),
 		tmpdir: filepath.Join(
 			os.TempDir(),
-			fmt.Sprintf("test-warden-%d", ginkgo.GinkgoParallelNode()),
+			fmt.Sprintf("test-garden-%d", ginkgo.GinkgoParallelNode()),
 		),
 		debugAddr: fmt.Sprintf("0.0.0.0:%d", 15000+ginkgo.GinkgoParallelNode()),
 	}
@@ -64,7 +64,7 @@ func (r *Runner) DebugAddr() string {
 }
 
 func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
-	logger := lager.NewLogger("warden-runner")
+	logger := lager.NewLogger("garden-runner")
 	logger.RegisterSink(lager.NewWriterSink(ginkgo.GinkgoWriter, lager.DEBUG))
 
 	err := os.MkdirAll(r.tmpdir, 0755)
@@ -84,7 +84,7 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 		return err
 	}
 
-	wardenArgs := append(
+	gardenArgs := append(
 		r.argv,
 		"--listenNetwork", r.network,
 		"--listenAddr", r.addr,
@@ -106,7 +106,7 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 
 	var signal os.Signal
 
-	r.Command = exec.Command(r.bin, wardenArgs...)
+	r.Command = exec.Command(r.bin, gardenArgs...)
 
 	process := ifrit.Envoke(&ginkgomon.Runner{
 		Name:              "garden-linux",
