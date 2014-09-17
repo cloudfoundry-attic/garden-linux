@@ -47,7 +47,7 @@ var _ = Describe("The Garden server", func() {
 	})
 
 	getGoroutineCount := func(printIt ...bool) uint64 {
-		resp, err := http.Get(fmt.Sprintf("http://%s/debug/pprof/goroutine?debug=1", wardenRunner.DebugAddr()))
+		resp, err := http.Get(fmt.Sprintf("http://%s/debug/pprof/goroutine?debug=1", gardenRunner.DebugAddr()))
 		Ω(err).ShouldNot(HaveOccurred())
 
 		line, _, err := bufio.NewReader(resp.Body).ReadLine()
