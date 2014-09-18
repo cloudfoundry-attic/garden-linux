@@ -33,29 +33,26 @@ EOS
 # Strip /dev down to the bare minimum
 rm -rf $rootfs_path/dev/*
 
+# add device: adddev <owner> <device-file-path> <mknod-1> <mknod-2>
+function adddev()
+{
+  local own=${1}
+  local file=${2}
+  local opts="c ${3} ${4}"
+
+  echo mknod -m 666 ${file} ${opts}
+  echo chown root:${own} ${file}
+}
+
 # /dev/tty
-file=$rootfs_path/dev/tty
-mknod -m 666 $file c 5 0
-chown root:tty $file
-
+adddev tty  $rootfs_path/dev/tty 5 0
 # /dev/random, /dev/urandom
-file=$rootfs_path/dev/random
-mknod -m 666 $file c 1 8
-chown root:root $file
-file=$rootfs_path/dev/urandom
-mknod -m 666 $file c 1 9
-chown root:root $file
-
+adddev root $rootfs_path/dev/random 1 8
+adddev root $rootfs_path/dev/urandom 1 9
 # /dev/null, /dev/zero, /dev/full
-file=$rootfs_path/dev/null
-mknod -m 666 $file c 1 3
-chown root:root $file
-file=$rootfs_path/dev/zero
-mknod -m 666 $file c 1 5
-chown root:root $file
-file=$rootfs_path/dev/full
-mknod -m 666 $file c 1 7
-chown root:root $file
+adddev root $rootfs_path/dev/null 1 3
+adddev root $rootfs_path/dev/zero 1 5
+adddev root $rootfs_path/dev/full 1 7
 
 # /dev/fd, /dev/std{in,out,err}
 pushd $rootfs_path/dev > /dev/null
@@ -78,7 +75,7 @@ EOS
 #
 # Exception: When the host's nameserver is set to localhost (127.0.0.1), it is
 # assumed to be running its own DNS server and listening on all interfaces.
-# In this case, the warden container must use the network_host_ip address
+# In this case, the container must use the network_host_ip address
 # as the nameserver.
 if [[ "$(cat /etc/resolv.conf)" == "nameserver 127.0.0.1" ]]
 then
@@ -86,7 +83,7 @@ then
 nameserver $network_host_ip
 EOS
 else
-  # some images may have something set up here; warden's should be the source
+  # some images may have something set up here; the host's should be the source
   # of truth
   rm -f $rootfs_path/etc/resolv.conf
 
