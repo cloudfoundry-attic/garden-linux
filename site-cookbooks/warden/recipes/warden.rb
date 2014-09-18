@@ -31,12 +31,12 @@ execute "build root directory" do
   action :run
 end
 
-directory "/opt/warden" do
+directory "/opt/garden" do
   mode 0755
   action :create
 end
 
-directory "/opt/warden/containers" do
+directory "/opt/garden/containers" do
   mode 0755
   action :create
 end

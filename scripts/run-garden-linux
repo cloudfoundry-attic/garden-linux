@@ -5,12 +5,12 @@ set -e
 
 cd $(dirname $0)/..
 
-go build -o out/warden
+go build -o out/garden
 
-sudo ./out/warden \
-  -depot=/opt/warden/containers \
+sudo ./out/garden \
+  -depot=/opt/garden/containers \
   -bin=$PWD/linux_backend/bin \
-  -rootfs=/opt/warden/rootfs \
-  -snapshots=/opt/warden/snapshots \
-  -overlays=/opt/warden/overlays \
+  -rootfs=/opt/garden/rootfs \
+  -snapshots=/opt/garden/snapshots \
+  -overlays=/opt/garden/overlays \
   "$@"

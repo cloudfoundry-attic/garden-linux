@@ -16,9 +16,9 @@ bash "extract rootfs" do
   cwd ::File.dirname(src_filepath)
 
   code <<-EOH
-    mkdir -p /opt/warden/rootfs
-    tar xzf #{src_filename} -C /opt/warden/rootfs
+    mkdir -p /opt/garden/rootfs
+    tar xzf #{src_filename} -C /opt/garden/rootfs
   EOH
 
-  not_if { ::File.directory?("/opt/warden/rootfs") }
+  not_if { ::File.directory?("/opt/garden/rootfs") }
 end
