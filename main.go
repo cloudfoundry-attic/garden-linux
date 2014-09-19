@@ -43,7 +43,7 @@ var listenNetwork = flag.String(
 
 var listenAddr = flag.String(
 	"listenAddr",
-	"/tmp/warden.sock",
+	"/tmp/garden.sock",
 	"address to listen on",
 )
 
@@ -133,7 +133,7 @@ var allowNetworks = flag.String(
 
 var graphRoot = flag.String(
 	"graph",
-	"/var/lib/warden-docker-graph",
+	"/var/lib/garden-docker-graph",
 	"docker image graph",
 )
 
@@ -244,9 +244,9 @@ func main() {
 
 	graceTime := *containerGraceTime
 
-	wardenServer := server.New(*listenNetwork, *listenAddr, graceTime, backend, logger)
+	gardenServer := server.New(*listenNetwork, *listenAddr, graceTime, backend, logger)
 
-	err = wardenServer.Start()
+	err = gardenServer.Start()
 	if err != nil {
 		logger.Fatal("failed-to-start-server", err)
 	}
@@ -260,7 +260,7 @@ func main() {
 
 	go func() {
 		<-signals
-		wardenServer.Stop()
+		gardenServer.Stop()
 		os.Exit(0)
 	}()
 

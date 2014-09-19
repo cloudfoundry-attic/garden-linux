@@ -51,7 +51,7 @@ var _ = Describe("Start", func() {
 	BeforeEach(func() {
 		var err error
 
-		tmpdir, err = ioutil.TempDir(os.TempDir(), "warden-server-test")
+		tmpdir, err = ioutil.TempDir(os.TempDir(), "garden-server-test")
 		Ω(err).ShouldNot(HaveOccurred())
 
 		fakeContainerPool = fake_container_pool.New()
@@ -74,7 +74,7 @@ var _ = Describe("Start", func() {
 
 	Context("when the snapshots directory fails to be created", func() {
 		It("fails to start", func() {
-			tmpfile, err := ioutil.TempFile(os.TempDir(), "warden-server-test")
+			tmpfile, err := ioutil.TempFile(os.TempDir(), "garden-server-test")
 			Ω(err).ShouldNot(HaveOccurred())
 
 			linuxBackend := linux_backend.New(
@@ -220,7 +220,7 @@ var _ = Describe("Stop", func() {
 	var linuxBackend *linux_backend.LinuxBackend
 
 	BeforeEach(func() {
-		tmpdir, err := ioutil.TempDir(os.TempDir(), "warden-server-test")
+		tmpdir, err := ioutil.TempDir(os.TempDir(), "garden-server-test")
 		Ω(err).ShouldNot(HaveOccurred())
 
 		fakeContainerPool = fake_container_pool.New()

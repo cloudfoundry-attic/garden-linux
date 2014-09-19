@@ -8,5 +8,5 @@ root/
 .rootfs/
 linux_backend/bin/repquota
 linux_backend/skeleton/bin/*
-warden-test-rootfs.tar
+garden-test-rootfs.tar
 *.test

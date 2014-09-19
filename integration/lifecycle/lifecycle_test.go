@@ -148,7 +148,7 @@ var _ = Describe("Creating a container", func() {
 
 		It("does not leak open files", func() {
 			openFileCount := func() int {
-				procFd := fmt.Sprintf("/proc/%d/fd", wardenRunner.Command.Process.Pid)
+				procFd := fmt.Sprintf("/proc/%d/fd", gardenRunner.Command.Process.Pid)
 				files, err := ioutil.ReadDir(procFd)
 				Ω(err).ShouldNot(HaveOccurred())
 				return len(files)

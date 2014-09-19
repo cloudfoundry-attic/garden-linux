@@ -29,7 +29,7 @@ func NewConfig(tag string) Config {
 	return Config{
 		NetworkInterfacePrefix: fmt.Sprintf("w%s", tag),
 
-		CgroupPath: fmt.Sprintf("/tmp/warden-%s/cgroup", tag),
+		CgroupPath: fmt.Sprintf("/tmp/garden-%s/cgroup", tag),
 
 		IPTables: IPTablesConfig{
 			Filter: IPTablesFilterConfig{

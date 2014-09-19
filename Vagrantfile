@@ -1,7 +1,7 @@
 # vim: set ft=ruby
 
 Vagrant.configure("2") do |config|
-  config.vm.hostname = "warden"
+  config.vm.hostname = "garden"
 
   config.vm.box = "trusty64"
   config.vm.box_url = "https://cloud-images.ubuntu.com/vagrant/trusty/current/trusty-server-cloudimg-amd64-vagrant-disk1.box"
@@ -25,12 +25,12 @@ Vagrant.configure("2") do |config|
   config.vm.provision :chef_solo do |chef|
     chef.cookbooks_path = ["cookbooks", "site-cookbooks"]
 
-    chef.add_recipe "warden::apt-update"
+    chef.add_recipe "garden::apt-update"
     chef.add_recipe "build-essential::default"
     chef.add_recipe "golang"
-    chef.add_recipe "warden::warden"
-    chef.add_recipe "warden::rootfs"
-    chef.add_recipe "warden::dev"
+    chef.add_recipe "garden::garden"
+    chef.add_recipe "garden::rootfs"
+    chef.add_recipe "garden::dev"
 
     chef.json = {
       go: {
