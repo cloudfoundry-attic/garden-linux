@@ -16,6 +16,6 @@ function goto {
   done
 }
 
-export GARDEN_TEST_ROOTFS=/opt/garden/rootfs
+export GARDEN_TEST_ROOTFS=/opt/warden/rootfs
 EOF
 end

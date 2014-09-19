@@ -40,8 +40,8 @@ function adddev()
   local file=${2}
   local opts="c ${3} ${4}"
 
-  echo mknod -m 666 ${file} ${opts}
-  echo chown root:${own} ${file}
+  mknod -m 666 ${file} ${opts}
+  chown root:${own} ${file}
 }
 
 # /dev/tty

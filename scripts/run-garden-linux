@@ -10,7 +10,7 @@ go build -o out/garden
 sudo ./out/garden \
   -depot=/opt/garden/containers \
   -bin=$PWD/linux_backend/bin \
-  -rootfs=/opt/garden/rootfs \
+  -rootfs=/opt/warden/rootfs \
   -snapshots=/opt/garden/snapshots \
   -overlays=/opt/garden/overlays \
   "$@"
