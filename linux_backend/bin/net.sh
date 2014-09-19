@@ -23,29 +23,29 @@ function external_ip() {
 }
 
 function teardown_deprecated_rules() {
-  # Remove jump to warden-dispatch from INPUT
+  # Remove jump to garden-dispatch from INPUT
   iptables -w -S INPUT 2> /dev/null |
-    grep " -j warden-dispatch" |
+    grep " -j garden-dispatch" |
     sed -e "s/-A/-D/" -e "s/\s\+\$//" |
     xargs --no-run-if-empty --max-lines=1 iptables -w
 
-  # Remove jump to warden-dispatch from FORWARD
+  # Remove jump to garden-dispatch from FORWARD
   iptables -w -S FORWARD 2> /dev/null |
-    grep " -j warden-dispatch" |
+    grep " -j garden-dispatch" |
     sed -e "s/-A/-D/" -e "s/\s\+\$//" |
     xargs --no-run-if-empty --max-lines=1 iptables -w
 
-  # Prune warden-dispatch
-  iptables -w -F warden-dispatch 2> /dev/null || true
+  # Prune garden-dispatch
+  iptables -w -F garden-dispatch 2> /dev/null || true
 
-  # Delete warden-dispatch
-  iptables -w -X warden-dispatch 2> /dev/null || true
+  # Delete garden-dispatch
+  iptables -w -X garden-dispatch 2> /dev/null || true
 }
 
 function teardown_filter() {
   teardown_deprecated_rules
 
-  # Prune warden-forward chain
+  # Prune garden-forward chain
   iptables -w -S ${filter_forward_chain} 2> /dev/null |
     grep "\-g ${filter_instance_prefix}" |
     sed -e "s/-A/-D/" -e "s/\s\+\$//" |
@@ -63,7 +63,7 @@ function teardown_filter() {
     sed -e "s/-N/-X/" -e "s/\s\+\$//" |
     xargs --no-run-if-empty --max-lines=1 iptables -w
 
-  # Remove jump to warden-forward from FORWARD
+  # Remove jump to garden-forward from FORWARD
   iptables -w -S FORWARD 2> /dev/null |
     grep " -j ${filter_forward_chain}" |
     sed -e "s/-A/-D/" -e "s/\s\+\$//" |
@@ -83,7 +83,7 @@ function setup_filter() {
   # Create or flush default chain
   iptables -w -N ${filter_default_chain} 2> /dev/null || iptables -w -F ${filter_default_chain}
 
-  # Always allow established connections to warden containers
+  # Always allow established connections to containers
   iptables -w -A ${filter_default_chain} -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
 
   for n in ${ALLOW_NETWORKS}; do
