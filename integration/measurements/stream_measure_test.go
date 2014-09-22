@@ -13,7 +13,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/cloudfoundry-incubator/garden/warden"
+	"github.com/cloudfoundry-incubator/garden/api"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -34,7 +34,7 @@ func (w *byteCounterWriter) Close() error {
 var _ = Describe("The Garden server", func() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	var container warden.Container
+	var container api.Container
 	var firstGoroutineCount uint64
 
 	BeforeEach(func() {
@@ -42,12 +42,12 @@ var _ = Describe("The Garden server", func() {
 		client = startGarden()
 
 		var err error
-		container, err = client.Create(warden.ContainerSpec{})
+		container, err = client.Create(api.ContainerSpec{})
 		Ω(err).ShouldNot(HaveOccurred())
 	})
 
 	getGoroutineCount := func(printIt ...bool) uint64 {
-		resp, err := http.Get(fmt.Sprintf("http://%s/debug/pprof/goroutine?debug=1", wardenRunner.DebugAddr()))
+		resp, err := http.Get(fmt.Sprintf("http://%s/debug/pprof/goroutine?debug=1", gardenRunner.DebugAddr()))
 		Ω(err).ShouldNot(HaveOccurred())
 
 		line, _, err := bufio.NewReader(resp.Body).ReadLine()
@@ -70,10 +70,10 @@ var _ = Describe("The Garden server", func() {
 			iterations := 50
 
 			for i := 1; i <= iterations; i++ {
-				process, err := container.Run(warden.ProcessSpec{
+				process, err := container.Run(api.ProcessSpec{
 					Path: "echo",
 					Args: []string{"hi"},
-				}, warden.ProcessIO{})
+				}, api.ProcessIO{})
 				Ω(err).ShouldNot(HaveOccurred())
 
 				status, err := process.Wait()
@@ -99,9 +99,9 @@ var _ = Describe("The Garden server", func() {
 		var processID uint32
 
 		BeforeEach(func() {
-			process, err := container.Run(warden.ProcessSpec{
+			process, err := container.Run(api.ProcessSpec{
 				Path: "cat",
-			}, warden.ProcessIO{})
+			}, api.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			processID = process.ID()
@@ -114,7 +114,7 @@ var _ = Describe("The Garden server", func() {
 				stdoutR, stdoutW := io.Pipe()
 				stdinR, stdinW := io.Pipe()
 
-				_, err := container.Attach(processID, warden.ProcessIO{
+				_, err := container.Attach(processID, api.ProcessIO{
 					Stdin:  stdinR,
 					Stdout: stdoutW,
 				})
@@ -180,10 +180,10 @@ var _ = Describe("The Garden server", func() {
 						go func() {
 							defer GinkgoRecover()
 
-							_, err := container.Run(warden.ProcessSpec{
+							_, err := container.Run(api.ProcessSpec{
 								Path: "cat",
 								Args: []string{"/dev/zero"},
-							}, warden.ProcessIO{
+							}, api.ProcessIO{
 								Stdout: byteCounter,
 							})
 							Ω(err).ShouldNot(HaveOccurred())
@@ -203,12 +203,12 @@ var _ = Describe("The Garden server", func() {
 				})
 
 				Measure("it should not adversely affect the rest of the API", func(b Benchmarker) {
-					var newContainer warden.Container
+					var newContainer api.Container
 
 					b.Time("creating another container", func() {
 						var err error
 
-						newContainer, err = client.Create(warden.ContainerSpec{})
+						newContainer, err = client.Create(api.ContainerSpec{})
 						Ω(err).ShouldNot(HaveOccurred())
 					})
 
@@ -221,7 +221,7 @@ var _ = Describe("The Garden server", func() {
 
 					for i := 0; i < 10; i++ {
 						b.Time("running a job (10x)", func() {
-							process, err := newContainer.Run(warden.ProcessSpec{Path: "ls"}, warden.ProcessIO{})
+							process, err := newContainer.Run(api.ProcessSpec{Path: "ls"}, api.ProcessIO{})
 							Ω(err).ShouldNot(HaveOccurred())
 
 							Ω(process.Wait()).Should(Equal(0))

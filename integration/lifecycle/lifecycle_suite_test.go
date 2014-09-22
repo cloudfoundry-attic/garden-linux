@@ -7,7 +7,7 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/cloudfoundry-incubator/garden/warden"
+	"github.com/cloudfoundry-incubator/garden/api"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
@@ -20,26 +20,26 @@ var binPath = "../../linux_backend/bin"
 var rootFSPath = os.Getenv("GARDEN_TEST_ROOTFS")
 var graphPath = os.Getenv("GARDEN_TEST_GRAPHPATH")
 
-var wardenBin string
+var gardenBin string
 
-var wardenRunner *Runner.Runner
-var wardenProcess ifrit.Process
+var gardenRunner *Runner.Runner
+var gardenProcess ifrit.Process
 
-var client warden.Client
+var client api.Client
 
-func startGarden(argv ...string) warden.Client {
-	wardenAddr := fmt.Sprintf("/tmp/warden_%d.sock", GinkgoParallelNode())
+func startGarden(argv ...string) api.Client {
+	gardenAddr := fmt.Sprintf("/tmp/garden_%d.sock", GinkgoParallelNode())
 
-	wardenRunner = Runner.New("unix", wardenAddr, wardenBin, binPath, rootFSPath, graphPath, argv...)
+	gardenRunner = Runner.New("unix", gardenAddr, gardenBin, binPath, rootFSPath, graphPath, argv...)
 
-	wardenProcess = ifrit.Envoke(wardenRunner)
+	gardenProcess = ifrit.Envoke(gardenRunner)
 
-	return wardenRunner.NewClient()
+	return gardenRunner.NewClient()
 }
 
 func restartGarden(argv ...string) {
-	wardenProcess.Signal(syscall.SIGINT)
-	Eventually(wardenProcess.Wait(), 10).Should(Receive())
+	gardenProcess.Signal(syscall.SIGINT)
+	Eventually(gardenProcess.Wait(), 10).Should(Receive())
 
 	startGarden(argv...)
 }
@@ -51,16 +51,16 @@ func TestLifecycle(t *testing.T) {
 	}
 
 	SynchronizedBeforeSuite(func() []byte {
-		wardenPath, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux", "-race")
+		gardenPath, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux", "-race")
 		Ω(err).ShouldNot(HaveOccurred())
-		return []byte(wardenPath)
-	}, func(wardenPath []byte) {
-		wardenBin = string(wardenPath)
+		return []byte(gardenPath)
+	}, func(gardenPath []byte) {
+		gardenBin = string(gardenPath)
 	})
 
 	AfterEach(func() {
-		wardenProcess.Signal(syscall.SIGKILL)
-		Eventually(wardenProcess.Wait(), 10).Should(Receive())
+		gardenProcess.Signal(syscall.SIGKILL)
+		Eventually(gardenProcess.Wait(), 10).Should(Receive())
 	})
 
 	SynchronizedAfterSuite(func() {

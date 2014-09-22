@@ -14,7 +14,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/container_pool/fake_container_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/system_info/fake_system_info"
-	"github.com/cloudfoundry-incubator/garden/warden"
+	"github.com/cloudfoundry-incubator/garden/api"
 )
 
 var logger *lagertest.TestLogger
@@ -51,7 +51,7 @@ var _ = Describe("Start", func() {
 	BeforeEach(func() {
 		var err error
 
-		tmpdir, err = ioutil.TempDir(os.TempDir(), "warden-server-test")
+		tmpdir, err = ioutil.TempDir(os.TempDir(), "garden-server-test")
 		Ω(err).ShouldNot(HaveOccurred())
 
 		fakeContainerPool = fake_container_pool.New()
@@ -74,7 +74,7 @@ var _ = Describe("Start", func() {
 
 	Context("when the snapshots directory fails to be created", func() {
 		It("fails to start", func() {
-			tmpfile, err := ioutil.TempFile(os.TempDir(), "warden-server-test")
+			tmpfile, err := ioutil.TempFile(os.TempDir(), "garden-server-test")
 			Ω(err).ShouldNot(HaveOccurred())
 
 			linuxBackend := linux_backend.New(
@@ -220,7 +220,7 @@ var _ = Describe("Stop", func() {
 	var linuxBackend *linux_backend.LinuxBackend
 
 	BeforeEach(func() {
-		tmpdir, err := ioutil.TempDir(os.TempDir(), "warden-server-test")
+		tmpdir, err := ioutil.TempDir(os.TempDir(), "garden-server-test")
 		Ω(err).ShouldNot(HaveOccurred())
 
 		fakeContainerPool = fake_container_pool.New()
@@ -236,10 +236,10 @@ var _ = Describe("Stop", func() {
 	})
 
 	It("takes a snapshot of each container", func() {
-		container1, err := linuxBackend.Create(warden.ContainerSpec{Env: []string{"env1=env1Value", "env2=env2Value"}, Handle: "some-handle"})
+		container1, err := linuxBackend.Create(api.ContainerSpec{Env: []string{"env1=env1Value", "env2=env2Value"}, Handle: "some-handle"})
 		Ω(err).ShouldNot(HaveOccurred())
 
-		container2, err := linuxBackend.Create(warden.ContainerSpec{Handle: "some-other-handle"})
+		container2, err := linuxBackend.Create(api.ContainerSpec{Handle: "some-other-handle"})
 		Ω(err).ShouldNot(HaveOccurred())
 
 		linuxBackend.Stop()
@@ -251,10 +251,10 @@ var _ = Describe("Stop", func() {
 	})
 
 	It("cleans up each container", func() {
-		container1, err := linuxBackend.Create(warden.ContainerSpec{Handle: "some-handle"})
+		container1, err := linuxBackend.Create(api.ContainerSpec{Handle: "some-handle"})
 		Ω(err).ShouldNot(HaveOccurred())
 
-		container2, err := linuxBackend.Create(warden.ContainerSpec{Handle: "some-other-handle"})
+		container2, err := linuxBackend.Create(api.ContainerSpec{Handle: "some-other-handle"})
 		Ω(err).ShouldNot(HaveOccurred())
 
 		linuxBackend.Stop()
@@ -330,20 +330,20 @@ var _ = Describe("Create", func() {
 	It("creates a container from the pool", func() {
 		Ω(fakeContainerPool.CreatedContainers).Should(BeEmpty())
 
-		container, err := linuxBackend.Create(warden.ContainerSpec{})
+		container, err := linuxBackend.Create(api.ContainerSpec{})
 		Ω(err).ShouldNot(HaveOccurred())
 
 		Ω(fakeContainerPool.CreatedContainers).Should(ContainElement(container))
 	})
 
 	It("starts the container", func() {
-		container, err := linuxBackend.Create(warden.ContainerSpec{})
+		container, err := linuxBackend.Create(api.ContainerSpec{})
 		Ω(err).ShouldNot(HaveOccurred())
 		Ω(container.(*fake_container_pool.FakeContainer).Started).Should(BeTrue())
 	})
 
 	It("registers the container", func() {
-		container, err := linuxBackend.Create(warden.ContainerSpec{})
+		container, err := linuxBackend.Create(api.ContainerSpec{})
 		Ω(err).ShouldNot(HaveOccurred())
 
 		foundContainer, err := linuxBackend.Lookup(container.Handle())
@@ -360,7 +360,7 @@ var _ = Describe("Create", func() {
 		})
 
 		It("returns the error", func() {
-			container, err := linuxBackend.Create(warden.ContainerSpec{})
+			container, err := linuxBackend.Create(api.ContainerSpec{})
 			Ω(err).Should(HaveOccurred())
 			Ω(err).Should(Equal(disaster))
 
@@ -370,10 +370,10 @@ var _ = Describe("Create", func() {
 
 	Context("when a container with the given handle already exists", func() {
 		It("returns a HandleExistsError", func() {
-			container, err := linuxBackend.Create(warden.ContainerSpec{})
+			container, err := linuxBackend.Create(api.ContainerSpec{})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			_, err = linuxBackend.Create(warden.ContainerSpec{Handle: container.Handle()})
+			_, err = linuxBackend.Create(api.ContainerSpec{Handle: container.Handle()})
 			Ω(err).Should(Equal(linux_backend.HandleExistsError{container.Handle()}))
 		})
 	})
@@ -388,7 +388,7 @@ var _ = Describe("Create", func() {
 		})
 
 		It("returns the error", func() {
-			container, err := linuxBackend.Create(warden.ContainerSpec{})
+			container, err := linuxBackend.Create(api.ContainerSpec{})
 			Ω(err).Should(HaveOccurred())
 			Ω(err).Should(Equal(disaster))
 
@@ -396,7 +396,7 @@ var _ = Describe("Create", func() {
 		})
 
 		It("does not register the container", func() {
-			_, err := linuxBackend.Create(warden.ContainerSpec{})
+			_, err := linuxBackend.Create(api.ContainerSpec{})
 			Ω(err).Should(HaveOccurred())
 
 			containers, err := linuxBackend.Containers(nil)
@@ -411,14 +411,14 @@ var _ = Describe("Destroy", func() {
 	var fakeContainerPool *fake_container_pool.FakeContainerPool
 	var linuxBackend *linux_backend.LinuxBackend
 
-	var container warden.Container
+	var container api.Container
 
 	BeforeEach(func() {
 		fakeContainerPool = fake_container_pool.New()
 		fakeSystemInfo := fake_system_info.NewFakeProvider()
 		linuxBackend = linux_backend.New(logger, fakeContainerPool, fakeSystemInfo, "")
 
-		newContainer, err := linuxBackend.Create(warden.ContainerSpec{})
+		newContainer, err := linuxBackend.Create(api.ContainerSpec{})
 		Ω(err).ShouldNot(HaveOccurred())
 
 		container = newContainer
@@ -485,7 +485,7 @@ var _ = Describe("Lookup", func() {
 	})
 
 	It("returns the container", func() {
-		container, err := linuxBackend.Create(warden.ContainerSpec{})
+		container, err := linuxBackend.Create(api.ContainerSpec{})
 		Ω(err).ShouldNot(HaveOccurred())
 
 		foundContainer, err := linuxBackend.Lookup(container.Handle())
@@ -516,10 +516,10 @@ var _ = Describe("Containers", func() {
 	})
 
 	It("returns a list of all existing containers", func() {
-		container1, err := linuxBackend.Create(warden.ContainerSpec{})
+		container1, err := linuxBackend.Create(api.ContainerSpec{})
 		Ω(err).ShouldNot(HaveOccurred())
 
-		container2, err := linuxBackend.Create(warden.ContainerSpec{})
+		container2, err := linuxBackend.Create(api.ContainerSpec{})
 		Ω(err).ShouldNot(HaveOccurred())
 
 		containers, err := linuxBackend.Containers(nil)
@@ -531,23 +531,23 @@ var _ = Describe("Containers", func() {
 
 	Context("when given properties to filter by", func() {
 		It("returns only containers with matching properties", func() {
-			container1, err := linuxBackend.Create(warden.ContainerSpec{
-				Properties: warden.Properties{"a": "b"},
+			container1, err := linuxBackend.Create(api.ContainerSpec{
+				Properties: api.Properties{"a": "b"},
 			})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			container2, err := linuxBackend.Create(warden.ContainerSpec{
-				Properties: warden.Properties{"a": "b"},
+			container2, err := linuxBackend.Create(api.ContainerSpec{
+				Properties: api.Properties{"a": "b"},
 			})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			container3, err := linuxBackend.Create(warden.ContainerSpec{
-				Properties: warden.Properties{"a": "b", "c": "d", "e": "f"},
+			container3, err := linuxBackend.Create(api.ContainerSpec{
+				Properties: api.Properties{"a": "b", "c": "d", "e": "f"},
 			})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			containers, err := linuxBackend.Containers(
-				warden.Properties{"a": "b", "e": "f"},
+				api.Properties{"a": "b", "e": "f"},
 			)
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -569,7 +569,7 @@ var _ = Describe("GraceTime", func() {
 	})
 
 	It("returns the container's grace time", func() {
-		container, err := linuxBackend.Create(warden.ContainerSpec{
+		container, err := linuxBackend.Create(api.ContainerSpec{
 			GraceTime: time.Second,
 		})
 		Ω(err).ShouldNot(HaveOccurred())

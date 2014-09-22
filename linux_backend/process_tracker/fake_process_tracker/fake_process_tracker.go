@@ -6,29 +6,29 @@ import (
 	"sync"
 
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/process_tracker"
-	"github.com/cloudfoundry-incubator/garden/warden"
+	"github.com/cloudfoundry-incubator/garden/api"
 )
 
 type FakeProcessTracker struct {
-	RunStub        func(*exec.Cmd, warden.ProcessIO, *warden.TTYSpec) (warden.Process, error)
+	RunStub        func(*exec.Cmd, api.ProcessIO, *api.TTYSpec) (api.Process, error)
 	runMutex       sync.RWMutex
 	runArgsForCall []struct {
 		arg1 *exec.Cmd
-		arg2 warden.ProcessIO
-		arg3 *warden.TTYSpec
+		arg2 api.ProcessIO
+		arg3 *api.TTYSpec
 	}
 	runReturns struct {
-		result1 warden.Process
+		result1 api.Process
 		result2 error
 	}
-	AttachStub        func(uint32, warden.ProcessIO) (warden.Process, error)
+	AttachStub        func(uint32, api.ProcessIO) (api.Process, error)
 	attachMutex       sync.RWMutex
 	attachArgsForCall []struct {
 		arg1 uint32
-		arg2 warden.ProcessIO
+		arg2 api.ProcessIO
 	}
 	attachReturns struct {
-		result1 warden.Process
+		result1 api.Process
 		result2 error
 	}
 	RestoreStub        func(processID uint32)
@@ -36,21 +36,21 @@ type FakeProcessTracker struct {
 	restoreArgsForCall []struct {
 		processID uint32
 	}
-	ActiveProcessesStub        func() []warden.Process
+	ActiveProcessesStub        func() []api.Process
 	activeProcessesMutex       sync.RWMutex
 	activeProcessesArgsForCall []struct{}
 	activeProcessesReturns     struct {
-		result1 []warden.Process
+		result1 []api.Process
 	}
 }
 
-func (fake *FakeProcessTracker) Run(arg1 *exec.Cmd, arg2 warden.ProcessIO, arg3 *warden.TTYSpec) (warden.Process, error) {
+func (fake *FakeProcessTracker) Run(arg1 *exec.Cmd, arg2 api.ProcessIO, arg3 *api.TTYSpec) (api.Process, error) {
 	fake.runMutex.Lock()
 	defer fake.runMutex.Unlock()
 	fake.runArgsForCall = append(fake.runArgsForCall, struct {
 		arg1 *exec.Cmd
-		arg2 warden.ProcessIO
-		arg3 *warden.TTYSpec
+		arg2 api.ProcessIO
+		arg3 *api.TTYSpec
 	}{arg1, arg2, arg3})
 	if fake.RunStub != nil {
 		return fake.RunStub(arg1, arg2, arg3)
@@ -65,26 +65,26 @@ func (fake *FakeProcessTracker) RunCallCount() int {
 	return len(fake.runArgsForCall)
 }
 
-func (fake *FakeProcessTracker) RunArgsForCall(i int) (*exec.Cmd, warden.ProcessIO, *warden.TTYSpec) {
+func (fake *FakeProcessTracker) RunArgsForCall(i int) (*exec.Cmd, api.ProcessIO, *api.TTYSpec) {
 	fake.runMutex.RLock()
 	defer fake.runMutex.RUnlock()
 	return fake.runArgsForCall[i].arg1, fake.runArgsForCall[i].arg2, fake.runArgsForCall[i].arg3
 }
 
-func (fake *FakeProcessTracker) RunReturns(result1 warden.Process, result2 error) {
+func (fake *FakeProcessTracker) RunReturns(result1 api.Process, result2 error) {
 	fake.RunStub = nil
 	fake.runReturns = struct {
-		result1 warden.Process
+		result1 api.Process
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeProcessTracker) Attach(arg1 uint32, arg2 warden.ProcessIO) (warden.Process, error) {
+func (fake *FakeProcessTracker) Attach(arg1 uint32, arg2 api.ProcessIO) (api.Process, error) {
 	fake.attachMutex.Lock()
 	defer fake.attachMutex.Unlock()
 	fake.attachArgsForCall = append(fake.attachArgsForCall, struct {
 		arg1 uint32
-		arg2 warden.ProcessIO
+		arg2 api.ProcessIO
 	}{arg1, arg2})
 	if fake.AttachStub != nil {
 		return fake.AttachStub(arg1, arg2)
@@ -99,16 +99,16 @@ func (fake *FakeProcessTracker) AttachCallCount() int {
 	return len(fake.attachArgsForCall)
 }
 
-func (fake *FakeProcessTracker) AttachArgsForCall(i int) (uint32, warden.ProcessIO) {
+func (fake *FakeProcessTracker) AttachArgsForCall(i int) (uint32, api.ProcessIO) {
 	fake.attachMutex.RLock()
 	defer fake.attachMutex.RUnlock()
 	return fake.attachArgsForCall[i].arg1, fake.attachArgsForCall[i].arg2
 }
 
-func (fake *FakeProcessTracker) AttachReturns(result1 warden.Process, result2 error) {
+func (fake *FakeProcessTracker) AttachReturns(result1 api.Process, result2 error) {
 	fake.AttachStub = nil
 	fake.attachReturns = struct {
-		result1 warden.Process
+		result1 api.Process
 		result2 error
 	}{result1, result2}
 }
@@ -136,7 +136,7 @@ func (fake *FakeProcessTracker) RestoreArgsForCall(i int) uint32 {
 	return fake.restoreArgsForCall[i].processID
 }
 
-func (fake *FakeProcessTracker) ActiveProcesses() []warden.Process {
+func (fake *FakeProcessTracker) ActiveProcesses() []api.Process {
 	fake.activeProcessesMutex.Lock()
 	defer fake.activeProcessesMutex.Unlock()
 	fake.activeProcessesArgsForCall = append(fake.activeProcessesArgsForCall, struct{}{})
@@ -153,10 +153,10 @@ func (fake *FakeProcessTracker) ActiveProcessesCallCount() int {
 	return len(fake.activeProcessesArgsForCall)
 }
 
-func (fake *FakeProcessTracker) ActiveProcessesReturns(result1 []warden.Process) {
+func (fake *FakeProcessTracker) ActiveProcessesReturns(result1 []api.Process) {
 	fake.ActiveProcessesStub = nil
 	fake.activeProcessesReturns = struct {
-		result1 []warden.Process
+		result1 []api.Process
 	}{result1}
 }
 

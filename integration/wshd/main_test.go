@@ -315,19 +315,19 @@ setup_fs
 		Ω(ls).Should(Say(`drwxrwxrwt`))
 	})
 
-	It("unmounts /tmp/warden-host* in the child", func() {
+	It("unmounts /tmp/garden-host* in the child", func() {
 		cat := exec.Command(wsh, "--socket", socketPath, "/bin/cat", "/proc/mounts")
 
 		catSession, err := Start(cat, GinkgoWriter, GinkgoWriter)
 		Ω(err).ShouldNot(HaveOccurred())
 
 		Eventually(catSession).Should(Exit(0))
-		Ω(catSession).ShouldNot(Say(" /tmp/warden-host"))
+		Ω(catSession).ShouldNot(Say(" /tmp/garden-host"))
 	})
 
-	It("cleans up the /tmp/warden-host pivot_root directory", func() {
+	It("cleans up the /tmp/garden-host pivot_root directory", func() {
 		ls, err := Start(
-			exec.Command(wsh, "--socket", socketPath, "ls", "/tmp/warden-host"),
+			exec.Command(wsh, "--socket", socketPath, "ls", "/tmp/garden-host"),
 			GinkgoWriter,
 			GinkgoWriter,
 		)

@@ -10,18 +10,18 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
 
-	"github.com/cloudfoundry-incubator/garden/warden"
+	"github.com/cloudfoundry-incubator/garden/api"
 )
 
 var _ = Describe("Through a restart", func() {
-	var container warden.Container
+	var container api.Container
 
 	BeforeEach(func() {
 		client = startGarden()
 
 		var err error
 
-		container, err = client.Create(warden.ContainerSpec{})
+		container, err = client.Create(api.ContainerSpec{})
 		Ω(err).ShouldNot(HaveOccurred())
 	})
 
@@ -34,10 +34,10 @@ var _ = Describe("Through a restart", func() {
 
 	Describe("a started process", func() {
 		It("continues to stream", func() {
-			process, err := container.Run(warden.ProcessSpec{
+			process, err := container.Run(api.ProcessSpec{
 				Path: "sh",
 				Args: []string{"-c", "while true; do echo hi; sleep 0.5; done"},
-			}, warden.ProcessIO{})
+			}, api.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			restartGarden()
@@ -46,7 +46,7 @@ var _ = Describe("Through a restart", func() {
 			Ω(err).Should(HaveOccurred())
 
 			stdout := gbytes.NewBuffer()
-			_, err = container.Attach(process.ID(), warden.ProcessIO{
+			_, err = container.Attach(process.ID(), api.ProcessIO{
 				Stdout: stdout,
 			})
 			Ω(err).ShouldNot(HaveOccurred())
@@ -59,10 +59,10 @@ var _ = Describe("Through a restart", func() {
 
 			stdout := gbytes.NewBuffer()
 
-			process, err := container.Run(warden.ProcessSpec{
+			process, err := container.Run(api.ProcessSpec{
 				Path: "sh",
 				Args: []string{"-c", "cat <&0"},
-			}, warden.ProcessIO{
+			}, api.ProcessIO{
 				Stdin:  r,
 				Stdout: stdout,
 			})
@@ -81,7 +81,7 @@ var _ = Describe("Through a restart", func() {
 			err = w.Close()
 			Ω(err).ShouldNot(HaveOccurred())
 
-			process, err = container.Attach(process.ID(), warden.ProcessIO{
+			process, err = container.Attach(process.ID(), api.ProcessIO{
 				Stdin:  bytes.NewBufferString("world"),
 				Stdout: stdout,
 			})
@@ -94,7 +94,7 @@ var _ = Describe("Through a restart", func() {
 		It("can still have its tty window resized", func() {
 			stdout := gbytes.NewBuffer()
 
-			process, err := container.Run(warden.ProcessSpec{
+			process, err := container.Run(api.ProcessSpec{
 				Path: "sh",
 				Args: []string{
 					"-c",
@@ -117,13 +117,13 @@ var _ = Describe("Through a restart", func() {
 						done
 					`,
 				},
-				TTY: &warden.TTYSpec{
-					WindowSize: &warden.WindowSize{
+				TTY: &api.TTYSpec{
+					WindowSize: &api.WindowSize{
 						Columns: 80,
 						Rows:    24,
 					},
 				},
-			}, warden.ProcessIO{
+			}, api.ProcessIO{
 				Stdout: stdout,
 			})
 			Ω(err).ShouldNot(HaveOccurred())
@@ -137,14 +137,14 @@ var _ = Describe("Through a restart", func() {
 
 			inR, inW := io.Pipe()
 
-			process, err = container.Attach(process.ID(), warden.ProcessIO{
+			process, err = container.Attach(process.ID(), api.ProcessIO{
 				Stdin:  inR,
 				Stdout: stdout,
 			})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			err = process.SetTTY(warden.TTYSpec{
-				WindowSize: &warden.WindowSize{
+			err = process.SetTTY(api.TTYSpec{
+				WindowSize: &api.WindowSize{
 					Columns: 123,
 					Rows:    456,
 				},
@@ -160,18 +160,18 @@ var _ = Describe("Through a restart", func() {
 		})
 
 		It("does not have its job ID repeated", func() {
-			process1, err := container.Run(warden.ProcessSpec{
+			process1, err := container.Run(api.ProcessSpec{
 				Path: "sh",
 				Args: []string{"-c", "while true; do echo hi; sleep 0.5; done"},
-			}, warden.ProcessIO{})
+			}, api.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			restartGarden()
 
-			process2, err := container.Run(warden.ProcessSpec{
+			process2, err := container.Run(api.ProcessSpec{
 				Path: "sh",
 				Args: []string{"-c", "while true; do echo hi; sleep 0.5; done"},
-			}, warden.ProcessIO{})
+			}, api.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(process1.ID()).ShouldNot(Equal(process2.ID()))
@@ -181,9 +181,9 @@ var _ = Describe("Through a restart", func() {
 			stdinR, stdinW := io.Pipe()
 			stdout := gbytes.NewBuffer()
 
-			process, err := container.Run(warden.ProcessSpec{
+			process, err := container.Run(api.ProcessSpec{
 				Path: "cat",
-			}, warden.ProcessIO{
+			}, api.ProcessIO{
 				Stdin:  stdinR,
 				Stdout: stdout,
 			})
@@ -197,7 +197,7 @@ var _ = Describe("Through a restart", func() {
 			stdinR, stdinW = io.Pipe()
 			stdout = gbytes.NewBuffer()
 
-			_, err = container.Attach(process.ID(), warden.ProcessIO{
+			_, err = container.Attach(process.ID(), api.ProcessIO{
 				Stdin:  stdinR,
 				Stdout: stdout,
 			})
@@ -210,15 +210,15 @@ var _ = Describe("Through a restart", func() {
 
 	Describe("a memory limit", func() {
 		It("is still enforced", func() {
-			err := container.LimitMemory(warden.MemoryLimits{4 * 1024 * 1024})
+			err := container.LimitMemory(api.MemoryLimits{4 * 1024 * 1024})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			restartGarden()
 
-			process, err := container.Run(warden.ProcessSpec{
+			process, err := container.Run(api.ProcessSpec{
 				Path: "sh",
 				Args: []string{"-c", "echo $(yes | head -c 67108864); echo goodbye; exit 42"},
-			}, warden.ProcessIO{})
+			}, api.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			// cgroups OOM killer seems to leave no trace of the process;
@@ -231,10 +231,10 @@ var _ = Describe("Through a restart", func() {
 
 	Describe("a container's active job", func() {
 		It("is still tracked", func() {
-			process, err := container.Run(warden.ProcessSpec{
+			process, err := container.Run(api.ProcessSpec{
 				Path: "sh",
 				Args: []string{"-c", "while true; do echo hi; sleep 0.5; done"},
-			}, warden.ProcessIO{})
+			}, api.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			restartGarden()
@@ -248,14 +248,14 @@ var _ = Describe("Through a restart", func() {
 
 	Describe("a container's list of events", func() {
 		It("is still reported", func() {
-			err := container.LimitMemory(warden.MemoryLimits{4 * 1024 * 1024})
+			err := container.LimitMemory(api.MemoryLimits{4 * 1024 * 1024})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			// trigger 'out of memory' event
-			process, err := container.Run(warden.ProcessSpec{
+			process, err := container.Run(api.ProcessSpec{
 				Path: "sh",
 				Args: []string{"-c", "echo $(yes | head -c 67108864); echo goodbye; exit 42"},
-			}, warden.ProcessIO{})
+			}, api.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(process.Wait()).ShouldNot(Equal(42), "process did not get OOM killed")
@@ -278,8 +278,8 @@ var _ = Describe("Through a restart", func() {
 
 	Describe("a container's properties", func() {
 		It("are retained", func() {
-			containerWithProperties, err := client.Create(warden.ContainerSpec{
-				Properties: warden.Properties{
+			containerWithProperties, err := client.Create(api.ContainerSpec{
+				Properties: api.Properties{
 					"foo": "bar",
 				},
 			})
@@ -332,7 +332,7 @@ var _ = Describe("Through a restart", func() {
 
 			restartGarden()
 
-			newContainer, err := client.Create(warden.ContainerSpec{})
+			newContainer, err := client.Create(api.ContainerSpec{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			infoB, err := newContainer.Info()
@@ -350,7 +350,7 @@ var _ = Describe("Through a restart", func() {
 
 			restartGarden()
 
-			containerB, err := client.Create(warden.ContainerSpec{})
+			containerB, err := client.Create(api.ContainerSpec{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			netInBHost, netInBContainer, err := containerB.NetIn(0, 0)
@@ -366,10 +366,10 @@ var _ = Describe("Through a restart", func() {
 			idA := gbytes.NewBuffer()
 			idB := gbytes.NewBuffer()
 
-			processA, err := container.Run(warden.ProcessSpec{
+			processA, err := container.Run(api.ProcessSpec{
 				Path: "id",
 				Args: []string{"-u"},
-			}, warden.ProcessIO{
+			}, api.ProcessIO{
 				Stdout: idA,
 			})
 			Ω(err).ShouldNot(HaveOccurred())
@@ -378,13 +378,13 @@ var _ = Describe("Through a restart", func() {
 
 			restartGarden()
 
-			otherContainer, err := client.Create(warden.ContainerSpec{})
+			otherContainer, err := client.Create(api.ContainerSpec{})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			processB, err := otherContainer.Run(warden.ProcessSpec{
+			processB, err := otherContainer.Run(api.ProcessSpec{
 				Path: "id",
 				Args: []string{"-u"},
-			}, warden.ProcessIO{Stdout: idB})
+			}, api.ProcessIO{Stdout: idB})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(processB.Wait()).Should(Equal(0))
@@ -399,7 +399,7 @@ var _ = Describe("Through a restart", func() {
 		})
 
 		It("is still enforced", func() {
-			container, err := client.Create(warden.ContainerSpec{})
+			container, err := client.Create(api.ContainerSpec{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			restartGarden()

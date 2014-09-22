@@ -5,7 +5,7 @@ import (
 	"io"
 
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
-	"github.com/cloudfoundry-incubator/garden/warden"
+	"github.com/cloudfoundry-incubator/garden/api"
 	"github.com/nu7hatch/gouuid"
 )
 
@@ -54,7 +54,7 @@ func (p *FakeContainerPool) Prune(keep map[string]bool) error {
 	return nil
 }
 
-func (p *FakeContainerPool) Create(spec warden.ContainerSpec) (linux_backend.Container, error) {
+func (p *FakeContainerPool) Create(spec api.ContainerSpec) (linux_backend.Container, error) {
 	if p.CreateError != nil {
 		return nil, p.CreateError
 	}
@@ -94,7 +94,7 @@ func (p *FakeContainerPool) Restore(snapshot io.Reader) (linux_backend.Container
 	}
 
 	container := NewFakeContainer(
-		warden.ContainerSpec{
+		api.ContainerSpec{
 			Handle: handle,
 		},
 	)

@@ -7,7 +7,7 @@ import (
 	"path"
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden/warden"
+	"github.com/cloudfoundry-incubator/garden/api"
 	"github.com/cloudfoundry/gunk/command_runner"
 
 	"github.com/cloudfoundry-incubator/garden-linux/iodaemon/link"
@@ -65,7 +65,7 @@ func (p *Process) Wait() (int, error) {
 	return p.exitStatus, p.exitErr
 }
 
-func (p *Process) SetTTY(tty warden.TTYSpec) error {
+func (p *Process) SetTTY(tty api.TTYSpec) error {
 	<-p.linked
 
 	if tty.WindowSize != nil {
@@ -75,7 +75,7 @@ func (p *Process) SetTTY(tty warden.TTYSpec) error {
 	return nil
 }
 
-func (p *Process) Spawn(cmd *exec.Cmd, tty *warden.TTYSpec) (ready, active chan error) {
+func (p *Process) Spawn(cmd *exec.Cmd, tty *api.TTYSpec) (ready, active chan error) {
 	ready = make(chan error, 1)
 	active = make(chan error, 1)
 
@@ -147,7 +147,7 @@ func (p *Process) Link() {
 	p.runningLink.Do(p.runLinker)
 }
 
-func (p *Process) Attach(processIO warden.ProcessIO) {
+func (p *Process) Attach(processIO api.ProcessIO) {
 	if processIO.Stdin != nil {
 		p.stdin.AddSource(processIO.Stdin)
 	}

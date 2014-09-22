@@ -691,7 +691,7 @@ int child_run(void *data) {
   assert(rv == 0);
 
   /* Prepare lib path for pivot */
-  strcpy(pivoted_lib_path, "/tmp/warden-host");
+  strcpy(pivoted_lib_path, "/tmp/garden-host");
   pivoted_lib_path_len = strlen(pivoted_lib_path);
   realpath(w->lib_path, pivoted_lib_path + pivoted_lib_path_len);
 
@@ -714,13 +714,13 @@ int child_run(void *data) {
     abort();
   }
 
-  rv = mkdir("tmp/warden-host", 0700);
+  rv = mkdir("tmp/garden-host", 0700);
   if (rv == -1 && errno != EEXIST) {
     perror("mkdir");
     abort();
   }
 
-  rv = pivot_root(".", "tmp/warden-host");
+  rv = pivot_root(".", "tmp/garden-host");
   if (rv == -1) {
     perror("pivot_root");
     abort();
@@ -760,12 +760,12 @@ int child_continue(int argc, char **argv) {
   }
 
   /* Clean up temporary pivot_root dir */
-  rv = umount2("/tmp/warden-host", MNT_DETACH);
+  rv = umount2("/tmp/garden-host", MNT_DETACH);
   if (rv == -1) {
     exit(1);
   }
 
-  rv = rmdir("/tmp/warden-host");
+  rv = rmdir("/tmp/garden-host");
   if (rv == -1) {
     exit(1);
   }
