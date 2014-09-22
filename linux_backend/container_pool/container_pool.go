@@ -107,9 +107,8 @@ func (p *LinuxContainerPool) MaxContainers() int {
 }
 
 func (p *LinuxContainerPool) Setup() error {
-	setup := exec.Command(path.Join(p.binPath, "setup.sh"), "1>/var/log/setup.log", "2>&1")
+	setup := exec.Command(path.Join(p.binPath, "setup.sh"))
 	setup.Env = []string{
-		"DEBUG=true",
 		"POOL_NETWORK=" + p.networkPool.Network().String(),
 		"DENY_NETWORKS=" + formatNetworks(p.denyNetworks),
 		"ALLOW_NETWORKS=" + formatNetworks(p.allowNetworks),
@@ -119,12 +118,8 @@ func (p *LinuxContainerPool) Setup() error {
 		"PATH=" + os.Getenv("PATH"),
 	}
 
-	err := p.runner.Run(setup) // TODO: output does not appear
+	err := p.runner.Run(setup)
 	if err != nil {
-		p.logger.Error("setup.sh-failed", err, lager.Data{
-			"p.binPath": p.binPath,
-			"Env":       setup.Env,
-		})
 		return err
 	}
 
