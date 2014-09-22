@@ -3,7 +3,7 @@ package linux_backend
 import (
 	"time"
 
-	"github.com/cloudfoundry-incubator/garden/warden"
+	"github.com/cloudfoundry-incubator/garden/api"
 
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/network"
 )
@@ -26,16 +26,16 @@ type ContainerSnapshot struct {
 	NetIns  []NetInSpec
 	NetOuts []NetOutSpec
 
-	Properties warden.Properties
+	Properties api.Properties
 
 	EnvVars []string
 }
 
 type LimitsSnapshot struct {
-	Memory    *warden.MemoryLimits
-	Disk      *warden.DiskLimits
-	Bandwidth *warden.BandwidthLimits
-	CPU       *warden.CPULimits
+	Memory    *api.MemoryLimits
+	Disk      *api.DiskLimits
+	Bandwidth *api.BandwidthLimits
+	CPU       *api.CPULimits
 }
 
 type ResourcesSnapshot struct {

@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cloudfoundry-incubator/garden/warden"
+	"github.com/cloudfoundry-incubator/garden/api"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
@@ -20,14 +20,14 @@ import (
 )
 
 var _ = Describe("Creating a container", func() {
-	var container warden.Container
+	var container api.Container
 
 	BeforeEach(func() {
 		client = startGarden()
 
 		var err error
 
-		container, err = client.Create(warden.ContainerSpec{})
+		container, err = client.Create(api.ContainerSpec{})
 		Ω(err).ShouldNot(HaveOccurred())
 	})
 
@@ -37,30 +37,30 @@ var _ = Describe("Creating a container", func() {
 	})
 
 	It("sources /etc/seed", func() {
-		process, err := container.Run(warden.ProcessSpec{
+		process, err := container.Run(api.ProcessSpec{
 			Path: "test",
 			Args: []string{"-e", "/tmp/ran-seed"},
-		}, warden.ProcessIO{})
+		}, api.ProcessIO{})
 		Ω(err).ShouldNot(HaveOccurred())
 
 		Ω(process.Wait()).Should(Equal(0))
 	})
 
 	It("provides /dev/shm as tmpfs in the container", func() {
-		process, err := container.Run(warden.ProcessSpec{
+		process, err := container.Run(api.ProcessSpec{
 			Path: "dd",
 			Args: []string{"if=/dev/urandom", "of=/dev/shm/some-data", "count=64", "bs=1k"},
-		}, warden.ProcessIO{})
+		}, api.ProcessIO{})
 		Ω(err).ShouldNot(HaveOccurred())
 
 		Ω(process.Wait()).Should(Equal(0))
 
 		outBuf := gbytes.NewBuffer()
 
-		process, err = container.Run(warden.ProcessSpec{
+		process, err = container.Run(api.ProcessSpec{
 			Path: "cat",
 			Args: []string{"/proc/mounts"},
-		}, warden.ProcessIO{
+		}, api.ProcessIO{
 			Stdout: outBuf,
 		})
 		Ω(err).ShouldNot(HaveOccurred())
@@ -90,11 +90,11 @@ var _ = Describe("Creating a container", func() {
 			stdout := gbytes.NewBuffer()
 			stderr := gbytes.NewBuffer()
 
-			process, err := container.Run(warden.ProcessSpec{
+			process, err := container.Run(api.ProcessSpec{
 				Path: "sh",
 				Args: []string{"-c", "sleep 0.5; echo $FIRST; sleep 0.5; echo $SECOND >&2; sleep 0.5; exit 42"},
 				Env:  []string{"FIRST=hello", "SECOND=goodbye"},
-			}, warden.ProcessIO{
+			}, api.ProcessIO{
 				Stdout: stdout,
 				Stderr: stderr,
 			})
@@ -109,10 +109,10 @@ var _ = Describe("Creating a container", func() {
 			for i := 0; i < 1000; i++ {
 				stdout := gbytes.NewBuffer()
 
-				process, err := container.Run(warden.ProcessSpec{
+				process, err := container.Run(api.ProcessSpec{
 					Path: "sh",
 					Args: []string{"-c", "cat <&0"},
-				}, warden.ProcessIO{
+				}, api.ProcessIO{
 					Stdin:  bytes.NewBuffer([]byte("hi stdout")),
 					Stderr: os.Stderr,
 					Stdout: stdout,
@@ -133,10 +133,10 @@ var _ = Describe("Creating a container", func() {
 		It("streams input to the process's stdin", func() {
 			stdout := gbytes.NewBuffer()
 
-			process, err := container.Run(warden.ProcessSpec{
+			process, err := container.Run(api.ProcessSpec{
 				Path: "sh",
 				Args: []string{"-c", "cat <&0"},
-			}, warden.ProcessIO{
+			}, api.ProcessIO{
 				Stdin:  bytes.NewBufferString("hello\nworld"),
 				Stdout: stdout,
 			})
@@ -157,9 +157,9 @@ var _ = Describe("Creating a container", func() {
 			initialOpenFileCount := openFileCount()
 
 			for i := 0; i < 50; i++ {
-				process, err := container.Run(warden.ProcessSpec{
+				process, err := container.Run(api.ProcessSpec{
 					Path: "true",
-				}, warden.ProcessIO{})
+				}, api.ProcessIO{})
 				Ω(err).ShouldNot(HaveOccurred())
 				Ω(process.Wait()).Should(Equal(0))
 			}
@@ -178,9 +178,9 @@ var _ = Describe("Creating a container", func() {
 			// process exits, so run it ~10 times (observed it fail often in this range)
 
 			for i := 0; i < 10; i++ {
-				process, err := container.Run(warden.ProcessSpec{
+				process, err := container.Run(api.ProcessSpec{
 					Path: "ls",
-				}, warden.ProcessIO{
+				}, api.ProcessIO{
 					Stdin: bytes.NewBufferString(strings.Repeat("x", 1024)),
 				})
 				Ω(err).ShouldNot(HaveOccurred())
@@ -191,7 +191,7 @@ var _ = Describe("Creating a container", func() {
 
 		Context("with a memory limit", func() {
 			BeforeEach(func() {
-				err := container.LimitMemory(warden.MemoryLimits{
+				err := container.LimitMemory(api.MemoryLimits{
 					LimitInBytes: 64 * 1024 * 1024,
 				})
 				Ω(err).ShouldNot(HaveOccurred())
@@ -199,10 +199,10 @@ var _ = Describe("Creating a container", func() {
 
 			Context("when the process writes too much to /dev/shm", func() {
 				It("is killed", func() {
-					process, err := container.Run(warden.ProcessSpec{
+					process, err := container.Run(api.ProcessSpec{
 						Path: "dd",
 						Args: []string{"if=/dev/urandom", "of=/dev/shm/too-big", "bs=1M", "count=65"},
-					}, warden.ProcessIO{})
+					}, api.ProcessIO{})
 					Ω(err).ShouldNot(HaveOccurred())
 
 					Ω(process.Wait()).ShouldNot(Equal(0))
@@ -216,16 +216,16 @@ var _ = Describe("Creating a container", func() {
 
 				inR, inW := io.Pipe()
 
-				process, err := container.Run(warden.ProcessSpec{
+				process, err := container.Run(api.ProcessSpec{
 					Path: "sh",
 					Args: []string{"-c", "read foo; stty -a"},
-					TTY: &warden.TTYSpec{
-						WindowSize: &warden.WindowSize{
+					TTY: &api.TTYSpec{
+						WindowSize: &api.WindowSize{
 							Columns: 123,
 							Rows:    456,
 						},
 					},
-				}, warden.ProcessIO{
+				}, api.ProcessIO{
 					Stdin:  inR,
 					Stdout: stdout,
 				})
@@ -249,7 +249,7 @@ var _ = Describe("Creating a container", func() {
 
 				inR, inW := io.Pipe()
 
-				process, err := container.Run(warden.ProcessSpec{
+				process, err := container.Run(api.ProcessSpec{
 					Path: "sh",
 					Args: []string{
 						"-c",
@@ -265,8 +265,8 @@ var _ = Describe("Creating a container", func() {
 							done
 						`,
 					},
-					TTY: &warden.TTYSpec{},
-				}, warden.ProcessIO{
+					TTY: &api.TTYSpec{},
+				}, api.ProcessIO{
 					Stdin:  inR,
 					Stdout: stdout,
 				})
@@ -274,8 +274,8 @@ var _ = Describe("Creating a container", func() {
 
 				Eventually(stdout).Should(gbytes.Say("waiting"))
 
-				err = process.SetTTY(warden.TTYSpec{
-					WindowSize: &warden.WindowSize{
+				err = process.SetTTY(api.TTYSpec{
+					WindowSize: &api.WindowSize{
 						Columns: 123,
 						Rows:    456,
 					},
@@ -295,10 +295,10 @@ var _ = Describe("Creating a container", func() {
 			It("executes with the working directory as the dir", func() {
 				stdout := gbytes.NewBuffer()
 
-				process, err := container.Run(warden.ProcessSpec{
+				process, err := container.Run(api.ProcessSpec{
 					Path: "pwd",
 					Dir:  "/usr",
-				}, warden.ProcessIO{
+				}, api.ProcessIO{
 					Stdout: stdout,
 				})
 				Ω(err).ShouldNot(HaveOccurred())
@@ -313,15 +313,15 @@ var _ = Describe("Creating a container", func() {
 				stdout1 := gbytes.NewBuffer()
 				stdout2 := gbytes.NewBuffer()
 
-				process, err := container.Run(warden.ProcessSpec{
+				process, err := container.Run(api.ProcessSpec{
 					Path: "sh",
 					Args: []string{"-c", "sleep 2; echo hello; sleep 0.5; echo goodbye; sleep 0.5; exit 42"},
-				}, warden.ProcessIO{
+				}, api.ProcessIO{
 					Stdout: stdout1,
 				})
 				Ω(err).ShouldNot(HaveOccurred())
 
-				attached, err := container.Attach(process.ID(), warden.ProcessIO{
+				attached, err := container.Attach(process.ID(), api.ProcessIO{
 					Stdout: stdout2,
 				})
 				Ω(err).ShouldNot(HaveOccurred())
@@ -345,7 +345,7 @@ var _ = Describe("Creating a container", func() {
 			It("terminates all running processes", func() {
 				stdout := gbytes.NewBuffer()
 
-				process, err := container.Run(warden.ProcessSpec{
+				process, err := container.Run(api.ProcessSpec{
 					Path: "sh",
 					Args: []string{
 						"-c",
@@ -359,7 +359,7 @@ var _ = Describe("Creating a container", func() {
 						done
 						`,
 					},
-				}, warden.ProcessIO{
+				}, api.ProcessIO{
 					Stdout: stdout,
 				})
 				Ω(err).ShouldNot(HaveOccurred())
@@ -377,7 +377,7 @@ var _ = Describe("Creating a container", func() {
 
 				stdout := gbytes.NewBuffer()
 
-				process, err := container.Run(warden.ProcessSpec{
+				process, err := container.Run(api.ProcessSpec{
 					Path: "sh",
 					Args: []string{
 						"-c",
@@ -395,7 +395,7 @@ var _ = Describe("Creating a container", func() {
 						wait
 						`,
 					},
-				}, warden.ProcessIO{
+				}, api.ProcessIO{
 					Stdout: stdout,
 				})
 
@@ -417,7 +417,7 @@ var _ = Describe("Creating a container", func() {
 				It("is forcibly killed", func(done Done) {
 					defer close(done)
 
-					process, err := container.Run(warden.ProcessSpec{
+					process, err := container.Run(api.ProcessSpec{
 						Path: "sh",
 						Args: []string{
 							"-c",
@@ -429,7 +429,7 @@ var _ = Describe("Creating a container", func() {
                 wait
               `,
 						},
-					}, warden.ProcessIO{})
+					}, api.ProcessIO{})
 
 					Ω(err).ShouldNot(HaveOccurred())
 
@@ -480,19 +480,19 @@ var _ = Describe("Creating a container", func() {
 			err := container.StreamIn("/tmp/some/container/dir", tarStream)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			process, err := container.Run(warden.ProcessSpec{
+			process, err := container.Run(api.ProcessSpec{
 				Path: "test",
 				Args: []string{"-f", "/tmp/some/container/dir/some-temp-dir/some-temp-file"},
-			}, warden.ProcessIO{})
+			}, api.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(process.Wait()).Should(Equal(0))
 
 			output := gbytes.NewBuffer()
-			process, err = container.Run(warden.ProcessSpec{
+			process, err = container.Run(api.ProcessSpec{
 				Path: "ls",
 				Args: []string{"-al", "/tmp/some/container/dir/some-temp-dir/some-temp-file"},
-			}, warden.ProcessIO{
+			}, api.ProcessIO{
 				Stdout: output,
 			})
 			Ω(err).ShouldNot(HaveOccurred())
@@ -508,10 +508,10 @@ var _ = Describe("Creating a container", func() {
 			err := container.StreamIn(".", tarStream)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			process, err := container.Run(warden.ProcessSpec{
+			process, err := container.Run(api.ProcessSpec{
 				Path: "test",
 				Args: []string{"-f", "some-temp-dir/some-temp-file"},
-			}, warden.ProcessIO{})
+			}, api.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(process.Wait()).Should(Equal(0))
@@ -527,10 +527,10 @@ var _ = Describe("Creating a container", func() {
 
 		Context("and then copying them out", func() {
 			It("streams the directory", func() {
-				process, err := container.Run(warden.ProcessSpec{
+				process, err := container.Run(api.ProcessSpec{
 					Path: "sh",
 					Args: []string{"-c", `mkdir -p some-outer-dir/some-inner-dir && touch some-outer-dir/some-inner-dir/some-file`},
-				}, warden.ProcessIO{})
+				}, api.ProcessIO{})
 				Ω(err).ShouldNot(HaveOccurred())
 
 				Ω(process.Wait()).Should(Equal(0))
@@ -551,10 +551,10 @@ var _ = Describe("Creating a container", func() {
 
 			Context("with a trailing slash", func() {
 				It("streams the contents of the directory", func() {
-					process, err := container.Run(warden.ProcessSpec{
+					process, err := container.Run(api.ProcessSpec{
 						Path: "sh",
 						Args: []string{"-c", `mkdir -p some-container-dir && touch some-container-dir/some-file`},
-					}, warden.ProcessIO{})
+					}, api.ProcessIO{})
 					Ω(err).ShouldNot(HaveOccurred())
 
 					Ω(process.Wait()).Should(Equal(0))

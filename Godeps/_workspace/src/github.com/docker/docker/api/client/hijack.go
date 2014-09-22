@@ -14,6 +14,7 @@ import (
 	"github.com/docker/docker/api"
 	"github.com/docker/docker/dockerversion"
 	"github.com/docker/docker/pkg/log"
+	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/docker/docker/pkg/term"
 	"github.com/docker/docker/utils"
 )
@@ -25,14 +26,18 @@ func (cli *DockerCli) dial() (net.Conn, error) {
 	return net.Dial(cli.proto, cli.addr)
 }
 
-func (cli *DockerCli) hijack(method, path string, setRawTerminal bool, in io.ReadCloser, stdout, stderr io.Writer, started chan io.Closer) error {
+func (cli *DockerCli) hijack(method, path string, setRawTerminal bool, in io.ReadCloser, stdout, stderr io.Writer, started chan io.Closer, data interface{}) error {
 	defer func() {
 		if started != nil {
 			close(started)
 		}
 	}()
 
-	req, err := http.NewRequest(method, fmt.Sprintf("/v%s%s", api.APIVERSION, path), nil)
+	params, err := cli.encodeData(data)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest(method, fmt.Sprintf("/v%s%s", api.APIVERSION, path), params)
 	if err != nil {
 		return err
 	}
@@ -92,7 +97,7 @@ func (cli *DockerCli) hijack(method, path string, setRawTerminal bool, in io.Rea
 			if setRawTerminal && stdout != nil {
 				_, err = io.Copy(stdout, br)
 			} else {
-				_, err = utils.StdCopy(stdout, stderr, br)
+				_, err = stdcopy.StdCopy(stdout, stderr, br)
 			}
 			log.Debugf("[hijack] End of stdout")
 			return err

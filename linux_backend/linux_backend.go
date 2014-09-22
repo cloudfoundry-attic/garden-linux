@@ -10,13 +10,13 @@ import (
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden-linux/system_info"
-	"github.com/cloudfoundry-incubator/garden/warden"
+	"github.com/cloudfoundry-incubator/garden/api"
 	"github.com/pivotal-golang/lager"
 )
 
 type Container interface {
 	ID() string
-	Properties() warden.Properties
+	Properties() api.Properties
 	GraceTime() time.Duration
 
 	Start() error
@@ -24,12 +24,12 @@ type Container interface {
 	Snapshot(io.Writer) error
 	Cleanup()
 
-	warden.Container
+	api.Container
 }
 
 type ContainerPool interface {
 	Setup() error
-	Create(warden.ContainerSpec) (Container, error)
+	Create(api.ContainerSpec) (Container, error)
 	Restore(io.Reader) (Container, error)
 	Destroy(Container) error
 	Prune(keep map[string]bool) error
@@ -119,25 +119,25 @@ func (b *LinuxBackend) Ping() error {
 	return nil
 }
 
-func (b *LinuxBackend) Capacity() (warden.Capacity, error) {
+func (b *LinuxBackend) Capacity() (api.Capacity, error) {
 	totalMemory, err := b.systemInfo.TotalMemory()
 	if err != nil {
-		return warden.Capacity{}, err
+		return api.Capacity{}, err
 	}
 
 	totalDisk, err := b.systemInfo.TotalDisk()
 	if err != nil {
-		return warden.Capacity{}, err
+		return api.Capacity{}, err
 	}
 
-	return warden.Capacity{
+	return api.Capacity{
 		MemoryInBytes: totalMemory,
 		DiskInBytes:   totalDisk,
 		MaxContainers: uint64(b.containerPool.MaxContainers()),
 	}, nil
 }
 
-func (b *LinuxBackend) Create(spec warden.ContainerSpec) (warden.Container, error) {
+func (b *LinuxBackend) Create(spec api.ContainerSpec) (api.Container, error) {
 	if spec.Handle != "" {
 		b.containersMutex.RLock()
 		_, exists := b.containers[spec.Handle]
@@ -186,7 +186,7 @@ func (b *LinuxBackend) Destroy(handle string) error {
 	return nil
 }
 
-func (b *LinuxBackend) Containers(filter warden.Properties) (containers []warden.Container, err error) {
+func (b *LinuxBackend) Containers(filter api.Properties) (containers []api.Container, err error) {
 	b.containersMutex.RLock()
 	defer b.containersMutex.RUnlock()
 
@@ -199,7 +199,7 @@ func (b *LinuxBackend) Containers(filter warden.Properties) (containers []warden
 	return containers, nil
 }
 
-func (b *LinuxBackend) Lookup(handle string) (warden.Container, error) {
+func (b *LinuxBackend) Lookup(handle string) (api.Container, error) {
 	b.containersMutex.RLock()
 	defer b.containersMutex.RUnlock()
 
@@ -211,7 +211,7 @@ func (b *LinuxBackend) Lookup(handle string) (warden.Container, error) {
 	return container, nil
 }
 
-func (b *LinuxBackend) GraceTime(container warden.Container) time.Duration {
+func (b *LinuxBackend) GraceTime(container api.Container) time.Duration {
 	return container.(Container).GraceTime()
 }
 
@@ -285,7 +285,7 @@ func (b *LinuxBackend) saveSnapshot(container Container) error {
 	return snapshot.Close()
 }
 
-func (b *LinuxBackend) restore(snapshot io.Reader) (warden.Container, error) {
+func (b *LinuxBackend) restore(snapshot io.Reader) (api.Container, error) {
 	container, err := b.containerPool.Restore(snapshot)
 	if err != nil {
 		return nil, err
@@ -298,7 +298,7 @@ func (b *LinuxBackend) restore(snapshot io.Reader) (warden.Container, error) {
 	return container, nil
 }
 
-func containerHasProperties(container Container, properties warden.Properties) bool {
+func containerHasProperties(container Container, properties api.Properties) bool {
 	containerProps := container.Properties()
 
 	for key, val := range properties {

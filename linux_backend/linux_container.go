@@ -19,7 +19,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/process_tracker"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/quota_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/logging"
-	"github.com/cloudfoundry-incubator/garden/warden"
+	"github.com/cloudfoundry-incubator/garden/api"
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/pivotal-golang/lager"
 )
@@ -31,7 +31,7 @@ type LinuxContainer struct {
 	handle string
 	path   string
 
-	properties warden.Properties
+	properties api.Properties
 
 	graceTime time.Duration
 
@@ -56,16 +56,16 @@ type LinuxContainer struct {
 	oomMutex    sync.RWMutex
 	oomNotifier *exec.Cmd
 
-	currentBandwidthLimits *warden.BandwidthLimits
+	currentBandwidthLimits *api.BandwidthLimits
 	bandwidthMutex         sync.RWMutex
 
-	currentDiskLimits *warden.DiskLimits
+	currentDiskLimits *api.DiskLimits
 	diskMutex         sync.RWMutex
 
-	currentMemoryLimits *warden.MemoryLimits
+	currentMemoryLimits *api.MemoryLimits
 	memoryMutex         sync.RWMutex
 
-	currentCPULimits *warden.CPULimits
+	currentCPULimits *api.CPULimits
 	cpuMutex         sync.RWMutex
 
 	netIns      []NetInSpec
@@ -104,7 +104,7 @@ const (
 func NewLinuxContainer(
 	logger lager.Logger,
 	id, handle, path string,
-	properties warden.Properties,
+	properties api.Properties,
 	graceTime time.Duration,
 	resources *Resources,
 	portPool PortPool,
@@ -157,7 +157,7 @@ func (c *LinuxContainer) GraceTime() time.Duration {
 	return c.graceTime
 }
 
-func (c *LinuxContainer) Properties() warden.Properties {
+func (c *LinuxContainer) Properties() api.Properties {
 	return c.properties
 }
 
@@ -385,40 +385,40 @@ func (c *LinuxContainer) Stop(kill bool) error {
 	return nil
 }
 
-func (c *LinuxContainer) Info() (warden.ContainerInfo, error) {
+func (c *LinuxContainer) Info() (api.ContainerInfo, error) {
 	cLog := c.logger.Session("info")
 
 	memoryStat, err := c.cgroupsManager.Get("memory", "memory.stat")
 	if err != nil {
-		return warden.ContainerInfo{}, err
+		return api.ContainerInfo{}, err
 	}
 
 	cpuUsage, err := c.cgroupsManager.Get("cpuacct", "cpuacct.usage")
 	if err != nil {
-		return warden.ContainerInfo{}, err
+		return api.ContainerInfo{}, err
 	}
 
 	cpuStat, err := c.cgroupsManager.Get("cpuacct", "cpuacct.stat")
 	if err != nil {
-		return warden.ContainerInfo{}, err
+		return api.ContainerInfo{}, err
 	}
 
 	diskStat, err := c.quotaManager.GetUsage(cLog, c.resources.UID)
 	if err != nil {
-		return warden.ContainerInfo{}, err
+		return api.ContainerInfo{}, err
 	}
 
 	bandwidthStat, err := c.bandwidthManager.GetLimits(cLog)
 	if err != nil {
-		return warden.ContainerInfo{}, err
+		return api.ContainerInfo{}, err
 	}
 
-	mappedPorts := []warden.PortMapping{}
+	mappedPorts := []api.PortMapping{}
 
 	c.netInsMutex.RLock()
 
 	for _, spec := range c.netIns {
-		mappedPorts = append(mappedPorts, warden.PortMapping{
+		mappedPorts = append(mappedPorts, api.PortMapping{
 			HostPort:      spec.HostPort,
 			ContainerPort: spec.ContainerPort,
 		})
@@ -431,7 +431,7 @@ func (c *LinuxContainer) Info() (warden.ContainerInfo, error) {
 		processIDs = append(processIDs, process.ID())
 	}
 
-	return warden.ContainerInfo{
+	return api.ContainerInfo{
 		State:         string(c.State()),
 		Events:        c.Events(),
 		Properties:    c.Properties(),
@@ -531,7 +531,7 @@ func (c *LinuxContainer) StreamOut(srcPath string) (io.ReadCloser, error) {
 	return tarRead, nil
 }
 
-func (c *LinuxContainer) LimitBandwidth(limits warden.BandwidthLimits) error {
+func (c *LinuxContainer) LimitBandwidth(limits api.BandwidthLimits) error {
 	cLog := c.logger.Session("limit-bandwidth")
 
 	err := c.bandwidthManager.SetLimits(cLog, limits)
@@ -547,18 +547,18 @@ func (c *LinuxContainer) LimitBandwidth(limits warden.BandwidthLimits) error {
 	return nil
 }
 
-func (c *LinuxContainer) CurrentBandwidthLimits() (warden.BandwidthLimits, error) {
+func (c *LinuxContainer) CurrentBandwidthLimits() (api.BandwidthLimits, error) {
 	c.bandwidthMutex.RLock()
 	defer c.bandwidthMutex.RUnlock()
 
 	if c.currentBandwidthLimits == nil {
-		return warden.BandwidthLimits{}, nil
+		return api.BandwidthLimits{}, nil
 	}
 
 	return *c.currentBandwidthLimits, nil
 }
 
-func (c *LinuxContainer) LimitDisk(limits warden.DiskLimits) error {
+func (c *LinuxContainer) LimitDisk(limits api.DiskLimits) error {
 	cLog := c.logger.Session("limit-disk")
 
 	err := c.quotaManager.SetLimits(cLog, c.resources.UID, limits)
@@ -574,12 +574,12 @@ func (c *LinuxContainer) LimitDisk(limits warden.DiskLimits) error {
 	return nil
 }
 
-func (c *LinuxContainer) CurrentDiskLimits() (warden.DiskLimits, error) {
+func (c *LinuxContainer) CurrentDiskLimits() (api.DiskLimits, error) {
 	cLog := c.logger.Session("current-disk-limits")
 	return c.quotaManager.GetLimits(cLog, c.resources.UID)
 }
 
-func (c *LinuxContainer) LimitMemory(limits warden.MemoryLimits) error {
+func (c *LinuxContainer) LimitMemory(limits api.MemoryLimits) error {
 	err := c.startOomNotifier()
 	if err != nil {
 		return err
@@ -609,21 +609,21 @@ func (c *LinuxContainer) LimitMemory(limits warden.MemoryLimits) error {
 	return nil
 }
 
-func (c *LinuxContainer) CurrentMemoryLimits() (warden.MemoryLimits, error) {
+func (c *LinuxContainer) CurrentMemoryLimits() (api.MemoryLimits, error) {
 	limitInBytes, err := c.cgroupsManager.Get("memory", "memory.limit_in_bytes")
 	if err != nil {
-		return warden.MemoryLimits{}, err
+		return api.MemoryLimits{}, err
 	}
 
 	numericLimit, err := strconv.ParseUint(limitInBytes, 10, 0)
 	if err != nil {
-		return warden.MemoryLimits{}, err
+		return api.MemoryLimits{}, err
 	}
 
-	return warden.MemoryLimits{uint64(numericLimit)}, nil
+	return api.MemoryLimits{uint64(numericLimit)}, nil
 }
 
-func (c *LinuxContainer) LimitCPU(limits warden.CPULimits) error {
+func (c *LinuxContainer) LimitCPU(limits api.CPULimits) error {
 	limit := fmt.Sprintf("%d", limits.LimitInShares)
 
 	err := c.cgroupsManager.Set("cpu", "cpu.shares", limit)
@@ -639,21 +639,21 @@ func (c *LinuxContainer) LimitCPU(limits warden.CPULimits) error {
 	return nil
 }
 
-func (c *LinuxContainer) CurrentCPULimits() (warden.CPULimits, error) {
+func (c *LinuxContainer) CurrentCPULimits() (api.CPULimits, error) {
 	actualLimitInShares, err := c.cgroupsManager.Get("cpu", "cpu.shares")
 	if err != nil {
-		return warden.CPULimits{}, err
+		return api.CPULimits{}, err
 	}
 
 	numericLimit, err := strconv.ParseUint(actualLimitInShares, 10, 0)
 	if err != nil {
-		return warden.CPULimits{}, err
+		return api.CPULimits{}, err
 	}
 
-	return warden.CPULimits{uint64(numericLimit)}, nil
+	return api.CPULimits{uint64(numericLimit)}, nil
 }
 
-func (c *LinuxContainer) Run(spec warden.ProcessSpec, processIO warden.ProcessIO) (warden.Process, error) {
+func (c *LinuxContainer) Run(spec api.ProcessSpec, processIO api.ProcessIO) (api.Process, error) {
 	wshPath := path.Join(c.path, "bin", "wsh")
 	sockPath := path.Join(c.path, "run", "wshd.sock")
 
@@ -685,7 +685,7 @@ func (c *LinuxContainer) Run(spec warden.ProcessSpec, processIO warden.ProcessIO
 	return c.processTracker.Run(wsh, processIO, spec.TTY)
 }
 
-func (c *LinuxContainer) Attach(processID uint32, processIO warden.ProcessIO) (warden.Process, error) {
+func (c *LinuxContainer) Attach(processID uint32, processIO api.ProcessIO) (api.Process, error) {
 	return c.processTracker.Attach(processID, processIO)
 }
 
@@ -818,7 +818,7 @@ func (c *LinuxContainer) watchForOom(oom *exec.Cmd) {
 	// TODO: handle case where oom notifier itself failed? kill container?
 }
 
-func parseMemoryStat(contents string) (stat warden.ContainerMemoryStat) {
+func parseMemoryStat(contents string) (stat api.ContainerMemoryStat) {
 	scanner := bufio.NewScanner(strings.NewReader(contents))
 
 	scanner.Split(bufio.ScanWords)
@@ -898,7 +898,7 @@ func parseMemoryStat(contents string) (stat warden.ContainerMemoryStat) {
 	return
 }
 
-func parseCPUStat(usage, statContents string) (stat warden.ContainerCPUStat) {
+func parseCPUStat(usage, statContents string) (stat api.ContainerCPUStat) {
 	cpuUsage, err := strconv.ParseUint(strings.Trim(usage, "\n"), 10, 0)
 	if err != nil {
 		return
@@ -933,7 +933,7 @@ func parseCPUStat(usage, statContents string) (stat warden.ContainerCPUStat) {
 	return
 }
 
-func setRLimitsEnv(cmd *exec.Cmd, rlimits warden.ResourceLimits) {
+func setRLimitsEnv(cmd *exec.Cmd, rlimits api.ResourceLimits) {
 	if rlimits.As != nil {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("RLIMIT_AS=%d", *rlimits.As))
 	}

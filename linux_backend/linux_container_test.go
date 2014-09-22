@@ -28,8 +28,8 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/port_pool/fake_port_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/process_tracker/fake_process_tracker"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/quota_manager/fake_quota_manager"
-	"github.com/cloudfoundry-incubator/garden/warden"
-	wfakes "github.com/cloudfoundry-incubator/garden/warden/fakes"
+	"github.com/cloudfoundry-incubator/garden/api"
+	wfakes "github.com/cloudfoundry-incubator/garden/api/fakes"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
 )
@@ -99,11 +99,11 @@ var _ = Describe("Linux containers", func() {
 	})
 
 	Describe("Snapshotting", func() {
-		memoryLimits := warden.MemoryLimits{
+		memoryLimits := api.MemoryLimits{
 			LimitInBytes: 1,
 		}
 
-		diskLimits := warden.DiskLimits{
+		diskLimits := api.DiskLimits{
 			BlockSoft: 3,
 			BlockHard: 4,
 
@@ -114,12 +114,12 @@ var _ = Describe("Linux containers", func() {
 			ByteHard: 24,
 		}
 
-		bandwidthLimits := warden.BandwidthLimits{
+		bandwidthLimits := api.BandwidthLimits{
 			RateInBytesPerSecond:      1,
 			BurstRateInBytesPerSecond: 2,
 		}
 
-		cpuLimits := warden.CPULimits{
+		cpuLimits := api.CPULimits{
 			LimitInShares: 1,
 		}
 
@@ -150,7 +150,7 @@ var _ = Describe("Linux containers", func() {
 			p3 := new(wfakes.FakeProcess)
 			p3.IDReturns(3)
 
-			fakeProcessTracker.ActiveProcessesReturns([]warden.Process{p1, p2, p3})
+			fakeProcessTracker.ActiveProcessesReturns([]api.Process{p1, p2, p3})
 		})
 
 		It("writes a JSON ContainerSnapshot", func() {
@@ -223,7 +223,7 @@ var _ = Describe("Linux containers", func() {
 				},
 			))
 
-			Ω(snapshot.Properties).Should(Equal(warden.Properties(map[string]string{
+			Ω(snapshot.Properties).Should(Equal(api.Properties(map[string]string{
 				"property-name": "property-value",
 			})))
 
@@ -458,7 +458,7 @@ var _ = Describe("Linux containers", func() {
 				Events: []string{},
 
 				Limits: linux_backend.LimitsSnapshot{
-					Memory: &warden.MemoryLimits{
+					Memory: &api.MemoryLimits{
 						LimitInBytes: 1024,
 					},
 				},
@@ -512,7 +512,7 @@ var _ = Describe("Linux containers", func() {
 					Events: []string{},
 
 					Limits: linux_backend.LimitsSnapshot{
-						Memory: &warden.MemoryLimits{
+						Memory: &api.MemoryLimits{
 							LimitInBytes: 1024,
 						},
 					},
@@ -646,7 +646,7 @@ var _ = Describe("Linux containers", func() {
 
 		Context("when the container has an oom notifier running", func() {
 			BeforeEach(func() {
-				err := container.LimitMemory(warden.MemoryLimits{
+				err := container.LimitMemory(api.MemoryLimits{
 					LimitInBytes: 42,
 				})
 
@@ -668,7 +668,7 @@ var _ = Describe("Linux containers", func() {
 	Describe("Cleaning up", func() {
 		Context("when the container has an oom notifier running", func() {
 			BeforeEach(func() {
-				err := container.LimitMemory(warden.MemoryLimits{
+				err := container.LimitMemory(api.MemoryLimits{
 					LimitInBytes: 42,
 				})
 
@@ -841,10 +841,10 @@ var _ = Describe("Linux containers", func() {
 
 	Describe("Running", func() {
 		It("runs the /bin/bash via wsh with the given script as the input, and rlimits in env", func() {
-			_, err := container.Run(warden.ProcessSpec{
+			_, err := container.Run(api.ProcessSpec{
 				Path: "/some/script",
 				Args: []string{"arg1", "arg2"},
-				Limits: warden.ResourceLimits{
+				Limits: api.ResourceLimits{
 					As:         uint64ptr(1),
 					Core:       uint64ptr(2),
 					Cpu:        uint64ptr(3),
@@ -861,7 +861,7 @@ var _ = Describe("Linux containers", func() {
 					Sigpending: uint64ptr(14),
 					Stack:      uint64ptr(15),
 				},
-			}, warden.ProcessIO{})
+			}, api.ProcessIO{})
 
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -899,10 +899,10 @@ var _ = Describe("Linux containers", func() {
 		})
 
 		It("runs the script with environment variables", func() {
-			_, err := container.Run(warden.ProcessSpec{
+			_, err := container.Run(api.ProcessSpec{
 				Path: "/some/script",
 				Env:  []string{"ESCAPED=kurt \"russell\"", "UNESCAPED=isaac\nhayes"},
-			}, warden.ProcessIO{})
+			}, api.ProcessIO{})
 
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -920,10 +920,10 @@ var _ = Describe("Linux containers", func() {
 		})
 
 		It("runs the script with the working dir set if present", func() {
-			_, err := container.Run(warden.ProcessSpec{
+			_, err := container.Run(api.ProcessSpec{
 				Path: "/some/script",
 				Dir:  "/some/dir",
-			}, warden.ProcessIO{})
+			}, api.ProcessIO{})
 
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -940,17 +940,17 @@ var _ = Describe("Linux containers", func() {
 		})
 
 		It("runs the script with a TTY if present", func() {
-			ttySpec := &warden.TTYSpec{
-				WindowSize: &warden.WindowSize{
+			ttySpec := &api.TTYSpec{
+				WindowSize: &api.WindowSize{
 					Columns: 123,
 					Rows:    456,
 				},
 			}
 
-			_, err := container.Run(warden.ProcessSpec{
+			_, err := container.Run(api.ProcessSpec{
 				Path: "/some/script",
 				TTY:  ttySpec,
-			}, warden.ProcessIO{})
+			}, api.ProcessIO{})
 
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -960,7 +960,7 @@ var _ = Describe("Linux containers", func() {
 
 		Describe("streaming", func() {
 			BeforeEach(func() {
-				fakeProcessTracker.RunStub = func(cmd *exec.Cmd, io warden.ProcessIO, tty *warden.TTYSpec) (warden.Process, error) {
+				fakeProcessTracker.RunStub = func(cmd *exec.Cmd, io api.ProcessIO, tty *api.TTYSpec) (api.Process, error) {
 					writing := new(sync.WaitGroup)
 					writing.Add(1)
 
@@ -992,9 +992,9 @@ var _ = Describe("Linux containers", func() {
 				stdout := gbytes.NewBuffer()
 				stderr := gbytes.NewBuffer()
 
-				process, err := container.Run(warden.ProcessSpec{
+				process, err := container.Run(api.ProcessSpec{
 					Path: "/some/script",
-				}, warden.ProcessIO{
+				}, api.ProcessIO{
 					Stdout: stdout,
 					Stderr: stderr,
 				})
@@ -1010,9 +1010,9 @@ var _ = Describe("Linux containers", func() {
 		})
 
 		It("only sets the given rlimits", func() {
-			_, err := container.Run(warden.ProcessSpec{
+			_, err := container.Run(api.ProcessSpec{
 				Path: "/some/script",
-				Limits: warden.ResourceLimits{
+				Limits: api.ResourceLimits{
 					As:      uint64ptr(1),
 					Cpu:     uint64ptr(3),
 					Fsize:   uint64ptr(5),
@@ -1022,7 +1022,7 @@ var _ = Describe("Linux containers", func() {
 					Rtprio:  uint64ptr(13),
 					Stack:   uint64ptr(15),
 				},
-			}, warden.ProcessIO{})
+			}, api.ProcessIO{})
 
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -1052,10 +1052,10 @@ var _ = Describe("Linux containers", func() {
 
 		Context("with 'privileged' true", func() {
 			It("runs with --user root", func() {
-				_, err := container.Run(warden.ProcessSpec{
+				_, err := container.Run(api.ProcessSpec{
 					Path:       "/some/script",
 					Privileged: true,
-				}, warden.ProcessIO{})
+				}, api.ProcessIO{})
 
 				Ω(err).ToNot(HaveOccurred())
 
@@ -1081,10 +1081,10 @@ var _ = Describe("Linux containers", func() {
 			})
 
 			It("returns the error", func() {
-				_, err := container.Run(warden.ProcessSpec{
+				_, err := container.Run(api.ProcessSpec{
 					Path:       "/some/script",
 					Privileged: true,
-				}, warden.ProcessIO{})
+				}, api.ProcessIO{})
 				Ω(err).Should(Equal(disaster))
 			})
 		})
@@ -1093,7 +1093,7 @@ var _ = Describe("Linux containers", func() {
 	Describe("Attaching", func() {
 		Context("to a started process", func() {
 			BeforeEach(func() {
-				fakeProcessTracker.AttachStub = func(id uint32, io warden.ProcessIO) (warden.Process, error) {
+				fakeProcessTracker.AttachStub = func(id uint32, io api.ProcessIO) (api.Process, error) {
 					writing := new(sync.WaitGroup)
 					writing.Add(1)
 
@@ -1125,7 +1125,7 @@ var _ = Describe("Linux containers", func() {
 				stdout := gbytes.NewBuffer()
 				stderr := gbytes.NewBuffer()
 
-				process, err := container.Attach(1, warden.ProcessIO{
+				process, err := container.Attach(1, api.ProcessIO{
 					Stdout: stdout,
 					Stderr: stderr,
 				})
@@ -1151,14 +1151,14 @@ var _ = Describe("Linux containers", func() {
 			})
 
 			It("returns the error", func() {
-				_, err := container.Attach(42, warden.ProcessIO{})
+				_, err := container.Attach(42, api.ProcessIO{})
 				Ω(err).Should(Equal(disaster))
 			})
 		})
 	})
 
 	Describe("Limiting bandwidth", func() {
-		limits := warden.BandwidthLimits{
+		limits := api.BandwidthLimits{
 			RateInBytesPerSecond:      128,
 			BurstRateInBytesPerSecond: 256,
 		}
@@ -1185,7 +1185,7 @@ var _ = Describe("Linux containers", func() {
 	})
 
 	Describe("Getting the current bandwidth limit", func() {
-		limits := warden.BandwidthLimits{
+		limits := api.BandwidthLimits{
 			RateInBytesPerSecond:      128,
 			BurstRateInBytesPerSecond: 256,
 		}
@@ -1227,7 +1227,7 @@ var _ = Describe("Linux containers", func() {
 
 	Describe("Limiting memory", func() {
 		It("starts the oom notifier", func() {
-			limits := warden.MemoryLimits{
+			limits := api.MemoryLimits{
 				LimitInBytes: 102400,
 			}
 
@@ -1244,7 +1244,7 @@ var _ = Describe("Linux containers", func() {
 		})
 
 		It("sets memory.limit_in_bytes and then memory.memsw.limit_in_bytes", func() {
-			limits := warden.MemoryLimits{
+			limits := api.MemoryLimits{
 				LimitInBytes: 102400,
 			}
 
@@ -1284,7 +1284,7 @@ var _ = Describe("Linux containers", func() {
 					return nil
 				})
 
-				limits := warden.MemoryLimits{
+				limits := api.MemoryLimits{
 					LimitInBytes: 102400,
 				}
 
@@ -1308,7 +1308,7 @@ var _ = Describe("Linux containers", func() {
 			})
 
 			It("stops the container", func() {
-				limits := warden.MemoryLimits{
+				limits := api.MemoryLimits{
 					LimitInBytes: 102400,
 				}
 
@@ -1323,7 +1323,7 @@ var _ = Describe("Linux containers", func() {
 			})
 
 			It("registers an 'out of memory' event", func() {
-				limits := warden.MemoryLimits{
+				limits := api.MemoryLimits{
 					LimitInBytes: 102400,
 				}
 
@@ -1346,7 +1346,7 @@ var _ = Describe("Linux containers", func() {
 			})
 
 			It("does not fail", func() {
-				err := container.LimitMemory(warden.MemoryLimits{
+				err := container.LimitMemory(api.MemoryLimits{
 					LimitInBytes: 102400,
 				})
 
@@ -1376,7 +1376,7 @@ var _ = Describe("Linux containers", func() {
 					return "123", nil
 				})
 
-				err := container.LimitMemory(warden.MemoryLimits{
+				err := container.LimitMemory(api.MemoryLimits{
 					LimitInBytes: 102400,
 				})
 
@@ -1402,7 +1402,7 @@ var _ = Describe("Linux containers", func() {
 			})
 
 			It("returns the error and no limits", func() {
-				err := container.LimitMemory(warden.MemoryLimits{
+				err := container.LimitMemory(api.MemoryLimits{
 					LimitInBytes: 102400,
 				})
 
@@ -1422,7 +1422,7 @@ var _ = Describe("Linux containers", func() {
 			})
 
 			It("returns the error", func() {
-				err := container.LimitMemory(warden.MemoryLimits{
+				err := container.LimitMemory(api.MemoryLimits{
 					LimitInBytes: 102400,
 				})
 
@@ -1461,7 +1461,7 @@ var _ = Describe("Linux containers", func() {
 
 	Describe("Limiting CPU", func() {
 		It("sets cpu.shares", func() {
-			limits := warden.CPULimits{
+			limits := api.CPULimits{
 				LimitInShares: 512,
 			}
 
@@ -1490,7 +1490,7 @@ var _ = Describe("Linux containers", func() {
 			})
 
 			It("returns the error", func() {
-				err := container.LimitCPU(warden.CPULimits{
+				err := container.LimitCPU(api.CPULimits{
 					LimitInShares: 512,
 				})
 
@@ -1528,7 +1528,7 @@ var _ = Describe("Linux containers", func() {
 	})
 
 	Describe("Limiting disk", func() {
-		limits := warden.DiskLimits{
+		limits := api.DiskLimits{
 			BlockSoft: 3,
 			BlockHard: 4,
 
@@ -1540,7 +1540,7 @@ var _ = Describe("Linux containers", func() {
 		}
 
 		It("sets the quota via the quota manager with the uid and limits", func() {
-			resultingLimits := warden.DiskLimits{
+			resultingLimits := api.DiskLimits{
 				BlockHard: 1234567,
 			}
 
@@ -1571,7 +1571,7 @@ var _ = Describe("Linux containers", func() {
 
 	Describe("Getting the current disk limits", func() {
 		It("returns the disk limits", func() {
-			limits := warden.DiskLimits{
+			limits := api.DiskLimits{
 				BlockHard: 1234567,
 			}
 
@@ -1823,7 +1823,7 @@ var _ = Describe("Linux containers", func() {
 
 			info, err := container.Info()
 			Ω(err).ShouldNot(HaveOccurred())
-			Ω(info.MappedPorts).Should(Equal([]warden.PortMapping{
+			Ω(info.MappedPorts).Should(Equal([]api.PortMapping{
 				{HostPort: 1234, ContainerPort: 5678},
 				{HostPort: 1235, ContainerPort: 5679},
 			}))
@@ -1841,7 +1841,7 @@ var _ = Describe("Linux containers", func() {
 				p3 := new(wfakes.FakeProcess)
 				p3.IDReturns(3)
 
-				fakeProcessTracker.ActiveProcessesReturns([]warden.Process{p1, p2, p3})
+				fakeProcessTracker.ActiveProcessesReturns([]api.Process{p1, p2, p3})
 			})
 
 			It("returns their process IDs", func() {
@@ -1889,7 +1889,7 @@ total_unevictable 28
 			It("is returned in the response", func() {
 				info, err := container.Info()
 				Ω(err).ShouldNot(HaveOccurred())
-				Ω(info.MemoryStat).Should(Equal(warden.ContainerMemoryStat{
+				Ω(info.MemoryStat).Should(Equal(api.ContainerMemoryStat{
 					Cache:                   1,
 					Rss:                     2,
 					MappedFile:              3,
@@ -1955,7 +1955,7 @@ system 2
 			It("is returned in the response", func() {
 				info, err := container.Info()
 				Ω(err).ShouldNot(HaveOccurred())
-				Ω(info.CPUStat).Should(Equal(warden.ContainerCPUStat{
+				Ω(info.CPUStat).Should(Equal(api.ContainerCPUStat{
 					Usage:  42,
 					User:   1,
 					System: 2,
@@ -1996,7 +1996,7 @@ system 2
 
 		Describe("disk usage info", func() {
 			It("is returned in the response", func() {
-				fakeQuotaManager.GetUsageResult = warden.ContainerDiskStat{
+				fakeQuotaManager.GetUsageResult = api.ContainerDiskStat{
 					BytesUsed:  1,
 					InodesUsed: 2,
 				}
@@ -2004,7 +2004,7 @@ system 2
 				info, err := container.Info()
 				Ω(err).ShouldNot(HaveOccurred())
 
-				Ω(info.DiskStat).Should(Equal(warden.ContainerDiskStat{
+				Ω(info.DiskStat).Should(Equal(api.ContainerDiskStat{
 					BytesUsed:  1,
 					InodesUsed: 2,
 				}))
@@ -2027,7 +2027,7 @@ system 2
 
 		Describe("bandwidth info", func() {
 			It("is returned in the response", func() {
-				fakeBandwidthManager.GetLimitsResult = warden.ContainerBandwidthStat{
+				fakeBandwidthManager.GetLimitsResult = api.ContainerBandwidthStat{
 					InRate:   1,
 					InBurst:  2,
 					OutRate:  3,
@@ -2037,7 +2037,7 @@ system 2
 				info, err := container.Info()
 				Ω(err).ShouldNot(HaveOccurred())
 
-				Ω(info.BandwidthStat).Should(Equal(warden.ContainerBandwidthStat{
+				Ω(info.BandwidthStat).Should(Equal(api.ContainerBandwidthStat{
 					InRate:   1,
 					InBurst:  2,
 					OutRate:  3,
