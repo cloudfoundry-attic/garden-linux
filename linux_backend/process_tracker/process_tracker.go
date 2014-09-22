@@ -5,15 +5,15 @@ import (
 	"os/exec"
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden/warden"
+	"github.com/cloudfoundry-incubator/garden/api"
 	"github.com/cloudfoundry/gunk/command_runner"
 )
 
 type ProcessTracker interface {
-	Run(*exec.Cmd, warden.ProcessIO, *warden.TTYSpec) (warden.Process, error)
-	Attach(uint32, warden.ProcessIO) (warden.Process, error)
+	Run(*exec.Cmd, api.ProcessIO, *api.TTYSpec) (api.Process, error)
+	Attach(uint32, api.ProcessIO) (api.Process, error)
 	Restore(processID uint32)
-	ActiveProcesses() []warden.Process
+	ActiveProcesses() []api.Process
 }
 
 type processTracker struct {
@@ -45,7 +45,7 @@ func New(containerPath string, runner command_runner.CommandRunner) ProcessTrack
 	}
 }
 
-func (t *processTracker) Run(cmd *exec.Cmd, processIO warden.ProcessIO, tty *warden.TTYSpec) (warden.Process, error) {
+func (t *processTracker) Run(cmd *exec.Cmd, processIO api.ProcessIO, tty *api.TTYSpec) (api.Process, error) {
 	t.processesMutex.Lock()
 
 	processID := t.nextProcessID
@@ -76,7 +76,7 @@ func (t *processTracker) Run(cmd *exec.Cmd, processIO warden.ProcessIO, tty *war
 	return process, nil
 }
 
-func (t *processTracker) Attach(processID uint32, processIO warden.ProcessIO) (warden.Process, error) {
+func (t *processTracker) Attach(processID uint32, processIO api.ProcessIO) (api.Process, error) {
 	t.processesMutex.RLock()
 	process, ok := t.processes[processID]
 	t.processesMutex.RUnlock()
@@ -108,11 +108,11 @@ func (t *processTracker) Restore(processID uint32) {
 	t.processesMutex.Unlock()
 }
 
-func (t *processTracker) ActiveProcesses() []warden.Process {
+func (t *processTracker) ActiveProcesses() []api.Process {
 	t.processesMutex.RLock()
 	defer t.processesMutex.RUnlock()
 
-	processes := make([]warden.Process, len(t.processes))
+	processes := make([]api.Process, len(t.processes))
 
 	i := 0
 	for _, process := range t.processes {

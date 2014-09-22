@@ -1,21 +1,21 @@
 package lifecycle_test
 
 import (
-	"github.com/cloudfoundry-incubator/garden/warden"
+	"github.com/cloudfoundry-incubator/garden/api"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("A container with properties", func() {
-	var container warden.Container
+	var container api.Container
 
 	BeforeEach(func() {
 		client = startGarden()
 
 		var err error
 
-		container, err = client.Create(warden.ContainerSpec{
-			Properties: warden.Properties{
+		container, err = client.Create(api.ContainerSpec{
+			Properties: api.Properties{
 				"foo": "bar",
 				"a":   "b",
 			},
@@ -44,8 +44,8 @@ var _ = Describe("A container with properties", func() {
 		var undesiredHandles []string
 
 		BeforeEach(func() {
-			undesiredContainer, err := client.Create(warden.ContainerSpec{
-				Properties: warden.Properties{
+			undesiredContainer, err := client.Create(api.ContainerSpec{
+				Properties: api.Properties{
 					"foo": "baz",
 					"a":   "b",
 				},
@@ -55,8 +55,8 @@ var _ = Describe("A container with properties", func() {
 
 			undesiredHandles = append(undesiredHandles, undesiredContainer.Handle())
 
-			undesiredContainer, err = client.Create(warden.ContainerSpec{
-				Properties: warden.Properties{
+			undesiredContainer, err = client.Create(api.ContainerSpec{
+				Properties: api.Properties{
 					"baz": "bar",
 					"a":   "b",
 				},
@@ -75,13 +75,13 @@ var _ = Describe("A container with properties", func() {
 		})
 
 		It("can filter by property", func() {
-			containers, err := client.Containers(warden.Properties{"foo": "bar"})
+			containers, err := client.Containers(api.Properties{"foo": "bar"})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(containers).Should(HaveLen(1))
 			Ω(containers[0].Handle()).Should(Equal(container.Handle()))
 
-			containers, err = client.Containers(warden.Properties{"matthew": "mcconaughey"})
+			containers, err = client.Containers(api.Properties{"matthew": "mcconaughey"})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(containers).Should(BeEmpty())

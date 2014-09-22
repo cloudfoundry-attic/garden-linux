@@ -10,7 +10,7 @@ import (
 	"github.com/pivotal-golang/lager/lagertest"
 
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/bandwidth_manager"
-	"github.com/cloudfoundry-incubator/garden/warden"
+	"github.com/cloudfoundry-incubator/garden/api"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
 )
@@ -27,7 +27,7 @@ var _ = Describe("setting rate limits", func() {
 	})
 
 	It("executes net_rate.sh with the appropriate environment", func() {
-		limits := warden.BandwidthLimits{
+		limits := api.BandwidthLimits{
 			RateInBytesPerSecond:      128,
 			BurstRateInBytesPerSecond: 256,
 		}
@@ -60,7 +60,7 @@ var _ = Describe("setting rate limits", func() {
 		})
 
 		It("returns the error", func() {
-			err := bandwidthManager.SetLimits(logger, warden.BandwidthLimits{
+			err := bandwidthManager.SetLimits(logger, api.BandwidthLimits{
 				RateInBytesPerSecond:      128,
 				BurstRateInBytesPerSecond: 256,
 			})

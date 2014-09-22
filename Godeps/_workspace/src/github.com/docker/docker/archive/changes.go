@@ -58,6 +58,8 @@ func sameFsTimeSpec(a, b syscall.Timespec) bool {
 		(a.Nsec == b.Nsec || a.Nsec == 0 || b.Nsec == 0)
 }
 
+// Changes walks the path rw and determines changes for the files in the path,
+// with respect to the parent layers
 func Changes(layers []string, rw string) ([]Change, error) {
 	var changes []Change
 	err := filepath.Walk(rw, func(path string, f os.FileInfo, err error) error {
@@ -136,6 +138,7 @@ type FileInfo struct {
 	stat       syscall.Stat_t
 	children   map[string]*FileInfo
 	capability []byte
+	added      bool
 }
 
 func (root *FileInfo) LookUp(path string) *FileInfo {
@@ -169,6 +172,9 @@ func (info *FileInfo) isDir() bool {
 }
 
 func (info *FileInfo) addChanges(oldInfo *FileInfo, changes *[]Change) {
+
+	sizeAtEntry := len(*changes)
+
 	if oldInfo == nil {
 		// add
 		change := Change{
@@ -176,6 +182,7 @@ func (info *FileInfo) addChanges(oldInfo *FileInfo, changes *[]Change) {
 			Kind: ChangeAdd,
 		}
 		*changes = append(*changes, change)
+		info.added = true
 	}
 
 	// We make a copy so we can modify it to detect additions
@@ -213,6 +220,7 @@ func (info *FileInfo) addChanges(oldInfo *FileInfo, changes *[]Change) {
 					Kind: ChangeModify,
 				}
 				*changes = append(*changes, change)
+				newChild.added = true
 			}
 
 			// Remove from copy so we can detect deletions
@@ -228,6 +236,19 @@ func (info *FileInfo) addChanges(oldInfo *FileInfo, changes *[]Change) {
 			Kind: ChangeDelete,
 		}
 		*changes = append(*changes, change)
+	}
+
+	// If there were changes inside this directory, we need to add it, even if the directory
+	// itself wasn't changed. This is needed to properly save and restore filesystem permissions.
+	if len(*changes) > sizeAtEntry && info.isDir() && !info.added && info.path() != "/" {
+		change := Change{
+			Path: info.path(),
+			Kind: ChangeModify,
+		}
+		// Let's insert the directory entry before the recently added entries located inside this dir
+		*changes = append(*changes, change) // just to resize the slice, will be overwritten
+		copy((*changes)[sizeAtEntry+1:], (*changes)[sizeAtEntry:])
+		(*changes)[sizeAtEntry] = change
 	}
 
 }
@@ -294,7 +315,8 @@ func collectFileInfo(sourceDir string) (*FileInfo, error) {
 	return root, nil
 }
 
-// Compare two directories and generate an array of Change objects describing the changes
+// ChangesDirs compares two directories and generates an array of Change objects describing the changes.
+// If oldDir is "", then all files in newDir will be Add-Changes.
 func ChangesDirs(newDir, oldDir string) ([]Change, error) {
 	var (
 		oldRoot, newRoot *FileInfo
@@ -302,7 +324,9 @@ func ChangesDirs(newDir, oldDir string) ([]Change, error) {
 		errs             = make(chan error, 2)
 	)
 	go func() {
-		oldRoot, err1 = collectFileInfo(oldDir)
+		if oldDir != "" {
+			oldRoot, err1 = collectFileInfo(oldDir)
+		}
 		errs <- err1
 	}()
 	go func() {
@@ -318,6 +342,7 @@ func ChangesDirs(newDir, oldDir string) ([]Change, error) {
 	return newRoot.Changes(oldRoot), nil
 }
 
+// ChangesSize calculates the size in bytes of the provided changes, based on newDir.
 func ChangesSize(newDir string, changes []Change) int64 {
 	var size int64
 	for _, change := range changes {
@@ -340,6 +365,7 @@ func minor(device uint64) uint64 {
 	return (device & 0xff) | ((device >> 12) & 0xfff00)
 }
 
+// ExportChanges produces an Archive from the provided changes, relative to dir.
 func ExportChanges(dir string, changes []Change) (Archive, error) {
 	reader, writer := io.Pipe()
 	tw := tar.NewWriter(writer)

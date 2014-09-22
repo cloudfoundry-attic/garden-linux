@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cloudfoundry-incubator/garden/warden"
+	"github.com/cloudfoundry-incubator/garden/api"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -13,16 +13,16 @@ import (
 
 var _ = Describe("Denying access to network ranges", func() {
 	var (
-		blockedListener   warden.Container
+		blockedListener   api.Container
 		blockedListenerIP string
 
-		unblockedListener   warden.Container
+		unblockedListener   api.Container
 		unblockedListenerIP string
 
-		allowedListener   warden.Container
+		allowedListener   api.Container
 		allowedListenerIP string
 
-		sender warden.Container
+		sender api.Container
 	)
 
 	BeforeEach(func() {
@@ -31,21 +31,21 @@ var _ = Describe("Denying access to network ranges", func() {
 		var err error
 
 		// create a listener to which we deny network access
-		blockedListener, err = client.Create(warden.ContainerSpec{})
+		blockedListener, err = client.Create(api.ContainerSpec{})
 		Ω(err).ShouldNot(HaveOccurred())
 		info, err := blockedListener.Info()
 		Ω(err).ShouldNot(HaveOccurred())
 		blockedListenerIP = info.ContainerIP
 
 		// create a listener to which we do not deny access
-		unblockedListener, err = client.Create(warden.ContainerSpec{})
+		unblockedListener, err = client.Create(api.ContainerSpec{})
 		Ω(err).ShouldNot(HaveOccurred())
 		info, err = unblockedListener.Info()
 		Ω(err).ShouldNot(HaveOccurred())
 		unblockedListenerIP = info.ContainerIP
 
 		// create a listener to which we exclicitly allow access
-		allowedListener, err = client.Create(warden.ContainerSpec{})
+		allowedListener, err = client.Create(api.ContainerSpec{})
 		Ω(err).ShouldNot(HaveOccurred())
 		info, err = allowedListener.Info()
 		Ω(err).ShouldNot(HaveOccurred())
@@ -60,7 +60,7 @@ var _ = Describe("Denying access to network ranges", func() {
 		)
 
 		// create a container with the new deny network configuration
-		sender, err = client.Create(warden.ContainerSpec{})
+		sender, err = client.Create(api.ContainerSpec{})
 		Ω(err).ShouldNot(HaveOccurred())
 	})
 
@@ -78,11 +78,11 @@ var _ = Describe("Denying access to network ranges", func() {
 		Ω(err).ShouldNot(HaveOccurred())
 	})
 
-	runInContainer := func(container warden.Container, script string) warden.Process {
-		process, err := container.Run(warden.ProcessSpec{
+	runInContainer := func(container api.Container, script string) api.Process {
+		process, err := container.Run(api.ProcessSpec{
 			Path: "sh",
 			Args: []string{"-c", script},
-		}, warden.ProcessIO{
+		}, api.ProcessIO{
 			Stdout: GinkgoWriter,
 			Stderr: GinkgoWriter,
 		})

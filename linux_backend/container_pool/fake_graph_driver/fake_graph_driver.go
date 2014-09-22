@@ -1,6 +1,9 @@
 package fake_graph_driver
 
-import "sync"
+import (
+	"github.com/docker/docker/archive"
+	"sync"
+)
 
 type FakeGraphDriver struct {
 	created     []CreatedGraph
@@ -168,4 +171,20 @@ func (graph *FakeGraphDriver) CleanedUp() bool {
 	defer graph.RUnlock()
 
 	return graph.cleanedUp
+}
+
+func (graph *FakeGraphDriver) Diff(id, parent string) (archive.Archive, error) {
+	panic("not faked")
+}
+
+func (graph *FakeGraphDriver) Changes(id, parent string) ([]archive.Change, error) {
+	panic("not faked")
+}
+
+func (graph *FakeGraphDriver) ApplyDiff(id, parent string, diff archive.ArchiveReader) (bytes int64, err error) {
+	panic("not faked")
+}
+
+func (graph *FakeGraphDriver) DiffSize(id, parent string) (bytes int64, err error) {
+	panic("not faked")
 }

@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cloudfoundry-incubator/garden/warden"
+	"github.com/cloudfoundry-incubator/garden/api"
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/pivotal-golang/lager"
 
@@ -162,7 +162,7 @@ func (p *LinuxContainerPool) Prune(keep map[string]bool) error {
 	return nil
 }
 
-func (p *LinuxContainerPool) Create(spec warden.ContainerSpec) (c linux_backend.Container, err error) {
+func (p *LinuxContainerPool) Create(spec api.ContainerSpec) (c linux_backend.Container, err error) {
 	id := <-p.containerIDs
 	containerPath := path.Join(p.depotPath, id)
 	pLog := p.logger.Session(id)
@@ -321,19 +321,19 @@ func (p *LinuxContainerPool) generateContainerIDs() string {
 
 func (p *LinuxContainerPool) writeBindMounts(containerPath string,
 	rootfsPath string,
-	bindMounts []warden.BindMount) error {
+	bindMounts []api.BindMount) error {
 	hook := path.Join(containerPath, "lib", "hook-child-before-pivot.sh")
 
 	for _, bm := range bindMounts {
 		dstMount := path.Join(rootfsPath, bm.DstPath)
 		srcPath := bm.SrcPath
 
-		if bm.Origin == warden.BindMountOriginContainer {
+		if bm.Origin == api.BindMountOriginContainer {
 			srcPath = path.Join(rootfsPath, srcPath)
 		}
 
 		mode := "ro"
-		if bm.Mode == warden.BindMountModeRW {
+		if bm.Mode == api.BindMountModeRW {
 			mode = "rw"
 		}
 
@@ -410,7 +410,7 @@ func (p *LinuxContainerPool) releasePoolResources(resources *linux_backend.Resou
 	}
 }
 
-func (p *LinuxContainerPool) aquireSystemResources(id, containerPath, rootFSPath string, resources *linux_backend.Resources, bindMounts []warden.BindMount, pLog lager.Logger) ([]string, error) {
+func (p *LinuxContainerPool) aquireSystemResources(id, containerPath, rootFSPath string, resources *linux_backend.Resources, bindMounts []api.BindMount, pLog lager.Logger) ([]string, error) {
 	rootfsURL, err := url.Parse(rootFSPath)
 	if err != nil {
 		pLog.Error("parse-rootfs-path-failed", err, lager.Data{

@@ -5,14 +5,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cloudfoundry-incubator/garden/warden"
-	"github.com/cloudfoundry-incubator/garden/warden/fakes"
+	"github.com/cloudfoundry-incubator/garden/api"
+	"github.com/cloudfoundry-incubator/garden/api/fakes"
 )
 
 type FakeContainer struct {
 	*fakes.FakeContainer
 
-	Spec warden.ContainerSpec
+	Spec api.ContainerSpec
 
 	SnapshotError  error
 	SavedSnapshots []io.Writer
@@ -24,7 +24,7 @@ type FakeContainer struct {
 	CleanedUp bool
 }
 
-func NewFakeContainer(spec warden.ContainerSpec) *FakeContainer {
+func NewFakeContainer(spec api.ContainerSpec) *FakeContainer {
 	return &FakeContainer{
 		Spec: spec,
 
@@ -42,7 +42,7 @@ func (c *FakeContainer) Handle() string {
 	return c.Spec.Handle
 }
 
-func (c *FakeContainer) Properties() warden.Properties {
+func (c *FakeContainer) Properties() api.Properties {
 	return c.Spec.Properties
 }
 

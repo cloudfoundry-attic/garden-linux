@@ -1,6 +1,6 @@
 {
 	"ImportPath": "github.com/cloudfoundry-incubator/garden-linux",
-	"GoVersion": "go1.3.1",
+	"GoVersion": "go1.3",
 	"Packages": [
 		"./..."
 	],
@@ -8,11 +8,6 @@
 		{
 			"ImportPath": "code.google.com/p/gogoprotobuf/proto",
 			"Rev": "6c980277330804e94257ac7ef70a3adbe1641059"
-		},
-		{
-			"ImportPath": "code.google.com/p/goprotobuf/proto",
-			"Comment": "go.r60-152",
-			"Rev": "36be16571e14f67e114bb0af619e5de2c1591679"
 		},
 		{
 			"ImportPath": "github.com/bmizerany/pat",
@@ -24,41 +19,41 @@
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/cf-lager",
-			"Rev": "e28b8c12c6771eefcfef8654002dc513f42eb673"
+			"Rev": "ddeb0ea40763e3e81aa65919b9d9fc6d0ecc75d6"
+		},
+		{
+			"ImportPath": "github.com/cloudfoundry-incubator/garden/api",
+			"Comment": "go-wshd-614-g99c2bd8",
+			"Rev": "99c2bd85256461d1397e0872511f362a5c80ae18"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/client",
-			"Comment": "go-wshd-607-g40d9849",
-			"Rev": "40d984940cfc36e6d552dc2985c4e7350881b059"
+			"Comment": "go-wshd-614-g99c2bd8",
+			"Rev": "99c2bd85256461d1397e0872511f362a5c80ae18"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/protocol",
-			"Comment": "go-wshd-607-g40d9849",
-			"Rev": "40d984940cfc36e6d552dc2985c4e7350881b059"
+			"Comment": "go-wshd-614-g99c2bd8",
+			"Rev": "99c2bd85256461d1397e0872511f362a5c80ae18"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/routes",
-			"Comment": "go-wshd-607-g40d9849",
-			"Rev": "40d984940cfc36e6d552dc2985c4e7350881b059"
+			"Comment": "go-wshd-614-g99c2bd8",
+			"Rev": "99c2bd85256461d1397e0872511f362a5c80ae18"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/server",
-			"Comment": "go-wshd-607-g40d9849",
-			"Rev": "40d984940cfc36e6d552dc2985c4e7350881b059"
+			"Comment": "go-wshd-614-g99c2bd8",
+			"Rev": "99c2bd85256461d1397e0872511f362a5c80ae18"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/transport",
-			"Comment": "go-wshd-607-g40d9849",
-			"Rev": "40d984940cfc36e6d552dc2985c4e7350881b059"
-		},
-		{
-			"ImportPath": "github.com/cloudfoundry-incubator/garden/warden",
-			"Comment": "go-wshd-607-g40d9849",
-			"Rev": "40d984940cfc36e6d552dc2985c4e7350881b059"
+			"Comment": "go-wshd-614-g99c2bd8",
+			"Rev": "99c2bd85256461d1397e0872511f362a5c80ae18"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry/dropsonde",
-			"Rev": "b1f4b8d990f14e63502b4891f62fa6926e4bf883"
+			"Rev": "6c5e9e766dc42a81892fa85bd5d160d22393867c"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry/gosigar",
@@ -67,157 +62,162 @@
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry/gunk/command_runner",
-			"Rev": "48b03ff5d4d966a0954af043646abe60a04f6934"
+			"Rev": "3311962af44037c66cd868beec47e7735c4165b6"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/api",
-			"Comment": "v1.2.0-187-g58dc474",
-			"Rev": "58dc474e6546e6ae9e4ebd06e9fd844442fea271"
+			"Comment": "v1.2.0-502-g5ad82d3",
+			"Rev": "5ad82d3ea641a9cc569fc49853759bb98f043fa9"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/archive",
-			"Comment": "v1.2.0-187-g58dc474",
-			"Rev": "58dc474e6546e6ae9e4ebd06e9fd844442fea271"
+			"Comment": "v1.2.0-502-g5ad82d3",
+			"Rev": "5ad82d3ea641a9cc569fc49853759bb98f043fa9"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/daemon/graphdriver",
-			"Comment": "v1.2.0-187-g58dc474",
-			"Rev": "58dc474e6546e6ae9e4ebd06e9fd844442fea271"
+			"Comment": "v1.2.0-502-g5ad82d3",
+			"Rev": "5ad82d3ea641a9cc569fc49853759bb98f043fa9"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/dockerversion",
-			"Comment": "v1.2.0-187-g58dc474",
-			"Rev": "58dc474e6546e6ae9e4ebd06e9fd844442fea271"
+			"Comment": "v1.2.0-502-g5ad82d3",
+			"Rev": "5ad82d3ea641a9cc569fc49853759bb98f043fa9"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/engine",
-			"Comment": "v1.2.0-187-g58dc474",
-			"Rev": "58dc474e6546e6ae9e4ebd06e9fd844442fea271"
+			"Comment": "v1.2.0-502-g5ad82d3",
+			"Rev": "5ad82d3ea641a9cc569fc49853759bb98f043fa9"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/graph",
-			"Comment": "v1.2.0-187-g58dc474",
-			"Rev": "58dc474e6546e6ae9e4ebd06e9fd844442fea271"
+			"Comment": "v1.2.0-502-g5ad82d3",
+			"Rev": "5ad82d3ea641a9cc569fc49853759bb98f043fa9"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/image",
-			"Comment": "v1.2.0-187-g58dc474",
-			"Rev": "58dc474e6546e6ae9e4ebd06e9fd844442fea271"
+			"Comment": "v1.2.0-502-g5ad82d3",
+			"Rev": "5ad82d3ea641a9cc569fc49853759bb98f043fa9"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/nat",
-			"Comment": "v1.2.0-187-g58dc474",
-			"Rev": "58dc474e6546e6ae9e4ebd06e9fd844442fea271"
+			"Comment": "v1.2.0-502-g5ad82d3",
+			"Rev": "5ad82d3ea641a9cc569fc49853759bb98f043fa9"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/opts",
-			"Comment": "v1.2.0-187-g58dc474",
-			"Rev": "58dc474e6546e6ae9e4ebd06e9fd844442fea271"
+			"Comment": "v1.2.0-502-g5ad82d3",
+			"Rev": "5ad82d3ea641a9cc569fc49853759bb98f043fa9"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/pkg/httputils",
-			"Comment": "v1.2.0-187-g58dc474",
-			"Rev": "58dc474e6546e6ae9e4ebd06e9fd844442fea271"
+			"Comment": "v1.2.0-502-g5ad82d3",
+			"Rev": "5ad82d3ea641a9cc569fc49853759bb98f043fa9"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/pkg/ioutils",
-			"Comment": "v1.2.0-187-g58dc474",
-			"Rev": "58dc474e6546e6ae9e4ebd06e9fd844442fea271"
+			"Comment": "v1.2.0-502-g5ad82d3",
+			"Rev": "5ad82d3ea641a9cc569fc49853759bb98f043fa9"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/pkg/log",
-			"Comment": "v1.2.0-187-g58dc474",
-			"Rev": "58dc474e6546e6ae9e4ebd06e9fd844442fea271"
+			"Comment": "v1.2.0-502-g5ad82d3",
+			"Rev": "5ad82d3ea641a9cc569fc49853759bb98f043fa9"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/pkg/mflag",
-			"Comment": "v1.2.0-187-g58dc474",
-			"Rev": "58dc474e6546e6ae9e4ebd06e9fd844442fea271"
+			"Comment": "v1.2.0-502-g5ad82d3",
+			"Rev": "5ad82d3ea641a9cc569fc49853759bb98f043fa9"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/pkg/mount",
-			"Comment": "v1.2.0-187-g58dc474",
-			"Rev": "58dc474e6546e6ae9e4ebd06e9fd844442fea271"
+			"Comment": "v1.2.0-502-g5ad82d3",
+			"Rev": "5ad82d3ea641a9cc569fc49853759bb98f043fa9"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/pkg/parsers",
-			"Comment": "v1.2.0-187-g58dc474",
-			"Rev": "58dc474e6546e6ae9e4ebd06e9fd844442fea271"
+			"Comment": "v1.2.0-502-g5ad82d3",
+			"Rev": "5ad82d3ea641a9cc569fc49853759bb98f043fa9"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/pkg/pools",
-			"Comment": "v1.2.0-187-g58dc474",
-			"Rev": "58dc474e6546e6ae9e4ebd06e9fd844442fea271"
+			"Comment": "v1.2.0-502-g5ad82d3",
+			"Rev": "5ad82d3ea641a9cc569fc49853759bb98f043fa9"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/pkg/sysinfo",
-			"Comment": "v1.2.0-187-g58dc474",
-			"Rev": "58dc474e6546e6ae9e4ebd06e9fd844442fea271"
+			"Comment": "v1.2.0-502-g5ad82d3",
+			"Rev": "5ad82d3ea641a9cc569fc49853759bb98f043fa9"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/pkg/system",
-			"Comment": "v1.2.0-187-g58dc474",
-			"Rev": "58dc474e6546e6ae9e4ebd06e9fd844442fea271"
+			"Comment": "v1.2.0-502-g5ad82d3",
+			"Rev": "5ad82d3ea641a9cc569fc49853759bb98f043fa9"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/pkg/tarsum",
-			"Comment": "v1.2.0-187-g58dc474",
-			"Rev": "58dc474e6546e6ae9e4ebd06e9fd844442fea271"
+			"Comment": "v1.2.0-502-g5ad82d3",
+			"Rev": "5ad82d3ea641a9cc569fc49853759bb98f043fa9"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/pkg/term",
-			"Comment": "v1.2.0-187-g58dc474",
-			"Rev": "58dc474e6546e6ae9e4ebd06e9fd844442fea271"
+			"Comment": "v1.2.0-502-g5ad82d3",
+			"Rev": "5ad82d3ea641a9cc569fc49853759bb98f043fa9"
+		},
+		{
+			"ImportPath": "github.com/docker/docker/pkg/timeutils",
+			"Comment": "v1.2.0-502-g5ad82d3",
+			"Rev": "5ad82d3ea641a9cc569fc49853759bb98f043fa9"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/pkg/truncindex",
-			"Comment": "v1.2.0-187-g58dc474",
-			"Rev": "58dc474e6546e6ae9e4ebd06e9fd844442fea271"
+			"Comment": "v1.2.0-502-g5ad82d3",
+			"Rev": "5ad82d3ea641a9cc569fc49853759bb98f043fa9"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/pkg/units",
-			"Comment": "v1.2.0-187-g58dc474",
-			"Rev": "58dc474e6546e6ae9e4ebd06e9fd844442fea271"
+			"Comment": "v1.2.0-502-g5ad82d3",
+			"Rev": "5ad82d3ea641a9cc569fc49853759bb98f043fa9"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/pkg/version",
-			"Comment": "v1.2.0-187-g58dc474",
-			"Rev": "58dc474e6546e6ae9e4ebd06e9fd844442fea271"
+			"Comment": "v1.2.0-502-g5ad82d3",
+			"Rev": "5ad82d3ea641a9cc569fc49853759bb98f043fa9"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/registry",
-			"Comment": "v1.2.0-187-g58dc474",
-			"Rev": "58dc474e6546e6ae9e4ebd06e9fd844442fea271"
+			"Comment": "v1.2.0-502-g5ad82d3",
+			"Rev": "5ad82d3ea641a9cc569fc49853759bb98f043fa9"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/runconfig",
-			"Comment": "v1.2.0-187-g58dc474",
-			"Rev": "58dc474e6546e6ae9e4ebd06e9fd844442fea271"
+			"Comment": "v1.2.0-502-g5ad82d3",
+			"Rev": "5ad82d3ea641a9cc569fc49853759bb98f043fa9"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/utils",
-			"Comment": "v1.2.0-187-g58dc474",
-			"Rev": "58dc474e6546e6ae9e4ebd06e9fd844442fea271"
+			"Comment": "v1.2.0-502-g5ad82d3",
+			"Rev": "5ad82d3ea641a9cc569fc49853759bb98f043fa9"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/vendor/src/code.google.com/p/go/src/pkg/archive/tar",
-			"Comment": "v1.2.0-187-g58dc474",
-			"Rev": "58dc474e6546e6ae9e4ebd06e9fd844442fea271"
+			"Comment": "v1.2.0-502-g5ad82d3",
+			"Rev": "5ad82d3ea641a9cc569fc49853759bb98f043fa9"
 		},
 		{
 			"ImportPath": "github.com/docker/libcontainer/cgroups",
-			"Comment": "v1.2.0-15-g40d371a",
-			"Rev": "40d371a73570e6a783d2fa485947fdbb909d99ce"
+			"Comment": "v1.2.0-37-g185328a",
+			"Rev": "185328a42654f6dc9a41814e57882f69d65f6ab7"
 		},
 		{
 			"ImportPath": "github.com/docker/libcontainer/devices",
-			"Comment": "v1.2.0-15-g40d371a",
-			"Rev": "40d371a73570e6a783d2fa485947fdbb909d99ce"
+			"Comment": "v1.2.0-37-g185328a",
+			"Rev": "185328a42654f6dc9a41814e57882f69d65f6ab7"
 		},
 		{
 			"ImportPath": "github.com/docker/libcontainer/label",
-			"Comment": "v1.2.0-15-g40d371a",
-			"Rev": "40d371a73570e6a783d2fa485947fdbb909d99ce"
+			"Comment": "v1.2.0-37-g185328a",
+			"Rev": "185328a42654f6dc9a41814e57882f69d65f6ab7"
 		},
 		{
 			"ImportPath": "github.com/kr/pty",
@@ -235,8 +235,8 @@
 		},
 		{
 			"ImportPath": "github.com/onsi/gomega",
-			"Comment": "v1.0-6-g1224b95",
-			"Rev": "1224b954d632bccc9b85d92362809f7774d2f8c4"
+			"Comment": "v1.0-12-g3ca2515",
+			"Rev": "3ca2515afb00bc39bc77d27cdbce85a7caaf103e"
 		},
 		{
 			"ImportPath": "github.com/pivotal-golang/archiver/extractor/test_helper",
@@ -244,7 +244,7 @@
 		},
 		{
 			"ImportPath": "github.com/pivotal-golang/lager",
-			"Rev": "c9b4b9ba624d212b1010dab04c2b4515a9ecc031"
+			"Rev": "a106931abed5afe3043eae8851be8b33a4bdfa3f"
 		},
 		{
 			"ImportPath": "github.com/pkg/term/termios",
