@@ -3,6 +3,7 @@ package repository_fetcher
 import (
 	"fmt"
 	"io"
+	"log"
 	"strings"
 	"sync"
 	"time"
@@ -40,7 +41,6 @@ type DockerRepositoryFetcher struct {
 
 	fetchingLayers map[string]chan struct{}
 	fetchingMutex  *sync.Mutex
-	envvars        map[string]string
 }
 
 func New(registry Registry, graph Graph) RepositoryFetcher {
@@ -50,7 +50,6 @@ func New(registry Registry, graph Graph) RepositoryFetcher {
 
 		fetchingLayers: map[string]chan struct{}{},
 		fetchingMutex:  new(sync.Mutex),
-		envvars:        map[string]string{},
 	}
 }
 
@@ -85,41 +84,35 @@ func (fetcher *DockerRepositoryFetcher) Fetch(logger lager.Logger, repoName stri
 			"image":    imgID,
 		})
 
-		err = fetcher.fetchFromEndpoint(fLog, endpoint, imgID, token)
+		env, err := fetcher.fetchFromEndpoint(fLog, endpoint, imgID, token)
 		if err == nil {
-			var envvars []string
-			if len(fetcher.envvars) > 0 {
-				envvars = make([]string, len(fetcher.envvars))
-				index := 0
-				for key, value := range fetcher.envvars {
-					envvars[index] = key + "=" + value
-					index = index + 1
-				}
-			}
-			return imgID, envvars, nil
+			return imgID, filterEnv(env), nil
 		}
 	}
 
 	return "", nil, fmt.Errorf("all endpoints failed: %s", err)
 }
 
-func (fetcher *DockerRepositoryFetcher) fetchFromEndpoint(logger lager.Logger, endpoint string, imgID string, token []string) error {
+func (fetcher *DockerRepositoryFetcher) fetchFromEndpoint(logger lager.Logger, endpoint string, imgID string, token []string) ([]string, error) {
 	history, err := fetcher.registry.GetRemoteHistory(imgID, endpoint, token)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	var allEnv []string
 	for i := len(history) - 1; i >= 0; i-- {
-		err := fetcher.fetchLayer(logger, endpoint, history[i], token)
+		env, err := fetcher.fetchLayer(logger, endpoint, history[i], token)
 		if err != nil {
-			return err
+			return nil, err
 		}
+
+		allEnv = append(allEnv, env...)
 	}
 
-	return nil
+	return allEnv, nil
 }
 
-func (fetcher *DockerRepositoryFetcher) fetchLayer(logger lager.Logger, endpoint string, layerID string, token []string) error {
+func (fetcher *DockerRepositoryFetcher) fetchLayer(logger lager.Logger, endpoint string, layerID string, token []string) ([]string, error) {
 	for acquired := false; !acquired; acquired = fetcher.fetching(layerID) {
 	}
 
@@ -130,26 +123,23 @@ func (fetcher *DockerRepositoryFetcher) fetchLayer(logger lager.Logger, endpoint
 		logger.Info("using-cached", lager.Data{
 			"layer": layerID,
 		})
-		// pull env vars from local graph storage since we have the image layer
-		fetcher.collectEnvVars(img)
-		return nil
+
+		return imgEnv(img), nil
 	}
 
 	imgJSON, imgSize, err := fetcher.registry.GetRemoteImageJSON(layerID, endpoint, token)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	img, err = image.NewImgJSON(imgJSON)
 	if err != nil {
-		return err
+		return nil, err
 	}
-
-	fetcher.collectEnvVars(img)
 
 	layer, err := fetcher.registry.GetRemoteImageLayer(img.ID, endpoint, token, int64(imgSize))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	defer layer.Close()
@@ -162,7 +152,7 @@ func (fetcher *DockerRepositoryFetcher) fetchLayer(logger lager.Logger, endpoint
 
 	err = fetcher.graph.Register(img, imgJSON, layer)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	logger.Info("downloaded", lager.Data{
@@ -170,7 +160,7 @@ func (fetcher *DockerRepositoryFetcher) fetchLayer(logger lager.Logger, endpoint
 		"took":  time.Since(started),
 	})
 
-	return nil
+	return imgEnv(img), nil
 }
 
 func (fetcher *DockerRepositoryFetcher) fetching(layerID string) bool {
@@ -195,17 +185,37 @@ func (fetcher *DockerRepositoryFetcher) doneFetching(layerID string) {
 	fetcher.fetchingMutex.Unlock()
 }
 
-func (fetcher *DockerRepositoryFetcher) collectEnvVars(img *image.Image) {
+func imgEnv(img *image.Image) []string {
+	var env []string
+
 	if img.Config != nil {
-		//NOTE: We use a map for the env vars because they may appear in multiple layers, given
-		//we are fetching layer from the top down (back in time), the first occurance for the env
-		//name wins
-		for _, env := range img.Config.Env {
-			keyValue := strings.SplitN(env, "=", 2)
-			_, containsKey := fetcher.envvars[keyValue[0]]
-			if len(keyValue) == 2 && !containsKey {
-				fetcher.envvars[keyValue[0]] = keyValue[1]
-			}
-		}
+		env = img.Config.Env
 	}
+
+	return env
+}
+
+// multiple layers may specify environment variables; they are collected with
+// the deepest layer first, so the first occurrence of the variable should win
+func filterEnv(env []string) []string {
+	seen := map[string]bool{}
+
+	var filtered []string
+	for _, e := range env {
+		segs := strings.SplitN(e, "=", 2)
+		if len(segs) != 2 {
+			// malformed docker image metadata?
+			log.Printf("Unrecognised environment variable %s", e)
+			continue
+		}
+
+		if seen[segs[0]] {
+			continue
+		}
+
+		filtered = append(filtered, e)
+		seen[segs[0]] = true
+	}
+
+	return filtered
 }
