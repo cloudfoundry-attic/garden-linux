@@ -3,6 +3,7 @@ package repository_fetcher
 import (
 	"fmt"
 	"io"
+	"log"
 	"strings"
 	"sync"
 	"time"
@@ -204,6 +205,7 @@ func filterEnv(env []string) []string {
 		segs := strings.SplitN(e, "=", 2)
 		if len(segs) != 2 {
 			// malformed docker image metadata?
+			log.Printf("Unrecognised environment variable %s", e)
 			continue
 		}
 

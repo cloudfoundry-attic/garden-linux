@@ -49,7 +49,7 @@ var _ = Describe("RepositoryFetcher", func() {
 				ghttp.VerifyRequest("GET", "/v1/images/layer-3/json"),
 				http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 					w.Header().Add("X-Docker-Size", "123")
-					w.Write([]byte(`{"id":"layer-3","parent":"parent-3","Config":{"env": ["env2=env2Value"]}}`))
+					w.Write([]byte(`{"id":"layer-3","parent":"parent-3","Config":{"env": ["env2=env2Value", "malformedenvvar"]}}`))
 				}),
 			),
 			ghttp.CombineHandlers(
@@ -134,7 +134,7 @@ var _ = Describe("RepositoryFetcher", func() {
 				graph.WhenRegistering = func(image *image.Image, imageJSON []byte, layer archive.ArchiveReader) error {
 					if expectedLayerNum == 3 {
 						Ω(string(imageJSON)).Should(Equal(fmt.Sprintf(
-							`{"id":"layer-%d","parent":"parent-%d","Config":{"env": ["env2=env2Value"]}}`,
+							`{"id":"layer-%d","parent":"parent-%d","Config":{"env": ["env2=env2Value", "malformedenvvar"]}}`,
 							expectedLayerNum,
 							expectedLayerNum,
 						)))
