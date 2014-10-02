@@ -28,6 +28,15 @@
 #include "un.h"
 #include "util.h"
 
+typedef struct bind_mount_s bind_mount_t;
+
+struct bind_mount_s {
+  char source_path[PATH_MAX];
+  char destination_path[PATH_MAX];
+
+  bind_mount_t *next;
+};
+
 typedef struct wshd_s wshd_t;
 
 struct wshd_s {
@@ -46,6 +55,12 @@ struct wshd_s {
   /* File descriptor of listening socket */
   int fd;
 
+  /* File descriptor of the transitional mount namespace that still has access
+   * to the host. This is used to do bind-mounts after container creation.
+   * Make sure no processes actually run in here!
+   */
+  int host_mount_ns;
+
   barrier_t barrier_parent;
   barrier_t barrier_child;
 
@@ -55,6 +70,9 @@ struct wshd_s {
     int fd;
   } *pid_to_fd;
   size_t pid_to_fd_len;
+
+  /* Set of bind mounts; reapplied every time they change. */
+  bind_mount_t *bind_mounts;
 };
 
 int wshd__usage(wshd_t *w, int argc, char **argv) {
@@ -477,6 +495,121 @@ err:
   return 0;
 }
 
+/* create a directory; chown only if newly created */
+int mkdir_as(const char *dir, uid_t uid, gid_t gid) {
+  int rv;
+
+  rv = mkdir(dir, 0755);
+  if(rv == 0) {
+    /* new directory; set ownership */
+    return chown(dir, uid, gid);
+  } else {
+    if(errno == EEXIST) {
+      /* if directory already exists, leave ownership as-is */
+      return 0;
+    } else {
+      /* if any other error, abort */
+      return rv;
+    }
+  }
+
+  /* unreachable */
+  return -1;
+}
+
+/* recursively mkdir with directories owned by a given user */
+int mkdir_p_as(const char *dir, uid_t uid, gid_t gid) {
+  char tmp[PATH_MAX];
+  char *p = NULL;
+  size_t len;
+  int rv;
+
+  /* copy the given dir as it'll be mutated */
+  snprintf(tmp, sizeof(tmp), "%s", dir);
+  len = strlen(tmp);
+
+  /* strip trailing slash */
+  if(tmp[len - 1] == '/')
+    tmp[len - 1] = 0;
+
+  for(p = tmp + 1; *p; p++) {
+    if(*p == '/') {
+      /* temporarily null-terminte the string so that mkdir only creates this
+       * path segment */
+      *p = 0;
+
+      /* mkdir with truncated path segment */
+      rv = mkdir_as(tmp, uid, gid);
+      if(rv == -1) {
+        return rv;
+      }
+
+      /* restore path separator */
+      *p = '/';
+    }
+  }
+
+  /* create final destination */
+  return mkdir_as(tmp, uid, gid);
+}
+
+bind_mount_t *add_bind_mount(bind_mount_t *start, bind_mount_t *new) {
+  bind_mount_t *current;
+
+  if (start == NULL) {
+    return new;
+  }
+
+  current = start;
+  while (current->next != NULL) {
+    current = current->next;
+  }
+
+  current->next = new;
+
+  return start;
+}
+
+int child_handle_bind_mount(int fd, wshd_t *w, msg_request_t *req) {
+  int rv;
+  char src_path[PATH_MAX];
+  bind_mount_t *bind_mounts;
+
+  bind_mount_t *new_bind_mount;
+
+  new_bind_mount = calloc(1, sizeof(*new_bind_mount));
+
+  strncpy(new_bind_mount->source_path, req->bind_mount_source.path, PATH_MAX);
+  strncpy(new_bind_mount->destination_path, req->bind_mount_destination.path, PATH_MAX);
+
+  w->bind_mounts = add_bind_mount(w->bind_mounts, new_bind_mount);
+
+  rv = setns(w->host_mount_ns, CLONE_NEWNS);
+  assert(rv != -1);
+
+  bind_mounts = w->bind_mounts;
+  while (bind_mounts) {
+    rv = snprintf(src_path, PATH_MAX, "/tmp/warden-host%s", bind_mounts->source_path);
+    assert(rv < sizeof(src_path));
+
+    rv = mkdir_p_as(bind_mounts->destination_path, 0, 0);
+    assert(rv == 0);
+
+    rv = mount(src_path, bind_mounts->destination_path, NULL, MS_REC|MS_BIND, NULL);
+    assert(rv == 0);
+
+    bind_mounts = bind_mounts->next;
+  }
+
+  rv = unshare(CLONE_NEWNS);
+  assert(rv == 0);
+
+  rv = umount2("/tmp/warden-host", MNT_DETACH);
+  assert(rv != -1);
+
+  return 0;
+}
+
 int child_accept(wshd_t *w) {
   int rv, fd;
   msg_request_t req;
@@ -503,6 +636,10 @@ int child_accept(wshd_t *w) {
   }
 
   assert(rv == sizeof(req));
+
+  if (*req.bind_mount_source.path && *req.bind_mount_destination.path) {
+    return child_handle_bind_mount(fd, w, &req);
+  }
 
   if (req.tty) {
     return child_handle_interactive(fd, w, &req);
@@ -759,16 +896,30 @@ int child_continue(int argc, char **argv) {
     setproctitle(argv, w->title);
   }
 
+  /* Save off the user namespace for bind-mounting later */
+  w->host_mount_ns = open("/proc/self/ns/mnt", O_RDONLY);
+  if(w->host_mount_ns == -1) {
+    exit(1);
+  }
+
+  /* do *not* leak host mount namespace */
+  fcntl_mix_cloexec(w->host_mount_ns);
+
   /* Clean up temporary pivot_root dir */
-  rv = umount2("/tmp/garden-host", MNT_DETACH);
+  rv = unshare(CLONE_NEWNS);
   if (rv == -1) {
     exit(1);
   }
 
-  rv = rmdir("/tmp/garden-host");
+  rv = umount2("/tmp/warden-host", MNT_DETACH);
   if (rv == -1) {
     exit(1);
   }
+
+  /* rv = rmdir("/tmp/warden-host"); */
+  /* if (rv == -1) { */
+  /*   exit(1); */
+  /* } */
 
   /* Detach this process from its original group */
   rv = setsid();

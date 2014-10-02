@@ -5,6 +5,7 @@
 
 #include <sys/time.h>
 #include <sys/resource.h>
+#include <limits.h>
 
 #include "pwd.h"
 
@@ -33,17 +34,23 @@ struct msg__user_s {
 };
 
 struct msg__dir_s {
-  char path[1024];
+  char path[PATH_MAX];
 };
 
 struct msg_request_s {
   int version;
+
+  // run a command
   int tty;
   msg__array_t arg;
   msg__array_t env;
   msg__rlimit_t rlim;
   msg__user_t user;
   msg__dir_t dir;
+  
+  // bind mount
+  msg__dir_t bind_mount_source;
+  msg__dir_t bind_mount_destination;
 };
 
 struct msg_response_s {

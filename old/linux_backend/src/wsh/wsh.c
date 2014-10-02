@@ -33,6 +33,10 @@ struct wsh_s {
 
   /* Working directory of process */
   const char *dir;
+
+  /* Bind mount */
+  const char *bind_mount_source;
+  const char *bind_mount_destination;
 };
 
 int wsh__usage(wsh_t *w) {
@@ -59,6 +63,14 @@ int wsh__usage(wsh_t *w) {
   fprintf(stderr, "  --rsh           "
     "RSH compatibility mode"
     "\n");
+
+  fprintf(stderr, "  --bind-mount-source PATH      "
+    "Source directory to bind-mount in to the container"
+    "\n");
+
+  fprintf(stderr, "  --bind-mount-destination PATH      "
+    "Destination directory to bind-mount in to the container"
+    "\n");
   return 0;
 }
 
@@ -80,6 +92,18 @@ int wsh__getopt(wsh_t *w) {
       j -= 2;
     } else if (j >= 2 && strcmp(w->argv[i], "--user") == 0) {
       w->user = strdup(w->argv[i+1]);
+      i += 2;
+      j -= 2;
+    } else if (j >= 2 && strcmp(w->argv[i], "--dir") == 0) {
+      w->dir = strdup(w->argv[i+1]);
+      i += 2;
+      j -= 2;
+    } else if (j >= 2 && strcmp(w->argv[i], "--bind-mount-source") == 0) {
+      w->bind_mount_source = strdup(w->argv[i+1]);
+      i += 2;
+      j -= 2;
+    } else if (j >= 2 && strcmp(w->argv[i], "--bind-mount-destination") == 0) {
+      w->bind_mount_destination = strdup(w->argv[i+1]);
       i += 2;
       j -= 2;
     } else if (j >= 2 && strcmp(w->argv[i], "--dir") == 0) {
@@ -340,6 +364,19 @@ int main(int argc, char **argv) {
   fd = rv;
 
   msg_request_init(&req);
+
+  if(w->bind_mount_source != NULL && w->bind_mount_destination != NULL) {
+    msg_dir_import(&req.bind_mount_source, w->bind_mount_source);
+    msg_dir_import(&req.bind_mount_destination, w->bind_mount_destination);
+
+    rv = un_send_fds(fd, (char *)&req, sizeof(req), NULL, 0);
+    if (rv <= 0) {
+      perror("sendmsg");
+      exit(255);
+    }
+
+    return 0;
+  }
 
   msg_dir_import(&req.dir, w->dir);
 

@@ -36,7 +36,9 @@ var _ = Describe("Creating a container", func() {
 		Ω(err).ShouldNot(HaveOccurred())
 	})
 
-	It("sources /etc/seed", func() {
+	FIt("sources /etc/seed", func() {
+		time.Sleep(24 * time.Hour)
+
 		process, err := container.Run(api.ProcessSpec{
 			Path: "test",
 			Args: []string{"-e", "/tmp/ran-seed"},
