@@ -49,6 +49,7 @@ struct msg_request_s {
   msg__dir_t dir;
   
   // bind mount
+  char bind_mount_name[37]; // v4 guid length + null terminator
   msg__dir_t bind_mount_source;
   msg__dir_t bind_mount_destination;
 };

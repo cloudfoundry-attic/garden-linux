@@ -28,26 +28,22 @@
 #include "un.h"
 #include "util.h"
 
-typedef struct bind_mount_s bind_mount_t;
-
-struct bind_mount_s {
-  char source_path[PATH_MAX];
-  char destination_path[PATH_MAX];
-
-  bind_mount_t *next;
-};
+#define CONTAINER_MOUNTS_PATH "/tmp/container-shared-mounts"
 
 typedef struct wshd_s wshd_t;
 
 struct wshd_s {
   /* Path to directory where server socket is placed */
-  char run_path[256];
+  char run_path[PATH_MAX];
 
   /* Path to directory containing hooks */
-  char lib_path[256];
+  char lib_path[PATH_MAX];
 
   /* Path to directory that will become root in the new mount namespace */
-  char root_path[256];
+  char root_path[PATH_MAX];
+
+  /* Path to directory containing the container's volumes */
+  char volumes_path[PATH_MAX];
 
   /* Process title */
   char title[32];
@@ -55,9 +51,8 @@ struct wshd_s {
   /* File descriptor of listening socket */
   int fd;
 
-  /* File descriptor of the transitional mount namespace that still has access
-   * to the host. This is used to do bind-mounts after container creation.
-   * Make sure no processes actually run in here!
+  /* File descriptor of the host's mount namespace; used for applying
+   * bind-mounts. Make sure no processes actually run in here!
    */
   int host_mount_ns;
 
@@ -70,9 +65,6 @@ struct wshd_s {
     int fd;
   } *pid_to_fd;
   size_t pid_to_fd_len;
-
-  /* Set of bind mounts; reapplied every time they change. */
-  bind_mount_t *bind_mounts;
 };
 
 int wshd__usage(wshd_t *w, int argc, char **argv) {
@@ -118,6 +110,11 @@ int wshd__getopt(wshd_t *w, int argc, char **argv) {
       } else if (strcmp("--root", argv[i]) == 0) {
         rv = snprintf(w->root_path, sizeof(w->root_path), "%s", argv[i+1]);
         if (rv >= sizeof(w->root_path)) {
+          goto toolong;
+        }
+      } else if (strcmp("--volumes", argv[i]) == 0) {
+        rv = snprintf(w->volumes_path, sizeof(w->volumes_path), "%s", argv[i+1]);
+        if (rv >= sizeof(w->volumes_path)) {
           goto toolong;
         }
       } else if (strcmp("--title", argv[i]) == 0) {
@@ -553,58 +550,37 @@ int mkdir_p_as(const char *dir, uid_t uid, gid_t gid) {
   return mkdir_as(tmp, uid, gid);
 }
 
-bind_mount_t *add_bind_mount(bind_mount_t *start, bind_mount_t *new) {
-  bind_mount_t *current;
-
-  if (start == NULL) {
-    return new;
-  }
-
-  current = start;
-  while (current->next != NULL) {
-    current = current->next;
-  }
-
-  current->next = new;
-
-  return start;
-}
-
 int child_handle_bind_mount(int fd, wshd_t *w, msg_request_t *req) {
   int rv;
-  char src_path[PATH_MAX];
-  bind_mount_t *bind_mounts;
+  int container_mount_ns;
+  char host_volume_path[PATH_MAX];
+  char container_volume_path[PATH_MAX];
 
-  bind_mount_t *new_bind_mount;
+  rv = snprintf(host_volume_path, sizeof(host_volume_path), "%s/%s", w->volumes_path, req->bind_mount_name);
+  assert(rv != -1);
 
-  new_bind_mount = calloc(1, sizeof(*new_bind_mount));
+  rv = snprintf(container_volume_path, sizeof(container_volume_path), "%s/%s", CONTAINER_MOUNTS_PATH, req->bind_mount_name);
+  assert(rv != -1);
 
-  strncpy(new_bind_mount->source_path, req->bind_mount_source.path, PATH_MAX);
-  strncpy(new_bind_mount->destination_path, req->bind_mount_destination.path, PATH_MAX);
-
-  w->bind_mounts = add_bind_mount(w->bind_mounts, new_bind_mount);
+  container_mount_ns = open("/proc/self/ns/mnt", O_RDONLY);
+  assert(container_mount_ns != -1);
 
   rv = setns(w->host_mount_ns, CLONE_NEWNS);
   assert(rv != -1);
 
-  bind_mounts = w->bind_mounts;
-  while (bind_mounts) {
-    rv = snprintf(src_path, PATH_MAX, "/tmp/warden-host%s", bind_mounts->source_path);
-    assert(rv < sizeof(src_path));
+  rv = mkdir(host_volume_path, 0755);
+  assert(rv != -1);
 
-    rv = mkdir_p_as(bind_mounts->destination_path, 0, 0);
-    assert(rv == 0);
+  rv = mount(req->bind_mount_source.path, host_volume_path, NULL, MS_BIND, NULL);
+  assert(rv != -1);
 
-    rv = mount(src_path, bind_mounts->destination_path, NULL, MS_REC|MS_BIND, NULL);
-    assert(rv == 0);
+  rv = setns(container_mount_ns, CLONE_NEWNS);
+  assert(rv != -1);
 
-    bind_mounts = bind_mounts->next;
-  }
+  rv = mkdir_p_as(req->bind_mount_destination.path, 0, 0);
+  assert(rv != -1);
 
-  rv = unshare(CLONE_NEWNS);
-  assert(rv == 0);
-
-  rv = umount2("/tmp/warden-host", MNT_DETACH);
+  rv = mount(container_volume_path, req->bind_mount_destination.path, NULL, MS_BIND, NULL);
   assert(rv != -1);
 
   return 0;
@@ -819,6 +795,8 @@ int child_run(void *data) {
   int rv;
   char pivoted_lib_path[PATH_MAX];
   size_t pivoted_lib_path_len;
+  char pivoted_volumes_path[PATH_MAX];
+  size_t pivoted_volumes_path_len;
 
   /* Wait for parent */
   rv = barrier_wait(&w->barrier_parent);
@@ -831,6 +809,11 @@ int child_run(void *data) {
   strcpy(pivoted_lib_path, "/tmp/garden-host");
   pivoted_lib_path_len = strlen(pivoted_lib_path);
   realpath(w->lib_path, pivoted_lib_path + pivoted_lib_path_len);
+
+  /* Create volume path for after pivot */
+  strcpy(pivoted_volumes_path, "/tmp/garden-host");
+  pivoted_volumes_path_len = strlen(pivoted_volumes_path);
+  realpath(w->volumes_path, pivoted_volumes_path + pivoted_volumes_path_len);
 
   rv = mount(w->root_path, w->root_path, NULL, MS_BIND|MS_REC, NULL);
   if(rv == -1) {
@@ -869,6 +852,18 @@ int child_run(void *data) {
     abort();
   }
 
+  rv = mkdir(CONTAINER_MOUNTS_PATH, 0755);
+  if (rv == -1) {
+    perror("mkdir volumes");
+    abort();
+  }
+
+  rv = mount(pivoted_volumes_path, CONTAINER_MOUNTS_PATH, NULL, MS_BIND, NULL);
+  if (rv == -1) {
+    perror("mount volumes");
+    abort();
+  }
+
   rv = run(pivoted_lib_path, "hook-child-after-pivot.sh");
   if(rv != 0) {
     perror("hook-child-after-pivot");
@@ -892,34 +887,23 @@ int child_continue(int argc, char **argv) {
   barrier_mix_cloexec(&w->barrier_child);
   fcntl_mix_cloexec(w->fd);
 
+  /* do *not* leak host mount namespace */
+  fcntl_mix_cloexec(w->host_mount_ns);
+
   if (strlen(w->title) > 0) {
     setproctitle(argv, w->title);
   }
 
-  /* Save off the user namespace for bind-mounting later */
-  w->host_mount_ns = open("/proc/self/ns/mnt", O_RDONLY);
-  if(w->host_mount_ns == -1) {
-    exit(1);
-  }
-
-  /* do *not* leak host mount namespace */
-  fcntl_mix_cloexec(w->host_mount_ns);
-
   /* Clean up temporary pivot_root dir */
-  rv = unshare(CLONE_NEWNS);
+  rv = umount2("/tmp/garden-host", MNT_DETACH);
   if (rv == -1) {
     exit(1);
   }
 
-  rv = umount2("/tmp/warden-host", MNT_DETACH);
+  rv = rmdir("/tmp/garden-host");
   if (rv == -1) {
     exit(1);
   }
-
-  /* rv = rmdir("/tmp/warden-host"); */
-  /* if (rv == -1) { */
-  /*   exit(1); */
-  /* } */
 
   /* Detach this process from its original group */
   rv = setsid();
@@ -996,6 +980,19 @@ int parent_run(wshd_t *w) {
   rv = unshare(CLONE_NEWNS);
   assert(rv == 0);
 
+  /* Save off the user namespace for bind-mounting later */
+  w->host_mount_ns = open("/proc/self/ns/mnt", O_RDONLY);
+  if(w->host_mount_ns == -1) {
+    exit(1);
+  }
+
+  /* Set up container shared volumes path */
+  rv = mount(w->volumes_path, w->volumes_path, NULL, MS_BIND, NULL);
+  assert(rv == 0);
+
+  rv = mount(w->volumes_path, w->volumes_path, NULL, MS_SHARED, NULL);
+  assert(rv == 0);
+
   rv = run(w->lib_path, "hook-parent-before-clone.sh");
   assert(rv == 0);
 
@@ -1025,6 +1022,7 @@ int parent_run(wshd_t *w) {
 int main(int argc, char **argv) {
   wshd_t *w;
   int rv;
+  char *resolved_volumes_path;
 
   /* Continue child execution in the context of the container */
   if (argc > 1 && strcmp(argv[1], "--continue") == 0) {
@@ -1054,6 +1052,14 @@ int main(int argc, char **argv) {
   assert_directory(w->run_path);
   assert_directory(w->lib_path);
   assert_directory(w->root_path);
+  assert_directory(w->volumes_path);
+
+  resolved_volumes_path = realpath(w->volumes_path, NULL);
+  assert(resolved_volumes_path != NULL);
+
+  strncpy(w->volumes_path, resolved_volumes_path, sizeof(w->volumes_path));
+
+  free(resolved_volumes_path);
 
   parent_run(w);
 

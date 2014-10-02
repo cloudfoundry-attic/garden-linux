@@ -17,4 +17,5 @@ fi
 
 ./net.sh setup
 
-./bin/wshd --run ./run --lib ./lib --root $rootfs_path --title "wshd: $id"
+./bin/wshd --run ./run --lib ./lib --root $rootfs_path --title "wshd: $id" \
+  --volumes ./volumes
