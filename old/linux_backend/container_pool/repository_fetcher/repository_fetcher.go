@@ -3,7 +3,6 @@ package repository_fetcher
 import (
 	"fmt"
 	"io"
-	"log"
 	"strings"
 	"sync"
 	"time"
@@ -47,7 +46,6 @@ func New(registry Registry, graph Graph) RepositoryFetcher {
 	return &DockerRepositoryFetcher{
 		registry: registry,
 		graph:    graph,
-
 		fetchingLayers: map[string]chan struct{}{},
 		fetchingMutex:  new(sync.Mutex),
 	}
@@ -86,7 +84,7 @@ func (fetcher *DockerRepositoryFetcher) Fetch(logger lager.Logger, repoName stri
 
 		env, err := fetcher.fetchFromEndpoint(fLog, endpoint, imgID, token)
 		if err == nil {
-			return imgID, filterEnv(env), nil
+			return imgID, filterEnv(env, logger), nil
 		}
 	}
 
@@ -197,7 +195,7 @@ func imgEnv(img *image.Image) []string {
 
 // multiple layers may specify environment variables; they are collected with
 // the deepest layer first, so the first occurrence of the variable should win
-func filterEnv(env []string) []string {
+func filterEnv(env []string, logger lager.Logger) []string {
 	seen := map[string]bool{}
 
 	var filtered []string
@@ -205,7 +203,7 @@ func filterEnv(env []string) []string {
 		segs := strings.SplitN(e, "=", 2)
 		if len(segs) != 2 {
 			// malformed docker image metadata?
-			log.Printf("Unrecognised environment variable %s", e)
+			logger.Info("Unrecognised environment variable", lager.Data{"e": e})
 			continue
 		}
 
