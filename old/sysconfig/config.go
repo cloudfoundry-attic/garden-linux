@@ -4,6 +4,7 @@ import "fmt"
 
 type Config struct {
 	CgroupPath             string
+	VolumesPath            string
 	NetworkInterfacePrefix string
 	IPTables               IPTablesConfig
 }

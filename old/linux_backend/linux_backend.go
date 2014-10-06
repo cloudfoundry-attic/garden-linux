@@ -27,6 +27,12 @@ type Container interface {
 	api.Container
 }
 
+type Volume interface {
+	ID() string
+
+	api.Volume
+}
+
 type ContainerPool interface {
 	Setup() error
 	Create(api.ContainerSpec) (Container, error)
@@ -36,15 +42,26 @@ type ContainerPool interface {
 	MaxContainers() int
 }
 
+type VolumePool interface {
+	Setup() error
+	Create(api.VolumeSpec) (Volume, error)
+	Destroy(Volume) error
+}
+
 type LinuxBackend struct {
 	logger lager.Logger
 
 	containerPool ContainerPool
+	volumePool    VolumePool
+
 	systemInfo    system_info.Provider
 	snapshotsPath string
 
 	containers      map[string]Container
 	containersMutex *sync.RWMutex
+
+	volumes      map[string]Volume
+	volumesMutex *sync.RWMutex
 }
 
 type UnknownHandleError struct {
@@ -71,21 +88,42 @@ func (e FailedToSnapshotError) Error() string {
 	return fmt.Sprintf("failed to save snapshot: %s", e.OriginalError)
 }
 
-func New(logger lager.Logger, containerPool ContainerPool, systemInfo system_info.Provider, snapshotsPath string) *LinuxBackend {
+func New(
+	logger lager.Logger,
+	containerPool ContainerPool,
+	volumePool VolumePool,
+	systemInfo system_info.Provider,
+	snapshotsPath string,
+) *LinuxBackend {
 	return &LinuxBackend{
 		logger: logger.Session("backend"),
 
 		containerPool: containerPool,
+		volumePool:    volumePool,
+
 		systemInfo:    systemInfo,
 		snapshotsPath: snapshotsPath,
 
 		containers:      make(map[string]Container),
 		containersMutex: new(sync.RWMutex),
+
+		volumes:      make(map[string]Volume),
+		volumesMutex: new(sync.RWMutex),
 	}
 }
 
 func (b *LinuxBackend) Setup() error {
-	return b.containerPool.Setup()
+	err := b.containerPool.Setup()
+	if err != nil {
+		return err
+	}
+
+	err = b.volumePool.Setup()
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (b *LinuxBackend) Start() error {
@@ -209,6 +247,43 @@ func (b *LinuxBackend) Lookup(handle string) (api.Container, error) {
 	}
 
 	return container, nil
+}
+
+func (b *LinuxBackend) CreateVolume(spec api.VolumeSpec) (api.Volume, error) {
+	volume, err := b.volumePool.Create(spec)
+	if err != nil {
+		return nil, err
+	}
+
+	b.volumesMutex.Lock()
+	b.volumes[volume.Handle()] = volume
+	b.volumesMutex.Unlock()
+
+	return volume, nil
+}
+
+func (b *LinuxBackend) DestroyVolume(handle string) error {
+	b.volumesMutex.RLock()
+	volume, found := b.volumes[handle]
+	b.volumesMutex.RUnlock()
+
+	if !found {
+		return UnknownHandleError{handle}
+	}
+
+	return b.volumePool.Destroy(volume)
+}
+
+func (b *LinuxBackend) LookupVolume(handle string) (api.Volume, error) {
+	b.volumesMutex.RLock()
+	volume, found := b.volumes[handle]
+	b.volumesMutex.RUnlock()
+
+	if !found {
+		return nil, UnknownHandleError{handle}
+	}
+
+	return volume, nil
 }
 
 func (b *LinuxBackend) GraceTime(container api.Container) time.Duration {

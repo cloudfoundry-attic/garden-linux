@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -e -x
 
 action=$1
 container_path=$2
@@ -41,25 +41,11 @@ function setup_fs_other() {
   overlay_directory_in_rootfs /tmp rw
 }
 
-function get_mountpoint() {
-  df -P $1 | tail -1 | awk '{print $NF}'
-}
-
 function current_fs() {
-  mountpoint=$(get_mountpoint $1)
-
-  local mp
-  local fs
-
-  while read _ mp fs _; do
-    if [ "$fs" = "rootfs" ]; then
-      continue
-    fi
-
-    if [ "$mp" = "$mountpoint" ]; then
-      echo $fs
-    fi
-  done < /proc/mounts
+  mount --bind $1 $1
+  fs=$(cat /proc/mounts | grep $1 | awk '{print $3}')
+  umount $1
+  echo $fs
 }
 
 function should_use_overlayfs() {

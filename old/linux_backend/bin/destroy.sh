@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -x
+
 [ -n "$DEBUG" ] && set -o xtrace
 set -o nounset
 set -o errexit

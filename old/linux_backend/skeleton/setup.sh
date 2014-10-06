@@ -1,6 +1,7 @@
 #!/bin/bash
 
 [ -n "$DEBUG" ] && set -o xtrace
+set -x
 set -o nounset
 set -o errexit
 shopt -s nullglob

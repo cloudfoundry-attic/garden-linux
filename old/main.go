@@ -1,12 +1,11 @@
 package old
 
 import (
-	"bytes"
 	"flag"
 	"net"
 	"os"
-	"os/exec"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
@@ -30,6 +29,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/uid_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
 	"github.com/cloudfoundry-incubator/garden-linux/old/system_info"
+	"github.com/cloudfoundry-incubator/garden-linux/old/volume"
 	"github.com/cloudfoundry-incubator/garden/server"
 	_ "github.com/cloudfoundry/dropsonde/autowire"
 	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
@@ -75,6 +75,12 @@ var rootFSPath = flag.String(
 	"rootfs",
 	"",
 	"directory of the rootfs for the containers",
+)
+
+var globalVolumesPath = flag.String(
+	"globalVolumesPath",
+	"",
+	"directory in which to store volumes",
 )
 
 var disableQuotas = flag.Bool(
@@ -218,10 +224,11 @@ func Main() {
 		"docker": rootfs_provider.NewDocker(repoFetcher, graphDriver),
 	}
 
-	pool := container_pool.New(
+	containerPool := container_pool.New(
 		logger,
 		*binPath,
 		*depotPath,
+		*globalVolumesPath,
 		config,
 		rootFSProviders,
 		uidPool,
@@ -233,9 +240,11 @@ func Main() {
 		quotaManager,
 	)
 
+	volumePool := volume.NewPool(*globalVolumesPath)
+
 	systemInfo := system_info.NewProvider(*depotPath)
 
-	backend := linux_backend.New(logger, pool, systemInfo, *snapshotsPath)
+	backend := linux_backend.New(logger, containerPool, volumePool, systemInfo, *snapshotsPath)
 
 	err = backend.Setup()
 	if err != nil {
@@ -270,20 +279,61 @@ func Main() {
 }
 
 func getMountPoint(logger lager.Logger, depotPath string) string {
-	dfOut := new(bytes.Buffer)
+	//	dfOut := new(bytes.Buffer)
+	//
+	//	df := exec.Command("df", depotPath)
+	//	df.Stdout = dfOut
+	//	df.Stderr = os.Stderr
+	//
+	//	err := df.Run()
+	//	if err != nil {
+	//		logger.Fatal("failed-to-get-mount-info", err)
+	//	}
+	//
+	//	dfOutputWords := strings.Split(string(dfOut.Bytes()), " ")
+	//
+	//	return strings.Trim(dfOutputWords[len(dfOutputWords)-1], "\n")
 
-	df := exec.Command("df", depotPath)
-	df.Stdout = dfOut
-	df.Stderr = os.Stderr
+	searchingPath := depotPath
+	for {
+		absPath, err := filepath.Abs(searchingPath)
+		if err != nil {
+			logger.Fatal("failed-to-resolve-path", err)
+		}
 
-	err := df.Run()
-	if err != nil {
-		logger.Fatal("failed-to-get-mount-info", err)
+		isMP, err := isMountPoint(logger, absPath)
+		if err != nil {
+			logger.Fatal("failed-to-check-if-mount-point", err)
+		}
+
+		if isMP {
+			return searchingPath
+		}
+
+		searchingPath = filepath.Join(searchingPath, "..")
 	}
 
-	dfOutputWords := strings.Split(string(dfOut.Bytes()), " ")
+	return "/"
+}
 
-	return strings.Trim(dfOutputWords[len(dfOutputWords)-1], "\n")
+func isMountPoint(logger lager.Logger, path string) (bool, error) {
+	target, err := os.Stat(path)
+	if err != nil {
+		logger.Error("failed-to-stat-path", err)
+		return false, err
+	}
+
+	parent, err := os.Stat(filepath.Join(path, ".."))
+	if err != nil {
+		logger.Error("failed-to-stat-parent", err)
+		return false, err
+	}
+
+	targetStat_t := target.Sys().(*syscall.Stat_t)
+	parentStat_t := parent.Sys().(*syscall.Stat_t)
+
+	return ((targetStat_t.Dev == parentStat_t.Dev && targetStat_t.Ino == parentStat_t.Ino) ||
+		(targetStat_t.Dev != parentStat_t.Dev)), nil
 }
 
 func missing(flagName string) {

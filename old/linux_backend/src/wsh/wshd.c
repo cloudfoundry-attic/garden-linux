@@ -51,11 +51,6 @@ struct wshd_s {
   /* File descriptor of listening socket */
   int fd;
 
-  /* File descriptor of the host's mount namespace; used for applying
-   * bind-mounts. Make sure no processes actually run in here!
-   */
-  int host_mount_ns;
-
   barrier_t barrier_parent;
   barrier_t barrier_child;
 
@@ -552,29 +547,9 @@ int mkdir_p_as(const char *dir, uid_t uid, gid_t gid) {
 
 int child_handle_bind_mount(int fd, wshd_t *w, msg_request_t *req) {
   int rv;
-  int container_mount_ns;
-  char host_volume_path[PATH_MAX];
   char container_volume_path[PATH_MAX];
 
-  rv = snprintf(host_volume_path, sizeof(host_volume_path), "%s/%s", w->volumes_path, req->bind_mount_name);
-  assert(rv != -1);
-
   rv = snprintf(container_volume_path, sizeof(container_volume_path), "%s/%s", CONTAINER_MOUNTS_PATH, req->bind_mount_name);
-  assert(rv != -1);
-
-  container_mount_ns = open("/proc/self/ns/mnt", O_RDONLY);
-  assert(container_mount_ns != -1);
-
-  rv = setns(w->host_mount_ns, CLONE_NEWNS);
-  assert(rv != -1);
-
-  rv = mkdir(host_volume_path, 0755);
-  assert(rv != -1);
-
-  rv = mount(req->bind_mount_source.path, host_volume_path, NULL, MS_BIND, NULL);
-  assert(rv != -1);
-
-  rv = setns(container_mount_ns, CLONE_NEWNS);
   assert(rv != -1);
 
   rv = mkdir_p_as(req->bind_mount_destination.path, 0, 0);
@@ -613,7 +588,7 @@ int child_accept(wshd_t *w) {
 
   assert(rv == sizeof(req));
 
-  if (*req.bind_mount_source.path && *req.bind_mount_destination.path) {
+  if (*req.bind_mount_name && *req.bind_mount_destination.path) {
     return child_handle_bind_mount(fd, w, &req);
   }
 
@@ -864,6 +839,13 @@ int child_run(void *data) {
     abort();
   }
 
+  // make shared volumes path read-only, as it's shared with the host.
+  rv = mount(pivoted_volumes_path, CONTAINER_MOUNTS_PATH, NULL, MS_BIND|MS_REMOUNT|MS_RDONLY, NULL);
+  if (rv == -1) {
+    perror("mount volumes");
+    abort();
+  }
+
   rv = run(pivoted_lib_path, "hook-child-after-pivot.sh");
   if(rv != 0) {
     perror("hook-child-after-pivot");
@@ -886,9 +868,6 @@ int child_continue(int argc, char **argv) {
   /* Process MUST not leak file descriptors to children */
   barrier_mix_cloexec(&w->barrier_child);
   fcntl_mix_cloexec(w->fd);
-
-  /* do *not* leak host mount namespace */
-  fcntl_mix_cloexec(w->host_mount_ns);
 
   if (strlen(w->title) > 0) {
     setproctitle(argv, w->title);
@@ -978,19 +957,6 @@ int parent_run(wshd_t *w) {
   /* Unshare mount namespace, so the before clone hook is free to mount
    * whatever it needs without polluting the global mount namespace. */
   rv = unshare(CLONE_NEWNS);
-  assert(rv == 0);
-
-  /* Save off the user namespace for bind-mounting later */
-  w->host_mount_ns = open("/proc/self/ns/mnt", O_RDONLY);
-  if(w->host_mount_ns == -1) {
-    exit(1);
-  }
-
-  /* Set up container shared volumes path */
-  rv = mount(w->volumes_path, w->volumes_path, NULL, MS_BIND, NULL);
-  assert(rv == 0);
-
-  rv = mount(w->volumes_path, w->volumes_path, NULL, MS_SHARED, NULL);
   assert(rv == 0);
 
   rv = run(w->lib_path, "hook-parent-before-clone.sh");

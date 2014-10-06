@@ -17,5 +17,9 @@ fi
 
 ./net.sh setup
 
+mkdir -p volumes
+mount --bind volumes volumes
+mount --make-shared volumes
+
 ./bin/wshd --run ./run --lib ./lib --root $rootfs_path --title "wshd: $id" \
   --volumes ./volumes
