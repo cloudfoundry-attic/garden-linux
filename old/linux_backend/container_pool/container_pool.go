@@ -38,6 +38,8 @@ type LinuxContainerPool struct {
 	binPath   string
 	depotPath string
 
+	globalVolumesPath string
+
 	sysconfig sysconfig.Config
 
 	denyNetworks  []string
@@ -59,6 +61,7 @@ type LinuxContainerPool struct {
 func New(
 	logger lager.Logger,
 	binPath, depotPath string,
+	globalVolumesPath string,
 	sysconfig sysconfig.Config,
 	rootfsProviders map[string]rootfs_provider.RootFSProvider,
 	uidPool uid_pool.UIDPool,
@@ -73,6 +76,8 @@ func New(
 
 		binPath:   binPath,
 		depotPath: depotPath,
+
+		globalVolumesPath: globalVolumesPath,
 
 		sysconfig: sysconfig,
 
@@ -107,6 +112,11 @@ func (p *LinuxContainerPool) MaxContainers() int {
 }
 
 func (p *LinuxContainerPool) Setup() error {
+	lRunner := logging.Runner{
+		CommandRunner: p.runner,
+		Logger:        p.logger,
+	}
+
 	setup := exec.Command(path.Join(p.binPath, "setup.sh"))
 	setup.Env = []string{
 		"POOL_NETWORK=" + p.networkPool.Network().String(),
@@ -118,7 +128,7 @@ func (p *LinuxContainerPool) Setup() error {
 		"PATH=" + os.Getenv("PATH"),
 	}
 
-	err := p.runner.Run(setup)
+	err := lRunner.Run(setup)
 	if err != nil {
 		return err
 	}
@@ -189,6 +199,7 @@ func (p *LinuxContainerPool) Create(spec api.ContainerSpec) (c linux_backend.Con
 		id,
 		getHandle(spec.Handle, id),
 		containerPath,
+		p.globalVolumesPath,
 		spec.Properties,
 		spec.GraceTime,
 		resources,
@@ -256,6 +267,7 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 		id,
 		containerSnapshot.Handle,
 		containerPath,
+		p.globalVolumesPath,
 		containerSnapshot.Properties,
 		containerSnapshot.GraceTime,
 		linux_backend.NewResources(

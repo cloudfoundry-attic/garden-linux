@@ -28,17 +28,22 @@
 #include "un.h"
 #include "util.h"
 
+#define CONTAINER_MOUNTS_PATH "/tmp/container-shared-mounts"
+
 typedef struct wshd_s wshd_t;
 
 struct wshd_s {
   /* Path to directory where server socket is placed */
-  char run_path[256];
+  char run_path[PATH_MAX];
 
   /* Path to directory containing hooks */
-  char lib_path[256];
+  char lib_path[PATH_MAX];
 
   /* Path to directory that will become root in the new mount namespace */
-  char root_path[256];
+  char root_path[PATH_MAX];
+
+  /* Path to directory containing the container's volumes */
+  char volumes_path[PATH_MAX];
 
   /* Process title */
   char title[32];
@@ -100,6 +105,11 @@ int wshd__getopt(wshd_t *w, int argc, char **argv) {
       } else if (strcmp("--root", argv[i]) == 0) {
         rv = snprintf(w->root_path, sizeof(w->root_path), "%s", argv[i+1]);
         if (rv >= sizeof(w->root_path)) {
+          goto toolong;
+        }
+      } else if (strcmp("--volumes", argv[i]) == 0) {
+        rv = snprintf(w->volumes_path, sizeof(w->volumes_path), "%s", argv[i+1]);
+        if (rv >= sizeof(w->volumes_path)) {
           goto toolong;
         }
       } else if (strcmp("--title", argv[i]) == 0) {
@@ -477,6 +487,80 @@ err:
   return 0;
 }
 
+/* create a directory; chown only if newly created */
+int mkdir_as(const char *dir, uid_t uid, gid_t gid) {
+  int rv;
+
+  rv = mkdir(dir, 0755);
+  if(rv == 0) {
+    /* new directory; set ownership */
+    return chown(dir, uid, gid);
+  } else {
+    if(errno == EEXIST) {
+      /* if directory already exists, leave ownership as-is */
+      return 0;
+    } else {
+      /* if any other error, abort */
+      return rv;
+    }
+  }
+
+  /* unreachable */
+  return -1;
+}
+
+/* recursively mkdir with directories owned by a given user */
+int mkdir_p_as(const char *dir, uid_t uid, gid_t gid) {
+  char tmp[PATH_MAX];
+  char *p = NULL;
+  size_t len;
+  int rv;
+
+  /* copy the given dir as it'll be mutated */
+  snprintf(tmp, sizeof(tmp), "%s", dir);
+  len = strlen(tmp);
+
+  /* strip trailing slash */
+  if(tmp[len - 1] == '/')
+    tmp[len - 1] = 0;
+
+  for(p = tmp + 1; *p; p++) {
+    if(*p == '/') {
+      /* temporarily null-terminte the string so that mkdir only creates this
+       * path segment */
+      *p = 0;
+
+      /* mkdir with truncated path segment */
+      rv = mkdir_as(tmp, uid, gid);
+      if(rv == -1) {
+        return rv;
+      }
+
+      /* restore path separator */
+      *p = '/';
+    }
+  }
+
+  /* create final destination */
+  return mkdir_as(tmp, uid, gid);
+}
+
+int child_handle_bind_mount(int fd, wshd_t *w, msg_request_t *req) {
+  int rv;
+  char container_volume_path[PATH_MAX];
+
+  rv = snprintf(container_volume_path, sizeof(container_volume_path), "%s/%s", CONTAINER_MOUNTS_PATH, req->bind_mount_name);
+  assert(rv != -1);
+
+  rv = mkdir_p_as(req->bind_mount_destination.path, 0, 0);
+  assert(rv != -1);
+
+  rv = mount(container_volume_path, req->bind_mount_destination.path, NULL, MS_BIND, NULL);
+  assert(rv != -1);
+
+  return 0;
+}
+
 int child_accept(wshd_t *w) {
   int rv, fd;
   msg_request_t req;
@@ -503,6 +587,10 @@ int child_accept(wshd_t *w) {
   }
 
   assert(rv == sizeof(req));
+
+  if (*req.bind_mount_name && *req.bind_mount_destination.path) {
+    return child_handle_bind_mount(fd, w, &req);
+  }
 
   if (req.tty) {
     return child_handle_interactive(fd, w, &req);
@@ -682,6 +770,8 @@ int child_run(void *data) {
   int rv;
   char pivoted_lib_path[PATH_MAX];
   size_t pivoted_lib_path_len;
+  char pivoted_volumes_path[PATH_MAX];
+  size_t pivoted_volumes_path_len;
 
   /* Wait for parent */
   rv = barrier_wait(&w->barrier_parent);
@@ -694,6 +784,11 @@ int child_run(void *data) {
   strcpy(pivoted_lib_path, "/tmp/garden-host");
   pivoted_lib_path_len = strlen(pivoted_lib_path);
   realpath(w->lib_path, pivoted_lib_path + pivoted_lib_path_len);
+
+  /* Create volume path for after pivot */
+  strcpy(pivoted_volumes_path, "/tmp/garden-host");
+  pivoted_volumes_path_len = strlen(pivoted_volumes_path);
+  realpath(w->volumes_path, pivoted_volumes_path + pivoted_volumes_path_len);
 
   rv = mount(w->root_path, w->root_path, NULL, MS_BIND|MS_REC, NULL);
   if(rv == -1) {
@@ -729,6 +824,25 @@ int child_run(void *data) {
   rv = chdir("/");
   if (rv == -1) {
     perror("chdir");
+    abort();
+  }
+
+  rv = mkdir(CONTAINER_MOUNTS_PATH, 0755);
+  if (rv == -1) {
+    perror("mkdir volumes");
+    abort();
+  }
+
+  rv = mount(pivoted_volumes_path, CONTAINER_MOUNTS_PATH, NULL, MS_BIND, NULL);
+  if (rv == -1) {
+    perror("mount volumes");
+    abort();
+  }
+
+  // make shared volumes path read-only, as it's shared with the host.
+  rv = mount(pivoted_volumes_path, CONTAINER_MOUNTS_PATH, NULL, MS_BIND|MS_REMOUNT|MS_RDONLY, NULL);
+  if (rv == -1) {
+    perror("mount volumes");
     abort();
   }
 
@@ -874,6 +988,7 @@ int parent_run(wshd_t *w) {
 int main(int argc, char **argv) {
   wshd_t *w;
   int rv;
+  char *resolved_volumes_path;
 
   /* Continue child execution in the context of the container */
   if (argc > 1 && strcmp(argv[1], "--continue") == 0) {
@@ -903,6 +1018,14 @@ int main(int argc, char **argv) {
   assert_directory(w->run_path);
   assert_directory(w->lib_path);
   assert_directory(w->root_path);
+  assert_directory(w->volumes_path);
+
+  resolved_volumes_path = realpath(w->volumes_path, NULL);
+  assert(resolved_volumes_path != NULL);
+
+  strncpy(w->volumes_path, resolved_volumes_path, sizeof(w->volumes_path));
+
+  free(resolved_volumes_path);
 
   parent_run(w);
 

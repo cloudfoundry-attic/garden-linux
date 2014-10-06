@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -x
+
 [ -n "$DEBUG" ] && set -o xtrace
 set -o nounset
 set -o errexit
@@ -54,6 +56,33 @@ then
       find $path -type d -delete
     fi
   done
-
-  exit 0
 fi
+
+# The kernel takes a bit to reap the container's mount namespace, which may
+# contain mountpoints under these (shared) directories.
+#
+# In manual testing, retrying appears to be a reasonable solution.
+function rmdir_with_retry() {
+  until rmdir "$@"; do
+    sleep 0.1
+  done
+}
+
+# all umounts below appear to be flaky; they sometimes "disappear" from the
+# mount table, seemingly as other things bind-mount to them. for example, with
+# N containers bind-mounting to the same volume, sometimes only the last
+# container bound to it will actually have these mounts present.
+
+# Clean up shared volumes
+for volume in ${PWD}/volumes/*; do
+  umount $volume || true
+  rmdir_with_retry $volume
+done
+
+for binding in ${PWD}/bindings/*; do
+  umount $binding || true
+  rmdir_with_retry $binding
+done
+
+umount volumes || true
+rmdir_with_retry volumes

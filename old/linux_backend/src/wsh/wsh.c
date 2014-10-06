@@ -33,6 +33,11 @@ struct wsh_s {
 
   /* Working directory of process */
   const char *dir;
+
+  /* Bind mount */
+  int bind_mount_readonly;
+  const char *bind_mount_name;
+  const char *bind_mount_destination;
 };
 
 int wsh__usage(wsh_t *w) {
@@ -59,6 +64,19 @@ int wsh__usage(wsh_t *w) {
   fprintf(stderr, "  --rsh           "
     "RSH compatibility mode"
     "\n");
+
+  fprintf(stderr, "  --bind-mount-name NAME      "
+    "Name of the volume to bind-mount"
+    "\n");
+
+  fprintf(stderr, "  --bind-mount-destination PATH      "
+    "Destination directory to bind-mount in to the container"
+    "\n");
+
+  fprintf(stderr, "  --bind-mount-readonly           "
+    "Create mount point read-only"
+    "\n");
+
   return 0;
 }
 
@@ -82,6 +100,22 @@ int wsh__getopt(wsh_t *w) {
       w->user = strdup(w->argv[i+1]);
       i += 2;
       j -= 2;
+    } else if (j >= 2 && strcmp(w->argv[i], "--dir") == 0) {
+      w->dir = strdup(w->argv[i+1]);
+      i += 2;
+      j -= 2;
+    } else if (j >= 2 && strcmp(w->argv[i], "--bind-mount-name") == 0) {
+      w->bind_mount_name = strdup(w->argv[i+1]);
+      i += 2;
+      j -= 2;
+    } else if (j >= 2 && strcmp(w->argv[i], "--bind-mount-destination") == 0) {
+      w->bind_mount_destination = strdup(w->argv[i+1]);
+      i += 2;
+      j -= 2;
+    } else if (j >= 1 && strcmp(w->argv[i], "--bind-mount-readonly") == 0) {
+      w->bind_mount_readonly = 1;
+      i += 1;
+      j -= 1;
     } else if (j >= 2 && strcmp(w->argv[i], "--dir") == 0) {
       w->dir = strdup(w->argv[i+1]);
       i += 2;
@@ -340,6 +374,20 @@ int main(int argc, char **argv) {
   fd = rv;
 
   msg_request_init(&req);
+
+  if(w->bind_mount_name != NULL && w->bind_mount_destination != NULL) {
+    strncpy(req.bind_mount_name, w->bind_mount_name, sizeof(req.bind_mount_name));
+    req.bind_mount_readonly = w->bind_mount_readonly;
+    msg_dir_import(&req.bind_mount_destination, w->bind_mount_destination);
+
+    rv = un_send_fds(fd, (char *)&req, sizeof(req), NULL, 0);
+    if (rv <= 0) {
+      perror("sendmsg");
+      exit(255);
+    }
+
+    return 0;
+  }
 
   msg_dir_import(&req.dir, w->dir);
 

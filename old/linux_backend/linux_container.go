@@ -3,6 +3,7 @@ package linux_backend
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/bandwidth_manager"
@@ -30,6 +32,8 @@ type LinuxContainer struct {
 	id     string
 	handle string
 	path   string
+
+	globalVolumesPath string
 
 	properties api.Properties
 
@@ -104,6 +108,7 @@ const (
 func NewLinuxContainer(
 	logger lager.Logger,
 	id, handle, path string,
+	globalVolumesPath string,
 	properties api.Properties,
 	graceTime time.Duration,
 	resources *Resources,
@@ -121,6 +126,8 @@ func NewLinuxContainer(
 		id:     id,
 		handle: handle,
 		path:   path,
+
+		globalVolumesPath: globalVolumesPath,
 
 		properties: properties,
 
@@ -757,6 +764,106 @@ func (c *LinuxContainer) NetOut(network string, port uint32) error {
 	c.netOuts = append(c.netOuts, NetOutSpec{network, port})
 
 	return nil
+}
+
+func (c *LinuxContainer) BindVolume(apiVolume api.Volume, binding api.VolumeBinding) error {
+	volume, ok := apiVolume.(Volume)
+	if !ok {
+		panic("welp")
+	}
+
+	// the true volume location
+	globalPath := filepath.Join(c.globalVolumesPath, volume.ID())
+
+	// location of the container's binding point; this is made read-only or
+	// read-write.
+	//
+	// this is so that there isn't a window of time where a read-only volume in
+	// the container is read-write (since you have to bind-mount and then remount
+	// read-only).
+	bindingPath := filepath.Join(c.path, "bindings", volume.ID())
+
+	// location of the container's shared mounts; contains bind-mounts to the
+	// bindings.
+	containerPath := filepath.Join(c.path, "volumes", volume.ID())
+
+	err := os.MkdirAll(bindingPath, 0755)
+	if err != nil {
+		return err
+	}
+
+	err = syscall.Mount(
+		globalPath,
+		bindingPath,
+		"",
+		syscall.MS_BIND,
+		"",
+	)
+	if err != nil {
+		return err
+	}
+
+	if binding.Mode == api.VolumeBindingModeRO {
+		err = syscall.Mount(
+			globalPath,
+			bindingPath,
+			"",
+			syscall.MS_BIND|syscall.MS_REMOUNT|syscall.MS_RDONLY,
+			"",
+		)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = os.MkdirAll(containerPath, 0755)
+	if err != nil {
+		return err
+	}
+
+	// for this brief period there is an unbound directory in the container;
+	// make sure it's read-only beforehand!
+
+	err = syscall.Mount(
+		bindingPath,
+		containerPath,
+		"",
+		syscall.MS_BIND,
+		"",
+	)
+	if err != nil {
+		return err
+	}
+
+	cLog := c.logger.Session("bind-volume")
+
+	wshPath := path.Join(c.path, "bin", "wsh")
+	sockPath := path.Join(c.path, "run", "wshd.sock")
+
+	args := []string{
+		"--socket", sockPath,
+	}
+
+	if binding.Mode == api.VolumeBindingModeRO {
+		args = append(args, "--bind-mount-readonly")
+	}
+
+	args = append(
+		args,
+		"--bind-mount-name", volume.ID(),
+		"--bind-mount-destination", binding.Destination,
+	)
+
+	cRunner := logging.Runner{
+		CommandRunner: c.runner,
+		Logger:        cLog,
+	}
+
+	return cRunner.Run(exec.Command(wshPath, args...))
+}
+
+func (c *LinuxContainer) UnbindVolume(volume api.Volume) error {
+	return errors.New("nope")
 }
 
 func (c *LinuxContainer) CurrentEnvVars() []string {

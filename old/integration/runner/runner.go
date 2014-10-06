@@ -75,6 +75,7 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 	depotPath := filepath.Join(r.tmpdir, "containers")
 	overlaysPath := filepath.Join(r.tmpdir, "overlays")
 	snapshotsPath := filepath.Join(r.tmpdir, "snapshots")
+	volumesPath := filepath.Join(r.tmpdir, "volumes")
 
 	if err := os.MkdirAll(depotPath, 0755); err != nil {
 		return err
@@ -94,6 +95,7 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 		"--debugAddr", r.debugAddr,
 		"--overlays", overlaysPath,
 		"--snapshots", snapshotsPath,
+		"--globalVolumesPath", volumesPath,
 		"--graph", r.graphPath,
 		"--logLevel", "debug",
 		"--disableQuotas",
