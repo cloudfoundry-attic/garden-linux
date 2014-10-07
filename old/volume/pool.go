@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync/atomic"
+	"syscall"
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
@@ -36,9 +37,24 @@ func (pool *Pool) Create(spec api.VolumeSpec) (linux_backend.Volume, error) {
 		spec.Handle = id
 	}
 
-	err := os.Mkdir(filepath.Join(pool.globalVolumesPath, id), 0755)
+	volumePath := filepath.Join(pool.globalVolumesPath, id)
+
+	err := os.Mkdir(volumePath, 0755)
 	if err != nil {
 		return nil, err
+	}
+
+	if spec.HostPath != "" {
+		err := syscall.Mount(
+			spec.HostPath,
+			volumePath,
+			"",
+			syscall.MS_BIND,
+			"",
+		)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &volume{

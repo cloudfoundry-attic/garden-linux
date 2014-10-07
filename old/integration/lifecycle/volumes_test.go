@@ -1,6 +1,10 @@
 package lifecycle_test
 
 import (
+	"io/ioutil"
+	"os"
+	"path/filepath"
+
 	"github.com/cloudfoundry-incubator/garden/api"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -19,6 +23,8 @@ var _ = Describe("A volume", func() {
 
 		container, err = client.Create(api.ContainerSpec{})
 		Ω(err).ShouldNot(HaveOccurred())
+
+		readOnlyContainer = nil
 	})
 
 	AfterEach(func() {
@@ -31,12 +37,17 @@ var _ = Describe("A volume", func() {
 		}
 	})
 
-	It("can be created and attached to multiple containers", func() {
+	It("can be created with a handle", func() {
 		volume, err := client.CreateVolume(api.VolumeSpec{
 			Handle: "some volume handle",
 		})
 		Ω(err).ShouldNot(HaveOccurred())
 		Ω(volume.Handle()).Should(Equal("some volume handle"))
+	})
+
+	It("can be created and attached to multiple containers", func() {
+		volume, err := client.CreateVolume(api.VolumeSpec{})
+		Ω(err).ShouldNot(HaveOccurred())
 
 		// first ensure that the container cannot write to the bridge location
 		process, err := container.Run(api.ProcessSpec{
@@ -100,5 +111,88 @@ var _ = Describe("A volume", func() {
 		}, api.ProcessIO{})
 		Ω(err).ShouldNot(HaveOccurred())
 		Ω(process.Wait()).ShouldNot(BeZero())
+	})
+
+	Context("when a volume is created, mapped to a directory on the host", func() {
+		var tmpdir string
+
+		BeforeEach(func() {
+			var err error
+
+			tmpdir, err = ioutil.TempDir("", "host-dir")
+			Ω(err).ShouldNot(HaveOccurred())
+		})
+
+		AfterEach(func() {
+			err := os.RemoveAll(tmpdir)
+			Ω(err).ShouldNot(HaveOccurred())
+		})
+
+		It("can be bound read-write to a container", func() {
+			volume, err := client.CreateVolume(api.VolumeSpec{
+				HostPath: tmpdir,
+			})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			err = container.BindVolume(volume, api.VolumeBinding{
+				Mode:        api.VolumeBindingModeRW,
+				Destination: "/tmp/path/in/container",
+			})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			process, err := container.Run(api.ProcessSpec{
+				Path:       "touch",
+				Args:       []string{"/tmp/path/in/container/some-file"},
+				Privileged: true,
+			}, api.ProcessIO{})
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(process.Wait()).Should(BeZero())
+
+			_, err = os.Stat(filepath.Join(tmpdir, "some-file"))
+			Ω(err).ShouldNot(HaveOccurred())
+		})
+
+		It("can be bound read-only to a container", func() {
+			volume, err := client.CreateVolume(api.VolumeSpec{
+				HostPath: tmpdir,
+			})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			err = container.BindVolume(volume, api.VolumeBinding{
+				Mode:        api.VolumeBindingModeRO,
+				Destination: "/tmp/path/in/container",
+			})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			process, err := container.Run(api.ProcessSpec{
+				Path:       "touch",
+				Args:       []string{"/tmp/path/in/container/some-file"},
+				Privileged: true,
+			}, api.ProcessIO{})
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(process.Wait()).ShouldNot(BeZero())
+
+			process, err = container.Run(api.ProcessSpec{
+				Path:       "ls",
+				Args:       []string{"/tmp/path/in/container/some-file"},
+				Privileged: true,
+			}, api.ProcessIO{})
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(process.Wait()).ShouldNot(BeZero())
+
+			file, err := os.Create(filepath.Join(tmpdir, "some-file"))
+			Ω(err).ShouldNot(HaveOccurred())
+
+			err = file.Close()
+			Ω(err).ShouldNot(HaveOccurred())
+
+			process, err = container.Run(api.ProcessSpec{
+				Path:       "ls",
+				Args:       []string{"/tmp/path/in/container/some-file"},
+				Privileged: true,
+			}, api.ProcessIO{})
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(process.Wait()).Should(BeZero())
+		})
 	})
 })
