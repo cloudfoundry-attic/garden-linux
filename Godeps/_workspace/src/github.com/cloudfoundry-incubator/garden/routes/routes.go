@@ -33,6 +33,12 @@ const (
 
 	Run    = "Run"
 	Attach = "Attach"
+
+	CreateVolume  = "CreateVolume"
+	DestroyVolume = "DestroyVolume"
+	LookupVolume  = "LookupVolume"
+	BindVolume    = "BindVolume"
+	UnbindVolume  = "UnbindVolume"
 )
 
 var Routes = rata.Routes{
@@ -67,4 +73,11 @@ var Routes = rata.Routes{
 
 	{Path: "/containers/:handle/processes", Method: "POST", Name: Run},
 	{Path: "/containers/:handle/processes/:pid", Method: "GET", Name: Attach},
+
+	{Path: "/volumes", Method: "POST", Name: CreateVolume},
+	{Path: "/volumes/:handle", Method: "DELETE", Name: DestroyVolume},
+	{Path: "/volumes/:handle", Method: "GET", Name: LookupVolume},
+
+	{Path: "/containers/:container_handle/volumes/:volume_handle", Method: "PUT", Name: BindVolume},
+	{Path: "/containers/:container_handle/volumes/:volume_handle", Method: "DELETE", Name: UnbindVolume},
 }

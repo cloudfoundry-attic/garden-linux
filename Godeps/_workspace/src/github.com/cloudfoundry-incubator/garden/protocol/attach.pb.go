@@ -7,9 +7,12 @@ Package garden is a generated protocol buffer package.
 
 It is generated from these files:
 	attach.proto
+	bind_volume.proto
 	capacity.proto
 	create.proto
+	create_volume.proto
 	destroy.proto
+	destroy_volume.proto
 	environment_variable.proto
 	error.proto
 	info.proto
@@ -18,6 +21,7 @@ It is generated from these files:
 	limit_disk.proto
 	limit_memory.proto
 	list.proto
+	lookup_volume.proto
 	message.proto
 	net_in.proto
 	net_out.proto
@@ -30,6 +34,7 @@ It is generated from these files:
 	stream_in.proto
 	stream_out.proto
 	tty.proto
+	unbind_volume.proto
 
 It has these top-level messages:
 	AttachRequest

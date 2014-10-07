@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/docker/docker/archive"
 	"github.com/docker/docker/image"
+	"github.com/docker/docker/pkg/archive"
 	"github.com/docker/docker/registry"
 	"github.com/pivotal-golang/lager"
 )
@@ -44,8 +44,8 @@ type DockerRepositoryFetcher struct {
 
 func New(registry Registry, graph Graph) RepositoryFetcher {
 	return &DockerRepositoryFetcher{
-		registry: registry,
-		graph:    graph,
+		registry:       registry,
+		graph:          graph,
 		fetchingLayers: map[string]chan struct{}{},
 		fetchingMutex:  new(sync.Mutex),
 	}

@@ -212,7 +212,12 @@ func Main() {
 		logger.Fatal("failed-to-construct-graph", err)
 	}
 
-	reg, err := registry.NewSession(nil, nil, *dockerRegistry, true)
+	endpoint, err := registry.NewEndpoint(*dockerRegistry)
+	if err != nil {
+		logger.Fatal("failed-to-construct-docker-registry-endpoint", err)
+	}
+
+	reg, err := registry.NewSession(nil, nil, endpoint, true)
 	if err != nil {
 		logger.Fatal("failed-to-construct-registry", err)
 	}

@@ -12,7 +12,7 @@ type FakeContainer struct {
 	HandleStub        func() string
 	handleMutex       sync.RWMutex
 	handleArgsForCall []struct{}
-	handleReturns     struct {
+	handleReturns struct {
 		result1 string
 	}
 	StopStub        func(kill bool) error
@@ -26,7 +26,7 @@ type FakeContainer struct {
 	InfoStub        func() (api.ContainerInfo, error)
 	infoMutex       sync.RWMutex
 	infoArgsForCall []struct{}
-	infoReturns     struct {
+	infoReturns struct {
 		result1 api.ContainerInfo
 		result2 error
 	}
@@ -59,7 +59,7 @@ type FakeContainer struct {
 	CurrentBandwidthLimitsStub        func() (api.BandwidthLimits, error)
 	currentBandwidthLimitsMutex       sync.RWMutex
 	currentBandwidthLimitsArgsForCall []struct{}
-	currentBandwidthLimitsReturns     struct {
+	currentBandwidthLimitsReturns struct {
 		result1 api.BandwidthLimits
 		result2 error
 	}
@@ -74,7 +74,7 @@ type FakeContainer struct {
 	CurrentCPULimitsStub        func() (api.CPULimits, error)
 	currentCPULimitsMutex       sync.RWMutex
 	currentCPULimitsArgsForCall []struct{}
-	currentCPULimitsReturns     struct {
+	currentCPULimitsReturns struct {
 		result1 api.CPULimits
 		result2 error
 	}
@@ -89,7 +89,7 @@ type FakeContainer struct {
 	CurrentDiskLimitsStub        func() (api.DiskLimits, error)
 	currentDiskLimitsMutex       sync.RWMutex
 	currentDiskLimitsArgsForCall []struct{}
-	currentDiskLimitsReturns     struct {
+	currentDiskLimitsReturns struct {
 		result1 api.DiskLimits
 		result2 error
 	}
@@ -104,7 +104,7 @@ type FakeContainer struct {
 	CurrentMemoryLimitsStub        func() (api.MemoryLimits, error)
 	currentMemoryLimitsMutex       sync.RWMutex
 	currentMemoryLimitsArgsForCall []struct{}
-	currentMemoryLimitsReturns     struct {
+	currentMemoryLimitsReturns struct {
 		result1 api.MemoryLimits
 		result2 error
 	}
@@ -147,6 +147,23 @@ type FakeContainer struct {
 	attachReturns struct {
 		result1 api.Process
 		result2 error
+	}
+	BindVolumeStub        func(api.Volume, api.VolumeBinding) error
+	bindVolumeMutex       sync.RWMutex
+	bindVolumeArgsForCall []struct {
+		arg1 api.Volume
+		arg2 api.VolumeBinding
+	}
+	bindVolumeReturns struct {
+		result1 error
+	}
+	UnbindVolumeStub        func(api.Volume) error
+	unbindVolumeMutex       sync.RWMutex
+	unbindVolumeArgsForCall []struct {
+		arg1 api.Volume
+	}
+	unbindVolumeReturns struct {
+		result1 error
 	}
 }
 
@@ -659,6 +676,71 @@ func (fake *FakeContainer) AttachReturns(result1 api.Process, result2 error) {
 		result1 api.Process
 		result2 error
 	}{result1, result2}
+}
+
+func (fake *FakeContainer) BindVolume(arg1 api.Volume, arg2 api.VolumeBinding) error {
+	fake.bindVolumeMutex.Lock()
+	fake.bindVolumeArgsForCall = append(fake.bindVolumeArgsForCall, struct {
+		arg1 api.Volume
+		arg2 api.VolumeBinding
+	}{arg1, arg2})
+	fake.bindVolumeMutex.Unlock()
+	if fake.BindVolumeStub != nil {
+		return fake.BindVolumeStub(arg1, arg2)
+	} else {
+		return fake.bindVolumeReturns.result1
+	}
+}
+
+func (fake *FakeContainer) BindVolumeCallCount() int {
+	fake.bindVolumeMutex.RLock()
+	defer fake.bindVolumeMutex.RUnlock()
+	return len(fake.bindVolumeArgsForCall)
+}
+
+func (fake *FakeContainer) BindVolumeArgsForCall(i int) (api.Volume, api.VolumeBinding) {
+	fake.bindVolumeMutex.RLock()
+	defer fake.bindVolumeMutex.RUnlock()
+	return fake.bindVolumeArgsForCall[i].arg1, fake.bindVolumeArgsForCall[i].arg2
+}
+
+func (fake *FakeContainer) BindVolumeReturns(result1 error) {
+	fake.BindVolumeStub = nil
+	fake.bindVolumeReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeContainer) UnbindVolume(arg1 api.Volume) error {
+	fake.unbindVolumeMutex.Lock()
+	fake.unbindVolumeArgsForCall = append(fake.unbindVolumeArgsForCall, struct {
+		arg1 api.Volume
+	}{arg1})
+	fake.unbindVolumeMutex.Unlock()
+	if fake.UnbindVolumeStub != nil {
+		return fake.UnbindVolumeStub(arg1)
+	} else {
+		return fake.unbindVolumeReturns.result1
+	}
+}
+
+func (fake *FakeContainer) UnbindVolumeCallCount() int {
+	fake.unbindVolumeMutex.RLock()
+	defer fake.unbindVolumeMutex.RUnlock()
+	return len(fake.unbindVolumeArgsForCall)
+}
+
+func (fake *FakeContainer) UnbindVolumeArgsForCall(i int) api.Volume {
+	fake.unbindVolumeMutex.RLock()
+	defer fake.unbindVolumeMutex.RUnlock()
+	return fake.unbindVolumeArgsForCall[i].arg1
+}
+
+func (fake *FakeContainer) UnbindVolumeReturns(result1 error) {
+	fake.UnbindVolumeStub = nil
+	fake.unbindVolumeReturns = struct {
+		result1 error
+	}{result1}
 }
 
 var _ api.Container = new(FakeContainer)

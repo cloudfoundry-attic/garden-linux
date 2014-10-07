@@ -4,8 +4,8 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/docker/docker/archive"
 	"github.com/docker/docker/image"
+	"github.com/docker/docker/pkg/archive"
 )
 
 type FakeGraph struct {

@@ -33,28 +33,36 @@ const (
 	Message_Capacity       Message_Type = 94
 	Message_StreamIn       Message_Type = 95
 	Message_StreamOut      Message_Type = 96
+	Message_CreateVolume   Message_Type = 101
+	Message_DestroyVolume  Message_Type = 102
+	Message_BindVolume     Message_Type = 103
+	Message_UnbindVolume   Message_Type = 104
 )
 
 var Message_Type_name = map[int32]string{
-	1:  "Error",
-	11: "Create",
-	12: "Stop",
-	13: "Destroy",
-	14: "Info",
-	31: "NetIn",
-	32: "NetOut",
-	51: "LimitMemory",
-	52: "LimitDisk",
-	53: "LimitBandwidth",
-	54: "LimitCpu",
-	71: "Run",
-	72: "Attach",
-	73: "ProcessPayload",
-	91: "Ping",
-	92: "List",
-	94: "Capacity",
-	95: "StreamIn",
-	96: "StreamOut",
+	1:   "Error",
+	11:  "Create",
+	12:  "Stop",
+	13:  "Destroy",
+	14:  "Info",
+	31:  "NetIn",
+	32:  "NetOut",
+	51:  "LimitMemory",
+	52:  "LimitDisk",
+	53:  "LimitBandwidth",
+	54:  "LimitCpu",
+	71:  "Run",
+	72:  "Attach",
+	73:  "ProcessPayload",
+	91:  "Ping",
+	92:  "List",
+	94:  "Capacity",
+	95:  "StreamIn",
+	96:  "StreamOut",
+	101: "CreateVolume",
+	102: "DestroyVolume",
+	103: "BindVolume",
+	104: "UnbindVolume",
 }
 var Message_Type_value = map[string]int32{
 	"Error":          1,
@@ -76,6 +84,10 @@ var Message_Type_value = map[string]int32{
 	"Capacity":       94,
 	"StreamIn":       95,
 	"StreamOut":      96,
+	"CreateVolume":   101,
+	"DestroyVolume":  102,
+	"BindVolume":     103,
+	"UnbindVolume":   104,
 }
 
 func (x Message_Type) Enum() *Message_Type {

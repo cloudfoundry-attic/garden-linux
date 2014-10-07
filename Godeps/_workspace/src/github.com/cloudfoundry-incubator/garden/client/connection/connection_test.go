@@ -758,7 +758,7 @@ var _ = Describe("Connection", func() {
 						ghttp.VerifyRequest("PUT", "/containers/foo-handle/files", "destination=%2Fbar"),
 						ghttp.RespondWith(http.StatusInternalServerError, "no."),
 						func(w http.ResponseWriter, r *http.Request) {
-							server.HTTPTestServer.CloseClientConnections()
+							server.CloseClientConnections()
 						},
 					),
 				)
@@ -1250,6 +1250,53 @@ var _ = Describe("Connection", func() {
 					_, err = process.Wait()
 					Ω(err).Should(HaveOccurred())
 				})
+			})
+		})
+	})
+
+	Describe("Volumes", func() {
+		Describe("CreateVolume", func() {
+			BeforeEach(func() {
+				server.AppendHandlers(
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("POST", "/volumes"),
+						verifyProtoBody(&protocol.CreateVolumeRequest{
+							Handle:   proto.String("foo-handle"),
+							HostPath: proto.String("/some/host/path"),
+						}),
+						ghttp.RespondWith(200, marshalProto(&protocol.CreateVolumeResponse{
+							Handle: proto.String("some-volume-handle"),
+						})),
+					),
+				)
+			})
+
+			It("creates the volume", func() {
+				handle, err := connection.CreateVolume(api.VolumeSpec{
+					Handle:   "foo-handle",
+					HostPath: "/some/host/path",
+				})
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Ω(handle).Should(Equal("some-volume-handle"))
+			})
+		})
+
+		Describe("DestroyVolume", func() {
+			BeforeEach(func() {
+				server.AppendHandlers(
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("DELETE", "/volumes/some-volume"),
+						ghttp.RespondWith(200, marshalProto(&protocol.DestroyVolumeResponse{})),
+					),
+				)
+			})
+
+			It("destroys the volume", func() {
+				err := connection.DestroyVolume("some-volume")
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Ω(server.ReceivedRequests()).Should(HaveLen(1))
 			})
 		})
 	})

@@ -57,6 +57,12 @@ type Connection interface {
 
 	NetIn(handle string, hostPort, containerPort uint32) (uint32, uint32, error)
 	NetOut(handle string, network string, port uint32) error
+
+	CreateVolume(api.VolumeSpec) (string, error)
+	DestroyVolume(string) error
+	LookupVolume(string) (string, error)
+	BindVolume(containerHandle string, volumeHandle string, binding api.VolumeBinding) error
+	UnbindVolume(containerHandle string, volumeHandle string) error
 }
 
 type connection struct {
@@ -732,6 +738,102 @@ func (c *connection) Info(handle string) (api.ContainerInfo, error) {
 
 		MappedPorts: mappedPorts,
 	}, nil
+}
+
+func (c *connection) CreateVolume(spec api.VolumeSpec) (string, error) {
+	req := &protocol.CreateVolumeRequest{}
+
+	if spec.Handle != "" {
+		req.Handle = proto.String(spec.Handle)
+	}
+
+	if spec.HostPath != "" {
+		req.HostPath = proto.String(spec.HostPath)
+	}
+
+	res := &protocol.CreateVolumeResponse{}
+
+	err := c.do(routes.CreateVolume, req, res, nil, nil)
+	if err != nil {
+		return "", err
+	}
+
+	return res.GetHandle(), nil
+}
+
+func (c *connection) DestroyVolume(handle string) error {
+	return c.do(
+		routes.DestroyVolume,
+		nil,
+		&protocol.DestroyVolumeResponse{},
+		rata.Params{
+			"handle": handle,
+		},
+		nil,
+	)
+}
+
+func (c *connection) LookupVolume(volumeHandle string) (string, error) {
+	res := &protocol.LookupVolumeResponse{}
+
+	err := c.do(
+		routes.LookupVolume,
+		nil,
+		res,
+		rata.Params{
+			"handle": volumeHandle,
+		},
+		nil,
+	)
+	if err != nil {
+		return "", err
+	}
+
+	return res.GetHandle(), nil
+}
+
+func (c *connection) BindVolume(containerHandle string, volumeHandle string, binding api.VolumeBinding) error {
+	var mode protocol.BindVolumeRequest_Mode
+
+	switch binding.Mode {
+	case api.VolumeBindingModeRO:
+		mode = protocol.BindVolumeRequest_RO
+	case api.VolumeBindingModeRW:
+		mode = protocol.BindVolumeRequest_RW
+	}
+
+	req := &protocol.BindVolumeRequest{
+		ContainerHandle: proto.String(containerHandle),
+		VolumeHandle:    proto.String(volumeHandle),
+		Mode:            &mode,
+		DestinationPath: proto.String(binding.Destination),
+	}
+
+	res := &protocol.BindVolumeResponse{}
+
+	return c.do(
+		routes.BindVolume,
+		req,
+		res,
+		rata.Params{
+			"container_handle": containerHandle,
+			"volume_handle":    volumeHandle,
+		},
+		nil,
+	)
+}
+
+func (c *connection) UnbindVolume(containerHandle string, volumeHandle string) error {
+	return c.do(
+		routes.UnbindVolume,
+		nil,
+		&protocol.UnbindVolumeResponse{},
+		rata.Params{
+			"container_handle": containerHandle,
+			"volume_handle":    volumeHandle,
+		},
+		nil,
+	)
 }
 
 func convertEnvironmentVariables(environmentVariables []string) []*protocol.EnvironmentVariable {

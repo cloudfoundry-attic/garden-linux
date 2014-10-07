@@ -108,3 +108,11 @@ func (container *container) NetIn(hostPort, containerPort uint32) (uint32, uint3
 func (container *container) NetOut(network string, port uint32) error {
 	return container.connection.NetOut(container.handle, network, port)
 }
+
+func (container *container) BindVolume(volume api.Volume, binding api.VolumeBinding) error {
+	return container.connection.BindVolume(container.handle, volume.Handle(), binding)
+}
+
+func (container *container) UnbindVolume(volume api.Volume) error {
+	return container.connection.UnbindVolume(container.handle, volume.Handle())
+}

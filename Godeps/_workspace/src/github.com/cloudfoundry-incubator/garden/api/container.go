@@ -31,7 +31,20 @@ type Container interface {
 
 	Run(ProcessSpec, ProcessIO) (Process, error)
 	Attach(uint32, ProcessIO) (Process, error)
+
+	BindVolume(Volume, VolumeBinding) error
+	UnbindVolume(Volume) error
 }
+
+type VolumeBinding struct {
+	Mode        VolumeBindingMode
+	Destination string
+}
+
+type VolumeBindingMode uint8
+
+const VolumeBindingModeRO VolumeBindingMode = 0
+const VolumeBindingModeRW VolumeBindingMode = 1
 
 type ProcessSpec struct {
 	Path string

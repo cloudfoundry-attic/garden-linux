@@ -13,6 +13,10 @@ type Client interface {
 	Destroy(handle string) error
 	Containers(Properties) ([]Container, error)
 	Lookup(handle string) (Container, error)
+
+	CreateVolume(VolumeSpec) (Volume, error)
+	DestroyVolume(handle string) error
+	LookupVolume(handle string) (Volume, error)
 }
 
 type ContainerSpec struct {
@@ -23,6 +27,16 @@ type ContainerSpec struct {
 	Network    string
 	Properties Properties
 	Env        []string
+}
+
+type VolumeSpec struct {
+	// logical name for the volume
+	Handle string
+
+	// path on the host to back this volume with.
+	// will be created if it does not exist.
+	// if not specified, the volume is independent.
+	HostPath string
 }
 
 type BindMount struct {

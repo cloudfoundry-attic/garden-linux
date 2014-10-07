@@ -1020,6 +1020,160 @@ func (s *GardenServer) handleInfo(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func (s *GardenServer) handleCreateVolume(w http.ResponseWriter, r *http.Request) {
+	var request protocol.CreateVolumeRequest
+	if !s.readRequest(&request, w, r) {
+		return
+	}
+
+	hLog := s.logger.Session("create-volume", lager.Data{
+		"request": request,
+	})
+
+	hLog.Debug("creating")
+
+	volume, err := s.backend.CreateVolume(api.VolumeSpec{
+		Handle:   request.GetHandle(),
+		HostPath: request.GetHostPath(),
+	})
+	if err != nil {
+		s.writeError(w, err, hLog)
+		return
+	}
+
+	hLog.Info("created")
+
+	s.writeResponse(w, &protocol.CreateVolumeResponse{
+		Handle: proto.String(volume.Handle()),
+	})
+}
+
+func (s *GardenServer) handleDestroyVolume(w http.ResponseWriter, r *http.Request) {
+	handle := r.FormValue(":handle")
+
+	hLog := s.logger.Session("destroy-volume", lager.Data{
+		"handle": handle,
+	})
+
+	hLog.Debug("destroying")
+
+	err := s.backend.DestroyVolume(handle)
+	if err != nil {
+		s.writeError(w, err, hLog)
+		return
+	}
+
+	hLog.Info("destroyed")
+
+	s.writeResponse(w, &protocol.DestroyVolumeResponse{})
+}
+
+func (s *GardenServer) handleLookupVolume(w http.ResponseWriter, r *http.Request) {
+	handle := r.FormValue(":handle")
+
+	hLog := s.logger.Session("lookup-volume", lager.Data{
+		"handle": handle,
+	})
+
+	hLog.Debug("looking-up")
+
+	volume, err := s.backend.LookupVolume(handle)
+	if err != nil {
+		s.writeError(w, err, hLog)
+		return
+	}
+
+	hLog.Info("looked-up")
+
+	s.writeResponse(w, &protocol.LookupVolumeResponse{
+		Handle: proto.String(volume.Handle()),
+	})
+}
+
+func (s *GardenServer) handleBindVolume(w http.ResponseWriter, r *http.Request) {
+	containerHandle := r.FormValue(":container_handle")
+	volumeHandle := r.FormValue(":volume_handle")
+
+	var request protocol.BindVolumeRequest
+	if !s.readRequest(&request, w, r) {
+		return
+	}
+
+	hLog := s.logger.Session("bind-volume", lager.Data{
+		"container-handle": containerHandle,
+		"volume-handle":    volumeHandle,
+	})
+
+	container, err := s.backend.Lookup(containerHandle)
+	if err != nil {
+		s.writeError(w, err, hLog)
+		return
+	}
+
+	volume, err := s.backend.LookupVolume(volumeHandle)
+	if err != nil {
+		s.writeError(w, err, hLog)
+		return
+	}
+
+	hLog.Debug("binding")
+
+	var mode api.VolumeBindingMode
+	switch request.GetMode() {
+	case protocol.BindVolumeRequest_RO:
+		mode = api.VolumeBindingModeRO
+	case protocol.BindVolumeRequest_RW:
+		mode = api.VolumeBindingModeRW
+	}
+
+	err = container.BindVolume(volume, api.VolumeBinding{
+		Mode:        mode,
+		Destination: request.GetDestinationPath(),
+	})
+	if err != nil {
+		s.writeError(w, err, hLog)
+		return
+	}
+
+	hLog.Info("bound")
+
+	s.writeResponse(w, &protocol.BindVolumeResponse{})
+}
+
+func (s *GardenServer) handleUnbindVolume(w http.ResponseWriter, r *http.Request) {
+	containerHandle := r.FormValue(":container_handle")
+	volumeHandle := r.FormValue(":volume_handle")
+
+	hLog := s.logger.Session("unbind-volume", lager.Data{
+		"container-handle": containerHandle,
+		"volume-handle":    volumeHandle,
+	})
+
+	container, err := s.backend.Lookup(containerHandle)
+	if err != nil {
+		s.writeError(w, err, hLog)
+		return
+	}
+
+	volume, err := s.backend.LookupVolume(volumeHandle)
+	if err != nil {
+		s.writeError(w, err, hLog)
+		return
+	}
+
+	hLog.Debug("unbinding")
+
+	err = container.UnbindVolume(volume)
+	if err != nil {
+		s.writeError(w, err, hLog)
+		return
+	}
+
+	hLog.Info("unbound")
+
+	s.writeResponse(w, &protocol.UnbindVolumeResponse{})
+}
+
 func resourceLimits(limits *protocol.ResourceLimits) api.ResourceLimits {
 	return api.ResourceLimits{
 		As:         limits.As,

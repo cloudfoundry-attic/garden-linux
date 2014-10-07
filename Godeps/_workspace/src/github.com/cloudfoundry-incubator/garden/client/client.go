@@ -73,3 +73,25 @@ func (client *client) Lookup(handle string) (api.Container, error) {
 
 	return nil, fmt.Errorf("container not found: %s", handle)
 }
+
+func (client *client) CreateVolume(spec api.VolumeSpec) (api.Volume, error) {
+	volumeHandle, err := client.connection.CreateVolume(spec)
+	if err != nil {
+		return nil, err
+	}
+
+	return newVolume(volumeHandle), nil
+}
+
+func (client *client) DestroyVolume(handle string) error {
+	return client.connection.DestroyVolume(handle)
+}
+
+func (client *client) LookupVolume(handle string) (api.Volume, error) {
+	confirmedHandle, err := client.connection.LookupVolume(handle)
+	if err != nil {
+		return nil, err
+	}
+
+	return newVolume(confirmedHandle), nil
+}

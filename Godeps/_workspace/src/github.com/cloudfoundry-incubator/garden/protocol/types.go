@@ -76,6 +76,15 @@ func TypeForMessage(msg proto.Message) Message_Type {
 		return Message_List
 	case *CapacityRequest, *CapacityResponse:
 		return Message_Capacity
+
+	case *CreateVolumeRequest, *CreateVolumeResponse:
+		return Message_CreateVolume
+	case *DestroyVolumeRequest, *DestroyVolumeResponse:
+		return Message_DestroyVolume
+	case *BindVolumeRequest, *BindVolumeResponse:
+		return Message_BindVolume
+	case *UnbindVolumeRequest, *UnbindVolumeResponse:
+		return Message_UnbindVolume
 	}
 
 	panic("unknown message type")
@@ -122,6 +131,15 @@ func RequestMessageForType(t Message_Type) proto.Message {
 		return &ListRequest{}
 	case Message_Capacity:
 		return &CapacityRequest{}
+
+	case Message_CreateVolume:
+		return &CreateVolumeRequest{}
+	case Message_DestroyVolume:
+		return &DestroyVolumeRequest{}
+	case Message_BindVolume:
+		return &BindVolumeRequest{}
+	case Message_UnbindVolume:
+		return &UnbindVolumeRequest{}
 	}
 
 	panic("unknown message type")
@@ -165,6 +183,15 @@ func ResponseMessageForType(t Message_Type) proto.Message {
 		return &ListResponse{}
 	case Message_Capacity:
 		return &CapacityResponse{}
+
+	case Message_CreateVolume:
+		return &CreateVolumeResponse{}
+	case Message_DestroyVolume:
+		return &DestroyVolumeResponse{}
+	case Message_BindVolume:
+		return &BindVolumeResponse{}
+	case Message_UnbindVolume:
+		return &UnbindVolumeResponse{}
 	}
 
 	panic("unknown message type")

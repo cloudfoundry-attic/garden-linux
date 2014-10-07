@@ -12,13 +12,13 @@ type FakeBackend struct {
 	PingStub        func() error
 	pingMutex       sync.RWMutex
 	pingArgsForCall []struct{}
-	pingReturns     struct {
+	pingReturns struct {
 		result1 error
 	}
 	CapacityStub        func() (api.Capacity, error)
 	capacityMutex       sync.RWMutex
 	capacityArgsForCall []struct{}
-	capacityReturns     struct {
+	capacityReturns struct {
 		result1 api.Capacity
 		result2 error
 	}
@@ -57,15 +57,41 @@ type FakeBackend struct {
 		result1 api.Container
 		result2 error
 	}
+	CreateVolumeStub        func(api.VolumeSpec) (api.Volume, error)
+	createVolumeMutex       sync.RWMutex
+	createVolumeArgsForCall []struct {
+		arg1 api.VolumeSpec
+	}
+	createVolumeReturns struct {
+		result1 api.Volume
+		result2 error
+	}
+	DestroyVolumeStub        func(handle string) error
+	destroyVolumeMutex       sync.RWMutex
+	destroyVolumeArgsForCall []struct {
+		handle string
+	}
+	destroyVolumeReturns struct {
+		result1 error
+	}
+	LookupVolumeStub        func(handle string) (api.Volume, error)
+	lookupVolumeMutex       sync.RWMutex
+	lookupVolumeArgsForCall []struct {
+		handle string
+	}
+	lookupVolumeReturns struct {
+		result1 api.Volume
+		result2 error
+	}
 	StartStub        func() error
 	startMutex       sync.RWMutex
 	startArgsForCall []struct{}
-	startReturns     struct {
+	startReturns struct {
 		result1 error
 	}
-	StopStub             func()
-	stopMutex            sync.RWMutex
-	stopArgsForCall      []struct{}
+	StopStub        func()
+	stopMutex       sync.RWMutex
+	stopArgsForCall []struct{}
 	GraceTimeStub        func(api.Container) time.Duration
 	graceTimeMutex       sync.RWMutex
 	graceTimeArgsForCall []struct {
@@ -252,6 +278,104 @@ func (fake *FakeBackend) LookupReturns(result1 api.Container, result2 error) {
 	fake.LookupStub = nil
 	fake.lookupReturns = struct {
 		result1 api.Container
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeBackend) CreateVolume(arg1 api.VolumeSpec) (api.Volume, error) {
+	fake.createVolumeMutex.Lock()
+	fake.createVolumeArgsForCall = append(fake.createVolumeArgsForCall, struct {
+		arg1 api.VolumeSpec
+	}{arg1})
+	fake.createVolumeMutex.Unlock()
+	if fake.CreateVolumeStub != nil {
+		return fake.CreateVolumeStub(arg1)
+	} else {
+		return fake.createVolumeReturns.result1, fake.createVolumeReturns.result2
+	}
+}
+
+func (fake *FakeBackend) CreateVolumeCallCount() int {
+	fake.createVolumeMutex.RLock()
+	defer fake.createVolumeMutex.RUnlock()
+	return len(fake.createVolumeArgsForCall)
+}
+
+func (fake *FakeBackend) CreateVolumeArgsForCall(i int) api.VolumeSpec {
+	fake.createVolumeMutex.RLock()
+	defer fake.createVolumeMutex.RUnlock()
+	return fake.createVolumeArgsForCall[i].arg1
+}
+
+func (fake *FakeBackend) CreateVolumeReturns(result1 api.Volume, result2 error) {
+	fake.CreateVolumeStub = nil
+	fake.createVolumeReturns = struct {
+		result1 api.Volume
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeBackend) DestroyVolume(handle string) error {
+	fake.destroyVolumeMutex.Lock()
+	fake.destroyVolumeArgsForCall = append(fake.destroyVolumeArgsForCall, struct {
+		handle string
+	}{handle})
+	fake.destroyVolumeMutex.Unlock()
+	if fake.DestroyVolumeStub != nil {
+		return fake.DestroyVolumeStub(handle)
+	} else {
+		return fake.destroyVolumeReturns.result1
+	}
+}
+
+func (fake *FakeBackend) DestroyVolumeCallCount() int {
+	fake.destroyVolumeMutex.RLock()
+	defer fake.destroyVolumeMutex.RUnlock()
+	return len(fake.destroyVolumeArgsForCall)
+}
+
+func (fake *FakeBackend) DestroyVolumeArgsForCall(i int) string {
+	fake.destroyVolumeMutex.RLock()
+	defer fake.destroyVolumeMutex.RUnlock()
+	return fake.destroyVolumeArgsForCall[i].handle
+}
+
+func (fake *FakeBackend) DestroyVolumeReturns(result1 error) {
+	fake.DestroyVolumeStub = nil
+	fake.destroyVolumeReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeBackend) LookupVolume(handle string) (api.Volume, error) {
+	fake.lookupVolumeMutex.Lock()
+	fake.lookupVolumeArgsForCall = append(fake.lookupVolumeArgsForCall, struct {
+		handle string
+	}{handle})
+	fake.lookupVolumeMutex.Unlock()
+	if fake.LookupVolumeStub != nil {
+		return fake.LookupVolumeStub(handle)
+	} else {
+		return fake.lookupVolumeReturns.result1, fake.lookupVolumeReturns.result2
+	}
+}
+
+func (fake *FakeBackend) LookupVolumeCallCount() int {
+	fake.lookupVolumeMutex.RLock()
+	defer fake.lookupVolumeMutex.RUnlock()
+	return len(fake.lookupVolumeArgsForCall)
+}
+
+func (fake *FakeBackend) LookupVolumeArgsForCall(i int) string {
+	fake.lookupVolumeMutex.RLock()
+	defer fake.lookupVolumeMutex.RUnlock()
+	return fake.lookupVolumeArgsForCall[i].handle
+}
+
+func (fake *FakeBackend) LookupVolumeReturns(result1 api.Volume, result2 error) {
+	fake.LookupVolumeStub = nil
+	fake.lookupVolumeReturns = struct {
+		result1 api.Volume
 		result2 error
 	}{result1, result2}
 }
