@@ -873,6 +873,11 @@ int child_continue(int argc, char **argv) {
     setproctitle(argv, w->title);
   }
 
+  rv = mount("", "/tmp/garden-host", NULL, MS_SLAVE|MS_REC, NULL);
+  if (rv == -1) {
+    exit(1);
+  }
+
   /* Clean up temporary pivot_root dir */
   rv = umount2("/tmp/garden-host", MNT_DETACH);
   if (rv == -1) {
