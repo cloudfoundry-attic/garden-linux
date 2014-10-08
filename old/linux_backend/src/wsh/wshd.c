@@ -842,7 +842,15 @@ int child_run(void *data) {
   // make shared volumes path read-only, as it's shared with the host.
   rv = mount(pivoted_volumes_path, CONTAINER_MOUNTS_PATH, NULL, MS_BIND|MS_REMOUNT|MS_RDONLY, NULL);
   if (rv == -1) {
-    perror("mount volumes");
+    perror("remount volumes read-only");
+    abort();
+  }
+
+  /* Ensure that any mount changes made by a bad actor in the container do not
+   * propagate to the host. */
+  rv = mount("", CONTAINER_MOUNTS_PATH, NULL, MS_SLAVE, NULL);
+  if (rv == -1) {
+    perror("mount volumes as slave");
     abort();
   }
 

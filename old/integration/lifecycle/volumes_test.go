@@ -45,11 +45,9 @@ var _ = Describe("A volume", func() {
 		Ω(volume.Handle()).Should(Equal("some volume handle"))
 	})
 
-	It("can be created and attached to multiple containers", func() {
-		volume, err := client.CreateVolume(api.VolumeSpec{})
-		Ω(err).ShouldNot(HaveOccurred())
+	It("does not allow the container to write to the host", func() {
+		// this is more of a security check than a behavioral test of volumes.
 
-		// first ensure that the container cannot write to the bridge location
 		process, err := container.Run(api.ProcessSpec{
 			Path:       "touch",
 			Args:       []string{"/tmp/container-shared-mounts/lol"},
@@ -57,6 +55,53 @@ var _ = Describe("A volume", func() {
 		}, api.ProcessIO{})
 		Ω(err).ShouldNot(HaveOccurred())
 		Ω(process.Wait()).ShouldNot(BeZero())
+
+		_, err = client.CreateVolume(api.VolumeSpec{})
+		Ω(err).ShouldNot(HaveOccurred())
+
+		process, err = container.Run(api.ProcessSpec{
+			Path:       "touch",
+			Args:       []string{"/tmp/container-shared-mounts/lol"},
+			Privileged: true,
+		}, api.ProcessIO{})
+		Ω(err).ShouldNot(HaveOccurred())
+		Ω(process.Wait()).ShouldNot(BeZero())
+	})
+
+	It("can be safely unmounted in the container", func() {
+		// this covers a weird case, possibly a bad actor container, wherein
+		// the shared mounts get unmounted in the container.
+		//
+		// the host must be durable to this.
+		//
+		// this effectively tests that the shared mount is made a 'slave' to the
+		// container, which prevents mount/umount changes from propagating up to
+		// the host.
+		//
+		// the failure will occur in `AfterEach`
+
+		volume, err := client.CreateVolume(api.VolumeSpec{})
+		Ω(err).ShouldNot(HaveOccurred())
+
+		// bind volume read-write to container
+		err = container.BindVolume(volume, api.VolumeBinding{
+			Mode:        api.VolumeBindingModeRW,
+			Destination: "/tmp/path/in/container",
+		})
+		Ω(err).ShouldNot(HaveOccurred())
+
+		process, err := container.Run(api.ProcessSpec{
+			Path:       "umount",
+			Args:       []string{"-l", "/tmp/container-shared-mounts"},
+			Privileged: true,
+		}, api.ProcessIO{})
+		Ω(err).ShouldNot(HaveOccurred())
+		Ω(process.Wait()).Should(BeZero())
+	})
+
+	It("can be created and attached to multiple containers", func() {
+		volume, err := client.CreateVolume(api.VolumeSpec{})
+		Ω(err).ShouldNot(HaveOccurred())
 
 		// bind volume read-write to container
 		err = container.BindVolume(volume, api.VolumeBinding{
@@ -70,7 +115,7 @@ var _ = Describe("A volume", func() {
 		Ω(err).ShouldNot(HaveOccurred())
 
 		// read-write can write
-		process, err = container.Run(api.ProcessSpec{
+		process, err := container.Run(api.ProcessSpec{
 			Path:       "touch",
 			Args:       []string{"/tmp/path/in/container/rw-before-ro-mount"},
 			Privileged: true,
