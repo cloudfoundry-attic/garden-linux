@@ -14,7 +14,7 @@ Extend `$GOPATH` and `$PATH`:
 # export PATH=~/go/bin:$PATH
 ```
 
-## Get garden-linux and its dependencies:
+## Get garden-linux and its dependencies
 ```
 # go get github.com/cloudfoundry-incubator/garden-linux
 # cd ~/go/src/github.com/cloudfoundry-incubator/garden-linux
@@ -29,15 +29,7 @@ Extend `$GOPATH` and `$PATH`:
 go get github.com/comcourse/fly
 ```
 
-## Build Garden and Run the Integration Tests
-
-- Build garden
-
-```
-go build
-```
-
-- Run the Integration Tests with fly
+## Run the Integration Tests
 
 ```
 fly -p # Note: garden needs root, so the -p is important
