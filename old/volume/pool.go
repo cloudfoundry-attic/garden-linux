@@ -64,6 +64,38 @@ func (pool *Pool) Create(spec api.VolumeSpec) (linux_backend.Volume, error) {
 }
 
 func (pool *Pool) Destroy(volume linux_backend.Volume) error {
+	volumePath := filepath.Join(pool.globalVolumesPath, volume.ID())
+
+	err := syscall.Unmount(volumePath, 0)
+	if err != nil {
+		if err != syscall.EINVAL {
+			// errored for reason other than volume path not being a mount point
+			return err
+		}
+	}
+
+	// clean up (possibly empty in the case of a bind-mount) volume directory
+	for {
+		err := os.RemoveAll(volumePath)
+		if err == nil {
+			return nil
+		}
+
+		pathErr, ok := err.(*os.PathError)
+		if !ok {
+			return err
+		}
+
+		if pathErr.Err != syscall.EBUSY {
+			return err
+		}
+
+		// error was EBUSY; retry as it seems to take the kernel a bit to reap
+		// volume mountpoints. this is the same logic exercised in destroy.sh.
+
+		time.Sleep(time.Second)
+	}
+
 	return nil
 }
 
