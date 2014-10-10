@@ -12,10 +12,10 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/docker/docker/archive"
 	"github.com/docker/docker/daemon/graphdriver"
 	"github.com/docker/docker/dockerversion"
 	"github.com/docker/docker/image"
+	"github.com/docker/docker/pkg/archive"
 	"github.com/docker/docker/pkg/log"
 	"github.com/docker/docker/pkg/truncindex"
 	"github.com/docker/docker/runconfig"
@@ -302,13 +302,17 @@ func (graph *Graph) Delete(name string) error {
 		return err
 	}
 	tmp, err := graph.Mktemp("")
-	if err != nil {
-		return err
-	}
 	graph.idIndex.Delete(id)
-	err = os.Rename(graph.ImageRoot(id), tmp)
-	if err != nil {
-		return err
+	if err == nil {
+		err = os.Rename(graph.ImageRoot(id), tmp)
+		// On err make tmp point to old dir and cleanup unused tmp dir
+		if err != nil {
+			os.RemoveAll(tmp)
+			tmp = graph.ImageRoot(id)
+		}
+	} else {
+		// On err make tmp point to old dir for cleanup
+		tmp = graph.ImageRoot(id)
 	}
 	// Remove rootfs data from the driver
 	graph.driver.Remove(id)
