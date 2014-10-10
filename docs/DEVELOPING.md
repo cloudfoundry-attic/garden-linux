@@ -26,11 +26,19 @@ Extend `$GOPATH` and `$PATH`:
 - Install fly as follows:
 
 ```
-go get github.com/comcourse/fly
+go get github.com/concourse/fly
 ```
 
 ## Run the Integration Tests
 
+To test under `fly` run
+
+```bash
+scripts/garden-fly
 ```
-fly -p # Note: garden needs root, so the -p is important
-```
+
+in the repository root.
+
+`garden-fly` provides the necessary parameters to `fly` which uses `build.yml`
+and runs `scripts/concourse-test` on an existing Concourse instance which must
+already be running locally in a virtual machine.

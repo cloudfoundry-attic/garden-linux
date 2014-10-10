@@ -8,16 +8,6 @@ Restructure in progress: the old content is moving to the `old/` directory after
 
 See the [old README](old/README.md) for old documentation, caveat lector.
 
-##Testing
+## Development
 
-To test under `fly`, see [Concourse](https://github.com/concourse/concourse) for set-up, and run
-
-```bash
-scripts/garden-fly
-```
-
-in the repository root.
-
-`garden-fly` provides the necessary parameters to `fly` which uses `build.yml`
-and runs `scripts/concourse-test` on an existing Concourse instance which must
-already be running locally in a virtual machine.
+See [development information](docs/DEVELOPING.md) for guidance.
