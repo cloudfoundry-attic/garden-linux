@@ -7,6 +7,9 @@ export PATH=$GOROOT/bin:$PATH
 export GOPATH=$PWD/gopath
 export PATH=$GOPATH/bin:$PATH
 
+mkdir -p $GOPATH/src/github.com/cloudfoundry-incubator
+cp -r garden-linux $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux
+
 cd $(dirname $0)/..
 
 apt-get -y install strace
