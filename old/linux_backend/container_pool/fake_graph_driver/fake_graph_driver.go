@@ -1,8 +1,9 @@
 package fake_graph_driver
 
 import (
-	"github.com/docker/docker/archive"
 	"sync"
+
+	"github.com/docker/docker/pkg/archive"
 )
 
 type FakeGraphDriver struct {

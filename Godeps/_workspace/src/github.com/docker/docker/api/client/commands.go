@@ -23,15 +23,17 @@ import (
 	"time"
 
 	"github.com/docker/docker/api"
-	"github.com/docker/docker/archive"
 	"github.com/docker/docker/dockerversion"
 	"github.com/docker/docker/engine"
+	"github.com/docker/docker/graph"
 	"github.com/docker/docker/nat"
 	"github.com/docker/docker/opts"
+	"github.com/docker/docker/pkg/archive"
 	"github.com/docker/docker/pkg/log"
 	flag "github.com/docker/docker/pkg/mflag"
 	"github.com/docker/docker/pkg/parsers"
 	"github.com/docker/docker/pkg/parsers/filters"
+	"github.com/docker/docker/pkg/promise"
 	"github.com/docker/docker/pkg/signal"
 	"github.com/docker/docker/pkg/term"
 	"github.com/docker/docker/pkg/timeutils"
@@ -174,9 +176,14 @@ func (cli *DockerCli) CmdBuild(args ...string) error {
 
 	//Check if the given image name can be resolved
 	if *tag != "" {
-		repository, _ := parsers.ParseRepositoryTag(*tag)
+		repository, tag := parsers.ParseRepositoryTag(*tag)
 		if _, _, err := registry.ResolveRepositoryName(repository); err != nil {
 			return err
+		}
+		if len(tag) > 0 {
+			if err := graph.ValidateTagName(tag); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -273,16 +280,18 @@ func (cli *DockerCli) CmdLogin(args ...string) error {
 			username = authconfig.Username
 		}
 	}
+	// Assume that a different username means they may not want to use
+	// the password or email from the config file, so prompt them
 	if username != authconfig.Username {
 		if password == "" {
-			oldState, _ := term.SaveState(cli.terminalFd)
+			oldState, _ := term.SaveState(cli.inFd)
 			fmt.Fprintf(cli.out, "Password: ")
-			term.DisableEcho(cli.terminalFd, oldState)
+			term.DisableEcho(cli.inFd, oldState)
 
 			password = readInput(cli.in, cli.out)
 			fmt.Fprint(cli.out, "\n")
 
-			term.RestoreTerminal(cli.terminalFd, oldState)
+			term.RestoreTerminal(cli.inFd, oldState)
 			if password == "" {
 				return fmt.Errorf("Error : Password Required")
 			}
@@ -296,8 +305,16 @@ func (cli *DockerCli) CmdLogin(args ...string) error {
 			}
 		}
 	} else {
-		password = authconfig.Password
-		email = authconfig.Email
+		// However, if they don't override the username use the
+		// password or email from the cmd line if specified. IOW, allow
+		// then to change/overide them.  And if not specified, just
+		// use what's in the config file
+		if password == "" {
+			password = authconfig.Password
+		}
+		if email == "" {
+			email = authconfig.Email
+		}
 	}
 	authconfig.Username = username
 	authconfig.Password = password
@@ -632,7 +649,7 @@ func (cli *DockerCli) CmdStart(args ...string) error {
 		v.Set("stdout", "1")
 		v.Set("stderr", "1")
 
-		cErr = utils.Go(func() error {
+		cErr = promise.Go(func() error {
 			return cli.hijack("POST", "/containers/"+cmd.Arg(0)+"/attach?"+v.Encode(), tty, in, cli.out, cli.err, nil, nil)
 		})
 	}
@@ -654,13 +671,12 @@ func (cli *DockerCli) CmdStart(args ...string) error {
 	if encounteredError != nil {
 		if *openStdin || *attach {
 			cli.in.Close()
-			<-cErr
 		}
 		return encounteredError
 	}
 
 	if *openStdin || *attach {
-		if tty && cli.isTerminal {
+		if tty && cli.isTerminalOut {
 			if err := cli.monitorTtySize(cmd.Arg(0), false); err != nil {
 				log.Errorf("Error monitoring TTY size: %s", err)
 			}
@@ -1470,7 +1486,7 @@ func (cli *DockerCli) CmdPs(args ...string) error {
 	last := cmd.Int([]string{"n"}, -1, "Show n last created containers, include non-running ones.")
 
 	flFilter := opts.NewListOpts(nil)
-	cmd.Var(&flFilter, []string{"f", "-filter"}, "Provide filter values. Valid filters:\nexited=<int> - containers with exit code of <int>")
+	cmd.Var(&flFilter, []string{"f", "-filter"}, "Provide filter values. Valid filters:\nexited=<int> - containers with exit code of <int>\nstatus=(restarting|running|paused|exited)")
 
 	if err := cmd.Parse(args); err != nil {
 		return nil
@@ -1812,7 +1828,7 @@ func (cli *DockerCli) CmdAttach(args ...string) error {
 		tty    = config.GetBool("Tty")
 	)
 
-	if tty && cli.isTerminal {
+	if tty && cli.isTerminalOut {
 		if err := cli.monitorTtySize(cmd.Arg(0), false); err != nil {
 			log.Debugf("Error monitoring TTY size: %s", err)
 		}
@@ -1967,7 +1983,7 @@ func (cli *DockerCli) pullImage(image string) error {
 	registryAuthHeader := []string{
 		base64.URLEncoding.EncodeToString(buf),
 	}
-	if err = cli.stream("POST", "/images/create?"+v.Encode(), nil, cli.err, map[string][]string{"X-Registry-Auth": registryAuthHeader}); err != nil {
+	if err = cli.stream("POST", "/images/create?"+v.Encode(), nil, cli.out, map[string][]string{"X-Registry-Auth": registryAuthHeader}); err != nil {
 		return err
 	}
 	return nil
@@ -2017,12 +2033,7 @@ func (cli *DockerCli) createContainer(config *runconfig.Config, hostConfig *runc
 		containerValues.Set("name", name)
 	}
 
-	var data interface{}
-	if hostConfig != nil {
-		data = runconfig.MergeConfigs(config, hostConfig)
-	} else {
-		data = config
-	}
+	mergedConfig := runconfig.MergeConfigs(config, hostConfig)
 
 	var containerIDFile *cidFile
 	if cidfile != "" {
@@ -2034,7 +2045,7 @@ func (cli *DockerCli) createContainer(config *runconfig.Config, hostConfig *runc
 	}
 
 	//create the container
-	stream, statusCode, err := cli.call("POST", "/containers/create?"+containerValues.Encode(), data, false)
+	stream, statusCode, err := cli.call("POST", "/containers/create?"+containerValues.Encode(), mergedConfig, false)
 	//if image not found try to pull it
 	if statusCode == 404 {
 		fmt.Fprintf(cli.err, "Unable to find image '%s' locally\n", config.Image)
@@ -2043,7 +2054,7 @@ func (cli *DockerCli) createContainer(config *runconfig.Config, hostConfig *runc
 			return nil, err
 		}
 		// Retry
-		if stream, _, err = cli.call("POST", "/containers/create?"+containerValues.Encode(), data, false); err != nil {
+		if stream, _, err = cli.call("POST", "/containers/create?"+containerValues.Encode(), mergedConfig, false); err != nil {
 			return nil, err
 		}
 	} else if err != nil {
@@ -2145,7 +2156,7 @@ func (cli *DockerCli) CmdRun(args ...string) error {
 		sigProxy = false
 	}
 
-	runResult, err := cli.createContainer(config, nil, hostConfig.ContainerIDFile, *flName)
+	runResult, err := cli.createContainer(config, hostConfig, hostConfig.ContainerIDFile, *flName)
 	if err != nil {
 		return err
 	}
@@ -2210,7 +2221,7 @@ func (cli *DockerCli) CmdRun(args ...string) error {
 			}
 		}
 
-		errCh = utils.Go(func() error {
+		errCh = promise.Go(func() error {
 			return cli.hijack("POST", "/containers/"+runResult.Get("Id")+"/attach?"+v.Encode(), config.Tty, in, out, stderr, hijacked, nil)
 		})
 	} else {
@@ -2237,7 +2248,7 @@ func (cli *DockerCli) CmdRun(args ...string) error {
 		return err
 	}
 
-	if (config.AttachStdin || config.AttachStdout || config.AttachStderr) && config.Tty && cli.isTerminal {
+	if (config.AttachStdin || config.AttachStdout || config.AttachStderr) && config.Tty && cli.isTerminalOut {
 		if err := cli.monitorTtySize(runResult.Get("Id"), false); err != nil {
 			log.Errorf("Error monitoring TTY size: %s", err)
 		}
@@ -2467,7 +2478,7 @@ func (cli *DockerCli) CmdExec(args ...string) error {
 			stderr = cli.err
 		}
 	}
-	errCh = utils.Go(func() error {
+	errCh = promise.Go(func() error {
 		return cli.hijack("POST", "/exec/"+execID+"/start", execConfig.Tty, in, out, stderr, hijacked, execConfig)
 	})
 
@@ -2486,7 +2497,7 @@ func (cli *DockerCli) CmdExec(args ...string) error {
 		}
 	}
 
-	if execConfig.Tty && cli.isTerminal {
+	if execConfig.Tty && cli.isTerminalIn {
 		if err := cli.monitorTtySize(execID, true); err != nil {
 			log.Errorf("Error monitoring TTY size: %s", err)
 		}

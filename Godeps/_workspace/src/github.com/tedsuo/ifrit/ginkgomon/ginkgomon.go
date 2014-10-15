@@ -45,6 +45,14 @@ func New(config Config) *Runner {
 	}
 }
 
+func (r *Runner) ExitCode() int {
+	if r.sessionReady == nil {
+		panic("ginkgomon improperly created without using New")
+	}
+	<-r.sessionReady
+	return r.session.ExitCode()
+}
+
 func (r *Runner) Buffer() *gbytes.Buffer {
 	if r.sessionReady == nil {
 		panic("ginkgomon improperly created without using New")
@@ -72,27 +80,44 @@ func (r *Runner) Run(sigChan <-chan os.Signal, ready chan<- struct{}) error {
 
 	Ω(err).ShouldNot(HaveOccurred())
 
-	if r.StartCheck != "" {
-		timeout := r.StartCheckTimeout
-		if timeout == 0 {
-			timeout = 5 * time.Second
-		}
-
-		Eventually(allOutput, timeout).Should(gbytes.Say(r.StartCheck))
-	}
-
 	r.session = session
 	if r.sessionReady != nil {
 		close(r.sessionReady)
 	}
-	close(ready)
 
-	var signal os.Signal
+	startCheckDuration := r.StartCheckTimeout
+	if startCheckDuration == 0 {
+		startCheckDuration = 5 * time.Second
+	}
+
+	var startCheckTimeout <-chan time.Time
+	if r.StartCheck != "" {
+		startCheckTimeout = time.After(startCheckDuration)
+	}
+
+	detectStartCheck := allOutput.Detect(r.StartCheck)
 
 	for {
 		select {
+		case <-detectStartCheck: // works even with empty string
+			allOutput.CancelDetects()
+			startCheckTimeout = nil
+			detectStartCheck = nil
+			close(ready)
 
-		case signal = <-sigChan:
+		case <-startCheckTimeout:
+			// clean up hanging process
+			session.Kill().Wait()
+
+			// fail to start
+			return fmt.Errorf(
+				"did not see %s in command's output within %s. full output:\n\n%s",
+				r.StartCheck,
+				startCheckDuration,
+				string(allOutput.Contents()),
+			)
+
+		case signal := <-sigChan:
 			session.Signal(signal)
 
 		case <-session.Exited:

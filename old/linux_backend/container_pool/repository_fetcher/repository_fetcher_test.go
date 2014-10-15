@@ -5,8 +5,8 @@ import (
 	"io/ioutil"
 	"net/http"
 
-	"github.com/docker/docker/archive"
 	"github.com/docker/docker/image"
+	"github.com/docker/docker/pkg/archive"
 	"github.com/docker/docker/registry"
 	"github.com/pivotal-golang/lager/lagertest"
 
@@ -35,7 +35,20 @@ var _ = Describe("RepositoryFetcher", func() {
 		endpoint1 = ghttp.NewServer()
 		endpoint2 = ghttp.NewServer()
 
-		registry, err := registry.NewSession(nil, nil, server.URL()+"/v1/", true)
+		server.AppendHandlers(
+			ghttp.CombineHandlers(
+				ghttp.VerifyRequest("GET", "/v1/_ping"),
+				http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+					w.Header().Set("X-Docker-Registry-Version", "v1")
+					w.Header().Add("X-Docker-Registry-Standalone", "true")
+					w.Write([]byte(`{"standalone": true, "version": "v1"}`))
+				}),
+			),
+		)
+		endpoint, err := registry.NewEndpoint(server.URL() + "/v1/")
+		Ω(err).ShouldNot(HaveOccurred())
+
+		registry, err := registry.NewSession(nil, nil, endpoint, true)
 		Ω(err).ShouldNot(HaveOccurred())
 
 		fetcher = New(registry, graph)
@@ -280,7 +293,7 @@ var _ = Describe("RepositoryFetcher", func() {
 
 		Context("when fetching repository data fails", func() {
 			BeforeEach(func() {
-				server.SetHandler(0, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				server.SetHandler(1, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) { // first request after ping
 					w.WriteHeader(500)
 				}))
 			})
