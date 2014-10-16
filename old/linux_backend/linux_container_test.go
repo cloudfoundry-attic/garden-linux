@@ -44,6 +44,7 @@ var container *linux_backend.LinuxContainer
 var fakePortPool *fake_port_pool.FakePortPool
 var fakeProcessTracker *fake_process_tracker.FakeProcessTracker
 var containerDir string
+var mtu uint32
 
 var _ = Describe("Linux containers", func() {
 	BeforeEach(func() {
@@ -80,6 +81,10 @@ var _ = Describe("Linux containers", func() {
 			[]uint32{},
 		)
 
+		mtu = 1500
+	})
+
+	JustBeforeEach(func() {
 		container = linux_backend.NewLinuxContainer(
 			lagertest.NewTestLogger("test"),
 			"some-id",
@@ -96,6 +101,7 @@ var _ = Describe("Linux containers", func() {
 			fakeQuotaManager,
 			fakeBandwidthManager,
 			fakeProcessTracker,
+			mtu,
 			[]string{"env1=env1Value", "env2=env2Value"},
 		)
 	})
@@ -125,7 +131,7 @@ var _ = Describe("Linux containers", func() {
 			LimitInShares: 1,
 		}
 
-		BeforeEach(func() {
+		JustBeforeEach(func() {
 			var err error
 
 			err = container.Start()
@@ -233,7 +239,7 @@ var _ = Describe("Linux containers", func() {
 		})
 
 		Context("with limits set", func() {
-			BeforeEach(func() {
+			JustBeforeEach(func() {
 				err := container.LimitMemory(memoryLimits)
 				Ω(err).ShouldNot(HaveOccurred())
 
@@ -412,7 +418,7 @@ var _ = Describe("Linux containers", func() {
 			Context("when net.sh "+cmd+" fails", func() {
 				disaster := errors.New("oh no!")
 
-				BeforeEach(func() {
+				JustBeforeEach(func() {
 					fakeRunner.WhenRunning(
 						fake_command_runner.CommandSpec{
 							Path: containerDir + "/net.sh",
@@ -503,7 +509,7 @@ var _ = Describe("Linux containers", func() {
 		Context("when re-enforcing the memory limit fails", func() {
 			disaster := errors.New("oh no!")
 
-			BeforeEach(func() {
+			JustBeforeEach(func() {
 				fakeCgroups.WhenSetting("memory", "memory.limit_in_bytes", func() error {
 					return disaster
 				})
@@ -526,6 +532,10 @@ var _ = Describe("Linux containers", func() {
 	})
 
 	Describe("Starting", func() {
+		BeforeEach(func() {
+			mtu = 1400
+		})
+
 		It("executes the container's start.sh with the correct environment", func() {
 			err := container.Start()
 			Ω(err).ShouldNot(HaveOccurred())
@@ -535,7 +545,7 @@ var _ = Describe("Linux containers", func() {
 					Path: containerDir + "/start.sh",
 					Env: []string{
 						"id=some-id",
-						"container_iface_mtu=1500",
+						"container_iface_mtu=1400",
 						"NETWORK=10.254.0.0/30",
 						"PATH=" + os.Getenv("PATH"),
 					},
@@ -555,7 +565,7 @@ var _ = Describe("Linux containers", func() {
 		Context("when start.sh fails", func() {
 			nastyError := errors.New("oh no!")
 
-			BeforeEach(func() {
+			JustBeforeEach(func() {
 				fakeRunner.WhenRunning(
 					fake_command_runner.CommandSpec{
 						Path: containerDir + "/start.sh",
@@ -624,7 +634,7 @@ var _ = Describe("Linux containers", func() {
 		Context("when stop.sh fails", func() {
 			nastyError := errors.New("oh no!")
 
-			BeforeEach(func() {
+			JustBeforeEach(func() {
 				fakeRunner.WhenRunning(
 					fake_command_runner.CommandSpec{
 						Path: containerDir + "/stop.sh",
@@ -650,7 +660,7 @@ var _ = Describe("Linux containers", func() {
 		})
 
 		Context("when the container has an oom notifier running", func() {
-			BeforeEach(func() {
+			JustBeforeEach(func() {
 				err := container.LimitMemory(api.MemoryLimits{
 					LimitInBytes: 42,
 				})
@@ -672,7 +682,7 @@ var _ = Describe("Linux containers", func() {
 
 	Describe("Cleaning up", func() {
 		Context("when the container has an oom notifier running", func() {
-			BeforeEach(func() {
+			JustBeforeEach(func() {
 				err := container.LimitMemory(api.MemoryLimits{
 					LimitInBytes: 42,
 				})
@@ -725,7 +735,7 @@ var _ = Describe("Linux containers", func() {
 		Context("when tar fails", func() {
 			disaster := errors.New("oh no!")
 
-			BeforeEach(func() {
+			JustBeforeEach(func() {
 				fakeRunner.WhenRunning(
 					fake_command_runner.CommandSpec{
 						Path: containerDir + "/bin/nstar",
@@ -827,7 +837,7 @@ var _ = Describe("Linux containers", func() {
 		Context("when executing the command fails", func() {
 			disaster := errors.New("oh no!")
 
-			BeforeEach(func() {
+			JustBeforeEach(func() {
 				fakeRunner.WhenRunning(
 					fake_command_runner.CommandSpec{
 						Path: containerDir + "/bin/nstar",
@@ -964,7 +974,7 @@ var _ = Describe("Linux containers", func() {
 		})
 
 		Describe("streaming", func() {
-			BeforeEach(func() {
+			JustBeforeEach(func() {
 				fakeProcessTracker.RunStub = func(cmd *exec.Cmd, io api.ProcessIO, tty *api.TTYSpec) (api.Process, error) {
 					writing := new(sync.WaitGroup)
 					writing.Add(1)
@@ -1081,7 +1091,7 @@ var _ = Describe("Linux containers", func() {
 		Context("when spawning fails", func() {
 			disaster := errors.New("oh no!")
 
-			BeforeEach(func() {
+			JustBeforeEach(func() {
 				fakeProcessTracker.RunReturns(nil, disaster)
 			})
 
@@ -1097,7 +1107,7 @@ var _ = Describe("Linux containers", func() {
 
 	Describe("Attaching", func() {
 		Context("to a started process", func() {
-			BeforeEach(func() {
+			JustBeforeEach(func() {
 				fakeProcessTracker.AttachStub = func(id uint32, io api.ProcessIO) (api.Process, error) {
 					writing := new(sync.WaitGroup)
 					writing.Add(1)
@@ -1151,7 +1161,7 @@ var _ = Describe("Linux containers", func() {
 		Context("when attaching fails", func() {
 			disaster := errors.New("oh no!")
 
-			BeforeEach(func() {
+			JustBeforeEach(func() {
 				fakeProcessTracker.AttachReturns(nil, disaster)
 			})
 
@@ -1214,7 +1224,7 @@ var _ = Describe("Linux containers", func() {
 			Context("when limits fail to be set", func() {
 				disaster := errors.New("oh no!")
 
-				BeforeEach(func() {
+				JustBeforeEach(func() {
 					fakeBandwidthManager.SetLimitsError = disaster
 				})
 
@@ -1304,7 +1314,7 @@ var _ = Describe("Linux containers", func() {
 		})
 
 		Context("when the oom notifier exits 0", func() {
-			BeforeEach(func() {
+			JustBeforeEach(func() {
 				fakeRunner.WhenWaitingFor(fake_command_runner.CommandSpec{
 					Path: containerDir + "/bin/oom",
 				}, func(cmd *exec.Cmd) error {
@@ -1344,7 +1354,7 @@ var _ = Describe("Linux containers", func() {
 		Context("when setting memory.memsw.limit_in_bytes fails", func() {
 			disaster := errors.New("oh no!")
 
-			BeforeEach(func() {
+			JustBeforeEach(func() {
 				fakeCgroups.WhenSetting("memory", "memory.memsw.limit_in_bytes", func() error {
 					return disaster
 				})
@@ -1392,7 +1402,7 @@ var _ = Describe("Linux containers", func() {
 		Context("when setting memory.limit_in_bytes fails the second time", func() {
 			disaster := errors.New("oh no!")
 
-			BeforeEach(func() {
+			JustBeforeEach(func() {
 				numSet := 0
 
 				fakeCgroups.WhenSetting("memory", "memory.limit_in_bytes", func() error {
@@ -1450,7 +1460,7 @@ var _ = Describe("Linux containers", func() {
 		Context("when getting the limit fails", func() {
 			disaster := errors.New("oh no!")
 
-			BeforeEach(func() {
+			JustBeforeEach(func() {
 				fakeCgroups.WhenGetting("memory", "memory.limit_in_bytes", func() (string, error) {
 					return "", disaster
 				})
@@ -1518,7 +1528,7 @@ var _ = Describe("Linux containers", func() {
 		Context("when getting the limit fails", func() {
 			disaster := errors.New("oh no!")
 
-			BeforeEach(func() {
+			JustBeforeEach(func() {
 				fakeCgroups.WhenGetting("cpu", "cpu.shares", func() (string, error) {
 					return "", disaster
 				})
@@ -1590,7 +1600,7 @@ var _ = Describe("Linux containers", func() {
 		Context("when getting the limit fails", func() {
 			disaster := errors.New("oh no!")
 
-			BeforeEach(func() {
+			JustBeforeEach(func() {
 				fakeQuotaManager.GetLimitsError = disaster
 			})
 
@@ -1642,7 +1652,7 @@ var _ = Describe("Linux containers", func() {
 			Context("and acquiring a port from the pool fails", func() {
 				disaster := errors.New("oh no!")
 
-				BeforeEach(func() {
+				JustBeforeEach(func() {
 					fakePortPool.AcquireError = disaster
 				})
 
@@ -1700,7 +1710,7 @@ var _ = Describe("Linux containers", func() {
 		Context("when net.sh fails", func() {
 			disaster := errors.New("oh no!")
 
-			BeforeEach(func() {
+			JustBeforeEach(func() {
 				fakeRunner.WhenRunning(
 					fake_command_runner.CommandSpec{
 						Path: containerDir + "/net.sh",
@@ -1766,7 +1776,7 @@ var _ = Describe("Linux containers", func() {
 		Context("when net.sh fails", func() {
 			disaster := errors.New("oh no!")
 
-			BeforeEach(func() {
+			JustBeforeEach(func() {
 				fakeRunner.WhenRunning(
 					fake_command_runner.CommandSpec{
 						Path: containerDir + "/net.sh",
@@ -1836,7 +1846,7 @@ var _ = Describe("Linux containers", func() {
 		})
 
 		Context("with running processes", func() {
-			BeforeEach(func() {
+			JustBeforeEach(func() {
 				p1 := new(wfakes.FakeProcess)
 				p1.IDReturns(1)
 
@@ -1931,7 +1941,7 @@ total_unevictable 28
 		Context("when getting memory.stat fails", func() {
 			disaster := errors.New("oh no!")
 
-			BeforeEach(func() {
+			JustBeforeEach(func() {
 				fakeCgroups.WhenGetting("memory", "memory.stat", func() (string, error) {
 					return "", disaster
 				})
@@ -1972,7 +1982,7 @@ system 2
 		Context("when getting cpuacct/cpuacct.usage fails", func() {
 			disaster := errors.New("oh no!")
 
-			BeforeEach(func() {
+			JustBeforeEach(func() {
 				fakeCgroups.WhenGetting("cpuacct", "cpuacct.usage", func() (string, error) {
 					return "", disaster
 				})
@@ -1987,7 +1997,7 @@ system 2
 		Context("when getting cpuacct/cpuacct.stat fails", func() {
 			disaster := errors.New("oh no!")
 
-			BeforeEach(func() {
+			JustBeforeEach(func() {
 				fakeCgroups.WhenGetting("cpuacct", "cpuacct.stat", func() (string, error) {
 					return "", disaster
 				})
@@ -2019,7 +2029,7 @@ system 2
 			Context("when getting the disk usage fails", func() {
 				disaster := errors.New("oh no!")
 
-				BeforeEach(func() {
+				JustBeforeEach(func() {
 					fakeQuotaManager.GetUsageError = disaster
 				})
 
@@ -2054,7 +2064,7 @@ system 2
 			Context("when getting the bandwidth usage fails", func() {
 				disaster := errors.New("oh no!")
 
-				BeforeEach(func() {
+				JustBeforeEach(func() {
 					fakeBandwidthManager.GetLimitsError = disaster
 				})
 

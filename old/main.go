@@ -142,7 +142,7 @@ var tag = flag.String(
 	"server-wide identifier used for 'global' configuration",
 )
 
-func Main(networkPool subnets.Subnets) {
+func Main(networkPool subnets.Subnets, mtu uint32) {
 
 	cf_debug_server.Run()
 
@@ -219,6 +219,7 @@ func Main(networkPool subnets.Subnets) {
 		portPool,
 		strings.Split(*denyNetworks, ","),
 		strings.Split(*allowNetworks, ","),
+		mtu,
 		runner,
 		quotaManager,
 	)

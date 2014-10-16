@@ -76,6 +76,7 @@ var _ = Describe("Container pool", func() {
 			fakePortPool,
 			[]string{"1.1.0.0/16", "2.2.0.0/16"},
 			[]string{"1.1.1.1/32", "2.2.2.2/32"},
+			1500,
 			fakeRunner,
 			fakeQuotaManager,
 		)

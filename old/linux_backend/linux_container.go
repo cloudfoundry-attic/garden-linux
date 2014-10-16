@@ -74,6 +74,8 @@ type LinuxContainer struct {
 	netOuts      []NetOutSpec
 	netOutsMutex sync.RWMutex
 
+	mtu uint32
+
 	envvars []string
 }
 
@@ -113,6 +115,7 @@ func NewLinuxContainer(
 	quotaManager quota_manager.QuotaManager,
 	bandwidthManager bandwidth_manager.BandwidthManager,
 	processTracker process_tracker.ProcessTracker,
+	mtu uint32,
 	envvars []string,
 ) *LinuxContainer {
 	return &LinuxContainer{
@@ -140,6 +143,8 @@ func NewLinuxContainer(
 		bandwidthManager: bandwidthManager,
 
 		processTracker: processTracker,
+
+		mtu: mtu,
 
 		envvars: envvars,
 	}
@@ -336,7 +341,7 @@ func (c *LinuxContainer) Start() error {
 	start := exec.Command(path.Join(c.path, "start.sh"))
 	start.Env = []string{
 		"id=" + c.id,
-		"container_iface_mtu=1500",
+		"container_iface_mtu=" + fmt.Sprintf("%d", c.mtu),
 		"NETWORK=" + c.resources.Network.IPNet().String(),
 		"PATH=" + os.Getenv("PATH"),
 	}

@@ -51,6 +51,7 @@ type LinuxContainerPool struct {
 	uidPool     uid_pool.UIDPool
 	networkPool subnets.Subnets
 	portPool    linux_backend.PortPool
+	mtu         uint32
 
 	runner command_runner.CommandRunner
 
@@ -68,6 +69,7 @@ func New(
 	networkPool subnets.Subnets,
 	portPool linux_backend.PortPool,
 	denyNetworks, allowNetworks []string,
+	mtu uint32,
 	runner command_runner.CommandRunner,
 	quotaManager quota_manager.QuotaManager,
 ) *LinuxContainerPool {
@@ -83,6 +85,7 @@ func New(
 
 		allowNetworks: allowNetworks,
 		denyNetworks:  denyNetworks,
+		mtu:           mtu,
 
 		uidPool:     uidPool,
 		networkPool: networkPool,
@@ -200,6 +203,7 @@ func (p *LinuxContainerPool) Create(spec api.ContainerSpec) (c linux_backend.Con
 		p.quotaManager,
 		bandwidth_manager.New(containerPath, id, p.runner),
 		process_tracker.New(containerPath, p.runner),
+		p.mtu,
 		mergeEnv(spec.Env, rootFSEnvVars),
 	), nil
 }
@@ -271,6 +275,7 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 		p.quotaManager,
 		bandwidthManager,
 		process_tracker.New(containerPath, p.runner),
+		p.mtu,
 		containerSnapshot.EnvVars,
 	)
 
