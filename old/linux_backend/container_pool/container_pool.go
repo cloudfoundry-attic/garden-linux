@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/url"
 	"os"
 	"os/exec"
@@ -18,11 +19,12 @@ import (
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/pivotal-golang/lager"
 
+	"github.com/cloudfoundry-incubator/garden-linux/net_fence/subnets"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/rootfs_provider"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/network_pool"
+	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/network"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/process_tracker"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/quota_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/uid_pool"
@@ -46,7 +48,7 @@ type LinuxContainerPool struct {
 	rootfsProviders map[string]rootfs_provider.RootFSProvider
 
 	uidPool     uid_pool.UIDPool
-	networkPool network_pool.NetworkPool
+	networkPool subnets.Subnets
 	portPool    linux_backend.PortPool
 
 	runner command_runner.CommandRunner
@@ -62,7 +64,7 @@ func New(
 	sysconfig sysconfig.Config,
 	rootfsProviders map[string]rootfs_provider.RootFSProvider,
 	uidPool uid_pool.UIDPool,
-	networkPool network_pool.NetworkPool,
+	networkPool subnets.Subnets,
 	portPool linux_backend.PortPool,
 	denyNetworks, allowNetworks []string,
 	runner command_runner.CommandRunner,
@@ -98,7 +100,7 @@ func New(
 }
 
 func (p *LinuxContainerPool) MaxContainers() int {
-	maxNet := p.networkPool.InitialSize()
+	maxNet := p.networkPool.Capacity()
 	maxUid := p.uidPool.InitialSize()
 	if maxNet < maxUid {
 		return maxNet
@@ -109,7 +111,6 @@ func (p *LinuxContainerPool) MaxContainers() int {
 func (p *LinuxContainerPool) Setup() error {
 	setup := exec.Command(path.Join(p.binPath, "setup.sh"))
 	setup.Env = []string{
-		"POOL_NETWORK=" + p.networkPool.Network().String(),
 		"DENY_NETWORKS=" + formatNetworks(p.denyNetworks),
 		"ALLOW_NETWORKS=" + formatNetworks(p.allowNetworks),
 		"CONTAINER_DEPOT_PATH=" + p.depotPath,
@@ -169,7 +170,7 @@ func (p *LinuxContainerPool) Create(spec api.ContainerSpec) (c linux_backend.Con
 
 	pLog.Info("creating")
 
-	resources, err := p.aquirePoolResources()
+	resources, err := p.acquirePoolResources(spec)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +178,7 @@ func (p *LinuxContainerPool) Create(spec api.ContainerSpec) (c linux_backend.Con
 		p.releasePoolResources(resources)
 	})
 
-	rootFSEnvVars, err := p.aquireSystemResources(id, containerPath, spec.RootFSPath, resources, spec.BindMounts, pLog)
+	rootFSEnvVars, err := p.acquireSystemResources(id, containerPath, spec.RootFSPath, resources, spec.BindMounts, pLog)
 	if err != nil {
 		return nil, err
 	}
@@ -225,7 +226,7 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 		return nil, err
 	}
 
-	err = p.networkPool.Remove(resources.Network)
+	err = p.networkPool.Recover(resources.Network.IPNet())
 	if err != nil {
 		p.uidPool.Release(resources.UID)
 		return nil, err
@@ -235,7 +236,7 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 		err = p.portPool.Remove(port)
 		if err != nil {
 			p.uidPool.Release(resources.UID)
-			p.networkPool.Release(resources.Network)
+			p.networkPool.Release(resources.Network.IPNet())
 
 			for _, port := range resources.Ports {
 				p.portPool.Release(port)
@@ -376,24 +377,63 @@ func (p *LinuxContainerPool) saveRootFSProvider(id string, provider string) erro
 	return ioutil.WriteFile(providerFile, []byte(provider), 0644)
 }
 
-func (p *LinuxContainerPool) aquirePoolResources() (*linux_backend.Resources, error) {
-	var err error
+func (p *LinuxContainerPool) acquirePoolResources(spec api.ContainerSpec) (*linux_backend.Resources, error) {
 	resources := linux_backend.NewResources(0, nil, nil)
 
-	resources.UID, err = p.uidPool.Acquire()
-	if err != nil {
-		p.logger.Error("uid-acquire-failed", err)
+	if err := p.acquireUID(resources); err != nil {
 		return nil, err
 	}
 
-	resources.Network, err = p.networkPool.Acquire()
-	if err != nil {
-		p.logger.Error("network-acquire-failed", err)
-		p.releasePoolResources(resources)
+	if err := p.acquireNetworkResources(resources, spec); err != nil {
 		return nil, err
 	}
 
 	return resources, nil
+}
+
+func (p *LinuxContainerPool) acquireUID(resources *linux_backend.Resources) error {
+	var err error
+	resources.UID, err = p.uidPool.Acquire()
+
+	if err != nil {
+		p.logger.Error("uid-acquire-failed", err)
+		return err
+	}
+
+	return nil
+}
+
+func (p *LinuxContainerPool) acquireNetworkResources(resources *linux_backend.Resources, spec api.ContainerSpec) error {
+	var err error
+	var ipn *net.IPNet
+
+	if spec.Network == "" {
+		if ipn, err = p.networkPool.AllocateDynamically(); err != nil {
+			p.logger.Error("network-acquire-failed", err)
+			p.releasePoolResources(resources)
+			return err
+		}
+	} else {
+		var network = spec.Network
+		if !strings.Contains(network, "/") {
+			network = network + "/30"
+		}
+
+		if _, ipn, err = net.ParseCIDR(network); err != nil {
+			p.logger.Error("invalid-network-parameter", err)
+			p.releasePoolResources(resources)
+			return err
+		}
+
+		if err = p.networkPool.AllocateStatically(ipn); err != nil {
+			p.logger.Error("network-acquire-failed", err)
+			p.releasePoolResources(resources)
+			return err
+		}
+	}
+
+	resources.Network = network.New(ipn)
+	return nil
 }
 
 func (p *LinuxContainerPool) releasePoolResources(resources *linux_backend.Resources) {
@@ -406,11 +446,11 @@ func (p *LinuxContainerPool) releasePoolResources(resources *linux_backend.Resou
 	}
 
 	if resources.Network != nil {
-		p.networkPool.Release(resources.Network)
+		p.networkPool.Release(resources.Network.IPNet())
 	}
 }
 
-func (p *LinuxContainerPool) aquireSystemResources(id, containerPath, rootFSPath string, resources *linux_backend.Resources, bindMounts []api.BindMount, pLog lager.Logger) ([]string, error) {
+func (p *LinuxContainerPool) acquireSystemResources(id, containerPath, rootFSPath string, resources *linux_backend.Resources, bindMounts []api.BindMount, pLog lager.Logger) ([]string, error) {
 	rootfsURL, err := url.Parse(rootFSPath)
 	if err != nil {
 		pLog.Error("parse-rootfs-path-failed", err, lager.Data{

@@ -3,7 +3,6 @@ package old
 import (
 	"bytes"
 	"flag"
-	"net"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -20,11 +19,11 @@ import (
 
 	"github.com/cloudfoundry-incubator/cf-debug-server"
 	"github.com/cloudfoundry-incubator/cf-lager"
+	"github.com/cloudfoundry-incubator/garden-linux/net_fence/subnets"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/repository_fetcher"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/rootfs_provider"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/network_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/port_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/quota_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/uid_pool"
@@ -89,12 +88,6 @@ var containerGraceTime = flag.Duration(
 	"time after which to destroy idle containers",
 )
 
-var networkPool = flag.String(
-	"networkPool",
-	"10.254.0.0/22",
-	"network pool CIDR for containers; each container will get a /30",
-)
-
 var portPoolStart = flag.Uint(
 	"portPoolStart",
 	61001,
@@ -149,8 +142,7 @@ var tag = flag.String(
 	"server-wide identifier used for 'global' configuration",
 )
 
-func Main() {
-	flag.Parse()
+func Main(networkPool subnets.Subnets) {
 
 	cf_debug_server.Run()
 
@@ -171,13 +163,6 @@ func Main() {
 	}
 
 	uidPool := uid_pool.New(uint32(*uidPoolStart), uint32(*uidPoolSize))
-
-	_, ipNet, err := net.ParseCIDR(*networkPool)
-	if err != nil {
-		logger.Fatal("malformed-network-pool", err)
-	}
-
-	networkPool := network_pool.New(ipNet)
 
 	// TODO: use /proc/sys/net/ipv4/ip_local_port_range by default (end + 1)
 	portPool := port_pool.New(uint32(*portPoolStart), uint32(*portPoolSize))

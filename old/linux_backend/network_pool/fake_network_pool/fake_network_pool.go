@@ -2,8 +2,6 @@ package fake_network_pool
 
 import (
 	"net"
-
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/network"
 )
 
 type FakeNetworkPool struct {
@@ -12,11 +10,13 @@ type FakeNetworkPool struct {
 
 	InitialPoolSize int
 
-	AcquireError error
-	RemoveError  error
+	AcquireError        error
+	RecoverError        error
+	AllocateStaticError error
 
-	Released []string
-	Removed  []string
+	Released            []string
+	Recovered           []string
+	StaticallyAllocated []string
 }
 
 func New(ipNet *net.IPNet) *FakeNetworkPool {
@@ -27,11 +27,11 @@ func New(ipNet *net.IPNet) *FakeNetworkPool {
 	}
 }
 
-func (p *FakeNetworkPool) InitialSize() int {
+func (p *FakeNetworkPool) Capacity() int {
 	return p.InitialPoolSize
 }
 
-func (p *FakeNetworkPool) Acquire() (*network.Network, error) {
+func (p *FakeNetworkPool) AllocateDynamically() (*net.IPNet, error) {
 	if p.AcquireError != nil {
 		return nil, p.AcquireError
 	}
@@ -46,21 +46,34 @@ func (p *FakeNetworkPool) Acquire() (*network.Network, error) {
 	inc(p.nextNetwork)
 	inc(p.nextNetwork)
 
-	return network.New(ipNet), nil
+	return ipNet, nil
 }
 
-func (p *FakeNetworkPool) Remove(network *network.Network) error {
-	if p.RemoveError != nil {
-		return p.RemoveError
+func (p *FakeNetworkPool) AllocateStatically(ipNet *net.IPNet) error {
+	if p.AllocateStaticError != nil {
+		return p.AllocateStaticError
 	}
 
-	p.Removed = append(p.Removed, network.String())
-
+	p.StaticallyAllocated = append(p.StaticallyAllocated, ipNet.String())
 	return nil
 }
 
-func (p *FakeNetworkPool) Release(network *network.Network) {
-	p.Released = append(p.Released, network.String())
+func (p *FakeNetworkPool) PoolFoxNetworkBad() string {
+	return p.ipNet.String()
+}
+
+func (p *FakeNetworkPool) Release(ipNet *net.IPNet) error {
+	p.Released = append(p.Released, ipNet.String())
+	return nil
+}
+
+func (p *FakeNetworkPool) Recover(ipNet *net.IPNet) error {
+	if p.RecoverError != nil {
+		return p.RecoverError
+	}
+
+	p.Recovered = append(p.Recovered, ipNet.String())
+	return nil
 }
 
 func (p *FakeNetworkPool) Network() *net.IPNet {

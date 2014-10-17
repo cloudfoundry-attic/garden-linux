@@ -1,6 +1,6 @@
 #!/bin/bash
 
-[ -n "$DEBUG" ] && set -o xtrace
+set -o xtrace
 set -o nounset
 set -o errexit
 shopt -s nullglob
@@ -58,6 +58,15 @@ function teardown_nat() {
   # Flush and delete instance chain
   iptables -w -t nat -F ${nat_instance_chain} 2> /dev/null || true
   iptables -w -t nat -X ${nat_instance_chain} 2> /dev/null || true
+
+  if [ -n "${NETWORK:-}" ]; then
+    # Delete NAT rule for container traffic
+      iptables -w -t nat -D ${nat_postrouting_chain} \
+        --source ${NETWORK} \
+        --jump SNAT \
+        --to $external_ip \
+      2> /dev/null || true
+  fi
 }
 
 function setup_nat() {
@@ -69,6 +78,13 @@ function setup_nat() {
   # Bind instance chain to prerouting chain
   iptables -w -t nat -A ${nat_prerouting_chain} \
     --jump ${nat_instance_chain}
+
+  # Enable NAT for traffic coming from containers
+  (iptables -w -t nat -S ${nat_postrouting_chain} | grep "\-j SNAT\b" | grep -q -F -- "-s ${NETWORK}") ||
+    iptables -w -t nat -A ${nat_postrouting_chain} \
+      --source ${NETWORK} \
+      --jump SNAT \
+      --to $external_ip
 }
 
 case "${1}" in

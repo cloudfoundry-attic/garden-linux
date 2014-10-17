@@ -299,6 +299,7 @@ func (c *LinuxContainer) Restore(snapshot ContainerSnapshot) error {
 	}
 
 	net := exec.Command(path.Join(c.path, "net.sh"), "setup")
+	net.Env = []string{"NETWORK=" + c.resources.Network.IPNet().String()}
 
 	err := cRunner.Run(net)
 	if err != nil {
@@ -336,6 +337,7 @@ func (c *LinuxContainer) Start() error {
 	start.Env = []string{
 		"id=" + c.id,
 		"container_iface_mtu=1500",
+		"NETWORK=" + c.resources.Network.IPNet().String(),
 		"PATH=" + os.Getenv("PATH"),
 	}
 
@@ -368,6 +370,9 @@ func (c *LinuxContainer) Cleanup() {
 
 func (c *LinuxContainer) Stop(kill bool) error {
 	stop := exec.Command(path.Join(c.path, "stop.sh"))
+	stop.Env = []string{
+		"NETWORK=" + c.resources.Network.IPNet().String(),
+	}
 
 	if kill {
 		stop.Args = append(stop.Args, "-w", "0")

@@ -162,13 +162,6 @@ function setup_nat() {
   (iptables -w -t nat -S POSTROUTING | grep -q "\-j ${nat_postrouting_chain}\b") ||
     iptables -w -t nat -A POSTROUTING \
       --jump ${nat_postrouting_chain}
-
-  # Enable NAT for traffic coming from containers
-  (iptables -w -t nat -S ${nat_postrouting_chain} | grep -q "\-j SNAT\b") ||
-    iptables -w -t nat -A ${nat_postrouting_chain} \
-      --source ${POOL_NETWORK} \
-      --jump SNAT \
-      --to $(external_ip)
 }
 
 case "${1}" in
