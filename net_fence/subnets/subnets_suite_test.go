@@ -1,4 +1,4 @@
-package network_pool_test
+package subnets_test
 
 import (
 	. "github.com/onsi/ginkgo"
@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestNetwork_pool(t *testing.T) {
+func TestSubnets(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Network Pool Suite")
+	RunSpecs(t, "Subnets Suite")
 }
