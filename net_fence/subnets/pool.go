@@ -16,10 +16,10 @@ type Subnets interface {
 	// Statically allocates a /30 subnet, and returns an error if the address cannot be newly allocated
 	AllocateStatically(*net.IPNet) error
 
-	// Releases a previously-allocated network back to the pool
+	// Releases an allocated network
 	Release(*net.IPNet) error
 
-	// Recover a previously allocated network so it appears to be allocated again
+	// Recover an unallocated network so it appears to be allocated
 	Recover(*net.IPNet) error
 
 	// Capacity -- number of /30 subnets which can be Allocate(d)Dynamically.
@@ -45,6 +45,9 @@ var (
 	// ErrAlreadyAllocated is returned by AlloocateStatically and by Recover if the subnet has already been statically
 	// or potentially dynamically allocated.
 	ErrAlreadyAllocated = errors.New("subnet has already been allocated")
+
+	// ErrInvalidRange is returned by AllocateStatically and by Recover if the subnet range is invalid
+	ErrInvalidRange = errors.New("subnet has invalid range")
 )
 
 var slash30mask net.IPMask
@@ -85,6 +88,13 @@ func (m *subnetpool) Capacity() int {
 }
 
 func (m *subnetpool) AllocateStatically(ipNet *net.IPNet) error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	if ones, _ := ipNet.Mask.Size(); ones != 30 {
+		return ErrInvalidRange
+	}
+
 	if m.dynamicAllocationNet.Contains(ipNet.IP) {
 		return ErrAlreadyAllocated
 	}

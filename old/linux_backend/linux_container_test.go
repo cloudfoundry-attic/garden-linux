@@ -1809,8 +1809,8 @@ var _ = Describe("Linux containers", func() {
 			info, err := container.Info()
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Ω(info.HostIP).Should(Equal("10.254.0.1"))
-			Ω(info.ContainerIP).Should(Equal("10.254.0.2"))
+			Ω(info.HostIP).Should(Equal("10.254.0.2"))
+			Ω(info.ContainerIP).Should(Equal("10.254.0.1"))
 		})
 
 		It("returns the container's path", func() {

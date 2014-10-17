@@ -15,8 +15,8 @@ type Network struct {
 func New(ipNet *net.IPNet) *Network {
 	return &Network{
 		ipNet:       ipNet,
-		hostIP:      nextIP(ipNet.IP),
-		containerIP: nextIP(nextIP(ipNet.IP)),
+		hostIP:      nextIP(nextIP(ipNet.IP)),
+		containerIP: nextIP(ipNet.IP),
 	}
 }
 

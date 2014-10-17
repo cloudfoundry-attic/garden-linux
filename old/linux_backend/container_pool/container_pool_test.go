@@ -234,8 +234,8 @@ var _ = Describe("Container pool", func() {
 							"id=" + container.ID(),
 							"rootfs_path=/provided/rootfs/path",
 							"user_uid=10000",
-							"network_host_ip=1.2.0.1",
-							"network_container_ip=1.2.0.2",
+							"network_host_ip=1.2.0.2",
+							"network_container_ip=1.2.0.1",
 
 							"PATH=" + os.Getenv("PATH"),
 						},
@@ -260,8 +260,8 @@ var _ = Describe("Container pool", func() {
 							"id=" + container.ID(),
 							"rootfs_path=/provided/rootfs/path",
 							"user_uid=10000",
-							"network_host_ip=1.3.0.1",
-							"network_container_ip=1.3.0.2",
+							"network_host_ip=1.3.0.2",
+							"network_container_ip=1.3.0.1",
 
 							"PATH=" + os.Getenv("PATH"),
 						},
@@ -381,8 +381,8 @@ var _ = Describe("Container pool", func() {
 							"id=" + container.ID(),
 							"rootfs_path=/var/some/mount/point",
 							"user_uid=10000",
-							"network_host_ip=1.2.0.1",
-							"network_container_ip=1.2.0.2",
+							"network_host_ip=1.2.0.2",
+							"network_container_ip=1.2.0.1",
 
 							"PATH=" + os.Getenv("PATH"),
 						},

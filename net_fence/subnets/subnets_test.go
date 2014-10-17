@@ -80,6 +80,23 @@ var _ = Describe("Subnet Pool", func() {
 				})
 			})
 
+			Context("when the requested netowrk is not a /30", func() {
+				BeforeEach(func() {
+					var err error
+					_, defaultSubnetPool, err = net.ParseCIDR("10.2.3.0/29")
+					Ω(err).ShouldNot(HaveOccurred())
+				})
+
+				It("returns an appropriate error", func() {
+					_, static, err := net.ParseCIDR("10.2.3.4/22")
+					Ω(err).ShouldNot(HaveOccurred())
+
+					err = subnetpool.AllocateStatically(static)
+					Ω(err).Should(HaveOccurred())
+					Ω(err).Should(Equal(subnets.ErrInvalidRange))
+				})
+			})
+
 			Context("when the requested subnet is not within the dynamic allocation range", func() {
 				BeforeEach(func() {
 					var err error
@@ -350,7 +367,68 @@ var _ = Describe("Subnet Pool", func() {
 					}, "100ms", "2ms").ShouldNot(BeTrue())
 				})
 
-				PIt("releases networks concurrently", func() {})
+				It("correctly handles concurrent release of the same network", func() {
+					prev := runtime.GOMAXPROCS(2)
+					defer runtime.GOMAXPROCS(prev)
+
+					Consistently(func() bool {
+						_, network, err := net.ParseCIDR("10.0.0.0/29")
+						Ω(err).ShouldNot(HaveOccurred())
+
+						pool, err := subnets.New(network)
+						Ω(err).ShouldNot(HaveOccurred())
+
+						n1, err := pool.AllocateDynamically()
+						Ω(err).ShouldNot(HaveOccurred())
+
+						out := make(chan error)
+						go func(out chan error) {
+							defer GinkgoRecover()
+							out <- pool.Release(n1)
+						}(out)
+
+						go func(out chan error) {
+							defer GinkgoRecover()
+							out <- pool.Release(n1)
+						}(out)
+
+						a := <-out
+						b := <-out
+						return (a == nil) != (b == nil)
+					}, "200ms", "2ms").Should(BeTrue())
+				})
+
+				It("correctly handles concurrent allocation of the same network", func() {
+					prev := runtime.GOMAXPROCS(2)
+					defer runtime.GOMAXPROCS(prev)
+
+					Consistently(func() bool {
+						_, network, err := net.ParseCIDR("10.0.0.0/29")
+						Ω(err).ShouldNot(HaveOccurred())
+
+						pool, err := subnets.New(network)
+						Ω(err).ShouldNot(HaveOccurred())
+
+						_, n1, err := net.ParseCIDR("10.1.0.0/30")
+						Ω(err).ShouldNot(HaveOccurred())
+
+						out := make(chan error)
+						go func(out chan error) {
+							defer GinkgoRecover()
+							out <- pool.AllocateStatically(n1)
+						}(out)
+
+						go func(out chan error) {
+							defer GinkgoRecover()
+							out <- pool.AllocateStatically(n1)
+						}(out)
+
+						a := <-out
+						b := <-out
+						return (a == nil) != (b == nil)
+					}, "200ms", "2ms").Should(BeTrue())
+				})
+
 			})
 		})
 
