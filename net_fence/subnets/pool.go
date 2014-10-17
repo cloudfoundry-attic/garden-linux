@@ -8,12 +8,12 @@ import (
 	"sync"
 )
 
-// A Manager provides network allocations.
+// A Subnets provides network allocations.
 type Subnets interface {
 	// Dynamically allocates a /30 subnet, or returns an error if no more subnets can be allocated by this manager
 	AllocateDynamically() (*net.IPNet, error)
 
-	// Statically allocates a /30 subnet, and returns an error if the address has already been allocated
+	// Statically allocates a /30 subnet, and returns an error if the address cannot be newly allocated
 	AllocateStatically(*net.IPNet) error
 
 	// Releases a previously-allocated network back to the pool
@@ -22,7 +22,7 @@ type Subnets interface {
 	// Recover a previously allocated network so it appears to be allocated again
 	Recover(*net.IPNet) error
 
-	// Capacity -- number of /30 subnets in the dynamic allocation net
+	// Capacity -- number of /30 subnets which can be Allocate(d)Dynamically.
 	Capacity() int
 }
 
@@ -36,10 +36,15 @@ type subnetpool struct {
 }
 
 var (
-	ErrInsufficientSubnets        = errors.New("Insufficient subnets remaining in the pool")
-	ErrInvalidRange               = errors.New("Invalid IP Range")
-	ErrReleasedUnallocatedNetwork = errors.New("cannot release an unallocated network")
-	ErrAlreadyAllocated           = errors.New("Subnet has already been allocated")
+	// ErrInsufficientSubnets is returned by AllocateDynamically if no more subnets can be allocated
+	ErrInsufficientSubnets = errors.New("insufficient subnets remaining in the pool")
+
+	// ErrReleasedUnallocatedNetwork is returned by Release if the subnet has not been allocated
+	ErrReleasedUnallocatedSubnet = errors.New("cannot release an unallocated subnet")
+
+	// ErrAlreadyAllocated is returned by AlloocateStatically and by Recover if the subnet has already been statically
+	// or potentially dynamically allocated.
+	ErrAlreadyAllocated = errors.New("subnet has already been allocated")
 )
 
 var slash30mask net.IPMask
@@ -53,6 +58,9 @@ func init() {
 	slash30mask = maskedNetwork.Mask
 }
 
+// New creates a Subnets implementation from a dynamic allocation range.
+//
+// All dynamic allocations come from the range, static allocations are prohibited from the range.
 func New(ipNet *net.IPNet) (Subnets, error) {
 	pool := poolOfSubnets(ipNet)
 	return &subnetpool{dynamicAllocationNet: ipNet, pool: pool, capacity: len(pool)}, nil
@@ -132,7 +140,7 @@ func (m *subnetpool) Release(ipNet *net.IPNet) error {
 
 	for _, n := range m.pool {
 		if n.IP.Equal(ipNet.IP) {
-			return ErrReleasedUnallocatedNetwork
+			return ErrReleasedUnallocatedSubnet
 		}
 	}
 

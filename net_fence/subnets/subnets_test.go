@@ -285,7 +285,7 @@ var _ = Describe("Subnet Pool", func() {
 						// release again
 						err = subnetpool.Release(allocated)
 						Ω(err).Should(HaveOccurred())
-						Ω(err).Should(Equal(subnets.ErrReleasedUnallocatedNetwork))
+						Ω(err).Should(Equal(subnets.ErrReleasedUnallocatedSubnet))
 					})
 				})
 			})

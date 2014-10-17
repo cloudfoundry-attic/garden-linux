@@ -20,6 +20,10 @@ func New(ipNet *net.IPNet) *Network {
 	}
 }
 
+func (n Network) IPNet() *net.IPNet {
+	return n.ipNet
+}
+
 func (n Network) String() string {
 	return n.ipNet.String()
 }
