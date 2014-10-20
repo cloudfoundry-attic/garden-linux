@@ -92,7 +92,7 @@ var _ = Describe("Container pool", func() {
 				fakeUIDPool.InitialPoolSize = 3000
 			})
 
-			PIt("returns the network pool size", func() {
+			It("returns the network pool size", func() {
 				Ω(pool.MaxContainers()).Should(Equal(5))
 			})
 		})
@@ -285,6 +285,30 @@ var _ = Describe("Container pool", func() {
 				Ω(err).ShouldNot(HaveOccurred())
 
 				Ω(fakeNetworkPool.StaticallyAllocated).Should(ContainElement("1.3.0.0/30"))
+			})
+
+			Context("when a Network is requested with an internal address", func() {
+				var err error
+
+				BeforeEach(func() {
+					_, err = pool.Create(api.ContainerSpec{
+						Network: "1.3.0.2/30",
+					})
+				})
+
+				It("returns the error", func() {
+					Ω(err).Should(Equal(container_pool.ErrNetworkHostbitsNonZero))
+				})
+
+				itReleasesTheUserID()
+
+				It("does not execute create.sh", func() {
+					Ω(fakeRunner).ShouldNot(HaveExecutedSerially(
+						fake_command_runner.CommandSpec{
+							Path: "/root/path/create.sh",
+						},
+					))
+				})
 			})
 
 			Context("when an invalid Network is requested", func() {
