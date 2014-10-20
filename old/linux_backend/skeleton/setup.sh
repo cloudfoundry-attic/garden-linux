@@ -16,6 +16,7 @@ network_host_ip=${network_host_ip:-10.0.0.1}
 network_host_iface="${iface_name_prefix}${iface_name}-0"
 network_container_ip=${network_container_ip:-10.0.0.2}
 network_container_iface="${iface_name_prefix}${iface_name}-1"
+network_cidr_suffix=${network_host_ip:-30}
 user_uid=${user_uid:-10000}
 rootfs_path=$(readlink -f $rootfs_path)
 
@@ -26,6 +27,7 @@ network_host_ip=$network_host_ip
 network_host_iface=$network_host_iface
 network_container_ip=$network_container_ip
 network_container_iface=$network_container_iface
+network_cidr_suffix=$network_cidr_suffix
 user_uid=$user_uid
 rootfs_path=$rootfs_path
 EOS

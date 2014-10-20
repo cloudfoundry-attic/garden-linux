@@ -221,7 +221,6 @@ var _ = Describe("Container pool", func() {
 		})
 
 		Context("when no Network parameter is specified", func() {
-
 			It("executes create.sh with the correct args and environment", func() {
 				container, err := pool.Create(api.ContainerSpec{})
 				Ω(err).ShouldNot(HaveOccurred())
@@ -236,6 +235,7 @@ var _ = Describe("Container pool", func() {
 							"user_uid=10000",
 							"network_host_ip=1.2.0.2",
 							"network_container_ip=1.2.0.1",
+							"network_cidr_suffix=30",
 
 							"PATH=" + os.Getenv("PATH"),
 						},
@@ -245,7 +245,6 @@ var _ = Describe("Container pool", func() {
 		})
 
 		Context("when the Network parameter is specified", func() {
-
 			It("executes create.sh with the correct args and environment", func() {
 				container, err := pool.Create(api.ContainerSpec{
 					Network: "1.3.0.0/30",
@@ -262,11 +261,38 @@ var _ = Describe("Container pool", func() {
 							"user_uid=10000",
 							"network_host_ip=1.3.0.2",
 							"network_container_ip=1.3.0.1",
+							"network_cidr_suffix=30",
 
 							"PATH=" + os.Getenv("PATH"),
 						},
 					},
 				))
+			})
+
+			Context("and when it requests a subnet with more than 4 IPs", func() {
+				It("executes create.sh passing a gateway address of the largest valid IP", func() {
+					container, err := pool.Create(api.ContainerSpec{
+						Network: "1.3.0.0/29",
+					})
+					Ω(err).ShouldNot(HaveOccurred())
+
+					Ω(fakeRunner).Should(HaveExecutedSerially(
+						fake_command_runner.CommandSpec{
+							Path: "/root/path/create.sh",
+							Args: []string{path.Join(depotPath, container.ID())},
+							Env: []string{
+								"id=" + container.ID(),
+								"rootfs_path=/provided/rootfs/path",
+								"user_uid=10000",
+								"network_host_ip=1.3.0.6",
+								"network_container_ip=1.3.0.1",
+								"network_cidr_suffix=29",
+
+								"PATH=" + os.Getenv("PATH"),
+							},
+						},
+					))
+				})
 			})
 
 			It("statically allocates the requested Network as a /30 if no mask is specified", func() {
@@ -407,6 +433,7 @@ var _ = Describe("Container pool", func() {
 							"user_uid=10000",
 							"network_host_ip=1.2.0.2",
 							"network_container_ip=1.2.0.1",
+							"network_cidr_suffix=30",
 
 							"PATH=" + os.Getenv("PATH"),
 						},

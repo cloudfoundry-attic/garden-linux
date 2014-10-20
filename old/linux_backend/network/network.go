@@ -15,7 +15,7 @@ type Network struct {
 func New(ipNet *net.IPNet) *Network {
 	return &Network{
 		ipNet:       ipNet,
-		hostIP:      nextIP(nextIP(ipNet.IP)),
+		hostIP:      maxValidIP(ipNet),
 		containerIP: nextIP(ipNet.IP),
 	}
 }
@@ -49,6 +49,11 @@ func (n Network) MarshalJSON() ([]byte, error) {
 	})
 }
 
+func (n *Network) CIDRSuffix() int {
+	suff, _ := n.ipNet.Mask.Size()
+	return suff
+}
+
 func (n *Network) UnmarshalJSON(data []byte) error {
 	var tmp struct {
 		IPNet string
@@ -72,6 +77,25 @@ func (n *Network) UnmarshalJSON(data []byte) error {
 	n.containerIP = tmp.ContainerIP
 
 	return nil
+}
+
+func maxValidIP(ipn *net.IPNet) net.IP {
+	mask := ipn.Mask
+	min := ipn.IP
+
+	if len(mask) != len(min) {
+		panic("length of mask is not compatible with length of network IP")
+	}
+
+	max := make([]byte, len(min))
+	for i, b := range mask {
+		max[i] = min[i] | ^b
+	}
+
+	// Do not include the network and broadcast addresses.
+	max[len(max)-1]--
+
+	return net.IP(max).To16()
 }
 
 func nextIP(ip net.IP) net.IP {
