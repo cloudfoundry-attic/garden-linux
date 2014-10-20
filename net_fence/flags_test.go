@@ -5,50 +5,50 @@ import (
 
 	"errors"
 	"flag"
+	"net"
+
 	"github.com/cloudfoundry-incubator/garden-linux/net_fence/subnets"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"net"
 )
 
 var _ = Describe("Network Fence Flags", func() {
 
+	var (
+		flagset            *flag.FlagSet
+		newedWithIpn       *net.IPNet
+		cmdline            []string
+		defaultNetworkPool *net.IPNet
+		returnedSubnets    subnets.Subnets
+	)
+
+	JustBeforeEach(func() {
+		var err error
+		_, defaultNetworkPool, err = net.ParseCIDR(net_fence.DefaultNetworkPool)
+		Ω(err).ShouldNot(HaveOccurred())
+
+		returnedSubnets, err = subnets.New(defaultNetworkPool)
+		Ω(err).ShouldNot(HaveOccurred())
+
+		net_fence.NewSubnets = func(ipn *net.IPNet) (subnets.Subnets, error) {
+			newedWithIpn = ipn
+			return returnedSubnets, nil
+		}
+
+		flagset = &flag.FlagSet{}
+		net_fence.InitializeFlags(flagset)
+
+		flagset.Parse(cmdline)
+	})
+
 	Describe("The networkPool flag", func() {
-
-		var (
-			flagset            *flag.FlagSet
-			newedWithIpn       *net.IPNet
-			cmdline            []string
-			defaultNetworkPool *net.IPNet
-			returnedSubnets    subnets.Subnets
-		)
-
-		JustBeforeEach(func() {
-			var err error
-			_, defaultNetworkPool, err = net.ParseCIDR(net_fence.DefaultNetworkPool)
-			Ω(err).ShouldNot(HaveOccurred())
-
-			returnedSubnets, err = subnets.New(defaultNetworkPool)
-			Ω(err).ShouldNot(HaveOccurred())
-
-			net_fence.NewSubnets = func(ipn *net.IPNet) (subnets.Subnets, error) {
-				newedWithIpn = ipn
-				return returnedSubnets, nil
-			}
-
-			flagset = &flag.FlagSet{}
-			net_fence.InitializeFlags(flagset)
-
-			flagset.Parse(cmdline)
-		})
-
 		Context("when not supplied", func() {
 			BeforeEach(func() {
 				cmdline = []string{}
 			})
 
 			It("configures the subnet pool with the default value", func() {
-				subnets, err := net_fence.Initialize()
+				subnets, _, err := net_fence.Initialize()
 				Ω(err).ShouldNot(HaveOccurred())
 
 				Ω(newedWithIpn).Should(Equal(defaultNetworkPool))
@@ -61,7 +61,7 @@ var _ = Describe("Network Fence Flags", func() {
 					return nil, errOnNew
 				}
 
-				_, err := net_fence.Initialize()
+				_, _, err := net_fence.Initialize()
 				Ω(err).Should(Equal(errOnNew))
 			})
 		})
@@ -73,7 +73,7 @@ var _ = Describe("Network Fence Flags", func() {
 				})
 
 				It("configures the network pool with the given value", func() {
-					subnets, err := net_fence.Initialize()
+					subnets, _, err := net_fence.Initialize()
 					Ω(err).ShouldNot(HaveOccurred())
 
 					_, network, err := net.ParseCIDR("1.2.3.4/5")
@@ -90,18 +90,64 @@ var _ = Describe("Network Fence Flags", func() {
 				})
 
 				It("returns an error", func() {
-					_, err := net_fence.Initialize()
+					_, _, err := net_fence.Initialize()
 					Ω(err).Should(HaveOccurred())
 				})
 
 				It("names the invalid parameter in the error message", func() {
-					_, err := net_fence.Initialize()
+					_, _, err := net_fence.Initialize()
 					Ω(err).Should(HaveOccurred())
 					Ω(err.Error()).Should(ContainSubstring("networkPool"))
 				})
 			})
 		})
 
+	})
+
+	Describe("The mtu flag", func() {
+		Context("when not supplied", func() {
+			BeforeEach(func() {
+				cmdline = []string{}
+			})
+
+			It("configures the MTU size with the default value", func() {
+				_, mtu, err := net_fence.Initialize()
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Ω(mtu).Should(Equal(net_fence.DefaultMTUSize))
+			})
+		})
+
+		Context("when supplied", func() {
+			Context("and when it's valid", func() {
+				BeforeEach(func() {
+					cmdline = []string{"-mtu=1400"}
+				})
+
+				It("configures the MTU size with the given value", func() {
+					_, mtu, err := net_fence.Initialize()
+					Ω(err).ShouldNot(HaveOccurred())
+					Ω(mtu).Should(Equal(uint32(1400)))
+				})
+			})
+
+			Context("and when it's not a valid uint32", func() {
+				BeforeEach(func() {
+					cmdline = []string{"-mtu=4294967296"} // larger than maximum uint32
+				})
+
+				It("returns an error", func() {
+					_, _, err := net_fence.Initialize()
+					Ω(err).Should(HaveOccurred())
+				})
+
+				It("names the invalid parameter in the error message", func() {
+					_, _, err := net_fence.Initialize()
+					Ω(err).Should(HaveOccurred())
+					Ω(err.Error()).Should(ContainSubstring("mtu"))
+				})
+			})
+		})
 	})
 
 })

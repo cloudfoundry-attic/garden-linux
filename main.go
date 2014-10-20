@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+
 	"github.com/cloudfoundry-incubator/garden-linux/net_fence"
 	"github.com/cloudfoundry-incubator/garden-linux/old"
 )
@@ -12,10 +13,10 @@ func main() {
 	net_fence.InitializeFlags(flag.CommandLine)
 	flag.Parse()
 
-	subnets, err := net_fence.Initialize()
+	subnets, mtu, err := net_fence.Initialize()
 	if err != nil {
-		panic("failed to initialize net_fence")
+		panic("failed to initialize net_fence: " + err.Error())
 	}
 
-	old.Main(subnets)
+	old.Main(subnets, mtu)
 }

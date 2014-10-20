@@ -72,6 +72,6 @@ ip link set $network_host_iface netns 1
 ip link set $network_container_iface netns $PID
 
 ip address add $network_host_ip/30 dev $network_host_iface
-ip link set $network_host_iface up
+ip link set $network_host_iface mtu $container_iface_mtu up
 
 exit 0
