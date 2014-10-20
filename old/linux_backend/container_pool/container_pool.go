@@ -33,6 +33,7 @@ import (
 )
 
 var ErrUnknownRootFSProvider = errors.New("unknown rootfs provider")
+var ErrNetworkHostbitsNonZero = errors.New("network host bits non-zero")
 
 type LinuxContainerPool struct {
 	logger lager.Logger
@@ -419,10 +420,17 @@ func (p *LinuxContainerPool) acquireNetworkResources(resources *linux_backend.Re
 			network = network + "/30"
 		}
 
-		if _, ipn, err = net.ParseCIDR(network); err != nil {
+		var ip net.IP
+		if ip, ipn, err = net.ParseCIDR(network); err != nil {
 			p.logger.Error("invalid-network-parameter", err)
 			p.releasePoolResources(resources)
 			return err
+		}
+
+		if !ip.Equal(ipn.IP) {
+			p.logger.Error("invalid-network-parameter", ErrNetworkHostbitsNonZero)
+			p.releasePoolResources(resources)
+			return ErrNetworkHostbitsNonZero
 		}
 
 		if err = p.networkPool.AllocateStatically(ipn); err != nil {
