@@ -48,6 +48,9 @@ var (
 
 	// ErrInvalidRange is returned by AllocateStatically and by Recover if the subnet range is invalid
 	ErrInvalidRange = errors.New("subnet has invalid range")
+
+	// ErrNotAllowed is returned by AllocateStatically and by Recover if the subnet range overlaps the dynamic allocation range
+	ErrNotAllowed = errors.New("the requested range cannot be allocated statically because it overlaps the dynamic allocation range")
 )
 
 var slash30mask net.IPMask
@@ -91,16 +94,12 @@ func (m *subnetpool) AllocateStatically(ipNet *net.IPNet) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	if ones, _ := ipNet.Mask.Size(); ones != 30 {
-		return ErrInvalidRange
-	}
-
-	if m.dynamicAllocationNet.Contains(ipNet.IP) {
-		return ErrAlreadyAllocated
+	if m.dynamicAllocationNet.Contains(ipNet.IP) || ipNet.Contains(m.dynamicAllocationNet.IP) {
+		return ErrNotAllowed
 	}
 
 	for _, s := range m.static {
-		if s.Contains(ipNet.IP) {
+		if s.Contains(ipNet.IP) || ipNet.Contains(s.IP) {
 			return ErrAlreadyAllocated
 		}
 	}

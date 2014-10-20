@@ -494,6 +494,7 @@ func (p *LinuxContainerPool) acquireSystemResources(id, containerPath, rootFSPat
 		fmt.Sprintf("user_uid=%d", resources.UID),
 		fmt.Sprintf("network_host_ip=%s", resources.Network.HostIP()),
 		fmt.Sprintf("network_container_ip=%s", resources.Network.ContainerIP()),
+		fmt.Sprintf("network_cidr_suffix=%d", resources.Network.CIDRSuffix()),
 		"PATH=" + os.Getenv("PATH"),
 	}
 

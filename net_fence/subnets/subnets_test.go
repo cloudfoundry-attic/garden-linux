@@ -61,7 +61,6 @@ var _ = Describe("Subnet Pool", func() {
 	})
 
 	Describe("Allocating and Releasing", func() {
-
 		Describe("Static Allocation", func() {
 			Context("when the requested IP is within the dynamic allocation range", func() {
 				BeforeEach(func() {
@@ -76,24 +75,24 @@ var _ = Describe("Subnet Pool", func() {
 
 					err = subnetpool.AllocateStatically(static)
 					Ω(err).Should(HaveOccurred())
-					Ω(err).Should(Equal(subnets.ErrAlreadyAllocated))
+					Ω(err).Should(Equal(subnets.ErrNotAllowed))
 				})
 			})
 
-			Context("when the requested netowrk is not a /30", func() {
+			Context("when the requested network subsumes the dynamic allocation range", func() {
 				BeforeEach(func() {
 					var err error
-					_, defaultSubnetPool, err = net.ParseCIDR("10.2.3.0/29")
+					_, defaultSubnetPool, err = net.ParseCIDR("10.2.3.4/30")
 					Ω(err).ShouldNot(HaveOccurred())
 				})
 
 				It("returns an appropriate error", func() {
-					_, static, err := net.ParseCIDR("10.2.3.4/22")
+					_, static, err := net.ParseCIDR("10.2.3.0/24")
 					Ω(err).ShouldNot(HaveOccurred())
 
 					err = subnetpool.AllocateStatically(static)
 					Ω(err).Should(HaveOccurred())
-					Ω(err).Should(Equal(subnets.ErrInvalidRange))
+					Ω(err).Should(Equal(subnets.ErrNotAllowed))
 				})
 			})
 
@@ -114,7 +113,7 @@ var _ = Describe("Subnet Pool", func() {
 					})
 				})
 
-				Context("after it has been allocated, a subsequent request", func() {
+				Context("after it has been allocated, a subsequent request for the same network", func() {
 					var (
 						static *net.IPNet
 					)
@@ -144,85 +143,42 @@ var _ = Describe("Subnet Pool", func() {
 						})
 					})
 				})
-			})
 
-		})
+				Context("after it has been allocated, a subsequent request for an overlapping subnet", func() {
+					var (
+						first  *net.IPNet
+						second *net.IPNet
+					)
 
-		Describe("Recovering", func() {
-			BeforeEach(func() {
-				var err error
-				_, defaultSubnetPool, err = net.ParseCIDR("10.2.3.0/29")
-				Ω(err).ShouldNot(HaveOccurred())
-			})
+					JustBeforeEach(func() {
+						var err error
+						_, first, err = net.ParseCIDR("10.9.3.4/30")
+						Ω(err).ShouldNot(HaveOccurred())
 
-			Context("an allocation outside the dynamic allocation net", func() {
+						_, second, err = net.ParseCIDR("10.9.3.0/29")
+						Ω(err).ShouldNot(HaveOccurred())
 
-				It("recovers the first time", func() {
-					_, static, err := net.ParseCIDR("10.9.3.4/30")
-					Ω(err).ShouldNot(HaveOccurred())
+						err = subnetpool.AllocateStatically(first)
+						Ω(err).ShouldNot(HaveOccurred())
+					})
 
-					err = subnetpool.Recover(static)
-					Ω(err).ShouldNot(HaveOccurred())
-				})
-				It("does not allow recovering twice", func() {
-					_, static, err := net.ParseCIDR("10.9.3.4/30")
-					Ω(err).ShouldNot(HaveOccurred())
+					It("returns an appropriate error", func() {
+						err := subnetpool.AllocateStatically(second)
+						Ω(err).Should(HaveOccurred())
+						Ω(err).Should(Equal(subnets.ErrAlreadyAllocated))
+					})
 
-					err = subnetpool.Recover(static)
-					Ω(err).ShouldNot(HaveOccurred())
+					Context("but after it is released", func() {
+						It("should allow allocation again", func() {
+							err := subnetpool.Release(first)
+							Ω(err).ShouldNot(HaveOccurred())
 
-					err = subnetpool.Recover(static)
-					Ω(err).Should(HaveOccurred())
-				})
-				It("does not allow allocating after recovery", func() {
-					_, static, err := net.ParseCIDR("10.9.3.4/30")
-					Ω(err).ShouldNot(HaveOccurred())
-
-					err = subnetpool.Recover(static)
-					Ω(err).ShouldNot(HaveOccurred())
-
-					err = subnetpool.AllocateStatically(static)
-					Ω(err).Should(HaveOccurred())
+							err = subnetpool.AllocateStatically(second)
+							Ω(err).ShouldNot(HaveOccurred())
+						})
+					})
 				})
 			})
-
-			Context("an allocation inside the dynamic allocation net", func() {
-
-				It("recovers the first time", func() {
-					_, static, err := net.ParseCIDR("10.2.3.4/30")
-					Ω(err).ShouldNot(HaveOccurred())
-
-					err = subnetpool.Recover(static)
-					Ω(err).ShouldNot(HaveOccurred())
-				})
-				It("does not allow recovering twice", func() {
-					_, static, err := net.ParseCIDR("10.2.3.4/30")
-					Ω(err).ShouldNot(HaveOccurred())
-
-					err = subnetpool.Recover(static)
-					Ω(err).ShouldNot(HaveOccurred())
-
-					err = subnetpool.Recover(static)
-					Ω(err).Should(HaveOccurred())
-				})
-				It("does not dynamically allocate a recovered network", func() {
-					_, static, err := net.ParseCIDR("10.2.3.4/30")
-					Ω(err).ShouldNot(HaveOccurred())
-
-					err = subnetpool.Recover(static)
-					Ω(err).ShouldNot(HaveOccurred())
-
-					network, err := subnetpool.AllocateDynamically()
-					Ω(err).ShouldNot(HaveOccurred())
-
-					Ω(network).ShouldNot(BeNil())
-					Ω(network.String()).ShouldNot(Equal("10.2.3.4/30"))
-
-					_, err = subnetpool.AllocateDynamically()
-					Ω(err).Should(HaveOccurred())
-				})
-			})
-
 		})
 
 		Describe("Dynamic Allocation", func() {
@@ -428,8 +384,99 @@ var _ = Describe("Subnet Pool", func() {
 						return (a == nil) != (b == nil)
 					}, "200ms", "2ms").Should(BeTrue())
 				})
-
 			})
+		})
+
+		Describe("Recovering", func() {
+			BeforeEach(func() {
+				var err error
+				_, defaultSubnetPool, err = net.ParseCIDR("10.2.3.0/29")
+				Ω(err).ShouldNot(HaveOccurred())
+			})
+
+			Context("an allocation outside the dynamic allocation net", func() {
+				It("recovers the first time", func() {
+					_, static, err := net.ParseCIDR("10.9.3.4/30")
+					Ω(err).ShouldNot(HaveOccurred())
+
+					err = subnetpool.Recover(static)
+					Ω(err).ShouldNot(HaveOccurred())
+				})
+				It("does not allow recovering twice", func() {
+					_, static, err := net.ParseCIDR("10.9.3.4/30")
+					Ω(err).ShouldNot(HaveOccurred())
+
+					err = subnetpool.Recover(static)
+					Ω(err).ShouldNot(HaveOccurred())
+
+					err = subnetpool.Recover(static)
+					Ω(err).Should(HaveOccurred())
+				})
+				It("does not allow allocating after recovery", func() {
+					_, static, err := net.ParseCIDR("10.9.3.4/30")
+					Ω(err).ShouldNot(HaveOccurred())
+
+					err = subnetpool.Recover(static)
+					Ω(err).ShouldNot(HaveOccurred())
+
+					err = subnetpool.AllocateStatically(static)
+					Ω(err).Should(HaveOccurred())
+				})
+			})
+
+			Context("an allocation which subsumes the dynamic allocation range", func() {
+				BeforeEach(func() {
+					var err error
+					_, defaultSubnetPool, err = net.ParseCIDR("10.2.3.4/30")
+					Ω(err).ShouldNot(HaveOccurred())
+				})
+
+				It("returns an appropriate error", func() {
+					_, static, err := net.ParseCIDR("10.2.3.0/24")
+					Ω(err).ShouldNot(HaveOccurred())
+
+					err = subnetpool.Recover(static)
+					Ω(err).Should(HaveOccurred())
+					Ω(err).Should(Equal(subnets.ErrNotAllowed))
+				})
+			})
+
+			Context("an allocation inside the dynamic allocation net", func() {
+				It("recovers the first time", func() {
+					_, static, err := net.ParseCIDR("10.2.3.4/30")
+					Ω(err).ShouldNot(HaveOccurred())
+
+					err = subnetpool.Recover(static)
+					Ω(err).ShouldNot(HaveOccurred())
+				})
+				It("does not allow recovering twice", func() {
+					_, static, err := net.ParseCIDR("10.2.3.4/30")
+					Ω(err).ShouldNot(HaveOccurred())
+
+					err = subnetpool.Recover(static)
+					Ω(err).ShouldNot(HaveOccurred())
+
+					err = subnetpool.Recover(static)
+					Ω(err).Should(HaveOccurred())
+				})
+				It("does not dynamically allocate a recovered network", func() {
+					_, static, err := net.ParseCIDR("10.2.3.4/30")
+					Ω(err).ShouldNot(HaveOccurred())
+
+					err = subnetpool.Recover(static)
+					Ω(err).ShouldNot(HaveOccurred())
+
+					network, err := subnetpool.AllocateDynamically()
+					Ω(err).ShouldNot(HaveOccurred())
+
+					Ω(network).ShouldNot(BeNil())
+					Ω(network.String()).ShouldNot(Equal("10.2.3.4/30"))
+
+					_, err = subnetpool.AllocateDynamically()
+					Ω(err).Should(HaveOccurred())
+				})
+			})
+
 		})
 
 	})
