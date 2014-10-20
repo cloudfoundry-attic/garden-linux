@@ -71,7 +71,7 @@ ip link add name $network_host_iface type veth peer name $network_container_ifac
 ip link set $network_host_iface netns 1
 ip link set $network_container_iface netns $PID
 
-ip address add $network_host_ip/30 dev $network_host_iface
+ip address add $network_host_ip/$network_cidr_suffix dev $network_host_iface
 ip link set $network_host_iface mtu $container_iface_mtu up
 
 exit 0

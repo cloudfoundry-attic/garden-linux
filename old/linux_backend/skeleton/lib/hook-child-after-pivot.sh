@@ -23,7 +23,7 @@ hostname $id
 ip address add 127.0.0.1/8 dev lo
 ip link set lo up
 
-ip address add $network_container_ip/30 dev $network_container_iface
+ip address add $network_container_ip/$network_cidr_suffix dev $network_container_iface
 ip link set $network_container_iface mtu $container_iface_mtu up
 
 ip route add default via $network_host_ip dev $network_container_iface
