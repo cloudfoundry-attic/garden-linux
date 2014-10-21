@@ -22,7 +22,7 @@ const (
 
 func InitializeFlags(flagset *flag.FlagSet) {
 	flagset.StringVar(&config.network, "networkPool", DefaultNetworkPool,
-		"Pool of subnets for dynamically allocated containers")
+		"Pool of dynamically allocated container subnets")
 
 	flagset.Uint64Var(&config.mtu, "mtu", uint64(DefaultMTUSize),
 		"MTU size for container network interfaces")

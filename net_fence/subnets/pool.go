@@ -8,49 +8,50 @@ import (
 	"sync"
 )
 
-// A Subnets provides network allocations.
+// A Subnets provides a means of allocating /30 subnets.
 type Subnets interface {
-	// Dynamically allocates a /30 subnet, or returns an error if no more subnets can be allocated by this manager
+	// Dynamically allocates a /30 subnet, or returns an error if no more subnets can be allocated.
 	AllocateDynamically() (*net.IPNet, error)
 
-	// Statically allocates a /30 subnet, and returns an error if the address cannot be newly allocated
+	// Statically allocates the given /30 subnet, and returns an error if the address cannot be newly allocated.
 	AllocateStatically(*net.IPNet) error
 
-	// Releases an allocated network
+	// Releases an allocated network.
 	Release(*net.IPNet) error
 
-	// Recover an unallocated network so it appears to be allocated
+	// Recovers an unallocated network so it appears to be allocated.
 	Recover(*net.IPNet) error
 
-	// Capacity -- number of /30 subnets which can be Allocate(d)Dynamically.
+	// Returns the number of /30 subnets which can be Allocate(d)Dynamically.
 	Capacity() int
 }
 
 type subnetpool struct {
-	dynamicAllocationNet *net.IPNet
-	pool                 []*net.IPNet
-	static               []*net.IPNet
-	capacity             int
-
 	mutex sync.Mutex
+
+	dynamicAllocationNet *net.IPNet
+	pool                 []*net.IPNet // Unallocated /30 subnets in dynamicAllocationNet
+	capacity             int          // Number of /30 subnets in dynamicAllocationNet
+
+	static []*net.IPNet // Statically allocated subnets, disjoint from dynamicAllocationNet
 }
 
 var (
-	// ErrInsufficientSubnets is returned by AllocateDynamically if no more subnets can be allocated
+	// ErrInsufficientSubnets is returned by AllocateDynamically if no more subnets can be allocated.
 	ErrInsufficientSubnets = errors.New("insufficient subnets remaining in the pool")
 
-	// ErrReleasedUnallocatedNetwork is returned by Release if the subnet has not been allocated
-	ErrReleasedUnallocatedSubnet = errors.New("cannot release an unallocated subnet")
+	// ErrReleasedUnallocatedNetwork is returned by Release if the subnet is not allocated.
+	ErrReleasedUnallocatedSubnet = errors.New("subnet is not allocated")
 
-	// ErrAlreadyAllocated is returned by AlloocateStatically and by Recover if the subnet has already been statically
-	// or potentially dynamically allocated.
-	ErrAlreadyAllocated = errors.New("subnet has already been allocated")
+	// ErrAlreadyAllocated is returned by AllocateStatically and by Recover if the subnet is already allocated.
+	ErrAlreadyAllocated = errors.New("subnet is already allocated")
 
-	// ErrInvalidRange is returned by AllocateStatically and by Recover if the subnet range is invalid
+	// ErrInvalidRange is returned by AllocateStatically and by Recover if the subnet range is invalid.
 	ErrInvalidRange = errors.New("subnet has invalid range")
 
-	// ErrNotAllowed is returned by AllocateStatically and by Recover if the subnet range overlaps the dynamic allocation range
-	ErrNotAllowed = errors.New("the requested range cannot be allocated statically because it overlaps the dynamic allocation range")
+	// ErrNotAllowed is returned by AllocateStatically if the subnet range overlaps the dynamic allocation range
+	// and by Recover if the subnet range contains the dynamic allocation range.
+	ErrNotAllowed = errors.New("the requested range cannot be allocated statically")
 )
 
 var slash30mask net.IPMask
@@ -94,12 +95,12 @@ func (m *subnetpool) AllocateStatically(ipNet *net.IPNet) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	if m.dynamicAllocationNet.Contains(ipNet.IP) || ipNet.Contains(m.dynamicAllocationNet.IP) {
+	if overlaps(ipNet, m.dynamicAllocationNet) {
 		return ErrNotAllowed
 	}
 
 	for _, s := range m.static {
-		if s.Contains(ipNet.IP) || ipNet.Contains(s.IP) {
+		if overlaps(s, ipNet) {
 			return ErrAlreadyAllocated
 		}
 	}
@@ -107,6 +108,10 @@ func (m *subnetpool) AllocateStatically(ipNet *net.IPNet) error {
 	m.static = append(m.static, ipNet)
 
 	return nil
+}
+
+func overlaps(net1, net2 *net.IPNet) bool {
+	return net1.Contains(net2.IP) || net2.Contains(net1.IP)
 }
 
 func (m *subnetpool) Recover(ipNet *net.IPNet) error {

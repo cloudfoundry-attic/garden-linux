@@ -134,7 +134,7 @@ var _ = Describe("Subnet Pool", func() {
 					})
 
 					Context("but after it is released", func() {
-						It("should allow allocation again", func() {
+						It("allows allocation again", func() {
 							err := subnetpool.Release(static)
 							Ω(err).ShouldNot(HaveOccurred())
 
@@ -169,7 +169,7 @@ var _ = Describe("Subnet Pool", func() {
 					})
 
 					Context("but after it is released", func() {
-						It("should allow allocation again", func() {
+						It("allows allocation again", func() {
 							err := subnetpool.Release(first)
 							Ω(err).ShouldNot(HaveOccurred())
 
