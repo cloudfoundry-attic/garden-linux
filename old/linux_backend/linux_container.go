@@ -24,6 +24,14 @@ import (
 	"github.com/pivotal-golang/lager"
 )
 
+type UndefinedPropertyError struct {
+	Key string
+}
+
+func (err UndefinedPropertyError) Error() string {
+	return fmt.Sprintf("property does not exist: %s", err.Key)
+}
+
 type LinuxContainer struct {
 	logger lager.Logger
 
@@ -31,7 +39,8 @@ type LinuxContainer struct {
 	handle string
 	path   string
 
-	properties api.Properties
+	properties      api.Properties
+	propertiesMutex sync.RWMutex
 
 	graceTime time.Duration
 
@@ -391,6 +400,41 @@ func (c *LinuxContainer) Stop(kill bool) error {
 	c.stopOomNotifier()
 
 	c.setState(StateStopped)
+
+	return nil
+}
+
+func (c *LinuxContainer) GetProperty(key string) (string, error) {
+	c.propertiesMutex.RLock()
+	defer c.propertiesMutex.RUnlock()
+
+	value, found := c.properties[key]
+	if !found {
+		return "", UndefinedPropertyError{key}
+	}
+
+	return value, nil
+}
+
+func (c *LinuxContainer) SetProperty(key string, value string) error {
+	c.propertiesMutex.Lock()
+	defer c.propertiesMutex.Unlock()
+
+	c.properties[key] = value
+
+	return nil
+}
+
+func (c *LinuxContainer) RemoveProperty(key string) error {
+	c.propertiesMutex.Lock()
+	defer c.propertiesMutex.Unlock()
+
+	_, found := c.properties[key]
+	if !found {
+		return UndefinedPropertyError{key}
+	}
+
+	delete(c.properties, key)
 
 	return nil
 }

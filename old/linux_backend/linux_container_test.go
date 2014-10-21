@@ -1793,6 +1793,39 @@ var _ = Describe("Linux containers", func() {
 		})
 	})
 
+	Describe("Properties", func() {
+		It("can CRUD", func() {
+			value, err := container.GetProperty("property-name")
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(value).Should(Equal("property-value"))
+
+			value, err = container.GetProperty("some-other-property")
+			Ω(err).Should(Equal(linux_backend.UndefinedPropertyError{"some-other-property"}))
+			Ω(value).Should(BeZero())
+
+			err = container.SetProperty("some-other-property", "some-other-value")
+			Ω(err).ShouldNot(HaveOccurred())
+
+			value, err = container.GetProperty("some-other-property")
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(value).Should(Equal("some-other-value"))
+
+			err = container.SetProperty("some-other-property", "some-other-new-value")
+			Ω(err).ShouldNot(HaveOccurred())
+
+			value, err = container.GetProperty("some-other-property")
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(value).Should(Equal("some-other-new-value"))
+
+			err = container.RemoveProperty("some-other-property")
+			Ω(err).ShouldNot(HaveOccurred())
+
+			value, err = container.GetProperty("some-other-property")
+			Ω(err).Should(Equal(linux_backend.UndefinedPropertyError{"some-other-property"}))
+			Ω(value).Should(BeZero())
+		})
+	})
+
 	Describe("Info", func() {
 		It("returns the container's state", func() {
 			info, err := container.Info()

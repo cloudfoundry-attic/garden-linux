@@ -28,7 +28,7 @@ var _ = Describe("A container with properties", func() {
 		Ω(err).ShouldNot(HaveOccurred())
 	})
 
-	Describe("when reporting the container's info", func() {
+	Describe("reporting the container's info", func() {
 		It("includes the properties", func() {
 			info, err := container.Info()
 			Ω(err).ShouldNot(HaveOccurred())
@@ -40,7 +40,28 @@ var _ = Describe("A container with properties", func() {
 		})
 	})
 
-	Describe("when listing container info", func() {
+	Describe("updating container properties", func() {
+		It("can CRUD", func() {
+			value, err := container.GetProperty("foo")
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(value).Should(Equal("bar"))
+
+			err = container.SetProperty("foo", "baz")
+			Ω(err).ShouldNot(HaveOccurred())
+
+			err = container.RemoveProperty("a")
+			Ω(err).ShouldNot(HaveOccurred())
+
+			info, err := container.Info()
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(info.Properties).Should(Equal(api.Properties{
+				"foo": "baz",
+			}))
+		})
+	})
+
+	Describe("listing container info", func() {
 		var undesiredHandles []string
 
 		BeforeEach(func() {
