@@ -1,4 +1,4 @@
-package lifecycle_test
+package networking_test
 
 import (
 	"os/exec"
