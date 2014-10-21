@@ -13,16 +13,16 @@ import (
 	"github.com/onsi/gomega/gexec"
 	"github.com/tedsuo/ifrit"
 
-	Runner "github.com/cloudfoundry-incubator/garden-linux/old/integration/runner"
+	"github.com/cloudfoundry-incubator/garden-linux/integration/runner"
 )
 
-var binPath = "../../linux_backend/bin"
+var binPath = "../../old/linux_backend/bin"
 var rootFSPath = os.Getenv("GARDEN_TEST_ROOTFS")
 var graphPath = os.Getenv("GARDEN_TEST_GRAPHPATH")
 
 var gardenBin string
 
-var gardenRunner *Runner.Runner
+var gardenRunner *runner.Runner
 var gardenProcess ifrit.Process
 
 var client api.Client
@@ -30,7 +30,7 @@ var client api.Client
 func startGarden(argv ...string) api.Client {
 	gardenAddr := fmt.Sprintf("/tmp/garden_%d.sock", GinkgoParallelNode())
 
-	gardenRunner = Runner.New("unix", gardenAddr, gardenBin, binPath, rootFSPath, graphPath, argv...)
+	gardenRunner = runner.New("unix", gardenAddr, gardenBin, binPath, rootFSPath, graphPath, argv...)
 
 	gardenProcess = ifrit.Envoke(gardenRunner)
 
