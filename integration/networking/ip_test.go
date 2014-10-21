@@ -1,4 +1,4 @@
-package lifecycle_test
+package networking_test
 
 import (
 	"os/exec"
@@ -10,15 +10,15 @@ import (
 	"github.com/onsi/gomega/gbytes"
 )
 
-var _ = Describe("MTU size", func() {
+var _ = Describe("IP settings", func() {
 	var container api.Container
 
 	BeforeEach(func() {
-		client = startGarden("-mtu=6789")
+		client = startGarden()
 
 		var err error
 
-		container, err = client.Create(api.ContainerSpec{})
+		container, err = client.Create(api.ContainerSpec{Network: "10.3.0.0/24"})
 		Ω(err).ShouldNot(HaveOccurred())
 	})
 
@@ -28,7 +28,7 @@ var _ = Describe("MTU size", func() {
 	})
 
 	Describe("container's network interface", func() {
-		It("has the correct MTU size", func() {
+		It("has the correct IP address", func() {
 			stdout := gbytes.NewBuffer()
 			stderr := gbytes.NewBuffer()
 
@@ -46,18 +46,18 @@ var _ = Describe("MTU size", func() {
 			Ω(err).ShouldNot(HaveOccurred())
 			Ω(rc).Should(Equal(0))
 
-			Ω(stdout.Contents()).Should(ContainSubstring(" MTU:6789 "))
+			Ω(stdout.Contents()).Should(ContainSubstring(" inet addr:10.3.0.1 "))
 		})
 	})
 
 	Describe("hosts's network interface for a container", func() {
-		It("has the correct MTU size", func() {
+		It("has the correct IP address", func() {
 			hostInterface := "w" + strconv.Itoa(GinkgoParallelNode()) + container.Handle() + "-0"
 
 			out, err := exec.Command("/sbin/ifconfig", hostInterface).Output()
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Ω(out).Should(ContainSubstring(" MTU:6789 "))
+			Ω(out).Should(ContainSubstring(" inet addr:10.3.0.254 "))
 		})
 	})
 
