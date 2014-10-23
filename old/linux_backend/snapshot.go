@@ -1,11 +1,10 @@
 package linux_backend
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden/api"
-
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/network"
 )
 
 type ContainerSnapshot struct {
@@ -40,7 +39,7 @@ type LimitsSnapshot struct {
 
 type ResourcesSnapshot struct {
 	UID     uint32
-	Network *network.Network
+	Network *json.RawMessage
 	Ports   []uint32
 }
 

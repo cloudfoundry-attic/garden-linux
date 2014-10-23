@@ -13,8 +13,8 @@ type Subnets interface {
 	// Dynamically allocates a /30 subnet, or returns an error if no more subnets can be allocated.
 	AllocateDynamically() (*net.IPNet, error)
 
-	// Statically allocates the given /30 subnet, and returns an error if the address cannot be newly allocated.
-	AllocateStatically(*net.IPNet) error
+	// Statically allocates the given subnet, and returns an error if the subnet cannot be newly allocated
+	AllocateStatically(subnet *net.IPNet) error
 
 	// Releases an allocated network.
 	Release(*net.IPNet) error

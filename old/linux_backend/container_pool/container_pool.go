@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"net"
 	"net/url"
 	"os"
 	"os/exec"
@@ -19,12 +18,11 @@ import (
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/pivotal-golang/lager"
 
-	"github.com/cloudfoundry-incubator/garden-linux/net_fence/subnets"
+	"github.com/cloudfoundry-incubator/garden-linux/fences"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/rootfs_provider"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/network"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/process_tracker"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/quota_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/uid_pool"
@@ -34,6 +32,12 @@ import (
 
 var ErrUnknownRootFSProvider = errors.New("unknown rootfs provider")
 var ErrNetworkHostbitsNonZero = errors.New("network host bits non-zero")
+
+type FenceBuilders interface {
+	Rebuild(rm *json.RawMessage) (fences.Fence, error)
+	Build(spec string) (fences.Fence, error)
+	Capacity() int
+}
 
 type LinuxContainerPool struct {
 	logger lager.Logger
@@ -48,10 +52,9 @@ type LinuxContainerPool struct {
 
 	rootfsProviders map[string]rootfs_provider.RootFSProvider
 
-	uidPool     uid_pool.UIDPool
-	networkPool subnets.Subnets
-	portPool    linux_backend.PortPool
-	mtu         uint32
+	uidPool  uid_pool.UIDPool
+	builders FenceBuilders
+	portPool linux_backend.PortPool
 
 	runner command_runner.CommandRunner
 
@@ -66,10 +69,9 @@ func New(
 	sysconfig sysconfig.Config,
 	rootfsProviders map[string]rootfs_provider.RootFSProvider,
 	uidPool uid_pool.UIDPool,
-	networkPool subnets.Subnets,
+	builders FenceBuilders,
 	portPool linux_backend.PortPool,
 	denyNetworks, allowNetworks []string,
-	mtu uint32,
 	runner command_runner.CommandRunner,
 	quotaManager quota_manager.QuotaManager,
 ) *LinuxContainerPool {
@@ -85,11 +87,10 @@ func New(
 
 		allowNetworks: allowNetworks,
 		denyNetworks:  denyNetworks,
-		mtu:           mtu,
 
-		uidPool:     uidPool,
-		networkPool: networkPool,
-		portPool:    portPool,
+		uidPool:  uidPool,
+		builders: builders,
+		portPool: portPool,
 
 		runner: runner,
 
@@ -104,7 +105,7 @@ func New(
 }
 
 func (p *LinuxContainerPool) MaxContainers() int {
-	maxNet := p.networkPool.Capacity()
+	maxNet := p.builders.Capacity()
 	maxUid := p.uidPool.InitialSize()
 	if maxNet < maxUid {
 		return maxNet
@@ -203,7 +204,6 @@ func (p *LinuxContainerPool) Create(spec api.ContainerSpec) (c linux_backend.Con
 		p.quotaManager,
 		bandwidth_manager.New(containerPath, id, p.runner),
 		process_tracker.New(containerPath, p.runner),
-		p.mtu,
 		mergeEnv(spec.Env, rootFSEnvVars),
 	), nil
 }
@@ -231,7 +231,7 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 		return nil, err
 	}
 
-	err = p.networkPool.Recover(resources.Network.IPNet())
+	state, err := p.builders.Rebuild(resources.Network)
 	if err != nil {
 		p.uidPool.Release(resources.UID)
 		return nil, err
@@ -241,7 +241,7 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 		err = p.portPool.Remove(port)
 		if err != nil {
 			p.uidPool.Release(resources.UID)
-			p.networkPool.Release(resources.Network.IPNet())
+			state.Dismantle()
 
 			for _, port := range resources.Ports {
 				p.portPool.Release(port)
@@ -266,7 +266,7 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 		containerSnapshot.GraceTime,
 		linux_backend.NewResources(
 			resources.UID,
-			resources.Network,
+			state,
 			resources.Ports,
 		),
 		p.portPool,
@@ -275,7 +275,6 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 		p.quotaManager,
 		bandwidthManager,
 		process_tracker.New(containerPath, p.runner),
-		p.mtu,
 		containerSnapshot.EnvVars,
 	)
 
@@ -384,13 +383,16 @@ func (p *LinuxContainerPool) saveRootFSProvider(id string, provider string) erro
 }
 
 func (p *LinuxContainerPool) acquirePoolResources(spec api.ContainerSpec) (*linux_backend.Resources, error) {
+	var err error
 	resources := linux_backend.NewResources(0, nil, nil)
 
 	if err := p.acquireUID(resources); err != nil {
 		return nil, err
 	}
 
-	if err := p.acquireNetworkResources(resources, spec); err != nil {
+	if resources.Network, err = p.builders.Build(spec.Network); err != nil {
+		p.logger.Error("network-acquire-failed", err)
+		p.releasePoolResources(resources)
 		return nil, err
 	}
 
@@ -409,46 +411,6 @@ func (p *LinuxContainerPool) acquireUID(resources *linux_backend.Resources) erro
 	return nil
 }
 
-func (p *LinuxContainerPool) acquireNetworkResources(resources *linux_backend.Resources, spec api.ContainerSpec) error {
-	var err error
-	var ipn *net.IPNet
-
-	if spec.Network == "" {
-		if ipn, err = p.networkPool.AllocateDynamically(); err != nil {
-			p.logger.Error("network-acquire-failed", err)
-			p.releasePoolResources(resources)
-			return err
-		}
-	} else {
-		var network = spec.Network
-		if !strings.Contains(network, "/") {
-			network = network + "/30"
-		}
-
-		var ip net.IP
-		if ip, ipn, err = net.ParseCIDR(network); err != nil {
-			p.logger.Error("invalid-network-parameter", err)
-			p.releasePoolResources(resources)
-			return err
-		}
-
-		if !ip.Equal(ipn.IP) {
-			p.logger.Error("invalid-network-parameter", ErrNetworkHostbitsNonZero)
-			p.releasePoolResources(resources)
-			return ErrNetworkHostbitsNonZero
-		}
-
-		if err = p.networkPool.AllocateStatically(ipn); err != nil {
-			p.logger.Error("network-acquire-failed", err)
-			p.releasePoolResources(resources)
-			return err
-		}
-	}
-
-	resources.Network = network.New(ipn)
-	return nil
-}
-
 func (p *LinuxContainerPool) releasePoolResources(resources *linux_backend.Resources) {
 	for _, port := range resources.Ports {
 		p.portPool.Release(port)
@@ -459,7 +421,7 @@ func (p *LinuxContainerPool) releasePoolResources(resources *linux_backend.Resou
 	}
 
 	if resources.Network != nil {
-		p.networkPool.Release(resources.Network.IPNet())
+		resources.Network.Dismantle()
 	}
 }
 
@@ -492,11 +454,9 @@ func (p *LinuxContainerPool) acquireSystemResources(id, containerPath, rootFSPat
 		"id=" + id,
 		"rootfs_path=" + rootfsPath,
 		fmt.Sprintf("user_uid=%d", resources.UID),
-		fmt.Sprintf("network_host_ip=%s", resources.Network.HostIP()),
-		fmt.Sprintf("network_container_ip=%s", resources.Network.ContainerIP()),
-		fmt.Sprintf("network_cidr_suffix=%d", resources.Network.CIDRSuffix()),
 		"PATH=" + os.Getenv("PATH"),
 	}
+	resources.Network.ConfigureProcess(&create.Env)
 
 	pRunner := logging.Runner{
 		CommandRunner: p.runner,

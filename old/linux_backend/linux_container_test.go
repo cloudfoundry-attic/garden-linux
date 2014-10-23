@@ -8,11 +8,9 @@ import (
 	"io"
 	"io/ioutil"
 	"math"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -21,11 +19,9 @@ import (
 	"github.com/onsi/gomega/gbytes"
 	"github.com/pivotal-golang/lager/lagertest"
 
-	"github.com/cloudfoundry-incubator/garden-linux/net_fence/subnets"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/bandwidth_manager/fake_bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/cgroups_manager/fake_cgroups_manager"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/network"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/port_pool/fake_port_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/process_tracker/fake_process_tracker"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/quota_manager/fake_quota_manager"
@@ -56,17 +52,9 @@ var _ = Describe("Linux containers", func() {
 		fakeBandwidthManager = fake_bandwidth_manager.New()
 		fakeProcessTracker = new(fake_process_tracker.FakeProcessTracker)
 
-		_, ipNet, err := net.ParseCIDR("10.254.0.0/24")
-		Ω(err).ShouldNot(HaveOccurred())
-
 		fakePortPool = fake_port_pool.New(1000)
 
-		networkPool, err := subnets.New(ipNet)
-		Ω(err).ShouldNot(HaveOccurred())
-
-		netw, err := networkPool.AllocateDynamically()
-		Ω(err).ShouldNot(HaveOccurred())
-
+		var err error
 		containerDir, err = ioutil.TempDir("", "depot")
 		Ω(err).ShouldNot(HaveOccurred())
 
@@ -77,7 +65,7 @@ var _ = Describe("Linux containers", func() {
 
 		containerResources = linux_backend.NewResources(
 			1234,
-			network.New(netw),
+			&fakeNetworkResources{},
 			[]uint32{},
 		)
 
@@ -101,7 +89,6 @@ var _ = Describe("Linux containers", func() {
 			fakeQuotaManager,
 			fakeBandwidthManager,
 			fakeProcessTracker,
-			mtu,
 			[]string{"env1=env1Value", "env2=env2Value"},
 		)
 	})
@@ -179,10 +166,11 @@ var _ = Describe("Linux containers", func() {
 
 			Ω(snapshot.State).Should(Equal("active"))
 
+			nm := json.RawMessage(`"fakeNetMarshal"`)
 			Ω(snapshot.Resources).Should(Equal(
 				linux_backend.ResourcesSnapshot{
 					UID:     containerResources.UID,
-					Network: containerResources.Network,
+					Network: &nm,
 					Ports:   containerResources.Ports,
 				},
 			))
@@ -391,7 +379,6 @@ var _ = Describe("Linux containers", func() {
 				fake_command_runner.CommandSpec{
 					Path: containerDir + "/net.sh",
 					Args: []string{"setup"},
-					Env:  []string{"NETWORK=10.254.0.0/30"},
 				},
 				fake_command_runner.CommandSpec{
 					Path: containerDir + "/net.sh",
@@ -545,8 +532,6 @@ var _ = Describe("Linux containers", func() {
 					Path: containerDir + "/start.sh",
 					Env: []string{
 						"id=some-id",
-						"container_iface_mtu=1400",
-						"NETWORK=10.254.0.0/30",
 						"PATH=" + os.Getenv("PATH"),
 					},
 				},
@@ -599,9 +584,6 @@ var _ = Describe("Linux containers", func() {
 			Ω(fakeRunner).Should(HaveExecutedSerially(
 				fake_command_runner.CommandSpec{
 					Path: containerDir + "/stop.sh",
-					Env: []string{
-						"NETWORK=10.254.0.0/30",
-					},
 				},
 			))
 		})
@@ -702,10 +684,8 @@ var _ = Describe("Linux containers", func() {
 	})
 
 	Describe("Streaming data in", func() {
-		var source io.Reader
 
 		BeforeEach(func() {
-			source = strings.NewReader("the-tar-content")
 		})
 
 		It("streams the input to tar xf in the container", func() {
@@ -754,12 +734,6 @@ var _ = Describe("Linux containers", func() {
 	})
 
 	Describe("Streaming out", func() {
-		var destination *bytes.Buffer
-
-		BeforeEach(func() {
-			destination = new(bytes.Buffer)
-		})
-
 		It("streams the output of tar cf to the destination", func() {
 			fakeRunner.WhenRunning(
 				fake_command_runner.CommandSpec{
@@ -1852,8 +1826,8 @@ var _ = Describe("Linux containers", func() {
 			info, err := container.Info()
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Ω(info.HostIP).Should(Equal("10.254.0.2"))
-			Ω(info.ContainerIP).Should(Equal("10.254.0.1"))
+			Ω(info.HostIP).Should(Equal("fakeHostIp"))
+			Ω(info.ContainerIP).Should(Equal("fakeContainerIp"))
 		})
 
 		It("returns the container's path", func() {
@@ -2112,4 +2086,23 @@ system 2
 
 func uint64ptr(n uint64) *uint64 {
 	return &n
+}
+
+type fakeNetworkResources struct{}
+
+func (f *fakeNetworkResources) MarshalJSON() ([]byte, error) {
+	return json.Marshal("fakeNetMarshal")
+}
+
+func (f *fakeNetworkResources) ConfigureProcess(*[]string) error {
+	return nil
+}
+
+func (f *fakeNetworkResources) Dismantle() error {
+	return nil
+}
+
+func (f *fakeNetworkResources) Info(i *api.ContainerInfo) {
+	i.HostIP = "fakeHostIp"
+	i.ContainerIP = "fakeContainerIp"
 }

@@ -19,7 +19,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/cf-debug-server"
 	"github.com/cloudfoundry-incubator/cf-lager"
-	"github.com/cloudfoundry-incubator/garden-linux/net_fence/subnets"
+	"github.com/cloudfoundry-incubator/garden-linux/fences"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/repository_fetcher"
@@ -142,7 +142,7 @@ var tag = flag.String(
 	"server-wide identifier used for 'global' configuration",
 )
 
-func Main(networkPool subnets.Subnets, mtu uint32) {
+func Main(builders *fences.BuilderRegistry) {
 
 	cf_debug_server.Run()
 
@@ -215,11 +215,10 @@ func Main(networkPool subnets.Subnets, mtu uint32) {
 		config,
 		rootFSProviders,
 		uidPool,
-		networkPool,
+		builders,
 		portPool,
 		strings.Split(*denyNetworks, ","),
 		strings.Split(*allowNetworks, ","),
-		mtu,
 		runner,
 		quotaManager,
 	)
