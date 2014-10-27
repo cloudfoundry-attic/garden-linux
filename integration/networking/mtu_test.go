@@ -2,7 +2,6 @@ package networking_test
 
 import (
 	"os/exec"
-	"strconv"
 
 	"github.com/cloudfoundry-incubator/garden/api"
 	. "github.com/onsi/ginkgo"
@@ -32,11 +31,9 @@ var _ = Describe("MTU size", func() {
 			stdout := gbytes.NewBuffer()
 			stderr := gbytes.NewBuffer()
 
-			containerInterface := "w" + strconv.Itoa(GinkgoParallelNode()) + container.Handle() + "-1"
-
 			process, err := container.Run(api.ProcessSpec{
 				Path: "/sbin/ifconfig",
-				Args: []string{containerInterface},
+				Args: []string{containerIfName(container)},
 			}, api.ProcessIO{
 				Stdout: stdout,
 				Stderr: stderr,
@@ -52,9 +49,7 @@ var _ = Describe("MTU size", func() {
 
 	Describe("hosts's network interface for a container", func() {
 		It("has the correct MTU size", func() {
-			hostInterface := "w" + strconv.Itoa(GinkgoParallelNode()) + container.Handle() + "-0"
-
-			out, err := exec.Command("/sbin/ifconfig", hostInterface).Output()
+			out, err := exec.Command("/sbin/ifconfig", hostIfName(container)).Output()
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(out).Should(ContainSubstring(" MTU:6789 "))
