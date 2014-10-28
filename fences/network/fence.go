@@ -2,6 +2,7 @@ package network
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -16,6 +17,16 @@ type f struct {
 	mtu uint32
 }
 
+type FlatFence struct {
+	Ipn         string
+	ContainerIP string
+}
+
+var (
+	ErrIPEqualsGateway   = errors.New("a container IP must not equal the gateway IP")
+	ErrIPEqualsBroadcast = errors.New("a container IP must not equal the broadcast IP")
+)
+
 func (f *f) Build(spec string) (fences.Fence, error) {
 	if spec == "" {
 		ipn, err := f.Subnets.AllocateDynamically()
@@ -23,13 +34,14 @@ func (f *f) Build(spec string) (fences.Fence, error) {
 			return nil, err
 		}
 
-		return &Allocation{ipn, f}, nil
+		containerIP := nextIP(ipn.IP)
+		return &Allocation{ipn, containerIP, f}, nil
 	} else {
 		if !strings.Contains(spec, "/") {
 			spec = spec + "/30"
 		}
 
-		_, ipn, err := net.ParseCIDR(spec)
+		specifiedIP, ipn, err := net.ParseCIDR(spec)
 		if err != nil {
 			return nil, err
 		}
@@ -38,17 +50,30 @@ func (f *f) Build(spec string) (fences.Fence, error) {
 			return nil, err
 		}
 
-		return &Allocation{ipn, f}, nil
+		gatewayIP := maxValidIP(ipn)
+		broadcastIP := nextIP(gatewayIP)
+
+		var containerIP net.IP
+		if specifiedIP.Equal(ipn.IP) {
+			containerIP = nextIP(ipn.IP)
+		} else if specifiedIP.Equal(gatewayIP) {
+			return nil, ErrIPEqualsGateway
+		} else if specifiedIP.Equal(broadcastIP) {
+			return nil, ErrIPEqualsBroadcast
+		} else {
+			containerIP = specifiedIP
+		}
+		return &Allocation{ipn, containerIP, f}, nil
 	}
 }
 
 func (f *f) Rebuild(rm *json.RawMessage) (fences.Fence, error) {
-	var subnet string
-	if err := json.Unmarshal(*rm, &subnet); err != nil {
+	ff := FlatFence{}
+	if err := json.Unmarshal(*rm, &ff); err != nil {
 		return nil, err
 	}
 
-	_, ipn, err := net.ParseCIDR(subnet)
+	_, ipn, err := net.ParseCIDR(ff.Ipn)
 	if err != nil {
 		return nil, err
 	}
@@ -57,12 +82,13 @@ func (f *f) Rebuild(rm *json.RawMessage) (fences.Fence, error) {
 		return nil, err
 	}
 
-	return &Allocation{ipn, f}, nil
+	return &Allocation{ipn, net.ParseIP(ff.ContainerIP), f}, nil
 }
 
 type Allocation struct {
 	*net.IPNet
-	parent *f
+	containerIP net.IP
+	parent      *f
 }
 
 func (a *Allocation) Dismantle() error {
@@ -71,19 +97,19 @@ func (a *Allocation) Dismantle() error {
 
 func (a *Allocation) Info(i *api.ContainerInfo) {
 	i.HostIP = maxValidIP(a.IPNet).String()
-	i.ContainerIP = nextIP(a.IPNet.IP).String()
+	i.ContainerIP = a.containerIP.String()
 }
 
 func (a *Allocation) MarshalJSON() ([]byte, error) {
-	return json.Marshal(a.IPNet.String())
+	ff := FlatFence{a.IPNet.String(), a.containerIP.String()}
+	return json.Marshal(ff)
 }
 
 func (a *Allocation) ConfigureProcess(env *[]string) error {
-	min := a.IPNet.IP
 	suff, _ := a.IPNet.Mask.Size()
 
 	*env = append(*env, fmt.Sprintf("network_host_ip=%s", maxValidIP(a.IPNet)),
-		fmt.Sprintf("network_container_ip=%s", nextIP(min)),
+		fmt.Sprintf("network_container_ip=%s", a.containerIP),
 		fmt.Sprintf("network_cidr_suffix=%d", suff),
 		fmt.Sprintf("container_iface_mtu=%d", a.parent.mtu),
 		fmt.Sprintf("network_cidr=%s", a.IPNet.String()))

@@ -33,7 +33,7 @@ var _ = Describe("Fence", func() {
 		})
 	})
 
-	Describe("Allocate", func() {
+	Describe("Build", func() {
 		Context("when the network parameter is not empty", func() {
 			It("statically allocates the requested network if it contains a prefix length", func() {
 				_, err := fence.Build("1.3.4.0/28")
@@ -61,6 +61,27 @@ var _ = Describe("Fence", func() {
 
 				Ω(fakeSubnetPool.allocatedStatically).Should(ContainElement("1.3.4.4/30"))
 			})
+
+			It("statically allocates the requested Network with a specified IP address", func() {
+				f, err := fence.Build("1.3.4.3/28")
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Ω(fakeSubnetPool.allocatedStatically).Should(ContainElement("1.3.4.0/28"))
+
+				containerInfo := api.ContainerInfo{}
+				f.Info(&containerInfo)
+				Ω(containerInfo.ContainerIP).Should(Equal("1.3.4.3"))
+			})
+
+			It("fails if a static subnet is requested specifying an IP address which clashes with the gateway IP address", func() {
+				_, err := fence.Build("1.3.4.14/28")
+				Ω(err).Should(MatchError(ErrIPEqualsGateway))
+			})
+
+			It("fails if a static subnet is requested specifying an IP address which clashes with the broadcast IP address", func() {
+				_, err := fence.Build("1.3.4.15/28")
+				Ω(err).Should(MatchError(ErrIPEqualsBroadcast))
+			})
 		})
 
 		Context("when the network parameter is empty", func() {
@@ -83,26 +104,33 @@ var _ = Describe("Fence", func() {
 	})
 
 	var allocate = func(ip string) *Allocation {
-		_, ipn, err := net.ParseCIDR(ip)
+		_, a, err := net.ParseCIDR("1.2.0.0/22")
+		Ω(err).ShouldNot(HaveOccurred())
+		privateFakeSubnetPool := &fakeSubnets{nextDynamicAllocation: a}
+		privateBuilder := &f{privateFakeSubnetPool, 1500}
+		privateFence, err := privateBuilder.Build(ip)
 		Ω(err).ShouldNot(HaveOccurred())
 
-		return &Allocation{ipn, fence}
+		allocation := privateFence.(*Allocation)
+		allocation.parent = fence
+		return allocation
 	}
 
-	Describe("Recover", func() {
+	Describe("Rebuild", func() {
 		Context("When there is not an error", func() {
-			It("parses the message from JSON and delegates to Subnets", func() {
+			It("parses the message from JSON, delegates to Subnets, and rebuilds the fence correctly", func() {
 				var err error
 				var md json.RawMessage
-				md, err = allocate("1.2.0.0/22").MarshalJSON()
+				md, err = allocate("1.2.0.5/28").MarshalJSON()
 				Ω(err).ShouldNot(HaveOccurred())
 
 				recovered, err := fence.Rebuild(&md)
 				Ω(err).ShouldNot(HaveOccurred())
-				Ω(fakeSubnetPool.recovered).Should(ContainElement("1.2.0.0/22"))
+				Ω(fakeSubnetPool.recovered).Should(ContainElement("1.2.0.0/28"))
 
 				recoveredAllocation := recovered.(*Allocation)
-				Ω(recoveredAllocation.IPNet.String()).Should(Equal("1.2.0.0/22"))
+				Ω(recoveredAllocation.IPNet.String()).Should(Equal("1.2.0.0/28"))
+				Ω(recoveredAllocation.containerIP.String()).Should(Equal("1.2.0.5"))
 			})
 		})
 
@@ -135,13 +163,22 @@ var _ = Describe("Fence", func() {
 		})
 
 		Describe("Info", func() {
-			It("stores network info in the container api object", func() {
+			It("stores network info of a /30 subnet in the container api object", func() {
 				allocation := allocate("1.2.0.0/30")
 				var api api.ContainerInfo
 				allocation.Info(&api)
 
 				Ω(api.HostIP).Should(Equal("1.2.0.2"))
 				Ω(api.ContainerIP).Should(Equal("1.2.0.1"))
+			})
+
+			It("stores network info of a /28 subnet with a specified IP in the container api object", func() {
+				allocation := allocate("1.2.0.5/28")
+				var api api.ContainerInfo
+				allocation.Info(&api)
+
+				Ω(api.HostIP).Should(Equal("1.2.0.14"))
+				Ω(api.ContainerIP).Should(Equal("1.2.0.5"))
 			})
 		})
 
@@ -152,13 +189,13 @@ var _ = Describe("Fence", func() {
 				)
 
 				BeforeEach(func() {
-					_, ipn, err := net.ParseCIDR("4.5.6.0/29")
+					ipAddr, ipn, err := net.ParseCIDR("4.5.6.0/29")
 					Ω(err).ShouldNot(HaveOccurred())
 
 					fence.mtu = 123
 
 					env = []string{"foo", "bar"}
-					allocation := &Allocation{ipn, fence}
+					allocation := &Allocation{ipn, nextIP(ipAddr), fence}
 					allocation.ConfigureProcess(&env)
 				})
 
