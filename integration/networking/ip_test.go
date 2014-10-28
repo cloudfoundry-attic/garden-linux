@@ -94,4 +94,26 @@ var _ = Describe("IP settings", func() {
 		})
 	})
 
+	Describe("the internet", func() {
+		It("is reachable from inside the container", func() {
+			stdout := gbytes.NewBuffer()
+			stderr := gbytes.NewBuffer()
+
+			process, err := container.Run(api.ProcessSpec{
+				Path: "/bin/ping",
+				Args: []string{"-c", "2", "8.8.8.8"},
+			}, api.ProcessIO{
+				Stdout: stdout,
+				Stderr: stderr,
+			})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			rc, err := process.Wait()
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(rc).Should(Equal(0))
+
+			Ω(stdout.Contents()).Should(ContainSubstring("0% packet loss"))
+		})
+	})
+
 })
