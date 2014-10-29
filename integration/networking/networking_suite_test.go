@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strconv"
 	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden-linux/integration/runner"
@@ -71,4 +72,19 @@ func TestNetworking(t *testing.T) {
 
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Networking Suite")
+}
+
+// networking test utility functions
+func containerIfName(container api.Container) string {
+	return ifNamePrefix(container) + "-1"
+
+}
+
+func hostIfName(container api.Container) string {
+	return ifNamePrefix(container) + "-0"
+
+}
+
+func ifNamePrefix(container api.Container) string {
+	return "w" + strconv.Itoa(GinkgoParallelNode()) + container.Handle()
 }

@@ -84,7 +84,7 @@ var _ = Describe("IP settings", func() {
 
 				process, err := container.Run(api.ProcessSpec{
 					Path: "/sbin/ifconfig",
-					Args: []string{containerInterface},
+					Args: []string{containerIfName(container)},
 				}, api.ProcessIO{
 					Stdout: stdout,
 					Stderr: stderr,
@@ -106,6 +106,18 @@ var _ = Describe("IP settings", func() {
 
 				Ω(out).Should(ContainSubstring(" inet addr:10.3.0.254 "))
 			})
+		})
+	})
+
+	Describe("the container's network", func() {
+		It("is reachable from the host", func() {
+			info, ierr := container.Info()
+			Ω(ierr).ShouldNot(HaveOccurred())
+
+			out, err := exec.Command("/bin/ping", "-c 2", info.ContainerIP).Output()
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(out).Should(ContainSubstring("0% packet loss"))
 		})
 	})
 
