@@ -3,12 +3,12 @@ package linux_backend
 import (
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/network"
+	"github.com/cloudfoundry-incubator/garden-linux/fences"
 )
 
 type Resources struct {
 	UID     uint32
-	Network *network.Network
+	Network fences.Fence
 	Ports   []uint32
 
 	portsLock *sync.Mutex
@@ -16,7 +16,7 @@ type Resources struct {
 
 func NewResources(
 	uid uint32,
-	network *network.Network,
+	network fences.Fence,
 	ports []uint32,
 ) *Resources {
 	return &Resources{

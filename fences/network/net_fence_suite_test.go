@@ -1,4 +1,4 @@
-package net_fence_test
+package network
 
 import (
 	. "github.com/onsi/ginkgo"
@@ -9,5 +9,5 @@ import (
 
 func TestNetFence(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "net_fence suite")
+	RunSpecs(t, "Network Fence suite")
 }

@@ -2,21 +2,21 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"os"
 
-	"github.com/cloudfoundry-incubator/garden-linux/net_fence"
+	"github.com/cloudfoundry-incubator/garden-linux/fences"
+	_ "github.com/cloudfoundry-incubator/garden-linux/fences/network"
 	"github.com/cloudfoundry-incubator/garden-linux/old"
 )
 
 // garden-linux server process
 func main() {
-
-	net_fence.InitializeFlags(flag.CommandLine)
-	flag.Parse()
-
-	subnets, mtu, err := net_fence.Initialize()
+	builders, err := fences.Main(flag.CommandLine, os.Args[1:])
 	if err != nil {
-		panic("failed to initialize net_fence: " + err.Error())
+		fmt.Printf("Error creating fence: %s", err)
+		return
 	}
 
-	old.Main(subnets, mtu)
+	old.Main(builders)
 }

@@ -124,7 +124,6 @@ func NewLinuxContainer(
 	quotaManager quota_manager.QuotaManager,
 	bandwidthManager bandwidth_manager.BandwidthManager,
 	processTracker process_tracker.ProcessTracker,
-	mtu uint32,
 	envvars []string,
 ) *LinuxContainer {
 	return &LinuxContainer{
@@ -152,8 +151,6 @@ func NewLinuxContainer(
 		bandwidthManager: bandwidthManager,
 
 		processTracker: processTracker,
-
-		mtu: mtu,
 
 		envvars: envvars,
 	}
@@ -248,9 +245,8 @@ func (c *LinuxContainer) Snapshot(out io.Writer) error {
 		},
 
 		Resources: ResourcesSnapshot{
-			UID:     c.resources.UID,
-			Network: c.resources.Network,
-			Ports:   c.resources.Ports,
+			UID:   c.resources.UID,
+			Ports: c.resources.Ports,
 		},
 
 		NetIns:  c.netIns,
@@ -263,7 +259,20 @@ func (c *LinuxContainer) Snapshot(out io.Writer) error {
 		EnvVars: c.envvars,
 	}
 
-	err := json.NewEncoder(out).Encode(snapshot)
+	var err error
+	m, err := c.resources.Network.MarshalJSON()
+	if err != nil {
+		cLog.Error("failed-to-save", err, lager.Data{
+			"snapshot": snapshot,
+			"network":  c.resources.Network,
+		})
+		return err
+	}
+
+	var rm json.RawMessage = m
+	snapshot.Resources.Network = &rm
+
+	err = json.NewEncoder(out).Encode(snapshot)
 	if err != nil {
 		cLog.Error("failed-to-save", err, lager.Data{
 			"snapshot": snapshot,
@@ -313,7 +322,6 @@ func (c *LinuxContainer) Restore(snapshot ContainerSnapshot) error {
 	}
 
 	net := exec.Command(path.Join(c.path, "net.sh"), "setup")
-	net.Env = []string{"NETWORK=" + c.resources.Network.IPNet().String()}
 
 	err := cRunner.Run(net)
 	if err != nil {
@@ -350,8 +358,6 @@ func (c *LinuxContainer) Start() error {
 	start := exec.Command(path.Join(c.path, "start.sh"))
 	start.Env = []string{
 		"id=" + c.id,
-		"container_iface_mtu=" + fmt.Sprintf("%d", c.mtu),
-		"NETWORK=" + c.resources.Network.IPNet().String(),
 		"PATH=" + os.Getenv("PATH"),
 	}
 
@@ -384,9 +390,6 @@ func (c *LinuxContainer) Cleanup() {
 
 func (c *LinuxContainer) Stop(kill bool) error {
 	stop := exec.Command(path.Join(c.path, "stop.sh"))
-	stop.Env = []string{
-		"NETWORK=" + c.resources.Network.IPNet().String(),
-	}
 
 	if kill {
 		stop.Args = append(stop.Args, "-w", "0")
@@ -485,12 +488,10 @@ func (c *LinuxContainer) Info() (api.ContainerInfo, error) {
 		processIDs = append(processIDs, process.ID())
 	}
 
-	return api.ContainerInfo{
+	info := api.ContainerInfo{
 		State:         string(c.State()),
 		Events:        c.Events(),
 		Properties:    c.Properties(),
-		HostIP:        c.resources.Network.HostIP().String(),
-		ContainerIP:   c.resources.Network.ContainerIP().String(),
 		ContainerPath: c.path,
 		ProcessIDs:    processIDs,
 		MemoryStat:    parseMemoryStat(memoryStat),
@@ -498,7 +499,10 @@ func (c *LinuxContainer) Info() (api.ContainerInfo, error) {
 		DiskStat:      diskStat,
 		BandwidthStat: bandwidthStat,
 		MappedPorts:   mappedPorts,
-	}, nil
+	}
+
+	c.Resources().Network.Info(&info)
+	return info, nil
 }
 
 func (c *LinuxContainer) StreamIn(dstPath string, tarStream io.Reader) error {

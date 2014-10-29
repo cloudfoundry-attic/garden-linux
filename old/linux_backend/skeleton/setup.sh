@@ -12,6 +12,8 @@ iface_name_prefix="${GARDEN_NETWORK_INTERFACE_PREFIX}"
 max_id_len=$(expr 16 - ${#iface_name_prefix} - 2)
 iface_name=$(tail -c ${max_id_len} <<< ${id})
 id=${id:-test}
+network_cidr=${network_cidr:-10.0.0.0/30}
+container_iface_mtu=${container_iface_mtu:-1500}
 network_host_ip=${network_host_ip:-10.0.0.1}
 network_host_iface="${iface_name_prefix}${iface_name}-0"
 network_container_ip=${network_container_ip:-10.0.0.2}
@@ -28,6 +30,8 @@ network_host_iface=$network_host_iface
 network_container_ip=$network_container_ip
 network_container_iface=$network_container_iface
 network_cidr_suffix=$network_cidr_suffix
+container_iface_mtu=$container_iface_mtu
+network_cidr=$network_cidr
 user_uid=$user_uid
 rootfs_path=$rootfs_path
 EOS

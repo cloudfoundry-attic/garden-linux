@@ -59,10 +59,10 @@ function teardown_nat() {
   iptables -w -t nat -F ${nat_instance_chain} 2> /dev/null || true
   iptables -w -t nat -X ${nat_instance_chain} 2> /dev/null || true
 
-  if [ -n "${NETWORK:-}" ]; then
+  if [ -n "${network_cidr:-}" ]; then
     # Delete NAT rule for container traffic
       iptables -w -t nat -D ${nat_postrouting_chain} \
-        --source ${NETWORK} \
+        --source ${network_cidr} \
         --jump SNAT \
         --to $external_ip \
       2> /dev/null || true
@@ -80,9 +80,9 @@ function setup_nat() {
     --jump ${nat_instance_chain}
 
   # Enable NAT for traffic coming from containers
-  (iptables -w -t nat -S ${nat_postrouting_chain} | grep "\-j SNAT\b" | grep -q -F -- "-s ${NETWORK}") ||
+  (iptables -w -t nat -S ${nat_postrouting_chain} | grep "\-j SNAT\b" | grep -q -F -- "-s ${network_cidr}") ||
     iptables -w -t nat -A ${nat_postrouting_chain} \
-      --source ${NETWORK} \
+      --source ${network_cidr} \
       --jump SNAT \
       --to $external_ip
 }

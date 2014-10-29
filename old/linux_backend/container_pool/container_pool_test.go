@@ -18,12 +18,11 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/pivotal-golang/lager/lagertest"
 
+	"github.com/cloudfoundry-incubator/garden-linux/fences/fake_fences"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/rootfs_provider/fake_rootfs_provider"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/network"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/network_pool/fake_network_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/port_pool/fake_port_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/quota_manager/fake_quota_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/uid_pool/fake_uid_pool"
@@ -38,7 +37,7 @@ var _ = Describe("Container pool", func() {
 	var depotPath string
 	var fakeRunner *fake_command_runner.FakeCommandRunner
 	var fakeUIDPool *fake_uid_pool.FakeUIDPool
-	var fakeNetworkPool *fake_network_pool.FakeNetworkPool
+	var fakeFences *fake_fences.FakeFences
 	var fakeQuotaManager *fake_quota_manager.FakeQuotaManager
 	var fakePortPool *fake_port_pool.FakePortPool
 	var defaultFakeRootFSProvider *fake_rootfs_provider.FakeRootFSProvider
@@ -50,7 +49,7 @@ var _ = Describe("Container pool", func() {
 		Ω(err).ShouldNot(HaveOccurred())
 
 		fakeUIDPool = fake_uid_pool.New(10000)
-		fakeNetworkPool = fake_network_pool.New(ipNet)
+		fakeFences = fake_fences.New(ipNet)
 		fakeRunner = fake_command_runner.New()
 		fakeQuotaManager = fake_quota_manager.New()
 		fakePortPool = fake_port_pool.New(1000)
@@ -72,11 +71,10 @@ var _ = Describe("Container pool", func() {
 				"fake": fakeRootFSProvider,
 			},
 			fakeUIDPool,
-			fakeNetworkPool,
+			fakeFences,
 			fakePortPool,
 			[]string{"1.1.0.0/16", "2.2.0.0/16"},
 			[]string{"1.1.1.1/32", "2.2.2.2/32"},
-			1500,
 			fakeRunner,
 			fakeQuotaManager,
 		)
@@ -89,7 +87,7 @@ var _ = Describe("Container pool", func() {
 	Describe("MaxContainer", func() {
 		Context("when constrained by network pool size", func() {
 			BeforeEach(func() {
-				fakeNetworkPool.InitialPoolSize = 5
+				fakeFences.InitialPoolSize = 5
 				fakeUIDPool.InitialPoolSize = 3000
 			})
 
@@ -99,7 +97,7 @@ var _ = Describe("Container pool", func() {
 		})
 		Context("when constrained by uid pool size", func() {
 			BeforeEach(func() {
-				fakeNetworkPool.InitialPoolSize = 666
+				fakeFences.InitialPoolSize = 666
 				fakeUIDPool.InitialPoolSize = 42
 			})
 
@@ -162,7 +160,7 @@ var _ = Describe("Container pool", func() {
 
 		itReleasesTheIPBlock := func() {
 			It("returns the container's IP block to the pool", func() {
-				Ω(fakeNetworkPool.Released).Should(Equal([]string{"1.2.0.0/30"}))
+				Ω(fakeFences.Released).Should(Equal([]string{"1.2.0.0/30"}))
 			})
 		}
 
@@ -234,11 +232,8 @@ var _ = Describe("Container pool", func() {
 							"id=" + container.ID(),
 							"rootfs_path=/provided/rootfs/path",
 							"user_uid=10000",
-							"network_host_ip=1.2.0.2",
-							"network_container_ip=1.2.0.1",
-							"network_cidr_suffix=30",
-
 							"PATH=" + os.Getenv("PATH"),
+							"fake_fences_env=1.2.0.0/30",
 						},
 					},
 				))
@@ -260,106 +255,20 @@ var _ = Describe("Container pool", func() {
 							"id=" + container.ID(),
 							"rootfs_path=/provided/rootfs/path",
 							"user_uid=10000",
-							"network_host_ip=1.3.0.2",
-							"network_container_ip=1.3.0.1",
-							"network_cidr_suffix=30",
-
 							"PATH=" + os.Getenv("PATH"),
+							"fake_fences_env=1.3.0.0/30",
 						},
 					},
 				))
 			})
 
-			Context("and when it requests a subnet with more than 4 IPs", func() {
-				It("executes create.sh passing a gateway address of the largest valid IP", func() {
-					container, err := pool.Create(api.ContainerSpec{
-						Network: "1.3.0.0/29",
-					})
-					Ω(err).ShouldNot(HaveOccurred())
-
-					Ω(fakeRunner).Should(HaveExecutedSerially(
-						fake_command_runner.CommandSpec{
-							Path: "/root/path/create.sh",
-							Args: []string{path.Join(depotPath, container.ID())},
-							Env: []string{
-								"id=" + container.ID(),
-								"rootfs_path=/provided/rootfs/path",
-								"user_uid=10000",
-								"network_host_ip=1.3.0.6",
-								"network_container_ip=1.3.0.1",
-								"network_cidr_suffix=29",
-
-								"PATH=" + os.Getenv("PATH"),
-							},
-						},
-					))
-				})
-			})
-
-			It("statically allocates the requested Network as a /30 if no mask is specified", func() {
-				_, err := pool.Create(api.ContainerSpec{
-					Network: "1.3.0.0",
-				})
-				Ω(err).ShouldNot(HaveOccurred())
-
-				Ω(fakeNetworkPool.StaticallyAllocated).Should(ContainElement("1.3.0.0/30"))
-			})
-
-			It("statically allocates the requested Network if it is a /30", func() {
+			It("allocates the requested Network", func() {
 				_, err := pool.Create(api.ContainerSpec{
 					Network: "1.3.0.0/30",
 				})
+
 				Ω(err).ShouldNot(HaveOccurred())
-
-				Ω(fakeNetworkPool.StaticallyAllocated).Should(ContainElement("1.3.0.0/30"))
-			})
-
-			Context("when a Network is requested with an internal address", func() {
-				var err error
-
-				BeforeEach(func() {
-					_, err = pool.Create(api.ContainerSpec{
-						Network: "1.3.0.2/30",
-					})
-				})
-
-				It("returns the error", func() {
-					Ω(err).Should(Equal(container_pool.ErrNetworkHostbitsNonZero))
-				})
-
-				itReleasesTheUserID()
-
-				It("does not execute create.sh", func() {
-					Ω(fakeRunner).ShouldNot(HaveExecutedSerially(
-						fake_command_runner.CommandSpec{
-							Path: "/root/path/create.sh",
-						},
-					))
-				})
-			})
-
-			Context("when an invalid Network is requested", func() {
-				var err error
-
-				BeforeEach(func() {
-					_, err = pool.Create(api.ContainerSpec{
-						Network: "invalidNetworkString",
-					})
-				})
-
-				It("returns the error", func() {
-					Ω(err).Should(HaveOccurred())
-				})
-
-				itReleasesTheUserID()
-
-				It("does not execute create.sh", func() {
-					Ω(fakeRunner).ShouldNot(HaveExecutedSerially(
-						fake_command_runner.CommandSpec{
-							Path: "/root/path/create.sh",
-						},
-					))
-				})
+				Ω(fakeFences.Allocated).Should(ContainElement("1.3.0.0/30"))
 			})
 
 			Context("when allocation of the specified Network fails", func() {
@@ -367,7 +276,7 @@ var _ = Describe("Container pool", func() {
 				allocateError := errors.New("allocateError")
 
 				BeforeEach(func() {
-					fakeNetworkPool.AllocateStaticError = allocateError
+					fakeFences.AllocateError = allocateError
 					_, err = pool.Create(api.ContainerSpec{
 						Network: "1.2.0.0/30",
 					})
@@ -387,7 +296,6 @@ var _ = Describe("Container pool", func() {
 					))
 				})
 			})
-
 		})
 
 		It("saves the determined rootfs provider to the depot", func() {
@@ -432,11 +340,8 @@ var _ = Describe("Container pool", func() {
 							"id=" + container.ID(),
 							"rootfs_path=/var/some/mount/point",
 							"user_uid=10000",
-							"network_host_ip=1.2.0.2",
-							"network_container_ip=1.2.0.1",
-							"network_cidr_suffix=30",
-
 							"PATH=" + os.Getenv("PATH"),
+							"fake_fences_env=1.2.0.0/30",
 						},
 					},
 				))
@@ -709,23 +614,7 @@ var _ = Describe("Container pool", func() {
 			})
 		})
 
-		Context("when acquiring a network fails", func() {
-			nastyError := errors.New("oh no!")
-
-			JustBeforeEach(func() {
-				fakeNetworkPool.AcquireError = nastyError
-			})
-
-			It("returns the error and releases the uid", func() {
-				_, err := pool.Create(api.ContainerSpec{})
-				Ω(err).Should(Equal(nastyError))
-
-				Ω(fakeUIDPool.Released).Should(ContainElement(uint32(10000)))
-			})
-		})
-
 		Context("when executing create.sh fails", func() {
-			var containerPath string
 			nastyError := errors.New("oh no!")
 
 			BeforeEach(func() {
@@ -733,7 +622,6 @@ var _ = Describe("Container pool", func() {
 					fake_command_runner.CommandSpec{
 						Path: "/root/path/create.sh",
 					}, func(cmd *exec.Cmd) error {
-						containerPath = cmd.Args[1]
 						return nastyError
 					},
 				)
@@ -746,7 +634,7 @@ var _ = Describe("Container pool", func() {
 				Ω(err).Should(Equal(nastyError))
 
 				Ω(fakeUIDPool.Released).Should(ContainElement(uint32(10000)))
-				Ω(fakeNetworkPool.Released).Should(ContainElement("1.2.0.0/30"))
+				Ω(fakeFences.Released).Should(ContainElement("1.2.0.0/30"))
 			})
 
 			itReleasesTheUserID()
@@ -792,17 +680,16 @@ var _ = Describe("Container pool", func() {
 	Describe("restoring", func() {
 		var snapshot io.Reader
 
-		var restoredNetwork *network.Network
+		var restoredNetwork json.RawMessage
 
 		BeforeEach(func() {
 			buf := new(bytes.Buffer)
 
 			snapshot = buf
 
-			_, ipNet, err := net.ParseCIDR("10.244.0.0/30")
+			var err error
+			restoredNetwork, err = json.Marshal("serializedNetwork")
 			Ω(err).ShouldNot(HaveOccurred())
-
-			restoredNetwork = network.New(ipNet)
 
 			err = json.NewEncoder(buf).Encode(
 				linux_backend.ContainerSnapshot{
@@ -819,7 +706,7 @@ var _ = Describe("Container pool", func() {
 
 					Resources: linux_backend.ResourcesSnapshot{
 						UID:     10000,
-						Network: restoredNetwork,
+						Network: &restoredNetwork,
 						Ports:   []uint32{61001, 61002, 61003},
 					},
 
@@ -863,7 +750,7 @@ var _ = Describe("Container pool", func() {
 			_, err := pool.Restore(snapshot)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Ω(fakeNetworkPool.Recovered).Should(ContainElement(restoredNetwork.String()))
+			Ω(fakeFences.Recovered).Should(ContainElement(string(restoredNetwork)))
 		})
 
 		It("removes its ports from the pool", func() {
@@ -903,7 +790,7 @@ var _ = Describe("Container pool", func() {
 			disaster := errors.New("oh no!")
 
 			JustBeforeEach(func() {
-				fakeNetworkPool.RecoverError = disaster
+				fakeFences.RecoverError = disaster
 			})
 
 			It("returns the error and releases the uid", func() {
@@ -926,7 +813,7 @@ var _ = Describe("Container pool", func() {
 				Ω(err).Should(Equal(disaster))
 
 				Ω(fakeUIDPool.Released).Should(ContainElement(uint32(10000)))
-				Ω(fakeNetworkPool.Recovered).Should(ContainElement(restoredNetwork.String()))
+				Ω(fakeFences.Recovered).Should(ContainElement(string(restoredNetwork)))
 				Ω(fakePortPool.Released).Should(ContainElement(uint32(61001)))
 				Ω(fakePortPool.Released).Should(ContainElement(uint32(61002)))
 				Ω(fakePortPool.Released).Should(ContainElement(uint32(61003)))
@@ -1136,7 +1023,7 @@ var _ = Describe("Container pool", func() {
 
 			Ω(fakeUIDPool.Released).Should(ContainElement(uint32(10000)))
 
-			Ω(fakeNetworkPool.Released).Should(ContainElement("1.2.0.0/30"))
+			Ω(fakeFences.Released).Should(ContainElement("1.2.0.0/30"))
 		})
 
 		Context("when the container has a rootfs provider defined", func() {
@@ -1175,7 +1062,7 @@ var _ = Describe("Container pool", func() {
 					Ω(fakePortPool.Released).ShouldNot(ContainElement(uint32(123)))
 					Ω(fakePortPool.Released).ShouldNot(ContainElement(uint32(456)))
 					Ω(fakeUIDPool.Released).ShouldNot(ContainElement(uint32(10000)))
-					Ω(fakeNetworkPool.Released).ShouldNot(ContainElement("1.2.0.0/30"))
+					Ω(fakeFences.Released).ShouldNot(ContainElement("1.2.0.0/30"))
 				})
 			})
 		})
@@ -1216,7 +1103,7 @@ var _ = Describe("Container pool", func() {
 
 				Ω(fakeUIDPool.Released).Should(BeEmpty())
 
-				Ω(fakeNetworkPool.Released).Should(BeEmpty())
+				Ω(fakeFences.Released).Should(BeEmpty())
 			})
 		})
 	})
