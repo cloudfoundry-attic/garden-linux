@@ -6,7 +6,6 @@ import (
 	"os"
 
 	"github.com/cloudfoundry-incubator/garden-linux/fences"
-	_ "github.com/cloudfoundry-incubator/garden-linux/fences/network"
 	"github.com/cloudfoundry-incubator/garden-linux/old"
 )
 
