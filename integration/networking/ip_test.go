@@ -117,7 +117,32 @@ var _ = Describe("IP settings", func() {
 			out, err := exec.Command("/bin/ping", "-c 2", info.ContainerIP).Output()
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Ω(out).Should(ContainSubstring("0% packet loss"))
+			Ω(out).Should(ContainSubstring(" 0% packet loss"))
+		})
+	})
+
+	Describe("host's network", func() {
+		It("is reachable from inside the container", func() {
+			info, ierr := container.Info()
+			Ω(ierr).ShouldNot(HaveOccurred())
+
+			stdout := gbytes.NewBuffer()
+			stderr := gbytes.NewBuffer()
+
+			process, err := container.Run(api.ProcessSpec{
+				Path: "/bin/ping",
+				Args: []string{"-c", "2", info.HostIP},
+			}, api.ProcessIO{
+				Stdout: stdout,
+				Stderr: stderr,
+			})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			rc, err := process.Wait()
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(rc).Should(Equal(0))
+
+			Ω(stdout.Contents()).Should(ContainSubstring(" 0% packet loss"))
 		})
 	})
 

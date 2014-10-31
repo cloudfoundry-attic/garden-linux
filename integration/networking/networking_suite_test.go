@@ -40,7 +40,7 @@ func startGarden(argv ...string) api.Client {
 
 func restartGarden(argv ...string) {
 	gardenProcess.Signal(syscall.SIGINT)
-	Eventually(gardenProcess.Wait(), 10).Should(Receive())
+	Eventually(gardenProcess.Wait(), "10s").Should(Receive())
 
 	startGarden(argv...)
 }
@@ -61,7 +61,7 @@ func TestNetworking(t *testing.T) {
 
 	AfterEach(func() {
 		gardenProcess.Signal(syscall.SIGKILL)
-		Eventually(gardenProcess.Wait(), 10).Should(Receive())
+		Eventually(gardenProcess.Wait(), "10s").Should(Receive())
 	})
 
 	SynchronizedAfterSuite(func() {
@@ -77,12 +77,10 @@ func TestNetworking(t *testing.T) {
 // networking test utility functions
 func containerIfName(container api.Container) string {
 	return ifNamePrefix(container) + "-1"
-
 }
 
 func hostIfName(container api.Container) string {
 	return ifNamePrefix(container) + "-0"
-
 }
 
 func ifNamePrefix(container api.Container) string {
