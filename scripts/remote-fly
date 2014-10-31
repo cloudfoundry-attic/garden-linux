@@ -1,0 +1,16 @@
+# Run fly on our remote garden-ci server
+
+if [ -n "$ATC_URL" ]; then
+    echo "ATC_URL already set, this script will ignore this."
+fi
+
+if [ -z "$GARDEN_REMOTE_ATC_URL" ]; then
+    echo "Need GARDEN_REMOTE_ATC_URL to be set"
+    exit 1
+fi
+
+# GARDEN_REMOTE_ATC_URL is set
+
+echo "Using GARDEN_REMOTE_ATC_URL..."
+echo "fly --privileged $*"
+ATC_URL=$GARDEN_REMOTE_ATC_URL fly --privileged $*
