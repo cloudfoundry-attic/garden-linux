@@ -3,190 +3,148 @@
 package subnets
 
 import (
-	"errors"
+	"fmt"
+	"math"
 	"net"
 	"sync"
 )
 
-// A Subnets provides a means of allocating /30 subnets.
+// Subnets provides a means of allocating subnets.
 type Subnets interface {
-	// Dynamically allocates a /30 subnet, or returns an error if no more subnets can be allocated.
-	AllocateDynamically() (*net.IPNet, error)
+	// Allocates a subnet and container IP address. The subnet is selected by the given SubnetSelector.
+	// The IP address is selected by the given IPSelector. If either selector fails, an error is returned.
+	Allocate(SubnetSelector, IPSelector) (*net.IPNet, net.IP, error)
 
-	// Statically allocates the given subnet, and returns an error if the subnet cannot be newly allocated
-	AllocateStatically(subnet *net.IPNet) error
+	// Releases an allocated network and container IP.
+	Release(*net.IPNet, net.IP) error
 
-	// Releases an allocated network.
-	Release(*net.IPNet) error
+	// Recovers an unallocated subnet and container IP so they appear to be allocated.
+	Recover(*net.IPNet, net.IP) error
 
-	// Recovers an unallocated network so it appears to be allocated.
-	Recover(*net.IPNet) error
-
-	// Returns the number of /30 subnets which can be Allocate(d)Dynamically.
+	// Returns the number of /30 subnets which can be Allocated by a DynamicSubnetSelector.
 	Capacity() int
 }
 
-type subnetpool struct {
-	mutex sync.Mutex
-
-	dynamicAllocationNet *net.IPNet
-	pool                 []*net.IPNet // Unallocated /30 subnets in dynamicAllocationNet
-	capacity             int          // Number of /30 subnets in dynamicAllocationNet
-
-	static []*net.IPNet // Statically allocated subnets, disjoint from dynamicAllocationNet
+type pool struct {
+	allocated    map[string][]net.IP // net.IPNet.String -> net.IP
+	dynamicRange *net.IPNet
+	mu           sync.Mutex
 }
 
-var (
-	// ErrInsufficientSubnets is returned by AllocateDynamically if no more subnets can be allocated.
-	ErrInsufficientSubnets = errors.New("insufficient subnets remaining in the pool")
+// SubnetSelector is a strategy for selecting a subnet.
+type SubnetSelector interface {
+	// Returns a subnet based on a dynamic range and some existing statically-allocated
+	// subnets. If no suitable subnet can be found, returns an error.
+	SelectSubnet(dynamic *net.IPNet, existing []*net.IPNet) (*net.IPNet, error)
+}
 
-	// ErrReleasedUnallocatedNetwork is returned by Release if the subnet is not allocated.
-	ErrReleasedUnallocatedSubnet = errors.New("subnet is not allocated")
-
-	// ErrAlreadyAllocated is returned by AllocateStatically and by Recover if the subnet is already allocated.
-	ErrAlreadyAllocated = errors.New("subnet is already allocated")
-
-	// ErrInvalidRange is returned by AllocateStatically and by Recover if the subnet range is invalid.
-	ErrInvalidRange = errors.New("subnet has invalid range")
-
-	// ErrNotAllowed is returned by AllocateStatically if the subnet range overlaps the dynamic allocation range
-	// and by Recover if the subnet range contains the dynamic allocation range.
-	ErrNotAllowed = errors.New("the requested range cannot be allocated statically")
-)
-
-var slash30mask net.IPMask
-
-func init() {
-	_, maskedNetwork, err := net.ParseCIDR("1.1.1.1/30")
-	if err != nil {
-		panic("Does not compute")
-	}
-
-	slash30mask = maskedNetwork.Mask
+// IPSelector is a strategy for selecting an IP address in a subnet.
+type IPSelector interface {
+	// Returns an IP address in the given subnet which is not one of the given existing
+	// IP addresses. If no such IP address can be found, returns an error.
+	SelectIP(subnet *net.IPNet, existing []net.IP) (net.IP, error)
 }
 
 // New creates a Subnets implementation from a dynamic allocation range.
-//
-// All dynamic allocations come from the range, static allocations are prohibited from the range.
+// All dynamic allocations come from the range, static allocations are prohibited
+// from the dynamic range.
 func New(ipNet *net.IPNet) (Subnets, error) {
-	pool := poolOfSubnets(ipNet)
-	return &subnetpool{dynamicAllocationNet: ipNet, pool: pool, capacity: len(pool)}, nil
+	return &pool{dynamicRange: ipNet, allocated: make(map[string][]net.IP)}, nil
 }
 
-func poolOfSubnets(ipNet *net.IPNet) []*net.IPNet {
-	min := ipNet.IP
-	pool := make([]*net.IPNet, 0)
-	for ip := min; ipNet.Contains(ip); ip = next(ip) {
-		subnet := &net.IPNet{ip, slash30mask}
-		ip = next(next(next(ip)))
-		if ipNet.Contains(ip) {
-			pool = append(pool, subnet)
+// Allocate uses the given subnet and IP selectors to request a subnet, container IP address combination
+// from the pool.
+func (p *pool) Allocate(sn SubnetSelector, i IPSelector) (subnet *net.IPNet, ip net.IP, err error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if subnet, err = sn.SelectSubnet(p.dynamicRange, existingSubnets(p.allocated)); err != nil {
+		return nil, nil, err
+	}
+
+	existingIPs := append(p.allocated[subnet.String()], NetworkIP(subnet), GatewayIP(subnet), BroadcastIP(subnet))
+	if ip, err = i.SelectIP(subnet, existingIPs); err != nil {
+		return nil, nil, err
+	}
+
+	p.allocated[subnet.String()] = append(p.allocated[subnet.String()], ip)
+	return subnet, ip, nil
+}
+
+// Recover re-allocates a given subnet and ip address combination in the pool. It returns
+// an error if the combination is already allocated.
+func (p *pool) Recover(subnet *net.IPNet, ip net.IP) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if ip == nil {
+		return ErrIpCannotBeNil
+	}
+
+	for _, existing := range p.allocated[subnet.String()] {
+		if existing.Equal(ip) {
+			return ErrOverlapsExistingSubnet
 		}
 	}
 
-	return pool
-}
-
-func (m *subnetpool) Capacity() int {
-	return m.capacity
-}
-
-func (m *subnetpool) AllocateStatically(ipNet *net.IPNet) error {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-
-	if overlaps(ipNet, m.dynamicAllocationNet) {
-		return ErrNotAllowed
-	}
-
-	for _, s := range m.static {
-		if overlaps(s, ipNet) {
-			return ErrAlreadyAllocated
-		}
-	}
-
-	m.static = append(m.static, ipNet)
-
+	p.allocated[subnet.String()] = append(p.allocated[subnet.String()], ip)
 	return nil
 }
 
-func overlaps(net1, net2 *net.IPNet) bool {
-	return net1.Contains(net2.IP) || net2.Contains(net1.IP)
-}
+// Release removes an existing subnet/IP combination from the pool. Returns an error
+// if the given combination is not already in the pool.
+func (p *pool) Release(subnet *net.IPNet, containerIP net.IP) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
-func (m *subnetpool) Recover(ipNet *net.IPNet) error {
-	if !m.dynamicAllocationNet.Contains(ipNet.IP) {
-		return m.AllocateStatically(ipNet)
-	}
-
-	found := -1
-	for i, s := range m.pool {
-		if s.IP.Equal(ipNet.IP) {
-			found = i
+	for i, existing := range p.allocated[subnet.String()] {
+		if existing.Equal(containerIP) {
+			existingIPs := p.allocated[subnet.String()]
+			p.allocated[subnet.String()] = append(existingIPs[:i], existingIPs[i+1:]...)
+			return nil
 		}
 	}
 
-	if found > -1 {
-		m.pool = append(m.pool[:found], m.pool[found+1:]...)
-		return nil
-	}
-
-	return ErrAlreadyAllocated
+	return ErrReleasedUnallocatedSubnet
 }
 
-func (m *subnetpool) AllocateDynamically() (*net.IPNet, error) {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
-
-	if len(m.pool) == 0 {
-		return nil, ErrInsufficientSubnets
-	}
-
-	acquired := m.pool[0]
-	m.pool = m.pool[1:]
-
-	return acquired, nil
+// Capacity returns the number of /30 subnets that can be allocated
+// from the pool's dynamic allocation range.
+func (m *pool) Capacity() int {
+	masked, total := m.dynamicRange.Mask.Size()
+	return int(math.Pow(2, float64(total-masked)) / 4)
 }
 
-func (m *subnetpool) Release(ipNet *net.IPNet) error {
-	m.mutex.Lock()
-	defer m.mutex.Unlock()
+// Returns the gateway IP of a given subnet, which is always the maximum valid IP
+func GatewayIP(subnet *net.IPNet) net.IP {
+	m := max(subnet)
+	m[len(m)-1]--
 
-	for _, n := range m.pool {
-		if n.IP.Equal(ipNet.IP) {
-			return ErrReleasedUnallocatedSubnet
+	return m
+}
+
+// Returns the network IP of a subnet.
+func NetworkIP(subnet *net.IPNet) net.IP {
+	return subnet.IP
+}
+
+// Returns the broadcast IP of a subnet.
+func BroadcastIP(subnet *net.IPNet) net.IP {
+	return max(subnet)
+}
+
+// returns the keys in the given map whose values are non-empty slices
+func existingSubnets(m map[string][]net.IP) (result []*net.IPNet) {
+	for k, v := range m {
+		if len(v) > 0 {
+			_, ipn, err := net.ParseCIDR(k)
+			if err != nil {
+				panic(fmt.Sprintf("failed to parse a CIDR in the subnet pool: %s", err))
+			}
+
+			result = append(result, ipn)
 		}
 	}
 
-	found := -1
-	for i, s := range m.static {
-		if s.IP.Equal(ipNet.IP) {
-			found = i
-		}
-	}
-
-	if found > -1 {
-		m.static = append(m.static[:found], m.static[found+1:]...)
-	}
-
-	m.pool = append(m.pool, ipNet)
-	return nil
-}
-
-func next(ip net.IP) net.IP {
-	next := clone(ip)
-	for i := len(next) - 1; i >= 0; i-- {
-		next[i]++
-		if next[i] != 0 {
-			return next
-		}
-	}
-
-	panic("overflowed maximum IP")
-}
-
-func clone(ip net.IP) net.IP {
-	clone := make([]byte, len(ip))
-	copy(clone, ip)
-	return clone
+	return result
 }

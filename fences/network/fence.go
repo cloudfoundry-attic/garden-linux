@@ -2,7 +2,6 @@ package network
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -22,51 +21,50 @@ type FlatFence struct {
 	ContainerIP string
 }
 
-var (
-	ErrIPEqualsGateway   = errors.New("a container IP must not equal the gateway IP")
-	ErrIPEqualsBroadcast = errors.New("a container IP must not equal the broadcast IP")
-)
-
+// Builds a (network) Fence from a given network spec. If the network spec
+// is empty, dynamically allocates a subnet and IP. Otherwise, if the network
+// spec specifies a subnet IP, allocates that subnet, and an available
+// dynamic IP address. If the network has non-empty host bits, this exact IP
+// address is statically allocated. In all cases, if an IP cannot be allocated which
+// meets the requirements, an error is returned.
+//
+// The given allocation is stored in the returned fence.
 func (f *f) Build(spec string) (fences.Fence, error) {
-	if spec == "" {
-		ipn, err := f.Subnets.AllocateDynamically()
+	var ipSelector subnets.IPSelector = subnets.DynamicIPSelector
+	var subnetSelector subnets.SubnetSelector = subnets.DynamicSubnetSelector
+
+	if spec != "" {
+		specifiedIP, ipn, err := net.ParseCIDR(suffixIfNeeded(spec))
 		if err != nil {
 			return nil, err
 		}
 
-		containerIP := nextIP(ipn.IP)
-		return &Allocation{ipn, containerIP, f}, nil
-	} else {
-		if !strings.Contains(spec, "/") {
-			spec = spec + "/30"
-		}
+		subnetSelector = subnets.StaticSubnetSelector{ipn}
 
-		specifiedIP, ipn, err := net.ParseCIDR(spec)
-		if err != nil {
-			return nil, err
+		if !specifiedIP.Equal(subnets.NetworkIP(ipn)) {
+			ipSelector = subnets.StaticIPSelector{specifiedIP}
 		}
-
-		if err := f.Subnets.AllocateStatically(ipn); err != nil {
-			return nil, err
-		}
-
-		gatewayIP := maxValidIP(ipn)
-		broadcastIP := nextIP(gatewayIP)
-
-		var containerIP net.IP
-		if specifiedIP.Equal(ipn.IP) {
-			containerIP = nextIP(ipn.IP)
-		} else if specifiedIP.Equal(gatewayIP) {
-			return nil, ErrIPEqualsGateway
-		} else if specifiedIP.Equal(broadcastIP) {
-			return nil, ErrIPEqualsBroadcast
-		} else {
-			containerIP = specifiedIP
-		}
-		return &Allocation{ipn, containerIP, f}, nil
 	}
+
+	subnet, containerIP, err := f.Subnets.Allocate(subnetSelector, ipSelector)
+	if err != nil {
+		return nil, err
+	}
+
+	return &Allocation{subnet, containerIP, f}, nil
 }
 
+func suffixIfNeeded(spec string) string {
+	if !strings.Contains(spec, "/") {
+		spec = spec + "/30"
+	}
+
+	return spec
+}
+
+// Rebuilds a Fence from the marshalled JSON from an existing Fence's MarshalJSON method.
+// Returns an error if any of the allocations stored in the recovered fence are no longer
+// available.
 func (f *f) Rebuild(rm *json.RawMessage) (fences.Fence, error) {
 	ff := FlatFence{}
 	if err := json.Unmarshal(*rm, &ff); err != nil {
@@ -78,7 +76,7 @@ func (f *f) Rebuild(rm *json.RawMessage) (fences.Fence, error) {
 		return nil, err
 	}
 
-	if err := f.Subnets.Recover(ipn); err != nil {
+	if err := f.Subnets.Recover(ipn, net.ParseIP(ff.ContainerIP)); err != nil {
 		return nil, err
 	}
 
@@ -88,15 +86,19 @@ func (f *f) Rebuild(rm *json.RawMessage) (fences.Fence, error) {
 type Allocation struct {
 	*net.IPNet
 	containerIP net.IP
-	parent      *f
+	fence       *f
+}
+
+func (a *Allocation) String() string {
+	return "Allocation{" + a.IPNet.String() + ", " + a.containerIP.String() + "}"
 }
 
 func (a *Allocation) Dismantle() error {
-	return a.parent.Release(a.IPNet)
+	return a.fence.Release(a.IPNet, a.containerIP)
 }
 
 func (a *Allocation) Info(i *api.ContainerInfo) {
-	i.HostIP = maxValidIP(a.IPNet).String()
+	i.HostIP = subnets.GatewayIP(a.IPNet).String()
 	i.ContainerIP = a.containerIP.String()
 }
 
@@ -108,45 +110,11 @@ func (a *Allocation) MarshalJSON() ([]byte, error) {
 func (a *Allocation) ConfigureProcess(env *[]string) error {
 	suff, _ := a.IPNet.Mask.Size()
 
-	*env = append(*env, fmt.Sprintf("network_host_ip=%s", maxValidIP(a.IPNet)),
+	*env = append(*env, fmt.Sprintf("network_host_ip=%s", subnets.GatewayIP(a.IPNet)),
 		fmt.Sprintf("network_container_ip=%s", a.containerIP),
 		fmt.Sprintf("network_cidr_suffix=%d", suff),
-		fmt.Sprintf("container_iface_mtu=%d", a.parent.mtu),
+		fmt.Sprintf("container_iface_mtu=%d", a.fence.mtu),
 		fmt.Sprintf("network_cidr=%s", a.IPNet.String()))
 
 	return nil
-}
-
-func maxValidIP(ipn *net.IPNet) net.IP {
-	mask := ipn.Mask
-	min := ipn.IP
-
-	if len(mask) != len(min) {
-		panic("length of mask is not compatible with length of network IP")
-	}
-
-	max := make([]byte, len(min))
-	for i, b := range mask {
-		max[i] = min[i] | ^b
-	}
-
-	// Do not include the network and broadcast addresses.
-	max[len(max)-1]--
-
-	return net.IP(max).To16()
-}
-
-func nextIP(ip net.IP) net.IP {
-	next := net.ParseIP(ip.String())
-	inc(next)
-	return next
-}
-
-func inc(ip net.IP) {
-	for j := len(ip) - 1; j >= 0; j-- {
-		ip[j]++
-		if ip[j] > 0 {
-			break
-		}
-	}
 }
