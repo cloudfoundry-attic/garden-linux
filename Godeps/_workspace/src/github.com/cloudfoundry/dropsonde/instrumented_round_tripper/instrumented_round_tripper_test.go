@@ -1,8 +1,8 @@
-package dropsonde_test
+package instrumented_round_tripper_test
 
 import (
 	"errors"
-	"github.com/cloudfoundry/dropsonde"
+	"github.com/cloudfoundry/dropsonde/instrumented_round_tripper"
 	"github.com/cloudfoundry/dropsonde/emitter/fake"
 	"github.com/cloudfoundry/dropsonde/events"
 	"github.com/cloudfoundry/dropsonde/factories"
@@ -33,7 +33,7 @@ var _ = Describe("InstrumentedRoundTripper", func() {
 		fakeEmitter = fake.NewFakeEventEmitter(origin)
 
 		fakeRoundTripper = new(FakeRoundTripper)
-		rt = dropsonde.InstrumentedRoundTripper(fakeRoundTripper, fakeEmitter)
+		rt = instrumented_round_tripper.InstrumentedRoundTripper(fakeRoundTripper, fakeEmitter)
 
 		req, err = http.NewRequest("GET", "http://foo.example.com/", nil)
 		Expect(err).ToNot(HaveOccurred())
@@ -50,12 +50,12 @@ var _ = Describe("InstrumentedRoundTripper", func() {
 
 		Context("if request ID can't be generated", func() {
 			BeforeEach(func() {
-				dropsonde.GenerateUuid = func() (u *uuid.UUID, err error) {
+				instrumented_round_tripper.GenerateUuid = func() (u *uuid.UUID, err error) {
 					return nil, errors.New("test error")
 				}
 			})
 			AfterEach(func() {
-				dropsonde.GenerateUuid = uuid.NewV4
+				instrumented_round_tripper.GenerateUuid = uuid.NewV4
 			})
 
 			It("defaults to an empty request ID", func() {

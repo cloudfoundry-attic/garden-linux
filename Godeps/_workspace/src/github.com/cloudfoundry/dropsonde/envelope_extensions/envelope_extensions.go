@@ -1,4 +1,4 @@
-package dropsonde
+package envelope_extensions
 
 import (
 	"encoding/binary"

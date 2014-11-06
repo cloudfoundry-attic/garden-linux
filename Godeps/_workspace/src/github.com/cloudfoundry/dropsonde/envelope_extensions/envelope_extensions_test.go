@@ -1,8 +1,8 @@
-package dropsonde_test
+package envelope_extensions_test
 
 import (
 	"code.google.com/p/gogoprotobuf/proto"
-	"github.com/cloudfoundry/dropsonde"
+	"github.com/cloudfoundry/dropsonde/envelope_extensions"
 	"github.com/cloudfoundry/dropsonde/events"
 
 	. "github.com/onsi/ginkgo"
@@ -22,7 +22,7 @@ var _ = Describe("EnvelopeExtensions", func() {
 					EventType: events.Envelope_HttpStart.Enum(),
 					HttpStart: &events.HttpStart{ApplicationId: testAppUuid},
 				}
-				appId := dropsonde.GetAppId(envelope)
+				appId := envelope_extensions.GetAppId(envelope)
 				Expect(appId).To(Equal("01000000-0000-0000-0200-000000000000"))
 			})
 
@@ -31,8 +31,8 @@ var _ = Describe("EnvelopeExtensions", func() {
 					EventType: events.Envelope_HttpStart.Enum(),
 					HttpStart: &events.HttpStart{},
 				}
-				appId := dropsonde.GetAppId(envelope)
-				Expect(appId).To(Equal(dropsonde.SystemAppId))
+				appId := envelope_extensions.GetAppId(envelope)
+				Expect(appId).To(Equal(envelope_extensions.SystemAppId))
 			})
 		})
 
@@ -42,7 +42,7 @@ var _ = Describe("EnvelopeExtensions", func() {
 					EventType: events.Envelope_HttpStop.Enum(),
 					HttpStop:  &events.HttpStop{ApplicationId: testAppUuid},
 				}
-				appId := dropsonde.GetAppId(envelope)
+				appId := envelope_extensions.GetAppId(envelope)
 				Expect(appId).To(Equal("01000000-0000-0000-0200-000000000000"))
 			})
 		})
@@ -53,7 +53,7 @@ var _ = Describe("EnvelopeExtensions", func() {
 					EventType:     events.Envelope_HttpStartStop.Enum(),
 					HttpStartStop: &events.HttpStartStop{ApplicationId: testAppUuid},
 				}
-				appId := dropsonde.GetAppId(envelope)
+				appId := envelope_extensions.GetAppId(envelope)
 				Expect(appId).To(Equal("01000000-0000-0000-0200-000000000000"))
 			})
 		})
@@ -64,7 +64,7 @@ var _ = Describe("EnvelopeExtensions", func() {
 					EventType:  events.Envelope_LogMessage.Enum(),
 					LogMessage: &events.LogMessage{AppId: proto.String("test-app-id")},
 				}
-				appId := dropsonde.GetAppId(envelope)
+				appId := envelope_extensions.GetAppId(envelope)
 				Expect(appId).To(Equal("test-app-id"))
 			})
 		})
@@ -74,8 +74,8 @@ var _ = Describe("EnvelopeExtensions", func() {
 				envelope := &events.Envelope{
 					EventType: events.Envelope_Heartbeat.Enum(),
 				}
-				appId := dropsonde.GetAppId(envelope)
-				Expect(appId).To(Equal(dropsonde.SystemAppId))
+				appId := envelope_extensions.GetAppId(envelope)
+				Expect(appId).To(Equal(envelope_extensions.SystemAppId))
 			})
 		})
 	})

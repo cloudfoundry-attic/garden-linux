@@ -30,7 +30,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
 	"github.com/cloudfoundry-incubator/garden-linux/old/system_info"
 	"github.com/cloudfoundry-incubator/garden/server"
-	_ "github.com/cloudfoundry/dropsonde/autowire"
+	"github.com/cloudfoundry/dropsonde"
 	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
 )
 
@@ -142,6 +142,18 @@ var tag = flag.String(
 	"server-wide identifier used for 'global' configuration",
 )
 
+var dropsondeOrigin = flag.String(
+	"dropsondeOrigin",
+	"garden-linux",
+	"Origin identifier for dropsonde-emitted metrics.",
+)
+
+var dropsondeDestination = flag.String(
+	"dropsondeDestination",
+	"localhost:3457",
+	"Destination for dropsonde-emitted metrics.",
+)
+
 func Main(builders *fences.BuilderRegistry) {
 
 	cf_debug_server.Run()
@@ -149,6 +161,8 @@ func Main(builders *fences.BuilderRegistry) {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	logger := cf_lager.New("garden-linux")
+
+	initializeDropsonde(logger)
 
 	if *binPath == "" {
 		missing("-bin")
@@ -280,4 +294,11 @@ func missing(flagName string) {
 	println("missing " + flagName)
 	println()
 	flag.Usage()
+}
+
+func initializeDropsonde(logger lager.Logger) {
+	err := dropsonde.Initialize(*dropsondeOrigin, *dropsondeDestination)
+	if err != nil {
+		logger.Error("failed to initialize dropsonde: %v", err)
+	}
 }
