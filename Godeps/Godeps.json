@@ -53,12 +53,17 @@
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry/dropsonde",
-			"Rev": "5dee837b8eb4b2b0301470f317ae10174e32174a"
+			"Rev": "488c9049adf5ee856340b1f1119650740f996876"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry/gosigar",
 			"Comment": "scotty_09012012-21-gd906efd",
 			"Rev": "d906efd1da51405714ee9b67c79cf14cdb58fd29"
+		},
+		{
+			"ImportPath": "github.com/cloudfoundry/gosteno",
+			"Comment": "scotty_09012012-41-g5c1406e",
+			"Rev": "5c1406e9ea0ab919f92e1b194169565def41147b"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry/gunk/command_runner",

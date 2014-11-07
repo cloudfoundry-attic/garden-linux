@@ -15,20 +15,21 @@ various protobuf messages.
 ## Initialization and Configuration
 ```go
 import (
-    _ "github.com/cloudfoundry/dropsonde"
+    "github.com/cloudfoundry/dropsonde"
 )
 
 func main() {
-    dropsonde.Initialize("RTR", "localhost:3457")
+    dropsonde.Initialize("localhost:3457", "router", "z1", "0")
 }
 ```
 This initializes dropsonde, along with the logs and metrics packages. It also instruments
 the default HTTP handler for outgoing requests, instrument itself (to count messages sent, etc.), 
 and provides basic [runtime stats](runtime_stats/runtime_stats.go).
 
-The first argument, "RTR", is the origin. This string is used by downstream portions 
-of the dropsonde system to track the source of metrics. The second argument is the 
-destination for messages (typically metron). The host and port is required.
+The first argument is the destination for messages (typically metron).
+The host and port is required. The remaining arguments form the origin.
+This list is used by downstream portions of the dropsonde system to
+track the source of metrics.
 
 Alternatively, import `github.com/cloudfoundry/dropsonde/metrics` to include the
 ability to send custom metrics, via [`metrics.SendValue`](metrics/metrics.go#L44)

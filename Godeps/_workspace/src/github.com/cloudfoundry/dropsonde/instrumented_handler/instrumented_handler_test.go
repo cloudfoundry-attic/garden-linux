@@ -2,9 +2,9 @@ package instrumented_handler_test
 
 import (
 	"errors"
-	"github.com/cloudfoundry/dropsonde/instrumented_handler"
 	"github.com/cloudfoundry/dropsonde/emitter/fake"
 	"github.com/cloudfoundry/dropsonde/events"
+	"github.com/cloudfoundry/dropsonde/instrumented_handler"
 	uuid "github.com/nu7hatch/gouuid"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -71,7 +71,7 @@ var _ = Describe("InstrumentedHandler", func() {
 		})
 
 		It("should use an empty request ID if generating a new one fails", func() {
-				instrumented_handler.GenerateUuid = func() (u *uuid.UUID, err error) {
+			instrumented_handler.GenerateUuid = func() (u *uuid.UUID, err error) {
 				return nil, errors.New("test error")
 			}
 			h.ServeHTTP(httptest.NewRecorder(), req)

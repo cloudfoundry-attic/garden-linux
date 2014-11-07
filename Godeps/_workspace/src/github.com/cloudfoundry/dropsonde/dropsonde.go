@@ -7,32 +7,40 @@
 //
 // Use
 //
-// dropsonde.Initialize("RTR", "localhost:3457")
+// dropsonde.Initialize("localhost:3457", origins...)
 //
 // to initialize. See package metrics and logs for other usage.
 
 package dropsonde
 
 import (
-	"net/http"
-	"time"
-	"fmt"
 	"errors"
+	"fmt"
 	"github.com/cloudfoundry/dropsonde/emitter"
 	"github.com/cloudfoundry/dropsonde/events"
-	"github.com/cloudfoundry/dropsonde/runtime_stats"
 	"github.com/cloudfoundry/dropsonde/instrumented_handler"
 	"github.com/cloudfoundry/dropsonde/instrumented_round_tripper"
-	"github.com/cloudfoundry/dropsonde/metrics"
+	"github.com/cloudfoundry/dropsonde/log_sender"
 	"github.com/cloudfoundry/dropsonde/logs"
 	"github.com/cloudfoundry/dropsonde/metric_sender"
-	"github.com/cloudfoundry/dropsonde/log_sender"
+	"github.com/cloudfoundry/dropsonde/metrics"
+	"github.com/cloudfoundry/dropsonde/runtime_stats"
 	"github.com/cloudfoundry/gosteno"
+	"net/http"
+	"strings"
+	"time"
 )
 
 var autowiredEmitter emitter.EventEmitter
 
-const runtimeStatsInterval = 10 * time.Second
+const (
+	runtimeStatsInterval = 10 * time.Second
+	originDelimiter      = "/"
+)
+
+func init(){
+	autowiredEmitter = &NullEventEmitter{}
+}
 
 // Initialize creates default emitters and instruments the default HTTP
 // transport.
@@ -43,9 +51,9 @@ const runtimeStatsInterval = 10 * time.Second
 //
 // The destination variable sets the host and port to
 // which metrics are sent. It is optional, and defaults to DefaultDestination.
-func Initialize(origin, destination string) error {
+func Initialize(destination string, origin ...string) error {
 	autowiredEmitter = nil
-	emitter, err := createDefaultEmitter(origin, destination)
+	emitter, err := createDefaultEmitter(strings.Join(origin, originDelimiter), destination)
 	if err != nil {
 		return err
 	}

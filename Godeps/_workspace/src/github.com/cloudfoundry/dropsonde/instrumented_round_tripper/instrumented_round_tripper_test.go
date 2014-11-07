@@ -2,10 +2,10 @@ package instrumented_round_tripper_test
 
 import (
 	"errors"
-	"github.com/cloudfoundry/dropsonde/instrumented_round_tripper"
 	"github.com/cloudfoundry/dropsonde/emitter/fake"
 	"github.com/cloudfoundry/dropsonde/events"
 	"github.com/cloudfoundry/dropsonde/factories"
+	"github.com/cloudfoundry/dropsonde/instrumented_round_tripper"
 	uuid "github.com/nu7hatch/gouuid"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

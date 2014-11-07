@@ -1,8 +1,8 @@
 package metrics_test
 
 import (
-	"github.com/cloudfoundry/dropsonde/metrics"
 	"github.com/cloudfoundry/dropsonde/metric_sender/fake"
+	"github.com/cloudfoundry/dropsonde/metrics"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -43,30 +43,29 @@ var _ = Describe("Metrics", func() {
 		Expect(fakeMetricSender.GetCounter("count")).To(BeEquivalentTo(15))
 	})
 
-	Context("when Metric Sender is not initialized", func(){
+	Context("when Metric Sender is not initialized", func() {
 
-		BeforeEach(func(){
+		BeforeEach(func() {
 			metrics.Initialize(nil)
 		})
 
-		It("SendValue is a no-op", func(){
+		It("SendValue is a no-op", func() {
 			err := metrics.SendValue("metric", 42.42, "answers")
 
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		It("IncrementCounter is a no-op", func(){
+		It("IncrementCounter is a no-op", func() {
 			err := metrics.IncrementCounter("count")
 
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		It("AddToCounter is a no-op", func(){
+		It("AddToCounter is a no-op", func() {
 			err := metrics.AddToCounter("count", 10)
 
 			Expect(err).ToNot(HaveOccurred())
 		})
-
 
 	})
 })

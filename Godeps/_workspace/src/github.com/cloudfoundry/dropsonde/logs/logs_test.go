@@ -1,8 +1,8 @@
 package logs_test
 
 import (
-	"github.com/cloudfoundry/dropsonde/logs"
 	"github.com/cloudfoundry/dropsonde/log_sender/fake"
+	"github.com/cloudfoundry/dropsonde/logs"
 
 	"errors"
 	. "github.com/onsi/ginkgo"
@@ -47,27 +47,27 @@ var _ = Describe("Logs", func() {
 		})
 	})
 
-	Context("when Metric Sender is not initialized", func(){
-		BeforeEach(func(){
+	Context("when Metric Sender is not initialized", func() {
+		BeforeEach(func() {
 			logs.Initialize(nil)
 		})
 
-		It("SendAppLog is a no-op", func(){
+		It("SendAppLog is a no-op", func() {
 			err := logs.SendAppLog("app-id", "custom-log-message", "App", "0")
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		It("SendAppErrorLog is a no-op", func(){
+		It("SendAppErrorLog is a no-op", func() {
 			err := logs.SendAppErrorLog("app-id", "custom-log-error-message", "App", "0")
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		It("ScanLogStream is a no-op", func(){
-			Expect(func(){logs.ScanLogStream("app-id", "src-type", "src-instance", nil, nil)}).ShouldNot(Panic())
+		It("ScanLogStream is a no-op", func() {
+			Expect(func() { logs.ScanLogStream("app-id", "src-type", "src-instance", nil, nil) }).ShouldNot(Panic())
 		})
 
-		It("ScanErrorLogStream is a no-op", func(){
-			Expect(func(){logs.ScanErrorLogStream("app-id", "src-type", "src-instance", nil, nil)}).ShouldNot(Panic())
+		It("ScanErrorLogStream is a no-op", func() {
+			Expect(func() { logs.ScanErrorLogStream("app-id", "src-type", "src-instance", nil, nil) }).ShouldNot(Panic())
 		})
 
 	})
