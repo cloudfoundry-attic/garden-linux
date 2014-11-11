@@ -1,6 +1,7 @@
 package network
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"net"
@@ -56,5 +57,30 @@ func (c *CidrVar) Set(s string) error {
 }
 
 func (c *CidrVar) String() string {
+	if c.IPNet == nil {
+		return ""
+	}
 	return c.IPNet.String()
+}
+
+type IPVar struct {
+	net.IP
+}
+
+func (i *IPVar) Get() interface{} {
+	return IPVar(*i)
+}
+
+func (i *IPVar) Set(s string) error {
+	ip := net.ParseIP(s)
+	if ip == nil {
+		return errors.New("must be an IP")
+	}
+
+	i.IP = ip
+	return nil
+}
+
+func (i *IPVar) String() string {
+	return i.IP.String()
 }
