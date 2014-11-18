@@ -26,6 +26,8 @@ func main() {
 	rendezvous()
 
 	cmd := exec.Command(args[1], args[2:]...)
+	cmd.Env = os.Environ()
+	cmd.Env = append(cmd.Env, "GARDEN_IN_CONTAINER_TEST_SUITE=true")
 	output, err := cmd.CombinedOutput()
 	fmt.Printf("\n%s\n", string(output))
 	if err != nil {

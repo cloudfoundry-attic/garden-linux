@@ -5,10 +5,12 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"syscall"
 
 	"github.com/milosgajdos83/tenus"
@@ -17,12 +19,28 @@ import (
 	"github.com/onsi/gomega/gexec"
 )
 
-var netFenceBin string
-var containerInitBin string
+var (
+	debug              bool
+	netFenceBin        string
+	containerInitBin   string
+	inContainerTestBin string
+)
+
+func buildInContainerTest() string {
+	cmd := exec.Command("ginkgo", "build", "-race", "_hidden/in_container")
+	Ω(cmd.Run()).ShouldNot(HaveOccurred())
+	tmpDir, err := ioutil.TempDir("", "garden-test")
+	Ω(err).ShouldNot(HaveOccurred())
+	testBin := filepath.Join(tmpDir, "in_container.test")
+	Ω(os.Rename("./_hidden/in_container/in_container.test", testBin)).ShouldNot(HaveOccurred())
+	return testBin
+}
 
 var _ = Describe("Configure", func() {
 
 	BeforeEach(func() {
+		debug = true
+
 		netFencePath, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/fences/mains/net-fence", "-race")
 		Ω(err).ShouldNot(HaveOccurred())
 		netFenceBin = string(netFencePath)
@@ -30,6 +48,8 @@ var _ = Describe("Configure", func() {
 		containerInitPath, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/integration/fences/net_fence/container-init", "-race")
 		Ω(err).ShouldNot(HaveOccurred())
 		containerInitBin = string(containerInitPath)
+
+		inContainerTestBin = buildInContainerTest()
 	})
 
 	It("configures a network interface in the global network namespace", func() {
@@ -39,12 +59,7 @@ var _ = Describe("Configure", func() {
 		})
 		Ω(err).ShouldNot(HaveOccurred())
 
-		ctr, err := createContainer(syscall.CLONE_NEWNET, netFenceBin,
-			"-containerIfcName=testPeerIfcName",
-			"-containerIP=10.2.3.1",
-			"-gatewayIP=10.2.3.2",
-			"-subnet=10.2.3.0/30",
-		)
+		ctr, err := createContainer(syscall.CLONE_NEWNET, inContainerTestBin)
 		Ω(err).ShouldNot(HaveOccurred())
 
 		// ctr.pid holds the pid of the container's init process
@@ -92,50 +107,22 @@ func createContainer(cloneFlags int, executable string, args ...string) (*contai
 	cmd.SysProcAttr.Cloneflags = uintptr(cloneFlags)
 	cmd.SysProcAttr.Pdeathsig = syscall.SIGKILL
 
-	stdOut, err := cmd.StdoutPipe()
-	if err != nil {
-		return nil, err
-	}
-	stdErr, err := cmd.StderrPipe()
-	if err != nil {
-		return nil, err
-	}
-
 	container := &container{
 		rendezvousChan: make(chan string),
 		outputChan:     make(chan interface{}),
 	}
 
-	go func() {
-		defer func() {
-			container.outputChan <- nil
-		}()
-		data := make([]byte, 1024)
-		for {
-			_, err := stdOut.Read(data)
-			if err != nil {
-				if err != io.EOF {
-					fmt.Printf("Error reading standard output pipe: %s\n", err)
-				}
-				return
-			}
-		}
-	}()
-	go func() {
-		defer func() {
-			container.outputChan <- nil
-		}()
-		data := make([]byte, 1024)
-		for {
-			_, err := stdErr.Read(data)
-			if err != nil {
-				if err != io.EOF {
-					fmt.Printf("Error reading standard error pipe: %s\n", err)
-				}
-				return
-			}
-		}
-	}()
+	stdOut, err := cmd.StdoutPipe()
+	if err != nil {
+		return nil, err
+	}
+	go waitForEof(container.outputChan, stdOut)
+
+	stdErr, err := cmd.StderrPipe()
+	if err != nil {
+		return nil, err
+	}
+	go waitForEof(container.outputChan, stdErr)
 
 	go listenForClient(container)
 
@@ -154,6 +141,27 @@ func createContainer(cloneFlags int, executable string, args ...string) (*contai
 	return container, nil
 }
 
+func waitForEof(ch chan<- interface{}, reader io.Reader) {
+	defer func() {
+		ch <- nil
+	}()
+	data := make([]byte, 1024)
+	for {
+		n, err := reader.Read(data)
+		if debug && n > 0 {
+			fmt.Printf("Data: %s\n", string(data[:n]))
+		}
+		if err != nil {
+			if err != io.EOF {
+				fmt.Printf("Error reading from reader %v: %s\n", reader, err)
+			}
+			return
+		}
+	}
+}
+
+// Waits for output from the client and send the output on the rendezvous channel.
+// Sets the container connection.
 func listenForClient(ctr *container) {
 	l, err := net.Listen("unix", "/tmp/test-rendezvous.sock")
 	if err != nil {
