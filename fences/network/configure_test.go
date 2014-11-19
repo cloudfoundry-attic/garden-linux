@@ -98,82 +98,107 @@ var _ = Describe("Configure", func() {
 		Context("with stubbed dependencies", func() {
 
 			var (
-				stubInterfaceByNameError error
-				stubInterfaceByNameName  string
-				stubInterfaceByNameIfc   *net.Interface = &net.Interface{}
+				stubInterfaceByNameError       error
+				stubInterfaceByNameFailOnCount int
+				stubInterfaceByNameCount       int
+				stubInterfaceByNameName        string
+				stubInterfaceByNameIfc         *net.Interface = &net.Interface{}
 
-				stubNetworkSetMTUError error
-				stubNetworkSetMTUIfc   *net.Interface
-				stubNetworkSetMTUMtu   int
+				stubNetworkSetMTUError       error
+				stubNetworkSetMTUFailOnCount int
+				stubNetworkSetMTUCount       int
+				stubNetworkSetMTUIfc         *net.Interface
+				stubNetworkSetMTUMtu         int
 
 				stubNetworkLinkAddIpError       error
+				stubNetworkLinkAddIpFailOnCount int
+				stubNetworkLinkAddIpCount       int
 				stubNetworkLinkAddIpIfc         *net.Interface
 				stubNetworkLinkAddIpContainerIP net.IP
 				stubNetworkLinkAddIpsubnet      *net.IPNet
 
-				stubAddDefaultGwError   error
-				stubAddDefaultGwIP      string
-				stubAddDefaultGwIfcName string
+				stubAddDefaultGwError       error
+				stubAddDefaultGwFailOnCount int
+				stubAddDefaultGwCount       int
+				stubAddDefaultGwIP          string
+				stubAddDefaultGwIfcName     string
 
-				stubNetworkLinkUpError error
-				stubNetworkLinkUpIfc   *net.Interface
+				stubNetworkLinkUpError       error
+				stubNetworkLinkUpFailOnCount int
+				stubNetworkLinkUpCount       int
+				stubNetworkLinkUpIfc         *net.Interface
 			)
 
 			BeforeEach(func() {
 				stubInterfaceByNameError = nil
+				stubInterfaceByNameFailOnCount = 0
+				stubInterfaceByNameCount = 0
 				stubInterfaceByNameName = ""
 				stubInterfaceByNameIfc = nil
 				network.InterfaceByName = func(name string) (*net.Interface, error) {
+					stubInterfaceByNameCount++
 					stubInterfaceByNameName = name
-					if stubInterfaceByNameError != nil {
+					if stubInterfaceByNameError != nil && stubInterfaceByNameCount == stubInterfaceByNameFailOnCount {
 						return nil, stubInterfaceByNameError
 					}
 					return stubInterfaceByNameIfc, nil
 				}
 
 				stubNetworkSetMTUError = nil
+				stubNetworkSetMTUFailOnCount = 0
+				stubNetworkSetMTUCount = 0
 				stubNetworkSetMTUIfc = nil
 				stubNetworkSetMTUMtu = 0
 				network.NetworkSetMTU = func(iface *net.Interface, mtu int) error {
+					stubNetworkSetMTUCount++
 					stubNetworkSetMTUIfc = iface
 					stubNetworkSetMTUMtu = mtu
-					if stubNetworkSetMTUError != nil {
+					if stubNetworkSetMTUError != nil && stubNetworkSetMTUCount == stubNetworkSetMTUFailOnCount {
 						return stubNetworkSetMTUError
 					}
 					return nil
 				}
 
 				stubNetworkLinkAddIpError = nil
+				stubNetworkLinkAddIpFailOnCount = 0
+				stubNetworkLinkAddIpCount = 0
 				stubNetworkLinkAddIpIfc = nil
 				stubNetworkLinkAddIpContainerIP = net.ParseIP("0.0.0.0")
 				stubNetworkLinkAddIpsubnet = nil
 				network.NetworkLinkAddIp = func(iface *net.Interface, ip net.IP, ipNet *net.IPNet) error {
+					stubNetworkLinkAddIpCount++
 					stubNetworkLinkAddIpIfc = iface
 					stubNetworkLinkAddIpContainerIP = ip
 					stubNetworkLinkAddIpsubnet = ipNet
-					if stubNetworkLinkAddIpError != nil {
+					if stubNetworkLinkAddIpError != nil && stubNetworkLinkAddIpCount == stubNetworkLinkAddIpFailOnCount {
 						return stubNetworkLinkAddIpError
 					}
 					return nil
 				}
 
 				stubAddDefaultGwError = nil
+				stubAddDefaultGwFailOnCount = 0
+				stubAddDefaultGwCount = 0
 				stubAddDefaultGwIP = ""
 				stubAddDefaultGwIfcName = ""
 				network.AddDefaultGw = func(ip, device string) error {
+					stubAddDefaultGwCount++
 					stubAddDefaultGwIP = ip
 					stubAddDefaultGwIfcName = device
-					if stubAddDefaultGwError != nil {
+					if stubAddDefaultGwError != nil && stubAddDefaultGwCount == stubAddDefaultGwFailOnCount {
 						return stubAddDefaultGwError
 					}
 					return nil
 				}
 
 				stubNetworkLinkUpError = nil
+				stubNetworkLinkUpFailOnCount = 0
+				stubNetworkLinkUpCount = 0
 				stubNetworkLinkUpIfc = nil
 				network.NetworkLinkUp = func(iface *net.Interface) error {
+					stubNetworkLinkUpCount++
 					stubNetworkLinkUpIfc = iface
-					if stubNetworkLinkUpError != nil {
+					if stubNetworkLinkUpError != nil && stubNetworkLinkUpCount == stubNetworkLinkUpFailOnCount {
 						return stubNetworkLinkUpError
 					}
 					return nil
@@ -186,8 +211,16 @@ var _ = Describe("Configure", func() {
 				Ω(stubInterfaceByNameName).Should(Equal(containerInterfaceName))
 			})
 
+			It("returns an error when InterfaceByName fails for loopback", func() {
+				stubInterfaceByNameError = testError
+				stubInterfaceByNameFailOnCount = 1
+				err := network.ConfigureContainer(containerInterfaceName, containerIP, gatewayIP, subnet, mtu)
+				Ω(err).Should(Equal(network.ErrBadLoopbackInterface))
+			})
+
 			It("returns an error when InterfaceByName fails", func() {
 				stubInterfaceByNameError = testError
+				stubInterfaceByNameFailOnCount = 2
 				err := network.ConfigureContainer(containerInterfaceName, containerIP, gatewayIP, subnet, mtu)
 				Ω(err).Should(Equal(network.ErrBadContainerInterface))
 			})
@@ -201,6 +234,7 @@ var _ = Describe("Configure", func() {
 
 			It("returns an error when NetworkSetMTU fails", func() {
 				stubNetworkSetMTUError = testError
+				stubNetworkSetMTUFailOnCount = 1
 				err := network.ConfigureContainer(containerInterfaceName, containerIP, gatewayIP, subnet, mtu)
 				Ω(err).Should(Equal(network.ErrFailedToSetMtu))
 			})
@@ -213,8 +247,16 @@ var _ = Describe("Configure", func() {
 				Ω(stubNetworkLinkAddIpsubnet).Should(Equal(subnet))
 			})
 
+			It("returns an error when NetworkLinkAddIp fails for loopback", func() {
+				stubNetworkLinkAddIpError = testError
+				stubNetworkLinkAddIpFailOnCount = 1
+				err := network.ConfigureContainer(containerInterfaceName, containerIP, gatewayIP, subnet, mtu)
+				Ω(err).Should(Equal(network.ErrFailedToAddLoopbackIp))
+			})
+
 			It("returns an error when NetworkLinkAddIp fails", func() {
 				stubNetworkLinkAddIpError = testError
+				stubNetworkLinkAddIpFailOnCount = 2
 				err := network.ConfigureContainer(containerInterfaceName, containerIP, gatewayIP, subnet, mtu)
 				Ω(err).Should(Equal(network.ErrFailedToAddIp))
 			})
@@ -228,6 +270,7 @@ var _ = Describe("Configure", func() {
 
 			It("returns an error when AddDefaultGw fails", func() {
 				stubAddDefaultGwError = testError
+				stubAddDefaultGwFailOnCount = 1
 				err := network.ConfigureContainer(containerInterfaceName, containerIP, gatewayIP, subnet, mtu)
 				Ω(err).Should(Equal(network.ErrFailedToAddGateway))
 			})
@@ -238,8 +281,16 @@ var _ = Describe("Configure", func() {
 				Ω(stubNetworkLinkUpIfc).Should(Equal(stubInterfaceByNameIfc))
 			})
 
+			It("returns an error when NetworkLinkUp fails for loopback", func() {
+				stubNetworkLinkUpError = testError
+				stubNetworkLinkUpFailOnCount = 1
+				err := network.ConfigureContainer(containerInterfaceName, containerIP, gatewayIP, subnet, mtu)
+				Ω(err).Should(Equal(network.ErrFailedToLinkUpLoopback))
+			})
+
 			It("returns an error when NetworkLinkUp fails", func() {
 				stubNetworkLinkUpError = testError
+				stubNetworkLinkUpFailOnCount = 2
 				err := network.ConfigureContainer(containerInterfaceName, containerIP, gatewayIP, subnet, mtu)
 				Ω(err).Should(Equal(network.ErrFailedToLinkUp))
 			})

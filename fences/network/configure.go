@@ -14,6 +14,9 @@ func ConfigureHost(hostInterface string, containerInterface string, netNsPid int
 }
 
 var (
+	ErrBadLoopbackInterface      = errors.New("cannot find the loopback interface")
+	ErrFailedToAddLoopbackIp     = errors.New("failed to add IP to loopback interface")
+	ErrFailedToLinkUpLoopback    = errors.New("failed to bring up the loopback link")
 	ErrContainerInterfaceMissing = errors.New("container interface name must not be empty")
 	ErrInvalidContainerIP        = errors.New("the container IP is not a valid address in the subnet")
 	ErrInvalidGatewayIP          = errors.New("the gateway IP is not a valid address in the subnet")
@@ -42,6 +45,20 @@ func ConfigureContainer(containerInterface string, containerIP net.IP, gatewayIP
 	}
 
 	var ifc *net.Interface
+
+	// ip address add 127.0.0.1/8 dev lo
+	// ip link set lo up
+	if loIfc, err := InterfaceByName("lo"); err != nil {
+		return ErrBadLoopbackInterface // FIXME: need rich error type
+	} else {
+		_, liIpNet, _ := net.ParseCIDR("127.0.0.1/8")
+		if err = NetworkLinkAddIp(loIfc, net.ParseIP("127.0.0.1"), liIpNet); err != nil {
+			return ErrFailedToAddLoopbackIp // FIXME: need rich error type
+		}
+		if err := NetworkLinkUp(loIfc); err != nil {
+			return ErrFailedToLinkUpLoopback // FIXME: need rich error type
+		}
+	}
 
 	if ifc, err = InterfaceByName(containerInterface); err != nil {
 		return ErrBadContainerInterface // FIXME: need rich error type

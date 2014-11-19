@@ -4,6 +4,7 @@ package net_fence_test
 import (
 	"bufio"
 	"fmt"
+	"github.com/onsi/ginkgo/config"
 	"io"
 	"io/ioutil"
 	"log"
@@ -20,17 +21,22 @@ import (
 )
 
 var (
-	debug              bool
+	verbose            bool
 	netFenceBin        string
 	containerInitBin   string
 	inContainerTestBin string
+	ctr                *container
 )
 
 func buildInContainerTest() string {
 	cmd := exec.Command("ginkgo", "build", "-race", "_hidden/in_container")
-	Ω(cmd.Run()).ShouldNot(HaveOccurred())
+	out, err := cmd.Output()
+	Ω(out).Should(ContainSubstring(" compiled "))
+	Ω(err).ShouldNot(HaveOccurred())
+
 	tmpDir, err := ioutil.TempDir("", "garden-test")
 	Ω(err).ShouldNot(HaveOccurred())
+
 	testBin := filepath.Join(tmpDir, "in_container.test")
 	Ω(os.Rename("./_hidden/in_container/in_container.test", testBin)).ShouldNot(HaveOccurred())
 	return testBin
@@ -39,7 +45,7 @@ func buildInContainerTest() string {
 var _ = Describe("Configure", func() {
 
 	BeforeEach(func() {
-		debug = true
+		verbose = config.DefaultReporterConfig.Verbose
 
 		netFencePath, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/fences/mains/net-fence", "-race")
 		Ω(err).ShouldNot(HaveOccurred())
@@ -50,32 +56,70 @@ var _ = Describe("Configure", func() {
 		containerInitBin = string(containerInitPath)
 
 		inContainerTestBin = buildInContainerTest()
-	})
 
-	It("configures a network interface in the global network namespace", func() {
-		_, err := tenus.NewVethPairWithOptions("testHostIfcName", tenus.VethOptions{
+		_, err = tenus.NewVethPairWithOptions("testHostIfcName", tenus.VethOptions{
 			PeerName:   "testPeerIfcName",
 			TxQueueLen: 1,
 		})
 		Ω(err).ShouldNot(HaveOccurred())
 
-		ctr, err := createContainer(syscall.CLONE_NEWNET, inContainerTestBin)
+		ctr, err = createContainer(syscall.CLONE_NEWNET, inContainerTestBin)
+		Ω(err).ShouldNot(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		err := tenus.DeleteLink("testHostIfcName")
 		Ω(err).ShouldNot(HaveOccurred())
 
-		// ctr.pid holds the pid of the container's init process
-		pid := ctr.cmd.Process.Pid
+		if ctrProc, err := os.FindProcess(ctr.cmd.Process.Pid); err == nil {
+			ctrProc.Kill()
+		}
+	})
 
-		// Move the container's ethernet interface into the network namespace.
-		moveInterfaceToNamespace("testPeerIfcName", pid)
+	It("configures a network interface in the global network namespace", func() {
+
+		configureHost("testHostIfcName", "10.2.3.2/30", "testPeerIfcName", ctr.cmd.Process.Pid)
+
+		if verbose {
+			fmt.Println("\nGinkgo inContainer tests:\n<<----")
+		}
 
 		ctr.proceed()
 
-		Ω(ctr.terminate()).ShouldNot(HaveOccurred())
+		Ω(ctr.wait()).ShouldNot(HaveOccurred())
+
+		if verbose {
+			fmt.Println("\n---->>\nGinkgo inContainer tests ended.")
+		}
+
 	})
 })
 
+func configureHost(hostIfc, hostSubnet, ctrIfc string, pid int) {
+	// Move the container's ethernet interface into the network namespace.
+	moveInterfaceToNamespace(ctrIfc, pid)
+
+	// Add the host address
+	addIpAddress(hostSubnet, hostIfc)
+
+	// Bring the host's ethernet interface up
+	ipLinkUp(hostIfc)
+}
+
 func moveInterfaceToNamespace(ifc string, pid int) {
 	cmd := exec.Command("ip", "link", "set", ifc, "netns", fmt.Sprintf("%d", pid))
+	err := cmd.Run()
+	Ω(err).ShouldNot(HaveOccurred())
+}
+
+func addIpAddress(hostSubnet, ifc string) {
+	cmd := exec.Command("ip", "address", "add", hostSubnet, "dev", ifc)
+	err := cmd.Run()
+	Ω(err).ShouldNot(HaveOccurred())
+}
+
+func ipLinkUp(ifc string) {
+	cmd := exec.Command("ip", "link", "set", ifc, "up")
 	err := cmd.Run()
 	Ω(err).ShouldNot(HaveOccurred())
 }
@@ -148,8 +192,8 @@ func waitForEof(ch chan<- interface{}, reader io.Reader) {
 	data := make([]byte, 1024)
 	for {
 		n, err := reader.Read(data)
-		if debug && n > 0 {
-			fmt.Printf("Data: %s\n", string(data[:n]))
+		if verbose && n > 0 {
+			fmt.Println(string(data[:n]))
 		}
 		if err != nil {
 			if err != io.EOF {
@@ -195,7 +239,7 @@ func (c *container) proceed() error {
 	return nil
 }
 
-func (c *container) terminate() error {
+func (c *container) wait() error {
 	<-c.outputChan
 	<-c.outputChan
 	return c.cmd.Wait()
