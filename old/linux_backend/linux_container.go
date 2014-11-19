@@ -720,6 +720,10 @@ func (c *LinuxContainer) Run(spec api.ProcessSpec, processIO api.ProcessIO) (api
 		user = "root"
 	}
 
+	if spec.User != "" {
+		user = spec.User
+	}
+
 	args := []string{"--socket", sockPath, "--user", user}
 
 	envVars := []string{}
