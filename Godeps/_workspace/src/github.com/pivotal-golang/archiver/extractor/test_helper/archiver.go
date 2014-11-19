@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"compress/gzip"
+	"io"
 	"os"
 
 	. "github.com/onsi/gomega"
@@ -62,7 +63,28 @@ func CreateTarGZArchive(filename string, files []ArchiveFile) {
 	Ω(err).ShouldNot(HaveOccurred())
 
 	gw := gzip.NewWriter(file)
-	w := tar.NewWriter(gw)
+
+	WriteTar(gw, files)
+
+	err = gw.Close()
+	Ω(err).ShouldNot(HaveOccurred())
+
+	err = file.Close()
+	Ω(err).ShouldNot(HaveOccurred())
+}
+
+func CreateTarArchive(filename string, files []ArchiveFile) {
+	file, err := os.Create(filename)
+	Ω(err).ShouldNot(HaveOccurred())
+
+	WriteTar(file, files)
+
+	err = file.Close()
+	Ω(err).ShouldNot(HaveOccurred())
+}
+
+func WriteTar(destination io.Writer, files []ArchiveFile) {
+	w := tar.NewWriter(destination)
 
 	for _, file := range files {
 		var header *tar.Header
@@ -100,12 +122,6 @@ func CreateTarGZArchive(filename string, files []ArchiveFile) {
 		Ω(err).ShouldNot(HaveOccurred())
 	}
 
-	err = w.Close()
-	Ω(err).ShouldNot(HaveOccurred())
-
-	err = gw.Close()
-	Ω(err).ShouldNot(HaveOccurred())
-
-	err = file.Close()
+	err := w.Close()
 	Ω(err).ShouldNot(HaveOccurred())
 }

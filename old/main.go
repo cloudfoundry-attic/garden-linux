@@ -205,7 +205,7 @@ func Main(builders *fences.BuilderRegistry) {
 		logger.Fatal("failed-to-construct-graph", err)
 	}
 
-	endpoint, err := registry.NewEndpoint(*dockerRegistry)
+	endpoint, err := registry.NewEndpoint(*dockerRegistry, nil)
 	if err != nil {
 		logger.Fatal("failed-to-construct-registry-endpoint", err)
 	}

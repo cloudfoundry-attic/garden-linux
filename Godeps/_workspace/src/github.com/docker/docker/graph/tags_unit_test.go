@@ -53,7 +53,7 @@ func mkTestTagStore(root string, t *testing.T) *TagStore {
 	if err != nil {
 		t.Fatal(err)
 	}
-	store, err := NewTagStore(path.Join(root, "tags"), graph, nil)
+	store, err := NewTagStore(path.Join(root, "tags"), graph, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func mkTestTagStore(root string, t *testing.T) *TagStore {
 		t.Fatal(err)
 	}
 	img := &image.Image{ID: testImageID}
-	if err := graph.Register(img, nil, archive); err != nil {
+	if err := graph.Register(img, archive); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.Set(testImageName, "", testImageID, false); err != nil {

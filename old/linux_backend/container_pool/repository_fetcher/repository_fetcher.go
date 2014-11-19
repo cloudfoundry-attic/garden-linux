@@ -31,7 +31,7 @@ type Registry interface {
 type Graph interface {
 	Get(name string) (*image.Image, error)
 	Exists(imageID string) bool
-	Register(image *image.Image, imageJSON []byte, layer archive.ArchiveReader) error
+	Register(image *image.Image, layer archive.ArchiveReader) error
 }
 
 type DockerRepositoryFetcher struct {
@@ -148,7 +148,7 @@ func (fetcher *DockerRepositoryFetcher) fetchLayer(logger lager.Logger, endpoint
 		"layer": layerID,
 	})
 
-	err = fetcher.graph.Register(img, imgJSON, layer)
+	err = fetcher.graph.Register(img, layer)
 	if err != nil {
 		return nil, err
 	}

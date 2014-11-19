@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
+	log "github.com/Sirupsen/logrus"
 	"github.com/docker/docker/engine"
 	"github.com/docker/docker/image"
-	"github.com/docker/docker/pkg/log"
 	"github.com/docker/docker/registry"
 	"github.com/docker/docker/utils"
 	"github.com/docker/libtrust"
@@ -38,6 +38,9 @@ func (s *TagStore) verifyManifest(eng *engine.Engine, manifestBytes []byte) (*re
 	var manifest registry.ManifestData
 	if err := json.Unmarshal(payload, &manifest); err != nil {
 		return nil, false, fmt.Errorf("error unmarshalling manifest: %s", err)
+	}
+	if manifest.SchemaVersion != 1 {
+		return nil, false, fmt.Errorf("unsupported schema version: %d", manifest.SchemaVersion)
 	}
 
 	var verified bool
@@ -110,7 +113,7 @@ func (s *TagStore) CmdPull(job *engine.Job) engine.Status {
 		return job.Error(err)
 	}
 
-	endpoint, err := registry.NewEndpoint(hostname)
+	endpoint, err := registry.NewEndpoint(hostname, s.insecureRegistries)
 	if err != nil {
 		return job.Error(err)
 	}
@@ -134,8 +137,33 @@ func (s *TagStore) CmdPull(job *engine.Job) engine.Status {
 		mirrors = s.mirrors
 	}
 
+	logName := localName
+	if tag != "" {
+		logName += ":" + tag
+	}
+
+	if len(mirrors) == 0 && (isOfficial || endpoint.Version == registry.APIVersion2) {
+		j := job.Eng.Job("trust_update_base")
+		if err = j.Run(); err != nil {
+			return job.Errorf("error updating trust base graph: %s", err)
+		}
+
+		if err := s.pullV2Repository(job.Eng, r, job.Stdout, localName, remoteName, tag, sf, job.GetenvBool("parallel")); err == nil {
+			if err = job.Eng.Job("log", "pull", logName, "").Run(); err != nil {
+				log.Errorf("Error logging event 'pull' for %s: %s", logName, err)
+			}
+			return engine.StatusOK
+		} else if err != registry.ErrDoesNotExist {
+			log.Errorf("Error from V2 registry: %s", err)
+		}
+	}
+
 	if err = s.pullRepository(r, job.Stdout, localName, remoteName, tag, sf, job.GetenvBool("parallel"), mirrors); err != nil {
 		return job.Error(err)
+	}
+
+	if err = job.Eng.Job("log", "pull", logName, "").Run(); err != nil {
+		log.Errorf("Error logging event 'pull' for %s: %s", logName, err)
 	}
 
 	return engine.StatusOK
@@ -147,7 +175,7 @@ func (s *TagStore) pullRepository(r *registry.Session, out io.Writer, localName,
 	repoData, err := r.GetRepositoryData(remoteName)
 	if err != nil {
 		if strings.Contains(err.Error(), "HTTP code: 404") {
-			return fmt.Errorf("Error: image %s not found", remoteName)
+			return fmt.Errorf("Error: image %s:%s not found", remoteName, askedTag)
 		}
 		// Unexpected HTTP error
 		return err
@@ -376,7 +404,7 @@ func (s *TagStore) pullImage(r *registry.Session, out io.Writer, imgID, endpoint
 				layers_downloaded = true
 				defer layer.Close()
 
-				err = s.graph.Register(img, imgJSON,
+				err = s.graph.Register(img,
 					utils.ProgressReader(layer, imgSize, out, sf, false, utils.TruncateID(id), "Downloading"))
 				if terr, ok := err.(net.Error); ok && terr.Timeout() && j < retries {
 					time.Sleep(time.Duration(j) * 500 * time.Millisecond)
@@ -413,6 +441,7 @@ type downloadInfo struct {
 }
 
 func (s *TagStore) pullV2Repository(eng *engine.Engine, r *registry.Session, out io.Writer, localName, remoteName, tag string, sf *utils.StreamFormatter, parallel bool) error {
+	var layersDownloaded bool
 	if tag == "" {
 		log.Debugf("Pulling tag list from V2 registry for %s", remoteName)
 		tags, err := r.GetV2RemoteTags(remoteName, nil)
@@ -420,51 +449,65 @@ func (s *TagStore) pullV2Repository(eng *engine.Engine, r *registry.Session, out
 			return err
 		}
 		for _, t := range tags {
-			if err := s.pullV2Tag(eng, r, out, localName, remoteName, t, sf, parallel); err != nil {
+			if downloaded, err := s.pullV2Tag(eng, r, out, localName, remoteName, t, sf, parallel); err != nil {
 				return err
+			} else if downloaded {
+				layersDownloaded = true
 			}
 		}
 	} else {
-		if err := s.pullV2Tag(eng, r, out, localName, remoteName, tag, sf, parallel); err != nil {
+		if downloaded, err := s.pullV2Tag(eng, r, out, localName, remoteName, tag, sf, parallel); err != nil {
 			return err
+		} else if downloaded {
+			layersDownloaded = true
 		}
 	}
 
+	requestedTag := localName
+	if len(tag) > 0 {
+		requestedTag = localName + ":" + tag
+	}
+	WriteStatus(requestedTag, out, sf, layersDownloaded)
 	return nil
 }
 
-func (s *TagStore) pullV2Tag(eng *engine.Engine, r *registry.Session, out io.Writer, localName, remoteName, tag string, sf *utils.StreamFormatter, parallel bool) error {
+func (s *TagStore) pullV2Tag(eng *engine.Engine, r *registry.Session, out io.Writer, localName, remoteName, tag string, sf *utils.StreamFormatter, parallel bool) (bool, error) {
 	log.Debugf("Pulling tag from V2 registry: %q", tag)
 	manifestBytes, err := r.GetV2ImageManifest(remoteName, tag, nil)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	manifest, verified, err := s.verifyManifest(eng, manifestBytes)
 	if err != nil {
-		return fmt.Errorf("error verifying manifest: %s", err)
+		return false, fmt.Errorf("error verifying manifest: %s", err)
 	}
 
-	if len(manifest.BlobSums) != len(manifest.History) {
-		return fmt.Errorf("length of history not equal to number of layers")
+	if len(manifest.FSLayers) != len(manifest.History) {
+		return false, fmt.Errorf("length of history not equal to number of layers")
 	}
 
 	if verified {
-		out.Write(sf.FormatStatus("", "The image you are pulling has been digitally signed by Docker, Inc."))
+		out.Write(sf.FormatStatus(localName+":"+tag, "The image you are pulling has been verified"))
+	} else {
+		out.Write(sf.FormatStatus(tag, "Pulling from %s", localName))
 	}
-	out.Write(sf.FormatStatus(tag, "Pulling from %s", localName))
 
-	downloads := make([]downloadInfo, len(manifest.BlobSums))
+	if len(manifest.FSLayers) == 0 {
+		return false, fmt.Errorf("no blobSums in manifest")
+	}
 
-	for i := len(manifest.BlobSums) - 1; i >= 0; i-- {
+	downloads := make([]downloadInfo, len(manifest.FSLayers))
+
+	for i := len(manifest.FSLayers) - 1; i >= 0; i-- {
 		var (
-			sumStr  = manifest.BlobSums[i]
-			imgJSON = []byte(manifest.History[i])
+			sumStr  = manifest.FSLayers[i].BlobSum
+			imgJSON = []byte(manifest.History[i].V1Compatibility)
 		)
 
 		img, err := image.NewImgJSON(imgJSON)
 		if err != nil {
-			return fmt.Errorf("failed to parse json: %s", err)
+			return false, fmt.Errorf("failed to parse json: %s", err)
 		}
 		downloads[i].img = img
 
@@ -476,13 +519,13 @@ func (s *TagStore) pullV2Tag(eng *engine.Engine, r *registry.Session, out io.Wri
 
 		chunks := strings.SplitN(sumStr, ":", 2)
 		if len(chunks) < 2 {
-			return fmt.Errorf("expected 2 parts in the sumStr, got %#v", chunks)
+			return false, fmt.Errorf("expected 2 parts in the sumStr, got %#v", chunks)
 		}
 		sumType, checksum := chunks[0], chunks[1]
 		out.Write(sf.FormatProgress(utils.TruncateID(img.ID), "Pulling fs layer", nil))
 
 		downloadFunc := func(di *downloadInfo) error {
-			log.Infof("pulling blob %q to V1 img %s", sumStr, img.ID)
+			log.Debugf("pulling blob %q to V1 img %s", sumStr, img.ID)
 
 			if c, err := s.poolAdd("pull", "img:"+img.ID); err != nil {
 				if c != nil {
@@ -493,6 +536,7 @@ func (s *TagStore) pullV2Tag(eng *engine.Engine, r *registry.Session, out io.Wri
 					log.Debugf("Image (id: %s) pull is already running, skipping: %v", img.ID, err)
 				}
 			} else {
+				defer s.poolRemove("pull", "img:"+img.ID)
 				tmpFile, err := ioutil.TempFile("", "GetV2ImageBlob")
 				if err != nil {
 					return err
@@ -513,7 +557,6 @@ func (s *TagStore) pullV2Tag(eng *engine.Engine, r *registry.Session, out io.Wri
 				di.downloaded = true
 			}
 			di.imgJSON = imgJSON
-			defer s.poolRemove("pull", "img:"+img.ID)
 
 			return nil
 		}
@@ -526,17 +569,18 @@ func (s *TagStore) pullV2Tag(eng *engine.Engine, r *registry.Session, out io.Wri
 		} else {
 			err := downloadFunc(&downloads[i])
 			if err != nil {
-				return err
+				return false, err
 			}
 		}
 	}
 
+	var layersDownloaded bool
 	for i := len(downloads) - 1; i >= 0; i-- {
 		d := &downloads[i]
 		if d.err != nil {
 			err := <-d.err
 			if err != nil {
-				return err
+				return false, err
 			}
 		}
 		if d.downloaded {
@@ -545,16 +589,16 @@ func (s *TagStore) pullV2Tag(eng *engine.Engine, r *registry.Session, out io.Wri
 			defer d.tmpFile.Close()
 			d.tmpFile.Seek(0, 0)
 			if d.tmpFile != nil {
-				err = s.graph.Register(d.img, d.imgJSON,
+				err = s.graph.Register(d.img,
 					utils.ProgressReader(d.tmpFile, int(d.length), out, sf, false, utils.TruncateID(d.img.ID), "Extracting"))
 				if err != nil {
-					return err
+					return false, err
 				}
 
 				// FIXME: Pool release here for parallel tag pull (ensures any downloads block until fully extracted)
 			}
 			out.Write(sf.FormatProgress(utils.TruncateID(d.img.ID), "Pull complete", nil))
-
+			layersDownloaded = true
 		} else {
 			out.Write(sf.FormatProgress(utils.TruncateID(d.img.ID), "Already exists", nil))
 		}
@@ -562,8 +606,8 @@ func (s *TagStore) pullV2Tag(eng *engine.Engine, r *registry.Session, out io.Wri
 	}
 
 	if err = s.Set(localName, tag, downloads[0].img.ID, true); err != nil {
-		return err
+		return false, err
 	}
 
-	return nil
+	return layersDownloaded, nil
 }
