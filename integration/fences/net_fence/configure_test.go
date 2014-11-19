@@ -4,28 +4,19 @@ package net_fence_test
 import (
 	"bufio"
 	"fmt"
-	"github.com/onsi/ginkgo/config"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"syscall"
+
+	"github.com/onsi/ginkgo/config"
 
 	"github.com/milosgajdos83/tenus"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
-)
-
-var (
-	verbose            bool
-	netFenceBin        string
-	containerInitBin   string
-	inContainerTestBin string
-	ctr                *container
 )
 
 func buildInContainerTest() string {
@@ -34,20 +25,29 @@ func buildInContainerTest() string {
 	Ω(out).Should(ContainSubstring(" compiled "))
 	Ω(err).ShouldNot(HaveOccurred())
 
-	tmpDir, err := ioutil.TempDir("", "garden-test")
-	Ω(err).ShouldNot(HaveOccurred())
-
-	testBin := filepath.Join(tmpDir, "in_container.test")
-	Ω(os.Rename("./_hidden/in_container/in_container.test", testBin)).ShouldNot(HaveOccurred())
-	return testBin
+	return "./_hidden/in_container/in_container.test"
 }
 
 var _ = Describe("Configure", func() {
 
+	var (
+		verbose            bool
+		netFenceBin        string
+		containerInitBin   string
+		inContainerTestBin string
+	)
+
 	BeforeEach(func() {
 		verbose = config.DefaultReporterConfig.Verbose
 
-		netFencePath, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/fences/mains/net-fence", "-race")
+		prevCgoEnabled := os.Getenv("CGO_ENABLED")
+		os.Setenv("CGO_ENABLED", "0")
+		netFencePath, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/fences/mains/net-fence", "-a")
+		if prevCgoEnabled != "" {
+			os.Setenv("CGO_ENABLED", prevCgoEnabled)
+		} else {
+			os.Setenv("CGO_ENABLED", "1") // FIXME: Go 1.4 will support os.Unsetenv (https://code.google.com/p/go/issues/detail?id=6423)
+		}
 		Ω(err).ShouldNot(HaveOccurred())
 		netFenceBin = string(netFencePath)
 
@@ -56,42 +56,56 @@ var _ = Describe("Configure", func() {
 		containerInitBin = string(containerInitPath)
 
 		inContainerTestBin = buildInContainerTest()
+	})
 
-		_, err = tenus.NewVethPairWithOptions("testHostIfcName", tenus.VethOptions{
-			PeerName:   "testPeerIfcName",
-			TxQueueLen: 1,
+	It("uses a statically linked net-fence exeutable", func() {
+		cmd := exec.Command("ldd", netFenceBin)
+		out, err := cmd.CombinedOutput()
+		Ω(out).Should(ContainSubstring("not a dynamic executable"))
+		Ω(err).Should(HaveOccurred())
+	})
+
+	Context("in a container with a virtual ethernet pair", func() {
+
+		var ctr *container
+
+		BeforeEach(func() {
+			_, err := tenus.NewVethPairWithOptions("testHostIfcName", tenus.VethOptions{
+				PeerName:   "testPeerIfcName",
+				TxQueueLen: 1,
+			})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			ctr, err = createContainer(verbose, containerInitBin, syscall.CLONE_NEWNET, inContainerTestBin)
+			Ω(err).ShouldNot(HaveOccurred())
 		})
-		Ω(err).ShouldNot(HaveOccurred())
 
-		ctr, err = createContainer(syscall.CLONE_NEWNET, inContainerTestBin)
-		Ω(err).ShouldNot(HaveOccurred())
-	})
+		AfterEach(func() {
+			err := tenus.DeleteLink("testHostIfcName")
+			Ω(err).ShouldNot(HaveOccurred())
 
-	AfterEach(func() {
-		err := tenus.DeleteLink("testHostIfcName")
-		Ω(err).ShouldNot(HaveOccurred())
+			if ctrProc, err := os.FindProcess(ctr.cmd.Process.Pid); err == nil {
+				ctrProc.Kill()
+			}
+		})
 
-		if ctrProc, err := os.FindProcess(ctr.cmd.Process.Pid); err == nil {
-			ctrProc.Kill()
-		}
-	})
+		It("configures a network interface in the global network namespace", func() {
 
-	It("configures a network interface in the global network namespace", func() {
+			configureHost("testHostIfcName", "10.2.3.2/30", "testPeerIfcName", ctr.cmd.Process.Pid)
 
-		configureHost("testHostIfcName", "10.2.3.2/30", "testPeerIfcName", ctr.cmd.Process.Pid)
+			if verbose {
+				fmt.Println("\nGinkgo inContainer tests:\n<<----")
+			}
 
-		if verbose {
-			fmt.Println("\nGinkgo inContainer tests:\n<<----")
-		}
+			ctr.proceed()
 
-		ctr.proceed()
+			Ω(ctr.wait()).ShouldNot(HaveOccurred())
 
-		Ω(ctr.wait()).ShouldNot(HaveOccurred())
+			if verbose {
+				fmt.Println("\n---->>\nGinkgo inContainer tests ended.")
+			}
 
-		if verbose {
-			fmt.Println("\n---->>\nGinkgo inContainer tests ended.")
-		}
-
+		})
 	})
 })
 
@@ -133,7 +147,7 @@ type container struct {
 
 // Creates a collection of namespaces defined by cloneFlags and starts an init process.
 // When the init process has reached a rendezvous point, returns.
-func createContainer(cloneFlags int, executable string, args ...string) (*container, error) {
+func createContainer(verbose bool, containerInitBin string, cloneFlags int, executable string, args ...string) (*container, error) {
 	err := checkRoot()
 	if err != nil {
 		return nil, err
@@ -160,13 +174,13 @@ func createContainer(cloneFlags int, executable string, args ...string) (*contai
 	if err != nil {
 		return nil, err
 	}
-	go waitForEof(container.outputChan, stdOut)
+	go waitForEof(verbose, container.outputChan, stdOut)
 
 	stdErr, err := cmd.StderrPipe()
 	if err != nil {
 		return nil, err
 	}
-	go waitForEof(container.outputChan, stdErr)
+	go waitForEof(verbose, container.outputChan, stdErr)
 
 	go listenForClient(container)
 
@@ -185,7 +199,7 @@ func createContainer(cloneFlags int, executable string, args ...string) (*contai
 	return container, nil
 }
 
-func waitForEof(ch chan<- interface{}, reader io.Reader) {
+func waitForEof(verbose bool, ch chan<- interface{}, reader io.Reader) {
 	defer func() {
 		ch <- nil
 	}()
