@@ -897,6 +897,7 @@ func (s *GardenServer) handleRun(w http.ResponseWriter, r *http.Request) {
 	args := request.GetArgs()
 	dir := request.GetDir()
 	privileged := request.GetPrivileged()
+	user := request.GetUser()
 	env := request.GetEnv()
 	tty := request.GetTty()
 
@@ -914,6 +915,7 @@ func (s *GardenServer) handleRun(w http.ResponseWriter, r *http.Request) {
 		Args:       args,
 		Dir:        dir,
 		Privileged: privileged,
+		User:       user,
 		Env:        convertEnv(env),
 		TTY:        ttySpecFrom(tty),
 	}

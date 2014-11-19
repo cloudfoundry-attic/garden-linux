@@ -246,6 +246,7 @@ func (c *connection) Run(handle string, spec api.ProcessSpec, processIO api.Proc
 		Args:       spec.Args,
 		Dir:        dir,
 		Privileged: proto.Bool(spec.Privileged),
+		User:       proto.String(spec.User),
 		Tty:        tty,
 		Rlimits: &protocol.ResourceLimits{
 			As:         spec.Limits.As,

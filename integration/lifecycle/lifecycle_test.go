@@ -86,6 +86,49 @@ var _ = Describe("Creating a container", func() {
 	})
 
 	Context("and running a process", func() {
+		It("runs as the root user if privileged is true", func() {
+			stdout := gbytes.NewBuffer()
+
+			_, err := container.Run(api.ProcessSpec{
+				Path:       "whoami",
+				Privileged: true,
+			}, api.ProcessIO{
+				Stdout: stdout,
+			})
+
+			Ω(err).ShouldNot(HaveOccurred())
+			Eventually(stdout).Should(gbytes.Say("root\n"))
+		})
+
+		It("runs as the vcap user if privileged is false", func() {
+			stdout := gbytes.NewBuffer()
+
+			_, err := container.Run(api.ProcessSpec{
+				Path:       "whoami",
+				Privileged: false,
+			}, api.ProcessIO{
+				Stdout: stdout,
+			})
+
+			Ω(err).ShouldNot(HaveOccurred())
+			Eventually(stdout).Should(gbytes.Say("vcap\n"))
+		})
+
+		It("runs as the specified user if a user is specified", func() {
+			stdout := gbytes.NewBuffer()
+
+			_, err := container.Run(api.ProcessSpec{
+				Path:       "whoami",
+				Privileged: true,
+				User:       "vcap",
+			}, api.ProcessIO{
+				Stdout: stdout,
+			})
+
+			Ω(err).ShouldNot(HaveOccurred())
+			Eventually(stdout).Should(gbytes.Say("vcap\n"))
+		})
+
 		It("streams output back and reports the exit status", func() {
 			stdout := gbytes.NewBuffer()
 			stderr := gbytes.NewBuffer()
