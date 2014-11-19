@@ -42,7 +42,7 @@ func cidrVar(s string) CidrVar {
 }
 
 func (c *CidrVar) Get() interface{} {
-	return CidrVar(*c)
+	return *c
 }
 
 func (c *CidrVar) Set(s string) error {
@@ -57,4 +57,24 @@ func (c *CidrVar) Set(s string) error {
 
 func (c *CidrVar) String() string {
 	return c.IPNet.String()
+}
+
+type IPVar net.IP
+
+func (c *IPVar) Get() interface{} {
+	return *c
+}
+
+func (c *IPVar) Set(s string) error {
+	ip := net.ParseIP(s)
+	if ip == nil {
+		return fmt.Errorf("invalid IP address: %s", s)
+	}
+
+	*c = IPVar(ip)
+	return nil
+}
+
+func (c *IPVar) String() string {
+	return net.IP(*c).String()
 }

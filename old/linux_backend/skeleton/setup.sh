@@ -34,6 +34,7 @@ container_iface_mtu=$container_iface_mtu
 network_cidr=$network_cidr
 user_uid=$user_uid
 rootfs_path=$rootfs_path
+external_ip=$external_ip
 EOS
 
 # Strip /dev down to the bare minimum
