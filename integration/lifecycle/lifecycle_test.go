@@ -67,7 +67,7 @@ var _ = Describe("Creating a container", func() {
 
 		Ω(process.Wait()).Should(Equal(0))
 
-		Ω(outBuf).Should(gbytes.Say("tmpfs /dev/shm tmpfs rw,relatime 0 0"))
+		Ω(outBuf).Should(gbytes.Say("tmpfs /dev/shm tmpfs rw,nodev,relatime 0 0"))
 	})
 
 	Context("and sending a List request", func() {
