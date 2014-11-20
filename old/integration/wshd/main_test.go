@@ -72,6 +72,16 @@ set -o errexit
 
 cd $(dirname $0)/../
 
+cat > /proc/$PID/uid_map <<EOF
+0 0 1
+10000 10000 1
+EOF
+
+cat > /proc/$PID/gid_map <<EOF
+0 0 1
+10000 10000 1
+EOF
+
 echo $PID > ./run/wshd.pid
 `), 0755)
 
@@ -88,7 +98,7 @@ cd $(dirname $0)/../
 mkdir -p /proc
 mount -t proc none /proc
 
-adduser -h /home/vcap -s /bin/sh -D -u 10000 vcap
+adduser -u 10000 -g 10000 -s /bin/sh -D vcap
 `), 0755)
 
 		ioutil.WriteFile(path.Join(libDir, "set-up-root.sh"), []byte(`#!/bin/bash
