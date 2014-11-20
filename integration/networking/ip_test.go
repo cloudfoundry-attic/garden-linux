@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/cloudfoundry-incubator/garden/api"
+	"github.com/cloudfoundry/gunk/localip"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
@@ -146,4 +147,15 @@ var _ = Describe("IP settings", func() {
 		})
 	})
 
+	Describe("the container's external ip", func() {
+		It("is the external IP of its host", func() {
+			info, err := container.Info()
+			Ω(err).ShouldNot(HaveOccurred())
+
+			localIP, err := localip.LocalIP()
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(localIP).Should(Equal(info.ExternalIP))
+		})
+	})
 })

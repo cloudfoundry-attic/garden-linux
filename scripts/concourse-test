@@ -12,6 +12,4 @@ cp -r garden-linux $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux
 
 cd $(dirname $0)/..
 
-apt-get -y install strace
-
 ./scripts/drone-test "$@"

@@ -51,7 +51,7 @@ func TestLifecycle(t *testing.T) {
 	}
 
 	SynchronizedBeforeSuite(func() []byte {
-		gardenPath, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux", "-race")
+		gardenPath, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux", "-a", "-race", "-tags", "daemon")
 		Ω(err).ShouldNot(HaveOccurred())
 		return []byte(gardenPath)
 	}, func(gardenPath []byte) {

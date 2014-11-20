@@ -45,7 +45,11 @@ var _ = Describe("RepositoryFetcher", func() {
 				}),
 			),
 		)
-		endpoint, err := registry.NewEndpoint(server.URL() + "/v1/")
+
+		endpoint, err := registry.NewEndpoint(
+			server.HTTPTestServer.Listener.Addr().String(),
+			[]string{server.HTTPTestServer.Listener.Addr().String()},
+		)
 		Ω(err).ShouldNot(HaveOccurred())
 
 		registry, err := registry.NewSession(nil, nil, endpoint, true)
@@ -144,27 +148,7 @@ var _ = Describe("RepositoryFetcher", func() {
 			It("downloads all layers of the given tag of a repository and returns its image id", func() {
 				expectedLayerNum := 3
 
-				graph.WhenRegistering = func(image *image.Image, imageJSON []byte, layer archive.ArchiveReader) error {
-					if expectedLayerNum == 3 {
-						Ω(string(imageJSON)).Should(Equal(fmt.Sprintf(
-							`{"id":"layer-%d","parent":"parent-%d","Config":{"env": ["env2=env2Value", "malformedenvvar"]}}`,
-							expectedLayerNum,
-							expectedLayerNum,
-						)))
-					} else if expectedLayerNum == 2 {
-						Ω(string(imageJSON)).Should(Equal(fmt.Sprintf(
-							`{"id":"layer-%d","parent":"parent-%d","Config":{"env": ["env1=env1Value", "env2=env2BadValue"]}}`,
-							expectedLayerNum,
-							expectedLayerNum,
-						)))
-					} else {
-						Ω(string(imageJSON)).Should(Equal(fmt.Sprintf(
-							`{"id":"layer-%d","parent":"parent-%d"}`,
-							expectedLayerNum,
-							expectedLayerNum,
-						)))
-					}
-
+				graph.WhenRegistering = func(image *image.Image, layer archive.ArchiveReader) error {
 					Ω(image.ID).Should(Equal(fmt.Sprintf("layer-%d", expectedLayerNum)))
 					Ω(image.Parent).Should(Equal(fmt.Sprintf("parent-%d", expectedLayerNum)))
 
@@ -261,13 +245,7 @@ var _ = Describe("RepositoryFetcher", func() {
 			It("does not fetch it", func() {
 				expectedLayerNum := 3
 
-				graph.WhenRegistering = func(image *image.Image, imageJSON []byte, layer archive.ArchiveReader) error {
-					Ω(string(imageJSON)).Should(Equal(fmt.Sprintf(
-						`{"id":"layer-%d","parent":"parent-%d"}`,
-						expectedLayerNum,
-						expectedLayerNum,
-					)))
-
+				graph.WhenRegistering = func(image *image.Image, layer archive.ArchiveReader) error {
 					Ω(image.ID).Should(Equal(fmt.Sprintf("layer-%d", expectedLayerNum)))
 					Ω(image.Parent).Should(Equal(fmt.Sprintf("parent-%d", expectedLayerNum)))
 

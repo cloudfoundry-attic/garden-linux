@@ -23,13 +23,13 @@ var _ = Describe("Fence", func() {
 		Ω(err).ShouldNot(HaveOccurred())
 
 		fakeSubnetPool = &fakeSubnets{nextSubnet: a}
-		fence = &f{fakeSubnetPool, 1500}
+		fence = &f{fakeSubnetPool, 1500, net.ParseIP("1.2.3.4")}
 	})
 
 	Describe("Capacity", func() {
 		It("delegates to Subnets", func() {
 			fakeSubnetPool.capacity = 4
-			fence := &f{fakeSubnetPool, 1500}
+			fence := &f{fakeSubnetPool, 1500, net.ParseIP("1.2.3.4")}
 
 			Ω(fence.Capacity()).Should(Equal(4))
 		})
@@ -239,10 +239,13 @@ var _ = Describe("Fence", func() {
 				It("configures with the correct MTU size", func() {
 					Ω(env).Should(ContainElement("container_iface_mtu=123"))
 				})
+
+				It("configures with the correct external IP", func() {
+					Ω(env).Should(ContainElement("external_ip=1.2.3.4"))
+				})
 			})
 		})
 	})
-
 })
 
 type fakeSubnets struct {

@@ -13,7 +13,8 @@ import (
 
 type f struct {
 	subnets.Subnets
-	mtu uint32
+	mtu        uint32
+	externalIP net.IP
 }
 
 type FlatFence struct {
@@ -100,6 +101,7 @@ func (a *Allocation) Dismantle() error {
 func (a *Allocation) Info(i *api.ContainerInfo) {
 	i.HostIP = subnets.GatewayIP(a.IPNet).String()
 	i.ContainerIP = a.containerIP.String()
+	i.ExternalIP = a.fence.externalIP.String()
 }
 
 func (a *Allocation) MarshalJSON() ([]byte, error) {
@@ -114,7 +116,8 @@ func (a *Allocation) ConfigureProcess(env *[]string) error {
 		fmt.Sprintf("network_container_ip=%s", a.containerIP),
 		fmt.Sprintf("network_cidr_suffix=%d", suff),
 		fmt.Sprintf("container_iface_mtu=%d", a.fence.mtu),
-		fmt.Sprintf("network_cidr=%s", a.IPNet.String()))
+		fmt.Sprintf("network_cidr=%s", a.IPNet.String()),
+		fmt.Sprintf("external_ip=%s", a.fence.externalIP.String()))
 
 	return nil
 }
