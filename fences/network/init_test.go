@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"math"
 
+	"github.com/cloudfoundry/gunk/localip"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -54,6 +55,43 @@ var _ = Describe("Flags", func() {
 					err := flags.Parse(args)
 					Ω(err).Should(HaveOccurred())
 					Ω(err.Error()).Should(MatchRegexp("-networkPool"))
+				})
+			})
+		})
+	})
+
+	Describe("-externalIP", func() {
+		Context("when it is not set", func() {
+			It("uses the local IP of the machine", func() {
+				localIP, err := localip.LocalIP()
+				Ω(err).ShouldNot(HaveOccurred())
+
+				flags.Parse(args)
+				Ω(config.ExternalIP.String()).Should(Equal(localIP))
+			})
+		})
+
+		Context("when it is set", func() {
+			Context("and when it is a valid IP", func() {
+				BeforeEach(func() {
+					args = []string{"-externalIP", "1.2.3.4"}
+				})
+
+				It("uses that value", func() {
+					flags.Parse(args)
+					Ω(config.ExternalIP.String()).Should(Equal("1.2.3.4"))
+				})
+			})
+
+			Context("and when it is invalid", func() {
+				BeforeEach(func() {
+					args = []string{"-externalIP", "potato"}
+				})
+
+				It("should error, naming the right flag", func() {
+					err := flags.Parse(args)
+					Ω(err).Should(HaveOccurred())
+					Ω(err.Error()).Should(MatchRegexp("-externalIP"))
 				})
 			})
 		})
