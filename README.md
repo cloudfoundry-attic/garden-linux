@@ -46,7 +46,7 @@ installed in your `$GOPATH` inside a vagrant environment, either by following th
 
         cd $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux # assuming your $GOPATH has only one entry
         make
-        go build -o out/garden-linux
+        go build -a -tags daemon -o out/garden-linux
 
 * Set up necessary directories
 
