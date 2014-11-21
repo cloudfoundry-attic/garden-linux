@@ -8,39 +8,35 @@ See the [old README](old/README.md) for old documentation, caveat lector.
 
 ## Creating a suitable dev box to install the code
 
-1. Clone the garden-linux source code in to your `$GOPATH`. 
+A good vagrant box to start from is at [cf-guardian/dev](http://github.com/cf-guardian/dev). 
 
-    `go get github.com/cloudfoundry-incubator/garden-linux`
+If you downloaded the dev box above, then you can set up the dependencies in your host machine (as follows), and then - making sure `$GOHOME` is properly set, say `vagrant up` in the cloned [cf-guardian/dev](http://github.com/cf-guardian/dev) box to create a vagrant with the source code checked out.
 
-2. Set up a Vagrant environment with the garden-linux code checked out
+First, follow the [godep instructions](http://github.com/tools/godep) to install godep.
 
-    A good vagrant box to start from is at [cf-guardian/dev](http://github.com/cf-guardian/dev). 
+Then, checkout the code and restore the dependencies with godeps (this assumes your `$GOPATH` is a single value):
 
-    If you downloaded the dev box above, then you can set up the dependencies in your host machine (as follows), and then - making sure `$GOHOME` is properly set, say `vagrant up` in the cloned [cf-guardian/dev](http://github.com/cf-guardian/dev) box to create a vagrant with the source code checked out.
+    git clone https://github.com/cloudfoundry-incubator/garden-linux $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux
+    cd $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux
+    godep restore
 
-    First, follow the [godep instructions](http://github.com/tools/godep) to install godep.
+Now, make sure to set `$GOHOME` to `$GOPATH` so that cf-guardian dev box knows where to find your go code:
 
-    Then, restore godeps (this assumes your `$GOPATH` is a single value):
+    export GOHOME=$GOPATH # assuming your GOPATH only contains one entry
 
-        cd $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux
-        godep restore
+Bring dev box up:
 
-    Now, make sure to set `$GOHOME` to `$GOPATH` so that cf-guardian dev box knows where to find your go code:
-
-        export GOHOME=$GOPATH # assuming your GOPATH only contains one entry
-
-
-    Bring dev box up:
-
-        cd ~/workspace/dev # or wherever you checked out the dev box
-        vagrant up
-        vagrant ssh
+    cd ~/workspace/dev # or wherever you checked out the dev box
+    vagrant up
+    vagrant ssh
 
 
 ## Installing Garden-Linux
 
 **Note:** the rest of these instructions assume you arranged for the garden-linux code, and dependencies, to be
-installed in your `$GOPATH` inside a vagrant environment, either by following the steps above or through some other mechanism.
+installed in your `$GOPATH` inside a linux environment, either by following the steps above or through some other mechanism.
+
+The rest of these instructions assume you are running inside an Ubuntu environment (for example, the above vagrant box) with go installed and the code checked out.
 
 * Build garden-linux
 
