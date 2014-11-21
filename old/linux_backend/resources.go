@@ -7,7 +7,8 @@ import (
 )
 
 type Resources struct {
-	UID     uint32
+	UserUID uint32
+	RootUID uint32
 	Network fences.Fence
 	Ports   []uint32
 
@@ -15,12 +16,14 @@ type Resources struct {
 }
 
 func NewResources(
-	uid uint32,
+	useruid uint32,
+	rootuid uint32,
 	network fences.Fence,
 	ports []uint32,
 ) *Resources {
 	return &Resources{
-		UID:     uid,
+		UserUID: useruid,
+		RootUID: rootuid,
 		Network: network,
 		Ports:   ports,
 

@@ -65,6 +65,7 @@ var _ = Describe("Linux containers", func() {
 
 		containerResources = linux_backend.NewResources(
 			1234,
+			1235,
 			&fakeNetworkResources{},
 			[]uint32{},
 		)
@@ -169,7 +170,8 @@ var _ = Describe("Linux containers", func() {
 			nm := json.RawMessage(`"fakeNetMarshal"`)
 			Ω(snapshot.Resources).Should(Equal(
 				linux_backend.ResourcesSnapshot{
-					UID:     containerResources.UID,
+					UserUID: containerResources.UserUID,
+					RootUID: containerResources.RootUID,
 					Network: &nm,
 					Ports:   containerResources.Ports,
 				},
@@ -1613,7 +1615,7 @@ var _ = Describe("Linux containers", func() {
 			err := container.LimitDisk(limits)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			uid := containerResources.UID
+			uid := containerResources.UserUID
 
 			Ω(fakeQuotaManager.Limited).Should(HaveKey(uid))
 			Ω(fakeQuotaManager.Limited[uid]).Should(Equal(limits))

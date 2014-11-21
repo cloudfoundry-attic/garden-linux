@@ -38,7 +38,8 @@ type LimitsSnapshot struct {
 }
 
 type ResourcesSnapshot struct {
-	UID     uint32
+	UserUID uint32
+	RootUID uint32
 	Network *json.RawMessage
 	Ports   []uint32
 }

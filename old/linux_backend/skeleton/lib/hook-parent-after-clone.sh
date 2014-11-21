@@ -10,12 +10,12 @@ cd $(dirname $0)/../
 source etc/config
 
 cat > /proc/$PID/uid_map <<EOF
-0 0 1
+0 $root_uid 1
 $user_uid $user_uid 1
 EOF
 
 cat > /proc/$PID/gid_map <<EOF
-0 0 1
+0 $root_uid 1
 $user_uid $user_uid 1
 EOF
 

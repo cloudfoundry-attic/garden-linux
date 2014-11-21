@@ -152,9 +152,9 @@ var _ = Describe("Container pool", func() {
 	})
 
 	Describe("creating", func() {
-		itReleasesTheUserID := func() {
-			It("returns the container's user ID to the pool", func() {
-				Ω(fakeUIDPool.Released).Should(Equal([]uint32{10000}))
+		itReleasesTheUserIDs := func() {
+			It("returns the container's user ID and root ID to the pool", func() {
+				Ω(fakeUIDPool.Released).Should(Equal([]uint32{10000, 10001}))
 			})
 		}
 
@@ -219,6 +219,28 @@ var _ = Describe("Container pool", func() {
 			Ω(container.Properties()).Should(Equal(properties))
 		})
 
+		Context("when the privileged flag is specified and true", func() {
+			It("executes create.sh with a root_uid of 0", func() {
+				container, err := pool.Create(api.ContainerSpec{Privileged: true})
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Ω(fakeRunner).Should(HaveExecutedSerially(
+					fake_command_runner.CommandSpec{
+						Path: "/root/path/create.sh",
+						Args: []string{path.Join(depotPath, container.ID())},
+						Env: []string{
+							"id=" + container.ID(),
+							"rootfs_path=/provided/rootfs/path",
+							"user_uid=10000",
+							"root_uid=0",
+							"PATH=" + os.Getenv("PATH"),
+							"fake_fences_env=1.2.0.0/30",
+						},
+					},
+				))
+			})
+		})
+
 		Context("when no Network parameter is specified", func() {
 			It("executes create.sh with the correct args and environment", func() {
 				container, err := pool.Create(api.ContainerSpec{})
@@ -232,6 +254,7 @@ var _ = Describe("Container pool", func() {
 							"id=" + container.ID(),
 							"rootfs_path=/provided/rootfs/path",
 							"user_uid=10000",
+							"root_uid=10001",
 							"PATH=" + os.Getenv("PATH"),
 							"fake_fences_env=1.2.0.0/30",
 						},
@@ -255,6 +278,7 @@ var _ = Describe("Container pool", func() {
 							"id=" + container.ID(),
 							"rootfs_path=/provided/rootfs/path",
 							"user_uid=10000",
+							"root_uid=10001",
 							"PATH=" + os.Getenv("PATH"),
 							"fake_fences_env=1.3.0.0/30",
 						},
@@ -286,7 +310,7 @@ var _ = Describe("Container pool", func() {
 					Ω(err).Should(Equal(allocateError))
 				})
 
-				itReleasesTheUserID()
+				itReleasesTheUserIDs()
 
 				It("does not execute create.sh", func() {
 					Ω(fakeRunner).ShouldNot(HaveExecutedSerially(
@@ -340,6 +364,7 @@ var _ = Describe("Container pool", func() {
 							"id=" + container.ID(),
 							"rootfs_path=/var/some/mount/point",
 							"user_uid=10000",
+							"root_uid=10001",
 							"PATH=" + os.Getenv("PATH"),
 							"fake_fences_env=1.2.0.0/30",
 						},
@@ -395,7 +420,7 @@ var _ = Describe("Container pool", func() {
 					Ω(err).Should(BeAssignableToTypeOf(&url.Error{}))
 				})
 
-				itReleasesTheUserID()
+				itReleasesTheUserIDs()
 				itReleasesTheIPBlock()
 			})
 
@@ -412,7 +437,7 @@ var _ = Describe("Container pool", func() {
 					Ω(err).Should(Equal(container_pool.ErrUnknownRootFSProvider))
 				})
 
-				itReleasesTheUserID()
+				itReleasesTheUserIDs()
 				itReleasesTheIPBlock()
 			})
 
@@ -432,7 +457,7 @@ var _ = Describe("Container pool", func() {
 					Ω(err).Should(Equal(providerErr))
 				})
 
-				itReleasesTheUserID()
+				itReleasesTheUserIDs()
 				itReleasesTheIPBlock()
 
 				It("does not execute create.sh", func() {
@@ -594,7 +619,7 @@ var _ = Describe("Container pool", func() {
 					Ω(err).Should(Equal(disaster))
 				})
 
-				itReleasesTheUserID()
+				itReleasesTheUserIDs()
 				itReleasesTheIPBlock()
 				itCleansUpTheRootfs()
 				itDeletesTheContainerDirectory()
@@ -637,7 +662,7 @@ var _ = Describe("Container pool", func() {
 				Ω(fakeFences.Released).Should(ContainElement("1.2.0.0/30"))
 			})
 
-			itReleasesTheUserID()
+			itReleasesTheUserIDs()
 			itReleasesTheIPBlock()
 			itDeletesTheContainerDirectory()
 			itCleansUpTheRootfs()
@@ -670,7 +695,7 @@ var _ = Describe("Container pool", func() {
 				Ω(err).Should(HaveOccurred())
 			})
 
-			itReleasesTheUserID()
+			itReleasesTheUserIDs()
 			itReleasesTheIPBlock()
 			itCleansUpTheRootfs()
 			itDeletesTheContainerDirectory()
@@ -705,7 +730,8 @@ var _ = Describe("Container pool", func() {
 					},
 
 					Resources: linux_backend.ResourcesSnapshot{
-						UID:     10000,
+						UserUID: 10000,
+						RootUID: 10001,
 						Network: &restoredNetwork,
 						Ports:   []uint32{61001, 61002, 61003},
 					},
