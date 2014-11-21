@@ -148,6 +148,8 @@ func (c *connection) Create(spec api.ContainerSpec) (string, error) {
 		req.Env = convertEnvironmentVariables(spec.Env)
 	}
 
+	req.Privileged = proto.Bool(spec.Privileged)
+
 	for _, bm := range spec.BindMounts {
 		var mode protocol.CreateRequest_BindMount_Mode
 		var origin protocol.CreateRequest_BindMount_Origin
