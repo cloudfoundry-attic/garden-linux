@@ -94,6 +94,7 @@ func (s *GardenServer) handleCreate(w http.ResponseWriter, r *http.Request) {
 		BindMounts: bindMounts,
 		Properties: properties,
 		Env:        convertEnv(request.GetEnv()),
+		Privileged: request.GetPrivileged(),
 	})
 	if err != nil {
 		s.writeError(w, err, hLog)
