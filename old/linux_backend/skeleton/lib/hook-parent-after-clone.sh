@@ -84,4 +84,21 @@ ip link set $network_container_iface netns $PID
 ip address add $network_host_ip/$network_cidr_suffix dev $network_host_iface
 ip link set $network_host_iface mtu $container_iface_mtu up
 
+
+[ ! -d /var/run/netns ] && mkdir -p /var/run/netns
+[ -f /var/run/netns/$PID ] && rm -f /var/run/netns/$PID
+
+mkdir -p /sys 
+mount -n -t tmpfs tmpfs /sys  # otherwise netns exec fails
+ln -s /proc/$PID/ns/net /var/run/netns/$PID
+
+ip netns exec $PID ip address add 127.0.0.1/8 dev lo
+ip netns exec $PID ip link set lo up
+
+ip netns exec $PID ip address add $network_container_ip/$network_cidr_suffix dev $network_container_iface
+ip netns exec $PID ip link set $network_container_iface mtu $container_iface_mtu up
+
+ip netns exec $PID ip route add default via $network_host_ip dev $network_container_iface
+
+
 exit 0

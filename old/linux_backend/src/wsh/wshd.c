@@ -732,6 +732,29 @@ int child_run(void *data) {
     abort();
   }
 
+  rv = symlink("/dev/pts/ptmx", "/dev/ptmx");
+  if (rv == -1 || errno == EEXIST) {
+    rv = unlink("/dev/ptmx");
+    if (rv == -1) {
+      perror("unlink");
+      abort();
+    }
+
+    rv = symlink("/dev/pts/ptmx", "/dev/ptmx");
+  }
+
+  rv = setuid(0);
+  if (rv == -1) {
+    perror("setuid");
+    abort();
+  }
+
+  rv = setgid(0);
+  if (rv == -1) {
+    perror("setgid");
+    abort();
+  }
+
   rv = run(pivoted_lib_path, "hook-child-after-pivot.sh");
   if(rv != 0) {
     perror("hook-child-after-pivot");
@@ -762,11 +785,7 @@ int child_continue(int argc, char **argv) {
   /* Clean up temporary pivot_root dir */
   rv = umount2("/tmp/garden-host", MNT_DETACH);
   if (rv == -1) {
-    exit(1);
-  }
-
-  rv = rmdir("/tmp/garden-host");
-  if (rv == -1) {
+    perror("unmount2");
     exit(1);
   }
 
