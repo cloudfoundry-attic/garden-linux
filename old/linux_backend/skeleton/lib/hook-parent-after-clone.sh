@@ -67,11 +67,13 @@ done
 
 echo $PID > ./run/wshd.pid
 
-ip link add name $network_host_iface type veth peer name $network_container_iface
-ip link set $network_host_iface netns 1
-ip link set $network_container_iface netns $PID
-
-ip address add $network_host_ip/$network_cidr_suffix dev $network_host_iface
-ip link set $network_host_iface mtu $container_iface_mtu up
+./bin/net-fence -v -target=host \
+                -tag=$tag \
+                -hostIfcName=$network_host_iface \
+                -containerIfcName=$network_container_iface \
+                -gatewayIP=$network_host_ip \
+                -subnet=$network_cidr \
+                -containerPid=$PID \
+                -mtu=$container_iface_mtu
 
 exit 0

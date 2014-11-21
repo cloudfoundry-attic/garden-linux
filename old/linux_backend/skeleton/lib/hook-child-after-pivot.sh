@@ -20,10 +20,12 @@ mount -t tmpfs tmpfs /dev/shm
 
 hostname $id
 
-./bin/net-fence -containerIfcName=$network_container_iface \
+./bin/net-fence -target=container \
+                -containerIfcName=$network_container_iface \
                 -containerIP=$network_container_ip \
                 -gatewayIP=$network_host_ip \
-                -subnet=$network_cidr
+                -subnet=$network_cidr \
+                -mtu=$container_iface_mtu
 
 if [ -e /etc/seed ]; then
   . /etc/seed

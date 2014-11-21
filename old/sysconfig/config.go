@@ -6,6 +6,7 @@ type Config struct {
 	CgroupPath             string
 	NetworkInterfacePrefix string
 	IPTables               IPTablesConfig
+	Tag                    string
 }
 
 type IPTablesConfig struct {
@@ -28,6 +29,7 @@ type IPTablesNATConfig struct {
 func NewConfig(tag string) Config {
 	return Config{
 		NetworkInterfacePrefix: fmt.Sprintf("w%s", tag),
+		Tag: tag,
 
 		CgroupPath: fmt.Sprintf("/tmp/garden-%s/cgroup", tag),
 
@@ -51,6 +53,7 @@ func (config Config) Environ() []string {
 		"GARDEN_CGROUP_PATH=" + config.CgroupPath,
 
 		"GARDEN_NETWORK_INTERFACE_PREFIX=" + config.NetworkInterfacePrefix,
+		"GARDEN_TAG=" + config.Tag,
 
 		"GARDEN_IPTABLES_FILTER_FORWARD_CHAIN=" + config.IPTables.Filter.ForwardChain,
 		"GARDEN_IPTABLES_FILTER_DEFAULT_CHAIN=" + config.IPTables.Filter.DefaultChain,

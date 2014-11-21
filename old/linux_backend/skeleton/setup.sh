@@ -9,6 +9,7 @@ cd $(dirname $0)
 
 # Defaults for debugging the setup script
 iface_name_prefix="${GARDEN_NETWORK_INTERFACE_PREFIX}"
+tag="${GARDEN_TAG:-9}"
 max_id_len=$(expr 16 - ${#iface_name_prefix} - 2)
 iface_name=$(tail -c ${max_id_len} <<< ${id})
 id=${id:-test}
@@ -25,6 +26,7 @@ rootfs_path=$(readlink -f $rootfs_path)
 # Write configuration
 cat > etc/config <<-EOS
 id=$id
+tag=$tag
 network_host_ip=$network_host_ip
 network_host_iface=$network_host_iface
 network_container_ip=$network_container_ip

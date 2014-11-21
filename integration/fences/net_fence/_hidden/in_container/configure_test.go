@@ -15,6 +15,7 @@ var _ = Describe("Configure", func() {
 		Ω(err).ShouldNot(HaveOccurred())
 		netFenceBin := string(netFencePath)
 		cmd := exec.Command(netFenceBin,
+			"-target=container",
 			"-containerIfcName=testPeerIfcName",
 			"-containerIP=10.2.3.1",
 			"-gatewayIP=10.2.3.2",

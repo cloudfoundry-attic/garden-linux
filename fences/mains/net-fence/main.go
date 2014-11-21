@@ -14,6 +14,15 @@ func main() {
 	var verbose bool
 	flag.BoolVar(&verbose, "v", false, "announce parameters on entry")
 
+	var target string
+	flag.StringVar(&target, "target", "host", "the target to configure (container or host)")
+
+	var tag string
+	flag.StringVar(&tag, "tag", "99", "a tag to disambiguate resource names")
+
+	var hostIfcName string
+	flag.StringVar(&hostIfcName, "hostIfcName", "", "the name of the host-side device to configure")
+
 	var containerIfcName string
 	flag.StringVar(&containerIfcName, "containerIfcName", "", "the name of the container-side device to configure")
 
@@ -29,19 +38,34 @@ func main() {
 	var mtu network.MtuVar = defaultMtuSize
 	flag.Var(&mtu, "mtu", "the MTU size of the container-side device")
 
+	var containerPid int
+	flag.IntVar(&containerPid, "containerPid", 0, "the PID of the container's init process")
+
 	flag.Parse()
 
 	if verbose {
 		fmt.Println("\nnet-fence:",
+			"\n  target", target,
+			"\n  tag", tag,
+			"\n  hostIfcName", hostIfcName,
 			"\n  containerIfcName", containerIfcName,
 			"\n  containerIP", containerIP.IP,
 			"\n  gatewayIP", gatewayIP.IP,
 			"\n  subnet", subnet.IPNet,
+			"\n  containerPid", containerPid,
 			"\n  mtu", int(mtu),
 		)
 	}
 
-	err := network.ConfigureContainer(containerIfcName, containerIP.IP, gatewayIP.IP, subnet.IPNet, int(mtu))
+	var err error
+	if target == "host" {
+		err = network.ConfigureHost(hostIfcName, containerIfcName, gatewayIP.IP, subnet.IPNet, containerPid, int(mtu), tag)
+	} else if target == "container" {
+		err = network.ConfigureContainer(containerIfcName, containerIP.IP, gatewayIP.IP, subnet.IPNet, int(mtu))
+	} else {
+		fmt.Println("invalid target:", target)
+		os.Exit(1)
+	}
 	if err != nil {
 		fmt.Println("error:", err)
 		os.Exit(1)
