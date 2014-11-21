@@ -2,6 +2,7 @@ package network
 
 import (
 	"errors"
+	"fmt"
 	"net"
 
 	"github.com/cloudfoundry-incubator/garden-linux/fences/network/subnets"
@@ -24,6 +25,10 @@ func ConfigureHost(hostInterface string, containerInterface string, gatewayIP ne
 		return ErrBadHostInterface // FIXME: need rich error type
 	}
 
+	if err = NetworkSetMTU(hostIfc, mtu); err != nil {
+		return ErrFailedToSetMtu // FIXME: need rich error type
+	}
+
 	if err = NetworkSetNsPid(hostIfc, 1); err != nil {
 		return ErrFailedToSetHostNs // FIXME: need rich error type
 	}
@@ -37,12 +42,25 @@ func ConfigureHost(hostInterface string, containerInterface string, gatewayIP ne
 		return ErrFailedToSetContainerNs // FIXME: need rich error type
 	}
 
-	if err = NetworkLinkAddIp(hostIfc, gatewayIP, subnet); err != nil {
+	//bridgeName := "br-" + tag + "-" + subnet.IP.String()
+
+	bridger, err := tenus.NewBridge()
+	if err != nil {
+		fmt.Println("Error: ", err)
+		return ErrFailedToCreateBridge // FIXME: need rich error type
+	}
+
+	if err = bridger.AddSlaveIfc(hostIfc); err != nil {
+		return ErrFailedToAddSlave // FIXME: need rich error type
+	}
+
+	bridgeIfc := bridger.NetInterface()
+	if err = NetworkLinkAddIp(bridgeIfc, gatewayIP, subnet); err != nil {
 		return ErrFailedToAddIp // FIXME: need rich error type
 	}
 
-	if err = NetworkSetMTU(hostIfc, mtu); err != nil {
-		return ErrFailedToSetMtu // FIXME: need rich error type
+	if err = NetworkLinkUp(bridgeIfc); err != nil {
+		return ErrFailedToLinkUp // FIXME: need rich error type
 	}
 
 	if err = NetworkLinkUp(hostIfc); err != nil {
@@ -61,6 +79,8 @@ var (
 	ErrFailedToAddGateway        = errors.New("failed to add gateway to interface")
 	ErrFailedToAddIp             = errors.New("failed to add IP to interface")
 	ErrFailedToAddLoopbackIp     = errors.New("failed to add IP to loopback interface")
+	ErrFailedToAddSlave          = errors.New("failed to slave interface to bridge")
+	ErrFailedToCreateBridge      = errors.New("failed to create bridge")
 	ErrFailedToCreateVethPair    = errors.New("failed to create virtual ethernet pair")
 	ErrFailedToLinkUp            = errors.New("failed to bring up the link")
 	ErrFailedToLinkUpLoopback    = errors.New("failed to bring up the loopback link")
@@ -79,6 +99,8 @@ var AddDefaultGw func(ip, device string) error = netlink.AddDefaultGw
 var NetworkLinkUp func(iface *net.Interface) error = netlink.NetworkLinkUp
 var NetworkSetMTU func(iface *net.Interface, mtu int) error = netlink.NetworkSetMTU
 var NetworkSetNsPid func(iface *net.Interface, nspid int) error = netlink.NetworkSetNsPid
+
+//var NewBridgeWithName func(ifcName string) (tenus.Bridger, error) = tenus.NewBridgeWithName
 
 // ConfigureContainer is called inside a network namespace to set the IP configuration for a container in a subnet.
 // This function is non-atomic: if an error is returned the container configuration may be partially set.

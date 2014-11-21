@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"syscall"
 	"testing"
 
@@ -71,4 +72,22 @@ func TestLifecycle(t *testing.T) {
 
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Lifecycle Suite")
+}
+
+func containerIP(ctr api.Container) string {
+	info, err := ctr.Info()
+	Ω(err).ShouldNot(HaveOccurred())
+	return info.ContainerIP
+}
+
+func dumpIP() {
+	cmd := exec.Command("ip", "a")
+	op, err := cmd.CombinedOutput()
+	Ω(err).ShouldNot(HaveOccurred())
+	fmt.Println("IP status:\n", string(op))
+
+	cmd = exec.Command("iptables", "--list")
+	op, err = cmd.CombinedOutput()
+	Ω(err).ShouldNot(HaveOccurred())
+	fmt.Println("IP tables status:\n", string(op))
 }

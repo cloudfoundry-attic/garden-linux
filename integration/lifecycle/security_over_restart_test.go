@@ -11,22 +11,41 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = FDescribe("Denying access to network ranges", func() {
+var _ = Describe("Denying access to network ranges", func() {
 	var (
 		blockedListener   api.Container
-		blockedListenerIP string = fmt.Sprintf("11.0.%d.1", GinkgoParallelNode())
+		blockedListenerIP string
 
 		unblockedListener   api.Container
-		unblockedListenerIP string = fmt.Sprintf("11.1.%d.1", GinkgoParallelNode())
+		unblockedListenerIP string
 
 		allowedListener   api.Container
-		allowedListenerIP string = fmt.Sprintf("11.2.%d.1", GinkgoParallelNode())
+		allowedListenerIP string
 
 		sender api.Container
 	)
 
 	BeforeEach(func() {
-		client = startGarden(
+		client = startGarden()
+
+		var err error
+
+		// create a listener to which we deny network access
+		blockedListener, err = client.Create(api.ContainerSpec{})
+		Ω(err).ShouldNot(HaveOccurred())
+		blockedListenerIP = containerIP(blockedListener)
+
+		// create a listener to which we do not deny access
+		unblockedListener, err = client.Create(api.ContainerSpec{})
+		Ω(err).ShouldNot(HaveOccurred())
+		unblockedListenerIP = containerIP(unblockedListener)
+
+		// create a listener to which we exclicitly allow access
+		allowedListener, err = client.Create(api.ContainerSpec{})
+		Ω(err).ShouldNot(HaveOccurred())
+		allowedListenerIP = containerIP(allowedListener)
+
+		restartGarden(
 			"-denyNetworks", strings.Join([]string{
 				blockedListenerIP + "/32",
 				allowedListenerIP + "/32",
@@ -34,22 +53,10 @@ var _ = FDescribe("Denying access to network ranges", func() {
 			"-allowNetworks", allowedListenerIP+"/32",
 		)
 
-		var err error
-
-		// create a listener to which we deny network access
-		blockedListener, err = client.Create(api.ContainerSpec{Network: blockedListenerIP + "/30"})
-		Ω(err).ShouldNot(HaveOccurred())
-		blockedListenerIP = containerIP(blockedListener)
-
-		// create a listener to which we do not deny access
-		unblockedListener, err = client.Create(api.ContainerSpec{Network: unblockedListenerIP + "/30"})
-		Ω(err).ShouldNot(HaveOccurred())
-		unblockedListenerIP = containerIP(unblockedListener)
-
-		// create a listener to which we exclicitly allow access
-		allowedListener, err = client.Create(api.ContainerSpec{Network: allowedListenerIP + "/30"})
-		Ω(err).ShouldNot(HaveOccurred())
-		allowedListenerIP = containerIP(allowedListener)
+		// check that the IPs were preserved over restart
+		Ω(containerIP(blockedListener)).Should(Equal(blockedListenerIP))
+		Ω(containerIP(unblockedListener)).Should(Equal(unblockedListenerIP))
+		Ω(containerIP(allowedListener)).Should(Equal(allowedListenerIP))
 
 		// create a container with the new deny network configuration
 		sender, err = client.Create(api.ContainerSpec{})
