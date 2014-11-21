@@ -335,17 +335,6 @@ setup_fs
 		Ω(catSession).ShouldNot(Say(" /tmp/garden-host"))
 	})
 
-	It("cleans up the /tmp/garden-host pivot_root directory", func() {
-		ls, err := Start(
-			exec.Command(wsh, "--socket", socketPath, "ls", "/tmp/garden-host"),
-			GinkgoWriter,
-			GinkgoWriter,
-		)
-		Ω(err).ShouldNot(HaveOccurred())
-
-		Eventually(ls).Should(Exit(1))
-	})
-
 	Context("when mount points on the host are deleted", func() {
 		BeforeEach(func() {
 			tmpdir, err := ioutil.TempDir("", "wshd-bogus-mount")

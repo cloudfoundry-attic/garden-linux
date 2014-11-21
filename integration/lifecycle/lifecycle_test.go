@@ -21,19 +21,24 @@ import (
 
 var _ = Describe("Creating a container", func() {
 	var container api.Container
+	var privilegedContainer bool
 
-	BeforeEach(func() {
+	JustBeforeEach(func() {
 		client = startGarden()
 
 		var err error
 
-		container, err = client.Create(api.ContainerSpec{})
+		container, err = client.Create(api.ContainerSpec{Privileged: privilegedContainer})
 		Ω(err).ShouldNot(HaveOccurred())
 	})
 
 	AfterEach(func() {
 		err := client.Destroy(container.Handle())
 		Ω(err).ShouldNot(HaveOccurred())
+	})
+
+	BeforeEach(func() {
+		privilegedContainer = false
 	})
 
 	It("sources /etc/seed", func() {
@@ -67,7 +72,7 @@ var _ = Describe("Creating a container", func() {
 
 		Ω(process.Wait()).Should(Equal(0))
 
-		Ω(outBuf).Should(gbytes.Say("tmpfs /dev/shm tmpfs rw,nodev,relatime 0 0"))
+		Ω(outBuf).Should(gbytes.Say("tmpfs /dev/shm tmpfs rw,nodev,relatime,size=64k 0 0"))
 	})
 
 	Context("and sending a List request", func() {
@@ -85,27 +90,25 @@ var _ = Describe("Creating a container", func() {
 		})
 	})
 
+	It("gives the container a hostname based on its id", func() {
+		stdout := gbytes.NewBuffer()
+
+		_, err := container.Run(api.ProcessSpec{
+			Path: "hostname",
+		}, api.ProcessIO{
+			Stdout: stdout,
+		})
+		Ω(err).ShouldNot(HaveOccurred())
+
+		Eventually(stdout).Should(gbytes.Say(fmt.Sprintf("%s\n", container.Handle())))
+	})
+
 	Context("and running a process", func() {
-		It("runs as the root user if privileged is true", func() {
+		It("runs as the vcap user by default", func() {
 			stdout := gbytes.NewBuffer()
 
 			_, err := container.Run(api.ProcessSpec{
-				Path:       "whoami",
-				Privileged: true,
-			}, api.ProcessIO{
-				Stdout: stdout,
-			})
-
-			Ω(err).ShouldNot(HaveOccurred())
-			Eventually(stdout).Should(gbytes.Say("root\n"))
-		})
-
-		It("runs as the vcap user if privileged is false", func() {
-			stdout := gbytes.NewBuffer()
-
-			_, err := container.Run(api.ProcessSpec{
-				Path:       "whoami",
-				Privileged: false,
+				Path: "whoami",
 			}, api.ProcessIO{
 				Stdout: stdout,
 			})
@@ -114,19 +117,50 @@ var _ = Describe("Creating a container", func() {
 			Eventually(stdout).Should(gbytes.Say("vcap\n"))
 		})
 
-		It("runs as the specified user if a user is specified", func() {
-			stdout := gbytes.NewBuffer()
+		Context("when root is requested", func() {
+			It("runs as root inside the container", func() {
+				stdout := gbytes.NewBuffer()
 
-			_, err := container.Run(api.ProcessSpec{
-				Path:       "whoami",
-				Privileged: true,
-				User:       "vcap",
-			}, api.ProcessIO{
-				Stdout: stdout,
+				_, err := container.Run(api.ProcessSpec{
+					Path: "whoami",
+					User: "root",
+				}, api.ProcessIO{
+					Stdout: stdout,
+				})
+
+				Ω(err).ShouldNot(HaveOccurred())
+				Eventually(stdout).Should(gbytes.Say("root\n"))
 			})
 
-			Ω(err).ShouldNot(HaveOccurred())
-			Eventually(stdout).Should(gbytes.Say("vcap\n"))
+			Context("by default", func() {
+				It("does not get root privileges on host resources", func() {
+					process, err := container.Run(api.ProcessSpec{
+						Path: "sh",
+						User: "root",
+						Args: []string{"-c", "echo h > /proc/sysrq-trigger"},
+					}, api.ProcessIO{})
+					Ω(err).ShouldNot(HaveOccurred())
+
+					Ω(process.Wait()).ShouldNot(Equal(0))
+				})
+			})
+
+			Context("when the 'privileged' flag is set on the create call", func() {
+				BeforeEach(func() {
+					privilegedContainer = true
+				})
+
+				It("gets real root privileges", func() {
+					process, err := container.Run(api.ProcessSpec{
+						Path: "sh",
+						User: "root",
+						Args: []string{"-c", "echo h > /proc/sysrq-trigger"},
+					}, api.ProcessIO{})
+					Ω(err).ShouldNot(HaveOccurred())
+
+					Ω(process.Wait()).Should(Equal(0))
+				})
+			})
 		})
 
 		It("streams output back and reports the exit status", func() {
@@ -233,7 +267,7 @@ var _ = Describe("Creating a container", func() {
 		})
 
 		Context("with a memory limit", func() {
-			BeforeEach(func() {
+			JustBeforeEach(func() {
 				err := container.LimitMemory(api.MemoryLimits{
 					LimitInBytes: 64 * 1024 * 1024,
 				})
@@ -492,7 +526,7 @@ var _ = Describe("Creating a container", func() {
 	Context("and streaming files in", func() {
 		var tarStream io.Reader
 
-		BeforeEach(func() {
+		JustBeforeEach(func() {
 			tmpdir, err := ioutil.TempDir("", "some-temp-dir-parent")
 			Ω(err).ShouldNot(HaveOccurred())
 

@@ -33,6 +33,7 @@ function setup_fs_other() {
   overlay_directory_in_rootfs /dev rw
   overlay_directory_in_rootfs /etc rw
   overlay_directory_in_rootfs /home rw
+  overlay_directory_in_rootfs /root rw
   overlay_directory_in_rootfs /sbin rw
   overlay_directory_in_rootfs /var rw
 

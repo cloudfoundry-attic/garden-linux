@@ -226,21 +226,28 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 
 	resources := containerSnapshot.Resources
 
-	err = p.uidPool.Remove(resources.UID)
+	err = p.uidPool.Remove(resources.UserUID)
+	if err != nil {
+		return nil, err
+	}
+
+	err = p.uidPool.Remove(resources.RootUID)
 	if err != nil {
 		return nil, err
 	}
 
 	state, err := p.builders.Rebuild(resources.Network)
 	if err != nil {
-		p.uidPool.Release(resources.UID)
+		p.uidPool.Release(resources.UserUID)
+		p.uidPool.Release(resources.RootUID)
 		return nil, err
 	}
 
 	for _, port := range resources.Ports {
 		err = p.portPool.Remove(port)
 		if err != nil {
-			p.uidPool.Release(resources.UID)
+			p.uidPool.Release(resources.UserUID)
+			p.uidPool.Release(resources.RootUID)
 			state.Dismantle()
 
 			for _, port := range resources.Ports {
@@ -265,7 +272,8 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 		containerSnapshot.Properties,
 		containerSnapshot.GraceTime,
 		linux_backend.NewResources(
-			resources.UID,
+			resources.UserUID,
+			resources.RootUID,
 			state,
 			resources.Ports,
 		),
@@ -384,9 +392,9 @@ func (p *LinuxContainerPool) saveRootFSProvider(id string, provider string) erro
 
 func (p *LinuxContainerPool) acquirePoolResources(spec api.ContainerSpec) (*linux_backend.Resources, error) {
 	var err error
-	resources := linux_backend.NewResources(0, nil, nil)
+	resources := linux_backend.NewResources(0, 1, nil, nil)
 
-	if err := p.acquireUID(resources); err != nil {
+	if err := p.acquireUID(resources, spec.Privileged); err != nil {
 		return nil, err
 	}
 
@@ -399,13 +407,21 @@ func (p *LinuxContainerPool) acquirePoolResources(spec api.ContainerSpec) (*linu
 	return resources, nil
 }
 
-func (p *LinuxContainerPool) acquireUID(resources *linux_backend.Resources) error {
+func (p *LinuxContainerPool) acquireUID(resources *linux_backend.Resources, privileged bool) error {
 	var err error
-	resources.UID, err = p.uidPool.Acquire()
-
+	resources.UserUID, err = p.uidPool.Acquire()
 	if err != nil {
 		p.logger.Error("uid-acquire-failed", err)
 		return err
+	}
+
+	resources.RootUID = 0
+	if !privileged {
+		resources.RootUID, err = p.uidPool.Acquire()
+		if err != nil {
+			p.logger.Error("uid-acquire-failed", err)
+			return err
+		}
 	}
 
 	return nil
@@ -416,8 +432,12 @@ func (p *LinuxContainerPool) releasePoolResources(resources *linux_backend.Resou
 		p.portPool.Release(port)
 	}
 
-	if resources.UID != 0 {
-		p.uidPool.Release(resources.UID)
+	if resources.UserUID != 0 {
+		p.uidPool.Release(resources.UserUID)
+	}
+
+	if resources.RootUID != 0 {
+		p.uidPool.Release(resources.RootUID)
 	}
 
 	if resources.Network != nil {
@@ -453,7 +473,8 @@ func (p *LinuxContainerPool) acquireSystemResources(id, containerPath, rootFSPat
 	create.Env = []string{
 		"id=" + id,
 		"rootfs_path=" + rootfsPath,
-		fmt.Sprintf("user_uid=%d", resources.UID),
+		fmt.Sprintf("user_uid=%d", resources.UserUID),
+		fmt.Sprintf("root_uid=%d", resources.RootUID),
 		"PATH=" + os.Getenv("PATH"),
 	}
 	resources.Network.ConfigureProcess(&create.Env)

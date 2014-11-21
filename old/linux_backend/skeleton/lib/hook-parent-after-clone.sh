@@ -10,12 +10,12 @@ cd $(dirname $0)/../
 source etc/config
 
 cat > /proc/$PID/uid_map <<EOF
-0 0 1
+0 $root_uid 1
 $user_uid $user_uid 1
 EOF
 
 cat > /proc/$PID/gid_map <<EOF
-0 0 1
+0 $root_uid 1
 $user_uid $user_uid 1
 EOF
 
@@ -100,5 +100,6 @@ ip netns exec $PID ip link set $network_container_iface mtu $container_iface_mtu
 
 ip netns exec $PID ip route add default via $network_host_ip dev $network_container_iface
 
+umount /sys
 
 exit 0
