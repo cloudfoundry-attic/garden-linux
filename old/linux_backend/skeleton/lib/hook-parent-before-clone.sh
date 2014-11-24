@@ -18,4 +18,4 @@ mount -n -t devpts -o newinstance,ptmxmode=0666 devpts $rootfs_path/dev/pts
 mkdir -p $rootfs_path/proc
 mount -n -t proc none $rootfs_path/proc
 mkdir -p $rootfs_path/dev/shm
-mount -n -t tmpfs -o nodev,size=64k tmpfs $rootfs_path/dev/shm
+mount -n -t tmpfs -o nodev tmpfs $rootfs_path/dev/shm
