@@ -107,15 +107,39 @@ var _ = Describe("Creating a container", func() {
 	Context("and running a process", func() {
 		It("runs as the vcap user by default", func() {
 			stdout := gbytes.NewBuffer()
+			stderr := gbytes.NewBuffer()
 
-			_, err := container.Run(api.ProcessSpec{
+			process, err := container.Run(api.ProcessSpec{
 				Path: "whoami",
 			}, api.ProcessIO{
 				Stdout: stdout,
+				Stderr: stderr,
 			})
 
+			process.Wait()
+			fmt.Println(string(stderr.Contents()))
 			Ω(err).ShouldNot(HaveOccurred())
 			Eventually(stdout).Should(gbytes.Say("vcap\n"))
+		})
+
+		Context("when an arbitrary user is requested", func() {
+			It("runs as that user (if it exists)", func() {
+				whoami := gbytes.NewBuffer()
+				stderr := gbytes.NewBuffer()
+
+				process, err := container.Run(api.ProcessSpec{
+					Path: "whoami",
+					User: "ftp", // happens to exist and have a homedir in the rootfs
+				}, api.ProcessIO{
+					Stdout: whoami,
+					Stderr: stderr,
+				})
+				Ω(err).ShouldNot(HaveOccurred())
+
+				process.Wait()
+				fmt.Println(string(stderr.Contents()))
+				Eventually(whoami).Should(gbytes.Say("ftp\n"))
+			})
 		})
 
 		Context("when root is requested", func() {

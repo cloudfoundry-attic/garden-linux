@@ -108,8 +108,14 @@ var uidPoolStart = flag.Uint(
 
 var uidPoolSize = flag.Uint(
 	"uidPoolSize",
-	256,
+	2147483640,
 	"size of the uid pool",
+)
+
+var uidMappingSize = flag.Uint(
+	"uidMappingSize",
+	5000,
+	"number of uids and gids to map to host uids. only uids within this range are supported within a container.",
 )
 
 var denyNetworks = flag.String(
@@ -176,7 +182,7 @@ func Main(builders *fences.BuilderRegistry) {
 		missing("-overlays")
 	}
 
-	uidPool := uid_pool.New(uint32(*uidPoolStart), uint32(*uidPoolSize))
+	uidPool := uid_pool.New(uint32(*uidPoolStart), uint32(*uidPoolSize), uint32(*uidMappingSize))
 
 	// TODO: use /proc/sys/net/ipv4/ip_local_port_range by default (end + 1)
 	portPool := port_pool.New(uint32(*portPoolStart), uint32(*portPoolSize))

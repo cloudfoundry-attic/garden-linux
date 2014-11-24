@@ -9,8 +9,8 @@ import (
 
 var _ = Describe("Unix UID pool", func() {
 	Describe("acquiring", func() {
-		It("returns the next available UID from the pool", func() {
-			pool := uid_pool.New(10000, 5)
+		It("returns the next available UID block from the pool", func() {
+			pool := uid_pool.New(10000, 500, 100)
 
 			uid1, err := pool.Acquire()
 			Ω(err).ShouldNot(HaveOccurred())
@@ -19,12 +19,12 @@ var _ = Describe("Unix UID pool", func() {
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(uid1).Should(Equal(uint32(10000)))
-			Ω(uid2).Should(Equal(uint32(10001)))
+			Ω(uid2).Should(Equal(uint32(10100)))
 		})
 
 		Context("when the pool is exhausted", func() {
 			It("returns an error", func() {
-				pool := uid_pool.New(10000, 5)
+				pool := uid_pool.New(10000, 500, 100)
 
 				for i := 0; i < 5; i++ {
 					_, err := pool.Acquire()
@@ -39,7 +39,7 @@ var _ = Describe("Unix UID pool", func() {
 
 	Describe("removing", func() {
 		It("acquires a specific UID from the pool", func() {
-			pool := uid_pool.New(10000, 2)
+			pool := uid_pool.New(10000, 2, 1)
 
 			err := pool.Remove(10000)
 			Ω(err).ShouldNot(HaveOccurred())
@@ -54,7 +54,7 @@ var _ = Describe("Unix UID pool", func() {
 
 		Context("when the resource is already acquired", func() {
 			It("returns a UIDTakenError", func() {
-				pool := uid_pool.New(10000, 2)
+				pool := uid_pool.New(10000, 2, 1)
 
 				uid, err := pool.Acquire()
 				Ω(err).ShouldNot(HaveOccurred())
@@ -67,7 +67,7 @@ var _ = Describe("Unix UID pool", func() {
 
 	Describe("releasing", func() {
 		It("places a uid back at the end of the pool", func() {
-			pool := uid_pool.New(10000, 2)
+			pool := uid_pool.New(10000, 20, 10)
 
 			uid1, err := pool.Acquire()
 			Ω(err).ShouldNot(HaveOccurred())
@@ -77,7 +77,7 @@ var _ = Describe("Unix UID pool", func() {
 
 			uid2, err := pool.Acquire()
 			Ω(err).ShouldNot(HaveOccurred())
-			Ω(uid2).Should(Equal(uint32(10001)))
+			Ω(uid2).Should(Equal(uint32(10010)))
 
 			nextUID, err := pool.Acquire()
 			Ω(err).ShouldNot(HaveOccurred())
@@ -86,11 +86,24 @@ var _ = Describe("Unix UID pool", func() {
 
 		Context("when the released uid is out of the range", func() {
 			It("does not add it to the pool", func() {
-				pool := uid_pool.New(10000, 0)
+				pool := uid_pool.New(10000, 0, 1)
 
 				pool.Release(20000)
 
 				_, err := pool.Acquire()
+				Ω(err).Should(HaveOccurred())
+			})
+		})
+
+		Context("when the released uid is not the start of a block", func() {
+			It("does not add it to the pool", func() {
+				pool := uid_pool.New(100, 5, 6)
+
+				pool.Release(101)
+
+				pool.Acquire()           // -> 100
+				_, err := pool.Acquire() // -> 106 = out of range
+
 				Ω(err).Should(HaveOccurred())
 			})
 		})

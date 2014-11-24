@@ -11,12 +11,12 @@ source etc/config
 
 cat > /proc/$PID/uid_map <<EOF
 0 $root_uid 1
-$user_uid $user_uid 1
+1 $user_uid $uid_mapping_size
 EOF
 
 cat > /proc/$PID/gid_map <<EOF
 0 $root_uid 1
-$user_uid $user_uid 1
+1 $user_uid $uid_mapping_size
 EOF
 
 # Add new group for every subsystem

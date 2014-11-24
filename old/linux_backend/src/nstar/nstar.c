@@ -83,7 +83,8 @@ int setns(int fd, int nstype);
 
 int main(int argc, char **argv) {
   int rv;
-  int nsfd;
+  int mntnsfd;
+  int usrnsfd;
   char *user = NULL;
   char *destination = NULL;
   int tpid;
@@ -110,16 +111,16 @@ int main(int argc, char **argv) {
     compress = argv[4];
   }
 
-  char nspath[PATH_MAX];
-  rv = snprintf(nspath, sizeof(nspath), "/proc/%u/ns/mnt", tpid);
+  char mntnspath[PATH_MAX];
+  rv = snprintf(mntnspath, sizeof(mntnspath), "/proc/%u/ns/mnt", tpid);
   if(rv == -1) {
-    perror("snprintf ns path");
+    perror("snprintf ns mnt path");
     return 1;
   }
 
-  nsfd = open(nspath, O_RDONLY);
-  if(nsfd == -1) {
-    perror("open namespace");
+  mntnsfd = open(mntnspath, O_RDONLY);
+  if(mntnsfd == -1) {
+    perror("open mnt namespace");
     return 1;
   }
 
@@ -129,13 +130,34 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  char usrnspath[PATH_MAX];
+  rv = snprintf(usrnspath, sizeof(usrnspath), "/proc/%u/ns/user", tpid);
+  if(rv == -1) {
+    perror("snprintf ns user path");
+    return 1;
+  }
+
+  usrnsfd = open(usrnspath, O_RDONLY);
+  if(usrnsfd == -1) {
+    perror("open user namespace");
+    return 1;
+  }
+
   /* switch to container's mount namespace/rootfs */
-  rv = setns(nsfd, CLONE_NEWNS);
+  rv = setns(mntnsfd, CLONE_NEWNS);
   if(rv == -1) {
     perror("setns");
     return 1;
   }
-  close(nsfd);
+  close(mntnsfd);
+
+  /* switch to container's user namespace so that user lookup returns correct uids */
+  rv = setns(usrnsfd, CLONE_NEWUSER);
+  if(rv == -1) {
+    perror("setns user");
+    return 1;
+  }
+  close(usrnsfd);
 
   pw = getpwnam(user);
   if(pw == NULL) {
@@ -146,6 +168,18 @@ int main(int argc, char **argv) {
   rv = chdir(pw->pw_dir);
   if(rv == -1) {
     perror("chdir to user home");
+    return 1;
+  }
+
+  rv = setgid(0);
+  if(rv == -1) {
+    perror("setgid");
+    return 1;
+  }
+
+  rv = setuid(0);
+  if(rv == -1) {
+    perror("setuid");
     return 1;
   }
 

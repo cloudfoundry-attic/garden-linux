@@ -21,6 +21,7 @@ network_container_iface="${iface_name_prefix}${iface_name}-1"
 network_cidr_suffix=${network_cidr_suffix:-30}
 user_uid=${user_uid:-10000}
 root_uid=${root_uid:-10000}
+uid_mapping_size=${uid_mapping_size:-100}
 rootfs_path=$(readlink -f $rootfs_path)
 
 # Write configuration
@@ -35,6 +36,7 @@ container_iface_mtu=$container_iface_mtu
 network_cidr=$network_cidr
 root_uid=$root_uid
 user_uid=$user_uid
+uid_mapping_size=$uid_mapping_size
 rootfs_path=$rootfs_path
 external_ip=$external_ip
 EOS
@@ -108,7 +110,7 @@ if ! chroot $rootfs_path id vcap >/dev/null 2>&1; then
     shell=/bin/bash
   fi
 
-  useradd -R $rootfs_path -mU -u $user_uid -s $shell vcap
+  useradd -R $rootfs_path -mU -s $shell vcap
 fi
 
 # make sure container-root owns its own home directory

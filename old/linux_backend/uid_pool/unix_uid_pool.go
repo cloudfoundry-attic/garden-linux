@@ -6,8 +6,9 @@ import (
 )
 
 type UnixUIDPool struct {
-	start uint32
-	size  uint32
+	start     uint32
+	size      uint32
+	blockSize uint32
 
 	pool            []uint32
 	poolMutex       *sync.Mutex
@@ -28,16 +29,17 @@ func (e UIDTakenError) Error() string {
 	return fmt.Sprintf("uid already acquired: %d", e.UID)
 }
 
-func New(start, size uint32) *UnixUIDPool {
+func New(start, size, blockSize uint32) *UnixUIDPool {
 	pool := []uint32{}
 
-	for i := start; i < start+size; i++ {
+	for i := start; i < start+size; i += blockSize {
 		pool = append(pool, i)
 	}
 
 	return &UnixUIDPool{
-		start: start,
-		size:  size,
+		start:     start,
+		size:      size,
+		blockSize: blockSize,
 
 		pool:            pool,
 		poolMutex:       new(sync.Mutex),
@@ -89,7 +91,7 @@ func (p *UnixUIDPool) Remove(uid uint32) error {
 }
 
 func (p *UnixUIDPool) Release(uid uint32) {
-	if uid < p.start || uid >= p.start+p.size {
+	if uid < p.start || uid >= p.start+p.size || (uid-p.start)%p.blockSize != 0 {
 		return
 	}
 
