@@ -10,6 +10,10 @@ cd $(dirname $0)/../
 
 hostname $id
 
+mkdir -p /proc
+mount -n -t proc none /proc
+mount -n -t tmpfs -o nodev tmpfs /dev/shm
+
 if [ -e /etc/seed ]; then
   . /etc/seed
 fi
