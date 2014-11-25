@@ -3,9 +3,11 @@ package network
 
 import (
 	"flag"
+	"net"
 
 	"github.com/cloudfoundry-incubator/garden-linux/fences"
 	"github.com/cloudfoundry-incubator/garden-linux/fences/network/subnets"
+	"github.com/cloudfoundry/gunk/localip"
 )
 
 const (
@@ -14,8 +16,9 @@ const (
 )
 
 type Config struct {
-	Network CidrVar
-	Mtu     MtuVar
+	Network    CidrVar
+	Mtu        MtuVar
+	ExternalIP IPVar
 }
 
 func init() {
@@ -24,14 +27,23 @@ func init() {
 }
 
 func (config *Config) Init(fs *flag.FlagSet) error {
+	localIP, err := localip.LocalIP()
+	if err != nil {
+		return err
+	}
+
 	config.Network = cidrVar(DefaultNetworkPool)
 	config.Mtu = DefaultMTUSize
+	config.ExternalIP = IPVar{net.ParseIP(localIP)}
 
 	fs.Var(&config.Network, "networkPool",
 		"Pool of dynamically allocated container subnets")
 
 	fs.Var(&config.Mtu, "mtu",
 		"MTU size for container network interfaces")
+
+	fs.Var(&config.ExternalIP, "externalIP",
+		"IP address to use to reach container's mapped ports")
 
 	return nil
 }
@@ -42,7 +54,7 @@ func (config *Config) Main(registry *fences.BuilderRegistry) error {
 		return err
 	}
 
-	fence := &f{subnets, uint32(config.Mtu)}
+	fence := &f{subnets, uint32(config.Mtu), config.ExternalIP.IP}
 	registry.Register(fence)
 
 	return nil

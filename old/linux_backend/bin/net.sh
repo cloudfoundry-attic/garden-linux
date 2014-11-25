@@ -17,11 +17,6 @@ interface_name_prefix="${GARDEN_NETWORK_INTERFACE_PREFIX}"
 ALLOW_NETWORKS=${ALLOW_NETWORKS:-}
 DENY_NETWORKS=${DENY_NETWORKS:-}
 
-function external_ip() {
-  # The ';tx;d;:x' trick deletes non-matching lines
-  ip route get 8.8.8.8 | sed 's/.*src\s\(.*\)\s/\1/;tx;d;:x'
-}
-
 function teardown_deprecated_rules() {
   # Remove jump to garden-dispatch from INPUT
   iptables -w -S INPUT 2> /dev/null |

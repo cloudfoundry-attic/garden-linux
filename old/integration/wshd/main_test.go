@@ -72,6 +72,16 @@ set -o errexit
 
 cd $(dirname $0)/../
 
+cat > /proc/$PID/uid_map <<EOF
+0 0 1
+10000 10000 1
+EOF
+
+cat > /proc/$PID/gid_map <<EOF
+0 0 1
+10000 10000 1
+EOF
+
 echo $PID > ./run/wshd.pid
 `), 0755)
 
@@ -88,7 +98,7 @@ cd $(dirname $0)/../
 mkdir -p /proc
 mount -t proc none /proc
 
-adduser -h /home/vcap -s /bin/sh -D -u 10000 vcap
+adduser -u 10000 -g 10000 -s /bin/sh -D vcap
 `), 0755)
 
 		ioutil.WriteFile(path.Join(libDir, "set-up-root.sh"), []byte(`#!/bin/bash
@@ -323,17 +333,6 @@ setup_fs
 
 		Eventually(catSession).Should(Exit(0))
 		Ω(catSession).ShouldNot(Say(" /tmp/garden-host"))
-	})
-
-	It("cleans up the /tmp/garden-host pivot_root directory", func() {
-		ls, err := Start(
-			exec.Command(wsh, "--socket", socketPath, "ls", "/tmp/garden-host"),
-			GinkgoWriter,
-			GinkgoWriter,
-		)
-		Ω(err).ShouldNot(HaveOccurred())
-
-		Eventually(ls).Should(Exit(1))
 	})
 
 	Context("when mount points on the host are deleted", func() {

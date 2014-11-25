@@ -44,6 +44,7 @@ type ProcessSpec struct {
 	Dir  string
 
 	Privileged bool
+	User       string
 
 	Limits ResourceLimits
 	TTY    *TTYSpec
@@ -80,6 +81,7 @@ type ContainerInfo struct {
 	Events        []string
 	HostIP        string
 	ContainerIP   string
+	ExternalIP    string
 	ContainerPath string
 	ProcessIDs    []uint32
 	MemoryStat    ContainerMemoryStat

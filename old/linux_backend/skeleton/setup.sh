@@ -22,6 +22,7 @@ network_container_iface="${iface_name_prefix}${iface_name}-1"
 bridge_iface="${iface_name_prefix}br-${network_ip_hex}"
 network_cidr_suffix=${network_cidr_suffix:-30}
 user_uid=${user_uid:-10000}
+root_uid=${root_uid:-10000}
 rootfs_path=$(readlink -f $rootfs_path)
 
 # Write configuration
@@ -36,8 +37,10 @@ bridge_iface=$bridge_iface
 network_cidr_suffix=$network_cidr_suffix
 container_iface_mtu=$container_iface_mtu
 network_cidr=$network_cidr
+root_uid=$root_uid
 user_uid=$user_uid
 rootfs_path=$rootfs_path
+external_ip=$external_ip
 EOS
 
 # Strip /dev down to the bare minimum
@@ -111,3 +114,6 @@ if ! chroot $rootfs_path id vcap >/dev/null 2>&1; then
 
   useradd -R $rootfs_path -mU -u $user_uid -s $shell vcap
 fi
+
+# make sure container-root owns its own home directory
+chown -R $root_uid:$root_uid $rootfs_path/root

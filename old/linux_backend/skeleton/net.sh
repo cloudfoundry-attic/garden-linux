@@ -20,8 +20,6 @@ interface_name_prefix="${GARDEN_NETWORK_INTERFACE_PREFIX}"
 filter_instance_chain="${filter_instance_prefix}${id}"
 nat_instance_chain="${filter_instance_prefix}${id}"
 
-external_ip=$(ip route get 8.8.8.8 | sed 's/.*src\s\(.*\)\s/\1/;tx;d;:x')
-
 function teardown_filter() {
   # Prune forward chain
   iptables -w -S ${filter_forward_chain} 2> /dev/null |

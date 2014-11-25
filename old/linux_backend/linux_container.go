@@ -245,8 +245,9 @@ func (c *LinuxContainer) Snapshot(out io.Writer) error {
 		},
 
 		Resources: ResourcesSnapshot{
-			UID:   c.resources.UID,
-			Ports: c.resources.Ports,
+			UserUID: c.resources.UserUID,
+			RootUID: c.resources.RootUID,
+			Ports:   c.resources.Ports,
 		},
 
 		NetIns:  c.netIns,
@@ -460,7 +461,7 @@ func (c *LinuxContainer) Info() (api.ContainerInfo, error) {
 		return api.ContainerInfo{}, err
 	}
 
-	diskStat, err := c.quotaManager.GetUsage(cLog, c.resources.UID)
+	diskStat, err := c.quotaManager.GetUsage(cLog, c.resources.UserUID)
 	if err != nil {
 		return api.ContainerInfo{}, err
 	}
@@ -619,7 +620,7 @@ func (c *LinuxContainer) CurrentBandwidthLimits() (api.BandwidthLimits, error) {
 func (c *LinuxContainer) LimitDisk(limits api.DiskLimits) error {
 	cLog := c.logger.Session("limit-disk")
 
-	err := c.quotaManager.SetLimits(cLog, c.resources.UID, limits)
+	err := c.quotaManager.SetLimits(cLog, c.resources.UserUID, limits)
 	if err != nil {
 		return err
 	}
@@ -634,7 +635,7 @@ func (c *LinuxContainer) LimitDisk(limits api.DiskLimits) error {
 
 func (c *LinuxContainer) CurrentDiskLimits() (api.DiskLimits, error) {
 	cLog := c.logger.Session("current-disk-limits")
-	return c.quotaManager.GetLimits(cLog, c.resources.UID)
+	return c.quotaManager.GetLimits(cLog, c.resources.UserUID)
 }
 
 func (c *LinuxContainer) LimitMemory(limits api.MemoryLimits) error {
@@ -718,6 +719,10 @@ func (c *LinuxContainer) Run(spec api.ProcessSpec, processIO api.ProcessIO) (api
 	user := "vcap"
 	if spec.Privileged {
 		user = "root"
+	}
+
+	if spec.User != "" {
+		user = spec.User
 	}
 
 	args := []string{"--socket", sockPath, "--user", user}

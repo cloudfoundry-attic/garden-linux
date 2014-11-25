@@ -94,6 +94,7 @@ func (s *GardenServer) handleCreate(w http.ResponseWriter, r *http.Request) {
 		BindMounts: bindMounts,
 		Properties: properties,
 		Env:        convertEnv(request.GetEnv()),
+		Privileged: request.GetPrivileged(),
 	})
 	if err != nil {
 		s.writeError(w, err, hLog)
@@ -897,6 +898,7 @@ func (s *GardenServer) handleRun(w http.ResponseWriter, r *http.Request) {
 	args := request.GetArgs()
 	dir := request.GetDir()
 	privileged := request.GetPrivileged()
+	user := request.GetUser()
 	env := request.GetEnv()
 	tty := request.GetTty()
 
@@ -914,6 +916,7 @@ func (s *GardenServer) handleRun(w http.ResponseWriter, r *http.Request) {
 		Args:       args,
 		Dir:        dir,
 		Privileged: privileged,
+		User:       user,
 		Env:        convertEnv(env),
 		TTY:        ttySpecFrom(tty),
 	}
@@ -1088,6 +1091,7 @@ func (s *GardenServer) handleInfo(w http.ResponseWriter, r *http.Request) {
 		Events:        info.Events,
 		HostIp:        proto.String(info.HostIP),
 		ContainerIp:   proto.String(info.ContainerIP),
+		ExternalIp:    proto.String(info.ExternalIP),
 		ContainerPath: proto.String(info.ContainerPath),
 		ProcessIds:    processIDs,
 

@@ -1,10 +1,15 @@
 package networking_test
 
 import (
+	"fmt"
+	"net"
+	"net/http"
 	"os/exec"
 	"strconv"
+	"strings"
 
 	"github.com/cloudfoundry-incubator/garden/api"
+	"github.com/cloudfoundry/gunk/localip"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
@@ -116,9 +121,20 @@ var _ = Describe("IP settings", func() {
 			stdout := gbytes.NewBuffer()
 			stderr := gbytes.NewBuffer()
 
+			listener, err := net.Listen("tcp", fmt.Sprintf("%s:0", info.HostIP))
+			Ω(err).ShouldNot(HaveOccurred())
+			defer listener.Close()
+
+			mux := http.NewServeMux()
+			mux.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
+				fmt.Fprintf(w, "Hello")
+			})
+
+			go (&http.Server{Handler: mux}).Serve(listener)
+
 			process, err := container.Run(api.ProcessSpec{
-				Path: "/bin/ping",
-				Args: []string{"-c", "2", info.HostIP},
+				Path: "sh",
+				Args: []string{"-c", fmt.Sprintf("(echo 'GET /test HTTP/1.1'; echo 'Host: foo.com'; echo) | nc %s %s", info.HostIP, strings.Split(listener.Addr().String(), ":")[1])},
 			}, api.ProcessIO{
 				Stdout: stdout,
 				Stderr: stderr,
@@ -129,7 +145,19 @@ var _ = Describe("IP settings", func() {
 			Ω(err).ShouldNot(HaveOccurred())
 			Ω(rc).Should(Equal(0))
 
-			Ω(stdout.Contents()).Should(ContainSubstring(" 0% packet loss"))
+			Ω(stdout.Contents()).Should(ContainSubstring("Hello"))
+		})
+	})
+
+	Describe("the container's external ip", func() {
+		It("is the external IP of its host", func() {
+			info, err := container.Info()
+			Ω(err).ShouldNot(HaveOccurred())
+
+			localIP, err := localip.LocalIP()
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(localIP).Should(Equal(info.ExternalIP))
 		})
 	})
 })

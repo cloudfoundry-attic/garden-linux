@@ -20,6 +20,7 @@ type RequestGenerator struct {
 // Host is of the form "http://example.com".
 func NewRequestGenerator(host string, routes Routes) *RequestGenerator {
 	return &RequestGenerator{
+		Header: make(http.Header),
 		host:   host,
 		routes: routes,
 	}
@@ -51,8 +52,9 @@ func (r *RequestGenerator) CreateRequest(
 	}
 
 	for key, values := range r.Header {
-		req.Header[key] = []string{}
+		req.Header[key] = make([]string, len(values))
 		copy(req.Header[key], values)
 	}
+
 	return req, nil
 }

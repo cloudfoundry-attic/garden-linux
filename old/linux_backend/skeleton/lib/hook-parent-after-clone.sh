@@ -9,6 +9,16 @@ cd $(dirname $0)/../
 
 source etc/config
 
+cat > /proc/$PID/uid_map <<EOF
+0 $root_uid 1
+$user_uid $user_uid 1
+EOF
+
+cat > /proc/$PID/gid_map <<EOF
+0 $root_uid 1
+$user_uid $user_uid 1
+EOF
+
 # Add new group for every subsystem
 
 # cpuset must be set up first, so that cpuset.cpus and cpuset.mems is assigned
@@ -67,7 +77,7 @@ done
 
 echo $PID > ./run/wshd.pid
 
-./bin/net-fence -v -target=host \
+./bin/net-fence -target=host \
                 -tag=$tag \
                 -hostIfcName=$network_host_iface \
                 -containerIfcName=$network_container_iface \
@@ -76,5 +86,22 @@ echo $PID > ./run/wshd.pid
                 -subnet=$network_cidr \
                 -containerPid=$PID \
                 -mtu=$container_iface_mtu
+
+
+[ ! -d /var/run/netns ] && mkdir -p /var/run/netns
+[ -f /var/run/netns/$PID ] && rm -f /var/run/netns/$PID
+
+mkdir -p /sys 
+mount -n -t tmpfs tmpfs /sys  # otherwise netns exec fails
+ln -s /proc/$PID/ns/net /var/run/netns/$PID
+
+ip netns exec $PID ./bin/net-fence -target=container \
+                -containerIfcName=$network_container_iface \
+                -containerIP=$network_container_ip \
+                -gatewayIP=$network_host_ip \
+                -subnet=$network_cidr \
+                -mtu=$container_iface_mtu
+
+umount /sys
 
 exit 0

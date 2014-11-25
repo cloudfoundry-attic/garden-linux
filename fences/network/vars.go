@@ -1,7 +1,6 @@
 package network
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"net"
@@ -43,7 +42,7 @@ func cidrVar(s string) CidrVar {
 }
 
 func (c *CidrVar) Get() interface{} {
-	return CidrVar(*c)
+	return *c
 }
 
 func (c *CidrVar) Set(s string) error {
@@ -74,7 +73,7 @@ func (i *IPVar) Get() interface{} {
 func (i *IPVar) Set(s string) error {
 	ip := net.ParseIP(s)
 	if ip == nil {
-		return errors.New("must be an IP")
+		return fmt.Errorf("invalid IP address: %s", s)
 	}
 
 	i.IP = ip

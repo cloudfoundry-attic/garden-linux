@@ -65,6 +65,7 @@ var _ = Describe("Linux containers", func() {
 
 		containerResources = linux_backend.NewResources(
 			1234,
+			1235,
 			&fakeNetworkResources{},
 			[]uint32{},
 		)
@@ -169,7 +170,8 @@ var _ = Describe("Linux containers", func() {
 			nm := json.RawMessage(`"fakeNetMarshal"`)
 			Ω(snapshot.Resources).Should(Equal(
 				linux_backend.ResourcesSnapshot{
-					UID:     containerResources.UID,
+					UserUID: containerResources.UserUID,
+					RootUID: containerResources.RootUID,
 					Network: &nm,
 					Ports:   containerResources.Ports,
 				},
@@ -1040,25 +1042,100 @@ var _ = Describe("Linux containers", func() {
 		})
 
 		Context("with 'privileged' true", func() {
-			It("runs with --user root", func() {
-				_, err := container.Run(api.ProcessSpec{
-					Path:       "/some/script",
-					Privileged: true,
-				}, api.ProcessIO{})
+			Context("when the user flag is empty", func() {
+				It("runs with --user root", func() {
+					_, err := container.Run(api.ProcessSpec{
+						Path:       "/some/script",
+						Privileged: true,
+					}, api.ProcessIO{})
 
-				Ω(err).ToNot(HaveOccurred())
+					Ω(err).ToNot(HaveOccurred())
 
-				ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
-				Ω(ranCmd.Path).Should(Equal(containerDir + "/bin/wsh"))
+					ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
+					Ω(ranCmd.Path).Should(Equal(containerDir + "/bin/wsh"))
 
-				Ω(ranCmd.Args).Should(Equal([]string{
-					containerDir + "/bin/wsh",
-					"--socket", containerDir + "/run/wshd.sock",
-					"--user", "root",
-					"--env", "env1=env1Value",
-					"--env", "env2=env2Value",
-					"/some/script",
-				}))
+					Ω(ranCmd.Args).Should(Equal([]string{
+						containerDir + "/bin/wsh",
+						"--socket", containerDir + "/run/wshd.sock",
+						"--user", "root",
+						"--env", "env1=env1Value",
+						"--env", "env2=env2Value",
+						"/some/script",
+					}))
+				})
+			})
+
+			Context("when the user flag is specified", func() {
+				It("runs with --user set to the specified user", func() {
+					_, err := container.Run(api.ProcessSpec{
+						Path:       "/some/script",
+						Privileged: true,
+						User:       "potato",
+					}, api.ProcessIO{})
+
+					Ω(err).ToNot(HaveOccurred())
+
+					ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
+					Ω(ranCmd.Path).Should(Equal(containerDir + "/bin/wsh"))
+
+					Ω(ranCmd.Args).Should(Equal([]string{
+						containerDir + "/bin/wsh",
+						"--socket", containerDir + "/run/wshd.sock",
+						"--user", "potato",
+						"--env", "env1=env1Value",
+						"--env", "env2=env2Value",
+						"/some/script",
+					}))
+				})
+			})
+		})
+
+		Context("with 'privileged' false", func() {
+			Context("when the user flag is empty", func() {
+				It("runs with --user vcap", func() {
+					_, err := container.Run(api.ProcessSpec{
+						Path:       "/some/script",
+						Privileged: false,
+					}, api.ProcessIO{})
+
+					Ω(err).ToNot(HaveOccurred())
+
+					ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
+					Ω(ranCmd.Path).Should(Equal(containerDir + "/bin/wsh"))
+
+					Ω(ranCmd.Args).Should(Equal([]string{
+						containerDir + "/bin/wsh",
+						"--socket", containerDir + "/run/wshd.sock",
+						"--user", "vcap",
+						"--env", "env1=env1Value",
+						"--env", "env2=env2Value",
+						"/some/script",
+					}))
+				})
+			})
+
+			Context("when the user flag is specified", func() {
+				It("runs with --user set to the specified user", func() {
+					_, err := container.Run(api.ProcessSpec{
+						Path:       "/some/script",
+						Privileged: true,
+						User:       "potato",
+					}, api.ProcessIO{})
+
+					Ω(err).ToNot(HaveOccurred())
+
+					ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
+					Ω(ranCmd.Path).Should(Equal(containerDir + "/bin/wsh"))
+
+					Ω(ranCmd.Args).Should(Equal([]string{
+						containerDir + "/bin/wsh",
+						"--socket", containerDir + "/run/wshd.sock",
+						"--user", "potato",
+						"--env", "env1=env1Value",
+						"--env", "env2=env2Value",
+						"/some/script",
+					}))
+				})
 			})
 		})
 
@@ -1538,7 +1615,7 @@ var _ = Describe("Linux containers", func() {
 			err := container.LimitDisk(limits)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			uid := containerResources.UID
+			uid := containerResources.UserUID
 
 			Ω(fakeQuotaManager.Limited).Should(HaveKey(uid))
 			Ω(fakeQuotaManager.Limited[uid]).Should(Equal(limits))
