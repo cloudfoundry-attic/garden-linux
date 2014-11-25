@@ -84,7 +84,6 @@ ip link set $network_container_iface netns $PID
 ip address add $network_host_ip/$network_cidr_suffix dev $network_host_iface
 ip link set $network_host_iface mtu $container_iface_mtu up
 
-
 [ ! -d /var/run/netns ] && mkdir -p /var/run/netns
 [ -f /var/run/netns/$PID ] && rm -f /var/run/netns/$PID
 

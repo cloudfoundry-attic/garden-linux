@@ -48,7 +48,7 @@ var _ = Describe("Container pool", func() {
 		_, ipNet, err := net.ParseCIDR("1.2.0.0/20")
 		Ω(err).ShouldNot(HaveOccurred())
 
-		fakeUIDPool = fake_uid_pool.New(10000)
+		fakeUIDPool = fake_uid_pool.New(10000, 500)
 		fakeFences = fake_fences.New(ipNet)
 		fakeRunner = fake_command_runner.New()
 		fakeQuotaManager = fake_quota_manager.New()
@@ -154,7 +154,7 @@ var _ = Describe("Container pool", func() {
 	Describe("creating", func() {
 		itReleasesTheUserIDs := func() {
 			It("returns the container's user ID and root ID to the pool", func() {
-				Ω(fakeUIDPool.Released).Should(Equal([]uint32{10000, 10001}))
+				Ω(fakeUIDPool.Released).Should(Equal([]uint32{10001, 10000}))
 			})
 		}
 
@@ -220,7 +220,7 @@ var _ = Describe("Container pool", func() {
 		})
 
 		Context("when the privileged flag is specified and true", func() {
-			It("executes create.sh with a root_uid of 0", func() {
+			It("executes create.sh with a root_uid of 0 and the full uid block size", func() {
 				container, err := pool.Create(api.ContainerSpec{Privileged: true})
 				Ω(err).ShouldNot(HaveOccurred())
 
@@ -231,8 +231,32 @@ var _ = Describe("Container pool", func() {
 						Env: []string{
 							"id=" + container.ID(),
 							"rootfs_path=/provided/rootfs/path",
-							"user_uid=10000",
 							"root_uid=0",
+							"user_uid=10000",
+							"uid_mapping_size=500",
+							"PATH=" + os.Getenv("PATH"),
+							"fake_fences_env=1.2.0.0/30",
+						},
+					},
+				))
+			})
+		})
+
+		Context("when the privileged flag is false", func() {
+			It("executes create.sh with a root_uid from the first element of the pool and uses the remainder of the pool for users", func() {
+				container, err := pool.Create(api.ContainerSpec{Privileged: false})
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Ω(fakeRunner).Should(HaveExecutedSerially(
+					fake_command_runner.CommandSpec{
+						Path: "/root/path/create.sh",
+						Args: []string{path.Join(depotPath, container.ID())},
+						Env: []string{
+							"id=" + container.ID(),
+							"rootfs_path=/provided/rootfs/path",
+							"root_uid=10000",
+							"user_uid=10001",
+							"uid_mapping_size=499",
 							"PATH=" + os.Getenv("PATH"),
 							"fake_fences_env=1.2.0.0/30",
 						},
@@ -253,8 +277,9 @@ var _ = Describe("Container pool", func() {
 						Env: []string{
 							"id=" + container.ID(),
 							"rootfs_path=/provided/rootfs/path",
-							"user_uid=10000",
-							"root_uid=10001",
+							"root_uid=10000",
+							"user_uid=10001",
+							"uid_mapping_size=499",
 							"PATH=" + os.Getenv("PATH"),
 							"fake_fences_env=1.2.0.0/30",
 						},
@@ -277,8 +302,9 @@ var _ = Describe("Container pool", func() {
 						Env: []string{
 							"id=" + container.ID(),
 							"rootfs_path=/provided/rootfs/path",
-							"user_uid=10000",
-							"root_uid=10001",
+							"root_uid=10000",
+							"user_uid=10001",
+							"uid_mapping_size=499",
 							"PATH=" + os.Getenv("PATH"),
 							"fake_fences_env=1.3.0.0/30",
 						},
@@ -363,8 +389,9 @@ var _ = Describe("Container pool", func() {
 						Env: []string{
 							"id=" + container.ID(),
 							"rootfs_path=/var/some/mount/point",
-							"user_uid=10000",
-							"root_uid=10001",
+							"root_uid=10000",
+							"user_uid=10001",
+							"uid_mapping_size=499",
 							"PATH=" + os.Getenv("PATH"),
 							"fake_fences_env=1.2.0.0/30",
 						},

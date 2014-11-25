@@ -226,14 +226,16 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 
 	resources := containerSnapshot.Resources
 
-	err = p.uidPool.Remove(resources.UserUID)
-	if err != nil {
-		return nil, err
-	}
-
-	err = p.uidPool.Remove(resources.RootUID)
-	if err != nil {
-		return nil, err
+	if resources.RootUID != 0 {
+		err = p.uidPool.Remove(resources.RootUID)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		err = p.uidPool.Remove(resources.UserUID)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	state, err := p.builders.Rebuild(resources.Network)
@@ -417,11 +419,8 @@ func (p *LinuxContainerPool) acquireUID(resources *linux_backend.Resources, priv
 
 	resources.RootUID = 0
 	if !privileged {
-		resources.RootUID, err = p.uidPool.Acquire()
-		if err != nil {
-			p.logger.Error("uid-acquire-failed", err)
-			return err
-		}
+		resources.RootUID = resources.UserUID
+		resources.UserUID = resources.UserUID + 1
 	}
 
 	return nil
@@ -466,6 +465,13 @@ func (p *LinuxContainerPool) acquireSystemResources(id, containerPath, rootFSPat
 	if err != nil {
 		pLog.Error("provide-rootfs-failed", err)
 		return nil, err
+	}
+
+	userMappingSize := p.uidPool.BlockSize()
+	if resources.RootUID != 0 {
+		// if we're assigning the root uid from the block then we only
+		// have blockSize - 1 actual users left to map
+		userMappingSize = userMappingSize - 1
 	}
 
 	createCmd := path.Join(p.binPath, "create.sh")
