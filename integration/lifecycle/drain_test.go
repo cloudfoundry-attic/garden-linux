@@ -362,34 +362,68 @@ var _ = Describe("Through a restart", func() {
 	})
 
 	Describe("a container's user", func() {
-		It("does not get reused", func() {
-			idA := gbytes.NewBuffer()
-			idB := gbytes.NewBuffer()
+		Context("inside the container", func() {
+			It("is always the same", func() {
+				idA := gbytes.NewBuffer()
+				idB := gbytes.NewBuffer()
 
-			processA, err := container.Run(api.ProcessSpec{
-				Path: "id",
-				Args: []string{"-u"},
-			}, api.ProcessIO{
-				Stdout: idA,
+				processA, err := container.Run(api.ProcessSpec{
+					Path: "id",
+					Args: []string{"-u"},
+				}, api.ProcessIO{
+					Stdout: idA,
+				})
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Ω(processA.Wait()).Should(Equal(0))
+
+				restartGarden()
+
+				otherContainer, err := client.Create(api.ContainerSpec{})
+				Ω(err).ShouldNot(HaveOccurred())
+
+				processB, err := otherContainer.Run(api.ProcessSpec{
+					Path: "id",
+					Args: []string{"-u"},
+				}, api.ProcessIO{Stdout: idB})
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Ω(processB.Wait()).Should(Equal(0))
+
+				Ω(idA.Contents()).Should(Equal(idB.Contents()))
 			})
-			Ω(err).ShouldNot(HaveOccurred())
+		})
 
-			Ω(processA.Wait()).Should(Equal(0))
+		Context("outside the container", func() {
+			It("does not get reused", func() {
+				idA := gbytes.NewBuffer()
+				idB := gbytes.NewBuffer()
 
-			restartGarden()
+				processA, err := container.Run(api.ProcessSpec{
+					Path: "cat",
+					Args: []string{"/proc/self/uid_map"},
+				}, api.ProcessIO{
+					Stdout: idA,
+				})
+				Ω(err).ShouldNot(HaveOccurred())
 
-			otherContainer, err := client.Create(api.ContainerSpec{})
-			Ω(err).ShouldNot(HaveOccurred())
+				Ω(processA.Wait()).Should(Equal(0))
 
-			processB, err := otherContainer.Run(api.ProcessSpec{
-				Path: "id",
-				Args: []string{"-u"},
-			}, api.ProcessIO{Stdout: idB})
-			Ω(err).ShouldNot(HaveOccurred())
+				restartGarden()
 
-			Ω(processB.Wait()).Should(Equal(0))
+				otherContainer, err := client.Create(api.ContainerSpec{})
+				Ω(err).ShouldNot(HaveOccurred())
 
-			Ω(idA.Contents()).ShouldNot(Equal(idB.Contents()))
+				processB, err := otherContainer.Run(api.ProcessSpec{
+					Path: "cat",
+					Args: []string{"/proc/self/uid_map"},
+				}, api.ProcessIO{Stdout: idB})
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Ω(processB.Wait()).Should(Equal(0))
+
+				Ω(idA.Contents()).ShouldNot(Equal(idB.Contents()))
+			})
 		})
 	})
 

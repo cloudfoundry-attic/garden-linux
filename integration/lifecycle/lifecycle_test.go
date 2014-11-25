@@ -168,6 +168,17 @@ var _ = Describe("Creating a container", func() {
 
 					Ω(process.Wait()).ShouldNot(Equal(0))
 				})
+
+				It("can write to files in the /root directory", func() {
+					process, err := container.Run(api.ProcessSpec{
+						User: "root",
+						Path: "sh",
+						Args: []string{"-c", `touch /root/potato`},
+					}, api.ProcessIO{})
+					Ω(err).ShouldNot(HaveOccurred())
+
+					Ω(process.Wait()).Should(Equal(0))
+				})
 			})
 
 			Context("when the 'privileged' flag is set on the create call", func() {
@@ -180,6 +191,17 @@ var _ = Describe("Creating a container", func() {
 						Path: "sh",
 						User: "root",
 						Args: []string{"-c", "echo h > /proc/sysrq-trigger"},
+					}, api.ProcessIO{})
+					Ω(err).ShouldNot(HaveOccurred())
+
+					Ω(process.Wait()).Should(Equal(0))
+				})
+
+				It("can write to files in the /root directory", func() {
+					process, err := container.Run(api.ProcessSpec{
+						User: "root",
+						Path: "sh",
+						Args: []string{"-c", `touch /root/potato`},
 					}, api.ProcessIO{})
 					Ω(err).ShouldNot(HaveOccurred())
 

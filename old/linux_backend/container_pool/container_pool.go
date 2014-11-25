@@ -481,7 +481,7 @@ func (p *LinuxContainerPool) acquireSystemResources(id, containerPath, rootFSPat
 		"rootfs_path=" + rootfsPath,
 		fmt.Sprintf("root_uid=%d", resources.RootUID),
 		fmt.Sprintf("user_uid=%d", resources.UserUID),
-		fmt.Sprintf("uid_mapping_size=%d", p.uidPool.BlockSize()),
+		fmt.Sprintf("uid_mapping_size=%d", userMappingSize),
 		"PATH=" + os.Getenv("PATH"),
 	}
 	resources.Network.ConfigureProcess(&create.Env)
