@@ -52,7 +52,7 @@ type LinuxContainerPool struct {
 
 	rootfsProviders map[string]rootfs_provider.RootFSProvider
 
-	uidPool  uid_pool.UIDPool
+	uidPool  uid_pool.UIDBlockPool
 	builders FenceBuilders
 	portPool linux_backend.PortPool
 
@@ -68,7 +68,7 @@ func New(
 	binPath, depotPath string,
 	sysconfig sysconfig.Config,
 	rootfsProviders map[string]rootfs_provider.RootFSProvider,
-	uidPool uid_pool.UIDPool,
+	uidPool uid_pool.UIDBlockPool,
 	builders FenceBuilders,
 	portPool linux_backend.PortPool,
 	denyNetworks, allowNetworks []string,
@@ -473,9 +473,9 @@ func (p *LinuxContainerPool) acquireSystemResources(id, containerPath, rootFSPat
 	create.Env = []string{
 		"id=" + id,
 		"rootfs_path=" + rootfsPath,
-		fmt.Sprintf("user_uid=%d", resources.UserUID),
 		fmt.Sprintf("root_uid=%d", resources.RootUID),
-		fmt.Sprintf("uid_mapping_size=%d", 5000),
+		fmt.Sprintf("user_uid=%d", resources.UserUID),
+		fmt.Sprintf("uid_mapping_size=%d", p.uidPool.BlockSize()),
 		"PATH=" + os.Getenv("PATH"),
 	}
 	resources.Network.ConfigureProcess(&create.Env)

@@ -102,7 +102,7 @@ var portPoolSize = flag.Uint(
 
 var uidPoolStart = flag.Uint(
 	"uidPoolStart",
-	10000,
+	65536,
 	"start of per-container user ids",
 )
 
@@ -114,7 +114,7 @@ var uidPoolSize = flag.Uint(
 
 var uidMappingSize = flag.Uint(
 	"uidMappingSize",
-	5000,
+	65530,
 	"number of uids and gids to map to host uids. only uids within this range are supported within a container.",
 )
 

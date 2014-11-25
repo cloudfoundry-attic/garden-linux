@@ -51,6 +51,10 @@ func (p *UnixUIDPool) InitialSize() int {
 	return p.initialPoolSize
 }
 
+func (p *UnixUIDPool) BlockSize() uint32 {
+	return p.blockSize
+}
+
 func (p *UnixUIDPool) Acquire() (uint32, error) {
 	p.poolMutex.Lock()
 	defer p.poolMutex.Unlock()

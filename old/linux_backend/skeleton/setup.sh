@@ -110,8 +110,19 @@ if ! chroot $rootfs_path id vcap >/dev/null 2>&1; then
     shell=/bin/bash
   fi
 
-  useradd -R $rootfs_path -mU -s $shell vcap
+  useradd -R $rootfs_path -mU -u 10004 -s $shell vcap
 fi
 
-# make sure container-root owns its own home directory
-chown -R $root_uid:$root_uid $rootfs_path/root
+# map users in the rootfs to container users
+for path in home root etc var sbin; do
+  # map non-root users (we handle root seperately because privileged container map it to host-root)
+  # BUG(jz): doesn't work unless uid/gid are the same
+  for u in `cat $rootfs_path/etc/passwd | grep -v "^root:" | cut -d: -f3`; do
+    chown -R --from=$u:$u $((-1 + $u + $user_uid)):$((-1 + $u + $user_uid)) "$rootfs_path/$path"
+  done
+
+  # map the root user id in the rootfs to the container root uid
+  # this is a noop if the container is privileged (0:0 -> 0:0)
+  chown -R --from=0:0 $root_uid:$root_uid "$rootfs_path/$path"
+done
+
