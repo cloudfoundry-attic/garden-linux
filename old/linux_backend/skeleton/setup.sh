@@ -115,10 +115,9 @@ fi
 
 # map users in the rootfs to container users
 for path in home root etc var sbin; do
-  # map non-root users (we handle root seperately because privileged container map it to host-root)
-  # BUG(jz): doesn't work unless uid/gid are the same
-  for u in `cat $rootfs_path/etc/passwd | grep -v "^root:" | cut -d: -f3`; do
-    chown -R --from=$u:$u $((-1 + $u + $user_uid)):$((-1 + $u + $user_uid)) "$rootfs_path/$path"
+  # map non-root users (we handle root seperately because privileged containers map it to host-root)
+  for u in `cat $rootfs_path/etc/passwd | grep -v "^root:" | cut -d: -f3,4`; do
+    chown -R --from=$u $((-1 + ${u%:*} + $user_uid)):$((-1 + ${u#*:} + $user_uid)) "$rootfs_path/$path"
   done
 
   # map the root user id in the rootfs to the container root uid
