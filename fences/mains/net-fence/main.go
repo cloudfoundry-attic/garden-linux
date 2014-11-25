@@ -26,6 +26,9 @@ func main() {
 	var containerIfcName string
 	flag.StringVar(&containerIfcName, "containerIfcName", "", "the name of the container-side device to configure")
 
+	var bridgeIfcName string
+	flag.StringVar(&bridgeIfcName, "bridgeIfcName", "", "the name of the subnet's bridge device to configure")
+
 	subnet := network.CidrVar{}
 	flag.Var(&subnet, "subnet", "the container's subnet")
 
@@ -51,6 +54,7 @@ func main() {
 			"\n  containerIfcName", containerIfcName,
 			"\n  containerIP", containerIP.IP,
 			"\n  gatewayIP", gatewayIP.IP,
+			"\n  bridgeIfcName", bridgeIfcName,
 			"\n  subnet", subnet.IPNet,
 			"\n  containerPid", containerPid,
 			"\n  mtu", int(mtu),
@@ -59,7 +63,7 @@ func main() {
 
 	var err error
 	if target == "host" {
-		err = network.ConfigureHost(hostIfcName, containerIfcName, gatewayIP.IP, subnet.IPNet, containerPid, int(mtu), tag)
+		err = network.ConfigureHost(hostIfcName, containerIfcName, gatewayIP.IP, bridgeIfcName, subnet.IPNet, containerPid, int(mtu), tag)
 	} else if target == "container" {
 		err = network.ConfigureContainer(containerIfcName, containerIP.IP, gatewayIP.IP, subnet.IPNet, int(mtu))
 	} else {

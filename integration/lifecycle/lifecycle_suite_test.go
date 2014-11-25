@@ -89,5 +89,10 @@ func dumpIP() {
 	cmd = exec.Command("iptables", "--list")
 	op, err = cmd.CombinedOutput()
 	Ω(err).ShouldNot(HaveOccurred())
-	fmt.Println("IP tables status:\n", string(op))
+	fmt.Println("IP tables chains:\n", string(op))
+
+	cmd = exec.Command("iptables", "--list-rules")
+	op, err = cmd.CombinedOutput()
+	Ω(err).ShouldNot(HaveOccurred())
+	fmt.Println("IP tables rules:\n", string(op))
 }

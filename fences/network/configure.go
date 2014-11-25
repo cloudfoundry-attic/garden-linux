@@ -11,7 +11,7 @@ import (
 )
 
 // Pre-condition: the gateway IP is a valid IP in the subnet.
-func ConfigureHost(hostInterface string, containerInterface string, gatewayIP net.IP, subnet *net.IPNet, containerPid int, mtu int, tag string) error {
+func ConfigureHost(hostInterface string, containerInterface string, gatewayIP net.IP, bridgeInterface string, subnet *net.IPNet, containerPid int, mtu int, tag string) error {
 	_, err := tenus.NewVethPairWithOptions(hostInterface, tenus.VethOptions{
 		PeerName:   containerInterface,
 		TxQueueLen: 1,
@@ -42,9 +42,7 @@ func ConfigureHost(hostInterface string, containerInterface string, gatewayIP ne
 		return ErrFailedToSetContainerNs // FIXME: need rich error type
 	}
 
-	//bridgeName := "br-" + tag + "-" + subnet.IP.String()
-
-	bridger, err := tenus.NewBridge()
+	bridger, err := tenus.NewBridgeWithName(bridgeInterface)
 	if err != nil {
 		fmt.Println("Error: ", err)
 		return ErrFailedToCreateBridge // FIXME: need rich error type

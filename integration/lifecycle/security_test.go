@@ -11,7 +11,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = FDescribe("Denying access to network ranges", func() {
+var _ = Describe("Denying access to network ranges", func() {
 	var (
 		blockedListener   api.Container
 		blockedListenerIP string = fmt.Sprintf("11.0.%d.1", GinkgoParallelNode())

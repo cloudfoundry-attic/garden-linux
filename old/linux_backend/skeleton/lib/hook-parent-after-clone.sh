@@ -72,6 +72,7 @@ echo $PID > ./run/wshd.pid
                 -hostIfcName=$network_host_iface \
                 -containerIfcName=$network_container_iface \
                 -gatewayIP=$network_host_ip \
+                -bridgeIfcName=$bridge_iface \
                 -subnet=$network_cidr \
                 -containerPid=$PID \
                 -mtu=$container_iface_mtu
