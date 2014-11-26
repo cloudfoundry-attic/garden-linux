@@ -35,7 +35,7 @@ var ErrNetworkHostbitsNonZero = errors.New("network host bits non-zero")
 
 type FenceBuilders interface {
 	Rebuild(rm *json.RawMessage) (fences.Fence, error)
-	Build(spec string) (fences.Fence, error)
+	Build(spec string, sysconfig *sysconfig.Config, containerID string) (fences.Fence, error)
 	Capacity() int
 }
 
@@ -175,7 +175,7 @@ func (p *LinuxContainerPool) Create(spec api.ContainerSpec) (c linux_backend.Con
 
 	pLog.Info("creating")
 
-	resources, err := p.acquirePoolResources(spec)
+	resources, err := p.acquirePoolResources(spec, id)
 	if err != nil {
 		return nil, err
 	}
@@ -390,7 +390,7 @@ func (p *LinuxContainerPool) saveRootFSProvider(id string, provider string) erro
 	return ioutil.WriteFile(providerFile, []byte(provider), 0644)
 }
 
-func (p *LinuxContainerPool) acquirePoolResources(spec api.ContainerSpec) (*linux_backend.Resources, error) {
+func (p *LinuxContainerPool) acquirePoolResources(spec api.ContainerSpec, id string) (*linux_backend.Resources, error) {
 	var err error
 	resources := linux_backend.NewResources(0, 1, nil, nil)
 
@@ -398,7 +398,7 @@ func (p *LinuxContainerPool) acquirePoolResources(spec api.ContainerSpec) (*linu
 		return nil, err
 	}
 
-	if resources.Network, err = p.builders.Build(spec.Network); err != nil {
+	if resources.Network, err = p.builders.Build(spec.Network, &p.sysconfig, id); err != nil {
 		p.logger.Error("network-acquire-failed", err)
 		p.releasePoolResources(resources)
 		return nil, err

@@ -9,10 +9,10 @@ cd $(dirname $0)
 
 source ./etc/config
 
-./net.sh teardown
-
 # FIXME: deleting the bridge belongs in the network fence.
 ip link delete $bridge_iface
+
+./net.sh teardown
 
 cgroup_path="${GARDEN_CGROUP_PATH}"
 

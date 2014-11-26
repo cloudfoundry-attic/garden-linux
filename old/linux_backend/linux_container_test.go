@@ -2175,6 +2175,10 @@ func (f *fakeNetworkResources) ConfigureProcess(*[]string) error {
 	return nil
 }
 
+func (f *fakeNetworkResources) Deconfigure() error {
+	return nil
+}
+
 func (f *fakeNetworkResources) Dismantle() error {
 	return nil
 }

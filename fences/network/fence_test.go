@@ -7,6 +7,7 @@ import (
 	"net"
 
 	"github.com/cloudfoundry-incubator/garden-linux/fences/network/subnets"
+	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
 	"github.com/cloudfoundry-incubator/garden/api"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -16,6 +17,8 @@ var _ = Describe("Fence", func() {
 	var (
 		fakeSubnetPool *fakeSubnets
 		fence          *f
+		syscfg         sysconfig.Config  = sysconfig.NewConfig("")
+		sysconfig      *sysconfig.Config = &syscfg
 	)
 
 	BeforeEach(func() {
@@ -42,7 +45,7 @@ var _ = Describe("Fence", func() {
 				_, fakeSubnetPool.nextSubnet, err = net.ParseCIDR("3.4.5.0/30")
 				Ω(err).ShouldNot(HaveOccurred())
 
-				allocation, err := fence.Build("")
+				allocation, err := fence.Build("", sysconfig, "")
 				Ω(err).ShouldNot(HaveOccurred())
 
 				Ω(fakeSubnetPool.lastRequested.Subnet).Should(Equal(subnets.DynamicSubnetSelector))
@@ -52,7 +55,7 @@ var _ = Describe("Fence", func() {
 			It("allocates a dynamic IP from Subnets", func() {
 				fakeSubnetPool.nextIP = net.ParseIP("2.2.3.3")
 
-				allocation, err := fence.Build("")
+				allocation, err := fence.Build("", sysconfig, "")
 				Ω(err).ShouldNot(HaveOccurred())
 
 				Ω(fakeSubnetPool.lastRequested.IP).Should(Equal(subnets.DynamicIPSelector))
@@ -63,7 +66,7 @@ var _ = Describe("Fence", func() {
 				testErr := errors.New("some error")
 				fakeSubnetPool.allocationError = testErr
 
-				_, err := fence.Build("")
+				_, err := fence.Build("", sysconfig, "")
 				Ω(err).Should(Equal(testErr))
 			})
 		})
@@ -71,7 +74,7 @@ var _ = Describe("Fence", func() {
 		Context("when the network parameter is not empty", func() {
 			Context("when it contains a prefix length", func() {
 				It("statically allocates the requested subnet ", func() {
-					_, err := fence.Build("1.3.4.0/28")
+					_, err := fence.Build("1.3.4.0/28", sysconfig, "")
 					Ω(err).ShouldNot(HaveOccurred())
 
 					_, cidr, err := net.ParseCIDR("1.3.4.0/28")
@@ -83,7 +86,7 @@ var _ = Describe("Fence", func() {
 
 			Context("when it does not contain a prefix length", func() {
 				It("statically allocates the requested Network from Subnets as a /30", func() {
-					_, err := fence.Build("1.3.4.0")
+					_, err := fence.Build("1.3.4.0", sysconfig, "")
 					Ω(err).ShouldNot(HaveOccurred())
 
 					_, cidr, err := net.ParseCIDR("1.3.4.0/30")
@@ -95,7 +98,7 @@ var _ = Describe("Fence", func() {
 
 			Context("when the network parameter has non-zero host bits", func() {
 				It("statically allocates an IP address based on the network parameter", func() {
-					_, err := fence.Build("1.3.4.2")
+					_, err := fence.Build("1.3.4.2", sysconfig, "")
 					Ω(err).ShouldNot(HaveOccurred())
 
 					ip := net.ParseIP("1.3.4.2")
@@ -107,7 +110,7 @@ var _ = Describe("Fence", func() {
 				It("dynamically allocates an IP address", func() {
 					fakeSubnetPool.nextIP = net.ParseIP("9.8.7.6")
 
-					allocation, err := fence.Build("1.3.4.0")
+					allocation, err := fence.Build("1.3.4.0", sysconfig, "")
 					Ω(err).ShouldNot(HaveOccurred())
 
 					Ω(fakeSubnetPool.lastRequested.IP).Should(Equal(subnets.DynamicIPSelector))
@@ -116,7 +119,7 @@ var _ = Describe("Fence", func() {
 			})
 
 			It("returns an error if an invalid network string is passed", func() {
-				_, err := fence.Build("invalid")
+				_, err := fence.Build("invalid", sysconfig, "")
 				Ω(err).Should(HaveOccurred())
 			})
 
@@ -124,7 +127,7 @@ var _ = Describe("Fence", func() {
 				testErr := errors.New("some error")
 				fakeSubnetPool.allocationError = testErr
 
-				_, err := fence.Build("1.3.4.4/30")
+				_, err := fence.Build("1.3.4.4/30", sysconfig, "")
 				Ω(err).Should(Equal(testErr))
 			})
 
@@ -135,7 +138,7 @@ var _ = Describe("Fence", func() {
 		_, s, err := net.ParseCIDR(subnet)
 		Ω(err).ShouldNot(HaveOccurred())
 
-		return &Allocation{s, net.ParseIP(ip), fence}
+		return &Allocation{s, net.ParseIP(ip), "", "", "", fence}
 	}
 
 	Describe("Rebuild", func() {
@@ -216,7 +219,7 @@ var _ = Describe("Fence", func() {
 					fence.mtu = 123
 
 					env = []string{"foo", "bar"}
-					allocation := &Allocation{ipn, net.ParseIP("4.5.6.1"), fence}
+					allocation := &Allocation{ipn, net.ParseIP("4.5.6.1"), "", "", "", fence}
 					allocation.ConfigureProcess(&env)
 				})
 
