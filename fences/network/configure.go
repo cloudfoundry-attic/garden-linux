@@ -11,7 +11,7 @@ import (
 )
 
 // Pre-condition: the gateway IP is a valid IP in the subnet.
-func ConfigureHost(hostInterface string, containerInterface string, gatewayIP net.IP, bridgeInterface string, subnet *net.IPNet, containerPid int, mtu int, tag string) error {
+func ConfigureHost(hostInterface string, containerInterface string, gatewayIP net.IP, bridgeInterface string, subnet *net.IPNet, containerPid int, mtu int) error {
 	_, err := tenus.NewVethPairWithOptions(hostInterface, tenus.VethOptions{
 		PeerName:   containerInterface,
 		TxQueueLen: 1,

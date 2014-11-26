@@ -17,9 +17,6 @@ func main() {
 	var target string
 	flag.StringVar(&target, "target", "host", "the target to configure (container or host)")
 
-	var tag string
-	flag.StringVar(&tag, "tag", "99", "a tag to disambiguate resource names")
-
 	var hostIfcName string
 	flag.StringVar(&hostIfcName, "hostIfcName", "", "the name of the host-side device to configure")
 
@@ -49,7 +46,6 @@ func main() {
 	if verbose {
 		fmt.Println("\nnet-fence:",
 			"\n  target", target,
-			"\n  tag", tag,
 			"\n  hostIfcName", hostIfcName,
 			"\n  containerIfcName", containerIfcName,
 			"\n  containerIP", containerIP.IP,
@@ -63,7 +59,7 @@ func main() {
 
 	var err error
 	if target == "host" {
-		err = network.ConfigureHost(hostIfcName, containerIfcName, gatewayIP.IP, bridgeIfcName, subnet.IPNet, containerPid, int(mtu), tag)
+		err = network.ConfigureHost(hostIfcName, containerIfcName, gatewayIP.IP, bridgeIfcName, subnet.IPNet, containerPid, int(mtu))
 	} else if target == "container" {
 		err = network.ConfigureContainer(containerIfcName, containerIP.IP, gatewayIP.IP, subnet.IPNet, int(mtu))
 	} else {

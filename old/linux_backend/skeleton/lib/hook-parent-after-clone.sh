@@ -78,7 +78,6 @@ done
 echo $PID > ./run/wshd.pid
 
 ./bin/net-fence -target=host \
-                -tag=$tag \
                 -hostIfcName=$network_host_iface \
                 -containerIfcName=$network_container_iface \
                 -gatewayIP=$network_host_ip \
