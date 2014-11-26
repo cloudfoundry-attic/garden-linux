@@ -224,6 +224,16 @@
 			"Rev": "101dff031bb86a14e231c93776e42002c87a5b4d"
 		},
 		{
+			"ImportPath": "github.com/docker/libcontainer/netlink",
+			"Comment": "v1.2.0-67-gf425467",
+			"Rev": "f4254672e6ef366343e27da68803d038c12a0671"
+		},
+		{
+			"ImportPath": "github.com/docker/libcontainer/system",
+			"Comment": "v1.2.0-67-gf425467",
+			"Rev": "f4254672e6ef366343e27da68803d038c12a0671"
+		},
+		{
 			"ImportPath": "github.com/docker/libtrust",
 			"Rev": "9f61d4554f6af00705c15714f4711f3019da7760"
 		},
@@ -239,6 +249,11 @@
 			"ImportPath": "github.com/kr/pty",
 			"Comment": "release.r56-19-g67e2db2",
 			"Rev": "67e2db24c831afa6c64fc17b4a143390674365ef"
+		},
+		{
+			"ImportPath": "github.com/milosgajdos83/tenus",
+			"Comment": "0.0.1-18-g3b98456",
+			"Rev": "3b984568c7e3316af5bab070ea3a081c18c83885"
 		},
 		{
 			"ImportPath": "github.com/nu7hatch/gouuid",

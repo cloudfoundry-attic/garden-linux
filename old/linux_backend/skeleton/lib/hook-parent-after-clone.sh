@@ -77,12 +77,15 @@ done
 
 echo $PID > ./run/wshd.pid
 
-ip link add name $network_host_iface type veth peer name $network_container_iface
-ip link set $network_host_iface netns 1
-ip link set $network_container_iface netns $PID
-
-ip address add $network_host_ip/$network_cidr_suffix dev $network_host_iface
-ip link set $network_host_iface mtu $container_iface_mtu up
+./bin/net-fence -target=host \
+                -tag=$tag \
+                -hostIfcName=$network_host_iface \
+                -containerIfcName=$network_container_iface \
+                -gatewayIP=$network_host_ip \
+                -bridgeIfcName=$bridge_iface \
+                -subnet=$network_cidr \
+                -containerPid=$PID \
+                -mtu=$container_iface_mtu
 
 
 [ ! -d /var/run/netns ] && mkdir -p /var/run/netns
@@ -92,13 +95,12 @@ mkdir -p /sys
 mount -n -t tmpfs tmpfs /sys  # otherwise netns exec fails
 ln -s /proc/$PID/ns/net /var/run/netns/$PID
 
-ip netns exec $PID ip address add 127.0.0.1/8 dev lo
-ip netns exec $PID ip link set lo up
-
-ip netns exec $PID ip address add $network_container_ip/$network_cidr_suffix dev $network_container_iface
-ip netns exec $PID ip link set $network_container_iface mtu $container_iface_mtu up
-
-ip netns exec $PID ip route add default via $network_host_ip dev $network_container_iface
+ip netns exec $PID ./bin/net-fence -target=container \
+                -containerIfcName=$network_container_iface \
+                -containerIP=$network_container_ip \
+                -gatewayIP=$network_host_ip \
+                -subnet=$network_cidr \
+                -mtu=$container_iface_mtu
 
 umount /sys
 

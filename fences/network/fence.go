@@ -1,6 +1,7 @@
 package network
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -117,7 +118,12 @@ func (a *Allocation) ConfigureProcess(env *[]string) error {
 		fmt.Sprintf("network_cidr_suffix=%d", suff),
 		fmt.Sprintf("container_iface_mtu=%d", a.fence.mtu),
 		fmt.Sprintf("network_cidr=%s", a.IPNet.String()),
-		fmt.Sprintf("external_ip=%s", a.fence.externalIP.String()))
+		fmt.Sprintf("external_ip=%s", a.fence.externalIP.String()),
+		fmt.Sprintf("network_ip_hex=%s", hexIP(a.IPNet.IP))) // suitable for short bridge interface names
 
 	return nil
+}
+
+func hexIP(ip net.IP) string {
+	return hex.EncodeToString(ip)
 }

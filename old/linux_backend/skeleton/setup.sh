@@ -9,6 +9,7 @@ cd $(dirname $0)
 
 # Defaults for debugging the setup script
 iface_name_prefix="${GARDEN_NETWORK_INTERFACE_PREFIX}"
+tag="${GARDEN_TAG:-9}"
 max_id_len=$(expr 16 - ${#iface_name_prefix} - 2)
 iface_name=$(tail -c ${max_id_len} <<< ${id})
 id=${id:-test}
@@ -18,6 +19,7 @@ network_host_ip=${network_host_ip:-10.0.0.1}
 network_host_iface="${iface_name_prefix}${iface_name}-0"
 network_container_ip=${network_container_ip:-10.0.0.2}
 network_container_iface="${iface_name_prefix}${iface_name}-1"
+bridge_iface="${iface_name_prefix}br-${network_ip_hex}"
 network_cidr_suffix=${network_cidr_suffix:-30}
 user_uid=${user_uid:-10000}
 root_uid=${root_uid:-10000}
@@ -26,10 +28,12 @@ rootfs_path=$(readlink -f $rootfs_path)
 # Write configuration
 cat > etc/config <<-EOS
 id=$id
+tag=$tag
 network_host_ip=$network_host_ip
 network_host_iface=$network_host_iface
 network_container_ip=$network_container_ip
 network_container_iface=$network_container_iface
+bridge_iface=$bridge_iface
 network_cidr_suffix=$network_cidr_suffix
 container_iface_mtu=$container_iface_mtu
 network_cidr=$network_cidr

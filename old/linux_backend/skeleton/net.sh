@@ -42,7 +42,7 @@ function setup_filter() {
 
   # Bind instance chain to forward chain
   iptables -w -I ${filter_forward_chain} 2 \
-    --in-interface ${network_host_iface} \
+    --in-interface ${bridge_iface} \
     --goto ${filter_instance_chain}
 }
 

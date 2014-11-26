@@ -56,25 +56,30 @@ func (c *CidrVar) Set(s string) error {
 }
 
 func (c *CidrVar) String() string {
+	if c.IPNet == nil {
+		return ""
+	}
 	return c.IPNet.String()
 }
 
-type IPVar net.IP
-
-func (c *IPVar) Get() interface{} {
-	return *c
+type IPVar struct {
+	net.IP
 }
 
-func (c *IPVar) Set(s string) error {
+func (i *IPVar) Get() interface{} {
+	return IPVar(*i)
+}
+
+func (i *IPVar) Set(s string) error {
 	ip := net.ParseIP(s)
 	if ip == nil {
 		return fmt.Errorf("invalid IP address: %s", s)
 	}
 
-	*c = IPVar(ip)
+	i.IP = ip
 	return nil
 }
 
-func (c *IPVar) String() string {
-	return net.IP(*c).String()
+func (i *IPVar) String() string {
+	return i.IP.String()
 }

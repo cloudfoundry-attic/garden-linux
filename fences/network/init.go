@@ -34,7 +34,7 @@ func (config *Config) Init(fs *flag.FlagSet) error {
 
 	config.Network = cidrVar(DefaultNetworkPool)
 	config.Mtu = DefaultMTUSize
-	config.ExternalIP = IPVar(net.ParseIP(localIP))
+	config.ExternalIP = IPVar{net.ParseIP(localIP)}
 
 	fs.Var(&config.Network, "networkPool",
 		"Pool of dynamically allocated container subnets")
@@ -54,7 +54,7 @@ func (config *Config) Main(registry *fences.BuilderRegistry) error {
 		return err
 	}
 
-	fence := &f{subnets, uint32(config.Mtu), net.IP(config.ExternalIP)}
+	fence := &f{subnets, uint32(config.Mtu), config.ExternalIP.IP}
 	registry.Register(fence)
 
 	return nil
