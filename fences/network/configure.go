@@ -117,7 +117,6 @@ func ConfigureContainer(containerInterface string, containerIP net.IP, gatewayIP
 	} else {
 		_, liIpNet, _ := net.ParseCIDR("127.0.0.1/8")
 		if err = NetworkLinkAddIp(loIfc, net.ParseIP("127.0.0.1"), liIpNet); err != nil {
-			fmt.Println(">>>Error: ", err)
 			return ErrFailedToAddLoopbackIp // FIXME: need rich error type
 		}
 		if err := NetworkLinkUp(loIfc); err != nil {
