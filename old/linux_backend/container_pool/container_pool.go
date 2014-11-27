@@ -164,7 +164,7 @@ func (p *LinuxContainerPool) Prune(keep map[string]bool) error {
 		if err != nil {
 			return err
 		}
-		err = fence.Deconfigure()
+		err = fence.Dismantle()
 		if err != nil {
 			return err
 		}

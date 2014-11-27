@@ -33,7 +33,6 @@ type Builder interface {
 type Fence interface {
 	json.Marshaler
 	ConfigureProcess(*[]string) error
-	Deconfigure() error
 	Dismantle() error
 	Info(*api.ContainerInfo)
 }

@@ -19,7 +19,6 @@ var (
 
 // DeconfigureHost undoes the effects of ConfigureHost.
 func DeconfigureHost(hostInterface string, bridgeInterface string) error {
-	fmt.Println("DeconfigureHost", hostInterface, bridgeInterface)
 	if err := NetworkLinkDel(hostInterface); err != nil {
 		if err.Error() != "no such network interface" {
 			return ErrFailedToDeleteHostInterface // FIXME: rich error

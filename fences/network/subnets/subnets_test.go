@@ -125,6 +125,24 @@ var _ = Describe("Subnet Pool", func() {
 							Ω(err).Should(Equal(subnets.ErrIPAlreadyAllocated))
 						})
 
+						It("allows two IPs to be serially requested in the same subnet", func() {
+							_, static := networkParms("11.0.0.0/8")
+
+							ip := net.ParseIP("11.0.0.1")
+							returnedSubnet, returnedIp, err := subnetpool.Allocate(subnets.StaticSubnetSelector{static}, subnets.StaticIPSelector{ip})
+							Ω(err).ShouldNot(HaveOccurred())
+							Ω(returnedSubnet).Should(Equal(static))
+							Ω(returnedIp).Should(Equal(ip))
+
+							ip2 := net.ParseIP("11.0.0.2")
+
+							_, static = networkParms("11.0.0.0/8") // make sure we get a new pointer
+							returnedSubnet2, returnedIp2, err := subnetpool.Allocate(subnets.StaticSubnetSelector{static}, subnets.StaticIPSelector{ip2})
+							Ω(err).ShouldNot(HaveOccurred())
+							Ω(returnedSubnet2).Should(Equal(static))
+							Ω(returnedIp2).Should(Equal(ip2))
+						})
+
 						It("prevents dynamic allocation of the same IP", func() {
 							_, static := networkParms("11.0.0.0/8")
 

@@ -149,7 +149,3 @@ func (a *Allocation) ConfigureProcess(env *[]string) error {
 func hexIP(ip net.IP) string {
 	return hex.EncodeToString(ip)
 }
-
-func (a *Allocation) Deconfigure() error {
-	return nil
-}

@@ -58,7 +58,7 @@ var _ = Describe("Configure", func() {
 		inContainerTestBin = buildInContainerTest()
 	})
 
-	It("uses a statically linked net-fence exeutable", func() {
+	It("uses a statically linked net-fence executable", func() {
 		cmd := exec.Command("ldd", netFenceBin)
 		out, err := cmd.CombinedOutput()
 		Ω(out).Should(ContainSubstring("not a dynamic executable"))
