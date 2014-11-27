@@ -111,5 +111,18 @@ if ! chroot $rootfs_path id vcap >/dev/null 2>&1; then
   useradd -R $rootfs_path -mU -u $user_uid -s $shell vcap
 fi
 
-# make sure container-root owns its own home directory
-chown -R $root_uid:$root_uid $rootfs_path/root
+# workaround aufs limitations by copying /root directory out and back
+# in order to get it a new inode. This is the only way to prevent the 
+# ownership in the read-only layer affecting the read-write layer. Later
+# versions of aufs support a dirperm1 mount option which should allow us
+# to remove this workaround.
+cp -r "$rootfs_path/root" "$rootfs_path/tmp/root"
+if rm -r "$rootfs_path/root" 2>&1; then
+  mkdir "$rootfs_path/root"
+  mv "$rootfs_path/tmp/root" "$rootfs_path/root"
+fi
+rm -rf "$rootfs_path/tmp/root"
+
+# map the root user id in the rootfs to the container root uid
+# this is a noop if the container is privileged (0:0 -> 0:0)
+chown -R --from=0:0 $root_uid:$root_uid "$rootfs_path/root"
