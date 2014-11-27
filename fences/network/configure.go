@@ -42,22 +42,27 @@ func ConfigureHost(hostInterface string, containerInterface string, gatewayIP ne
 		return ErrFailedToSetContainerNs // FIXME: need rich error type
 	}
 
-	var bridgeIfc *net.Interface
-
 	fmt.Println("---------------ConfigureHost: ", subnetShareable)
 
 	if bridger, err := tenus.NewBridgeWithName(bridgeInterface); err == nil {
 		if err = bridger.AddSlaveIfc(hostIfc); err != nil {
 			return ErrFailedToAddSlave // FIXME: need rich error type
 		}
-		bridgeIfc = bridger.NetInterface()
+		bridgeIfc := bridger.NetInterface()
 
+		if err = NetworkLinkAddIp(bridgeIfc, gatewayIP, subnet); err != nil {
+			return ErrFailedToAddIp // FIXME: need rich error type
+		}
+
+		if err = NetworkLinkUp(bridgeIfc); err != nil {
+			return ErrFailedToLinkUp // FIXME: need rich error type
+		}
 	} else if !subnetShareable {
 		fmt.Println("Failed to add bridge:", err)
 		return ErrFailedToCreateBridge // FIXME: need rich error type
 
 	} else {
-		bridgeIfc, err = InterfaceByName(bridgeInterface)
+		bridgeIfc, err := InterfaceByName(bridgeInterface)
 		if err != nil {
 			return ErrFailedToFindBridge // FIXME: rich error
 		}
@@ -65,14 +70,6 @@ func ConfigureHost(hostInterface string, containerInterface string, gatewayIP ne
 		if err != nil {
 			return ErrFailedToAddSlave // FIXME: need rich error type
 		}
-	}
-
-	if err = NetworkLinkAddIp(bridgeIfc, gatewayIP, subnet); err != nil {
-		return ErrFailedToAddIp // FIXME: need rich error type
-	}
-
-	if err = NetworkLinkUp(bridgeIfc); err != nil {
-		return ErrFailedToLinkUp // FIXME: need rich error type
 	}
 
 	if err = NetworkLinkUp(hostIfc); err != nil {
