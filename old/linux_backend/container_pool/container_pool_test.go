@@ -853,10 +853,19 @@ var _ = Describe("Container pool", func() {
 				err := os.MkdirAll(path.Join(depotPath, "container-1"), 0755)
 				Ω(err).ShouldNot(HaveOccurred())
 
+				err = createJsonFile(path.Join(depotPath, "container-1", "fenceConfig.json"))
+				Ω(err).ShouldNot(HaveOccurred())
+
 				err = os.MkdirAll(path.Join(depotPath, "container-2"), 0755)
 				Ω(err).ShouldNot(HaveOccurred())
 
+				err = createJsonFile(path.Join(depotPath, "container-2", "fenceConfig.json"))
+				Ω(err).ShouldNot(HaveOccurred())
+
 				err = os.MkdirAll(path.Join(depotPath, "container-3"), 0755)
+				Ω(err).ShouldNot(HaveOccurred())
+
+				err = createJsonFile(path.Join(depotPath, "container-3", "fenceConfig.json"))
 				Ω(err).ShouldNot(HaveOccurred())
 
 				err = os.MkdirAll(path.Join(depotPath, "tmp"), 0755)
@@ -1134,3 +1143,20 @@ var _ = Describe("Container pool", func() {
 		})
 	})
 })
+
+func createJsonFile(name string) error {
+	f, err := os.Create(name)
+	if err != nil {
+		return err
+	}
+
+	b := []byte("{}")
+	rm := json.RawMessage(b)
+	fp := container_pool.FencePersistor{&rm}
+	err = json.NewEncoder(f).Encode(fp)
+	if err != nil {
+		return err
+	}
+
+	return f.Close()
+}

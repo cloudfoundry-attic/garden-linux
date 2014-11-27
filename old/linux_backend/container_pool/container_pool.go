@@ -159,6 +159,16 @@ func (p *LinuxContainerPool) Prune(keep map[string]bool) error {
 
 		pLog.Info("pruning")
 
+		containerPath := path.Join(p.depotPath, id)
+		fence, err := p.recoverFence(containerPath)
+		if err != nil {
+			return err
+		}
+		err = fence.Deconfigure()
+		if err != nil {
+			return err
+		}
+
 		err = p.releaseSystemResources(pLog, id)
 		if err != nil {
 			return err
@@ -166,6 +176,60 @@ func (p *LinuxContainerPool) Prune(keep map[string]bool) error {
 	}
 
 	return nil
+}
+
+type FencePersistor struct {
+	FenceRawMessage *json.RawMessage
+}
+
+func fenceConfigPath(containerPath string) string {
+	return path.Join(containerPath, "fenceConfig.json")
+}
+
+func (p *LinuxContainerPool) persistFence(fence fences.Fence, containerPath string) error {
+	var m json.RawMessage
+	m, err := fence.MarshalJSON()
+	if err != nil {
+		return err
+	}
+
+	fenceConfigPath := fenceConfigPath(containerPath)
+
+	out, err := os.Create(fenceConfigPath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	fp := FencePersistor{&m}
+	err = json.NewEncoder(out).Encode(fp)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (p *LinuxContainerPool) recoverFence(containerPath string) (fences.Fence, error) {
+	fenceConfigPath := fenceConfigPath(containerPath)
+	in, err := os.Open(fenceConfigPath)
+	if err != nil {
+		return nil, err
+	}
+	defer in.Close()
+
+	var fp FencePersistor
+	err = json.NewDecoder(in).Decode(&fp)
+	if err != nil {
+		return nil, err
+	}
+
+	fence, err := p.builders.Rebuild(fp.FenceRawMessage)
+	if err != nil {
+		return nil, err
+	}
+
+	return fence, nil
 }
 
 func (p *LinuxContainerPool) Create(spec api.ContainerSpec) (c linux_backend.Container, err error) {
@@ -182,6 +246,8 @@ func (p *LinuxContainerPool) Create(spec api.ContainerSpec) (c linux_backend.Con
 	defer cleanup(&err, func() {
 		p.releasePoolResources(resources)
 	})
+
+	p.persistFence(resources.Network, containerPath)
 
 	rootFSEnvVars, err := p.acquireSystemResources(id, containerPath, spec.RootFSPath, resources, spec.BindMounts, pLog)
 	if err != nil {

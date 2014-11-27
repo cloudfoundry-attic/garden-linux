@@ -22,9 +22,9 @@ type f struct {
 type FlatFence struct {
 	Ipn              string
 	ContainerIP      string
-	containerIfcName string
-	hostIfcName      string
-	bridgeIfcName    string
+	ContainerIfcName string
+	HostIfcName      string
+	BridgeIfcName    string
 }
 
 // Builds a (network) Fence from a given network spec. If the network spec
@@ -100,7 +100,7 @@ func (f *f) Rebuild(rm *json.RawMessage) (fences.Fence, error) {
 		return nil, err
 	}
 
-	return &Allocation{ipn, net.ParseIP(ff.ContainerIP), ff.containerIfcName, ff.hostIfcName, ff.bridgeIfcName, f}, nil
+	return &Allocation{ipn, net.ParseIP(ff.ContainerIP), ff.ContainerIfcName, ff.HostIfcName, ff.BridgeIfcName, f}, nil
 }
 
 type Allocation struct {
