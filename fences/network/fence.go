@@ -24,6 +24,7 @@ type FlatFence struct {
 	ContainerIP      string
 	ContainerIfcName string
 	HostIfcName      string
+	SubnetShareable  bool
 	BridgeIfcName    string
 }
 
@@ -71,7 +72,10 @@ func (f *f) Build(spec string, sysconfig *sysconfig.Config, containerID string) 
 	hostIfcName := prefix + ifaceName + "-0"
 	bridgeIfcName := prefix + "br-" + hexIP(subnet.IP)
 
-	return &Allocation{subnet, containerIP, containerIfcName, hostIfcName, bridgeIfcName, f}, nil
+	ones, _ := subnet.Mask.Size()
+	subnetShareable := (ones < 30)
+
+	return &Allocation{subnet, containerIP, containerIfcName, hostIfcName, subnetShareable, bridgeIfcName, f}, nil
 }
 
 func suffixIfNeeded(spec string) string {
@@ -100,7 +104,7 @@ func (f *f) Rebuild(rm *json.RawMessage) (fences.Fence, error) {
 		return nil, err
 	}
 
-	return &Allocation{ipn, net.ParseIP(ff.ContainerIP), ff.ContainerIfcName, ff.HostIfcName, ff.BridgeIfcName, f}, nil
+	return &Allocation{ipn, net.ParseIP(ff.ContainerIP), ff.ContainerIfcName, ff.HostIfcName, ff.SubnetShareable, ff.BridgeIfcName, f}, nil
 }
 
 type Allocation struct {
@@ -108,17 +112,23 @@ type Allocation struct {
 	containerIP      net.IP
 	containerIfcName string
 	hostIfcName      string
+	subnetShareable  bool
 	bridgeIfcName    string
 	fence            *f
 }
 
 func (a *Allocation) String() string {
-	return "Allocation{" + a.IPNet.String() + ", " + a.containerIP.String() + "}"
+	return "Allocation{" + a.IPNet.String() + ", " + a.containerIP.String() + "}" // FIXME: fill this out
 }
 
 func (a *Allocation) Dismantle() error {
-	DeconfigureHost(a.hostIfcName, a.bridgeIfcName)
-	return a.fence.Release(a.IPNet, a.containerIP)
+	released, err := a.fence.Release(a.IPNet, a.containerIP)
+	if released {
+		deconfigureHost(a.hostIfcName, a.bridgeIfcName)
+	} else {
+		deconfigureHost(a.hostIfcName, "")
+	}
+	return err
 }
 
 func (a *Allocation) Info(i *api.ContainerInfo) {
@@ -128,7 +138,7 @@ func (a *Allocation) Info(i *api.ContainerInfo) {
 }
 
 func (a *Allocation) MarshalJSON() ([]byte, error) {
-	ff := FlatFence{a.IPNet.String(), a.containerIP.String(), a.containerIfcName, a.hostIfcName, a.bridgeIfcName}
+	ff := FlatFence{a.IPNet.String(), a.containerIP.String(), a.containerIfcName, a.hostIfcName, a.subnetShareable, a.bridgeIfcName}
 	return json.Marshal(ff)
 }
 
@@ -139,6 +149,7 @@ func (a *Allocation) ConfigureProcess(env *[]string) error {
 		fmt.Sprintf("network_container_ip=%s", a.containerIP),
 		fmt.Sprintf("network_cidr_suffix=%d", suff),
 		fmt.Sprintf("container_iface_mtu=%d", a.fence.mtu),
+		fmt.Sprintf("subnet_shareable=%v", a.subnetShareable),
 		fmt.Sprintf("network_cidr=%s", a.IPNet.String()),
 		fmt.Sprintf("external_ip=%s", a.fence.externalIP.String()),
 		fmt.Sprintf("network_ip_hex=%s", hexIP(a.IPNet.IP))) // suitable for short bridge interface names

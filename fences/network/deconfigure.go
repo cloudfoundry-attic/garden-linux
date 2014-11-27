@@ -17,17 +17,21 @@ var (
 	DeleteBridge   func(name string) error = netlink.DeleteBridge
 )
 
-// DeconfigureHost undoes the effects of ConfigureHost.
-func DeconfigureHost(hostInterface string, bridgeInterface string) error {
+// deconfigureHost undoes the effects of ConfigureHost.
+// An empty bridge interface name should be specified if no bridge is to be deleted.
+func deconfigureHost(hostInterface string, bridgeInterface string) error {
+	fmt.Printf("deconfigureHost(%q, %q)\n", hostInterface, bridgeInterface)
 	if err := NetworkLinkDel(hostInterface); err != nil {
 		if err.Error() != "no such network interface" {
 			return ErrFailedToDeleteHostInterface // FIXME: rich error
 		}
 	}
 
-	if err := DeleteBridge(bridgeInterface); err != nil {
-		if err.Error() != "no such device" {
-			return ErrFailedToDeleteBridgeInterface // FIXME: rich error
+	if bridgeInterface != "" {
+		if err := DeleteBridge(bridgeInterface); err != nil {
+			if err.Error() != "no such device" {
+				return ErrFailedToDeleteBridgeInterface // FIXME: rich error
+			}
 		}
 	}
 

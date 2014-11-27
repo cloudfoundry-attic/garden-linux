@@ -138,7 +138,7 @@ var _ = Describe("Fence", func() {
 		_, s, err := net.ParseCIDR(subnet)
 		Ω(err).ShouldNot(HaveOccurred())
 
-		return &Allocation{s, net.ParseIP(ip), "", "", "", fence}
+		return &Allocation{s, net.ParseIP(ip), "", "", false, "", fence}
 	}
 
 	Describe("Rebuild", func() {
@@ -219,7 +219,7 @@ var _ = Describe("Fence", func() {
 					fence.mtu = 123
 
 					env = []string{"foo", "bar"}
-					allocation := &Allocation{ipn, net.ParseIP("4.5.6.1"), "", "", "", fence}
+					allocation := &Allocation{ipn, net.ParseIP("4.5.6.1"), "", "", false, "", fence}
 					allocation.ConfigureProcess(&env)
 				})
 
@@ -283,9 +283,9 @@ func (f *fakeSubnets) Allocate(s subnets.SubnetSelector, i subnets.IPSelector) (
 	return f.nextSubnet, f.nextIP, nil
 }
 
-func (f *fakeSubnets) Release(n *net.IPNet, c net.IP) error {
+func (f *fakeSubnets) Release(n *net.IPNet, c net.IP) (bool, error) {
 	f.released = append(f.released, fakeAllocation{n.String(), c.String()})
-	return f.releaseError
+	return true, f.releaseError
 }
 
 func (f *fakeSubnets) Recover(n *net.IPNet, c net.IP) error {

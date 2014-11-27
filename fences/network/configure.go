@@ -11,7 +11,7 @@ import (
 )
 
 // Pre-condition: the gateway IP is a valid IP in the subnet.
-func ConfigureHost(hostInterface string, containerInterface string, gatewayIP net.IP, bridgeInterface string, subnet *net.IPNet, containerPid int, mtu int) error {
+func ConfigureHost(hostInterface string, containerInterface string, gatewayIP net.IP, subnetShareable bool, bridgeInterface string, subnet *net.IPNet, containerPid int, mtu int) error {
 	_, err := tenus.NewVethPairWithOptions(hostInterface, tenus.VethOptions{
 		PeerName:   containerInterface,
 		TxQueueLen: 1,
@@ -42,17 +42,31 @@ func ConfigureHost(hostInterface string, containerInterface string, gatewayIP ne
 		return ErrFailedToSetContainerNs // FIXME: need rich error type
 	}
 
-	bridger, err := tenus.NewBridgeWithName(bridgeInterface)
-	if err != nil {
-		fmt.Println("Error: ", err)
+	var bridgeIfc *net.Interface
+
+	fmt.Println("---------------ConfigureHost: ", subnetShareable)
+
+	if bridger, err := tenus.NewBridgeWithName(bridgeInterface); err == nil {
+		if err = bridger.AddSlaveIfc(hostIfc); err != nil {
+			return ErrFailedToAddSlave // FIXME: need rich error type
+		}
+		bridgeIfc = bridger.NetInterface()
+
+	} else if !subnetShareable {
+		fmt.Println("Failed to add bridge:", err)
 		return ErrFailedToCreateBridge // FIXME: need rich error type
+
+	} else {
+		bridgeIfc, err = InterfaceByName(bridgeInterface)
+		if err != nil {
+			return ErrFailedToFindBridge // FIXME: rich error
+		}
+		err = netlink.AddToBridge(hostIfc, bridgeIfc)
+		if err != nil {
+			return ErrFailedToAddSlave // FIXME: need rich error type
+		}
 	}
 
-	if err = bridger.AddSlaveIfc(hostIfc); err != nil {
-		return ErrFailedToAddSlave // FIXME: need rich error type
-	}
-
-	bridgeIfc := bridger.NetInterface()
 	if err = NetworkLinkAddIp(bridgeIfc, gatewayIP, subnet); err != nil {
 		return ErrFailedToAddIp // FIXME: need rich error type
 	}
@@ -80,6 +94,7 @@ var (
 	ErrFailedToAddSlave          = errors.New("failed to slave interface to bridge")
 	ErrFailedToCreateBridge      = errors.New("failed to create bridge")
 	ErrFailedToCreateVethPair    = errors.New("failed to create virtual ethernet pair")
+	ErrFailedToFindBridge        = errors.New("failed to find bridge")
 	ErrFailedToLinkUp            = errors.New("failed to bring up the link")
 	ErrFailedToLinkUpLoopback    = errors.New("failed to bring up the loopback link")
 	ErrFailedToSetContainerNs    = errors.New("failed to set container interface namespace")

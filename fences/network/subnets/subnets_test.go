@@ -262,8 +262,9 @@ var _ = Describe("Subnet Pool", func() {
 
 					Context("but after it is released", func() {
 						It("allows allocation again", func() {
-							err := subnetpool.Release(static, ip)
+							gone, err := subnetpool.Release(static, ip)
 							Ω(err).ShouldNot(HaveOccurred())
+							Ω(gone).Should(BeTrue())
 
 							_, _, err = subnetpool.Allocate(subnets.StaticSubnetSelector{static}, subnets.DynamicIPSelector)
 							Ω(err).ShouldNot(HaveOccurred())
@@ -298,8 +299,9 @@ var _ = Describe("Subnet Pool", func() {
 
 					Context("but after it is released", func() {
 						It("allows allocation again", func() {
-							err := subnetpool.Release(firstSubnetPool, firstContainerIP)
+							gone, err := subnetpool.Release(firstSubnetPool, firstContainerIP)
 							Ω(err).ShouldNot(HaveOccurred())
+							Ω(gone).Should(BeTrue())
 
 							_, _, err = subnetpool.Allocate(subnets.StaticSubnetSelector{secondSubnetPool}, subnets.DynamicIPSelector)
 							Ω(err).ShouldNot(HaveOccurred())
@@ -367,8 +369,9 @@ var _ = Describe("Subnet Pool", func() {
 						Ω(err).Should(HaveOccurred())
 
 						// release
-						err = subnetpool.Release(allocated, ip)
+						gone, err := subnetpool.Release(allocated, ip)
 						Ω(err).ShouldNot(HaveOccurred())
+						Ω(gone).Should(BeTrue())
 
 						// third - should work now because of release
 						network, _, err := subnetpool.Allocate(subnets.DynamicSubnetSelector, subnets.DynamicIPSelector)
@@ -386,13 +389,15 @@ var _ = Describe("Subnet Pool", func() {
 						Ω(err).ShouldNot(HaveOccurred())
 
 						// release
-						err = subnetpool.Release(allocated, ip)
+						gone, err := subnetpool.Release(allocated, ip)
 						Ω(err).ShouldNot(HaveOccurred())
+						Ω(gone).Should(BeTrue())
 
 						// release again
-						err = subnetpool.Release(allocated, ip)
+						gone, err = subnetpool.Release(allocated, ip)
 						Ω(err).Should(HaveOccurred())
 						Ω(err).Should(Equal(subnets.ErrReleasedUnallocatedSubnet))
+						Ω(gone).Should(BeTrue())
 					})
 				})
 			})
@@ -472,12 +477,14 @@ var _ = Describe("Subnet Pool", func() {
 						out := make(chan error)
 						go func(out chan error) {
 							defer GinkgoRecover()
-							out <- pool.Release(n1, ip)
+							_, err := pool.Release(n1, ip)
+							out <- err
 						}(out)
 
 						go func(out chan error) {
 							defer GinkgoRecover()
-							out <- pool.Release(n1, ip)
+							_, err := pool.Release(n1, ip)
+							out <- err
 						}(out)
 
 						a := <-out
