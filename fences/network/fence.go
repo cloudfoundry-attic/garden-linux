@@ -9,6 +9,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden-linux/fences"
 	"github.com/cloudfoundry-incubator/garden-linux/fences/network/subnets"
+	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
 	"github.com/cloudfoundry-incubator/garden/api"
 )
 
@@ -19,8 +20,12 @@ type f struct {
 }
 
 type FlatFence struct {
-	Ipn         string
-	ContainerIP string
+	Ipn              string
+	ContainerIP      string
+	ContainerIfcName string
+	HostIfcName      string
+	SubnetShareable  bool
+	BridgeIfcName    string
 }
 
 // Builds a (network) Fence from a given network spec. If the network spec
@@ -31,7 +36,7 @@ type FlatFence struct {
 // meets the requirements, an error is returned.
 //
 // The given allocation is stored in the returned fence.
-func (f *f) Build(spec string) (fences.Fence, error) {
+func (f *f) Build(spec string, sysconfig *sysconfig.Config, containerID string) (fences.Fence, error) {
 	var ipSelector subnets.IPSelector = subnets.DynamicIPSelector
 	var subnetSelector subnets.SubnetSelector = subnets.DynamicSubnetSelector
 
@@ -53,7 +58,24 @@ func (f *f) Build(spec string) (fences.Fence, error) {
 		return nil, err
 	}
 
-	return &Allocation{subnet, containerIP, f}, nil
+	prefix := sysconfig.NetworkInterfacePrefix
+	maxIdLen := 14 - len(prefix) // 14 is maximum interface name size - room for "-0"
+
+	var ifaceName string
+	if len(containerID) < maxIdLen {
+		ifaceName = containerID
+	} else {
+		ifaceName = containerID[len(containerID)-maxIdLen:]
+	}
+
+	containerIfcName := prefix + ifaceName + "-1"
+	hostIfcName := prefix + ifaceName + "-0"
+	bridgeIfcName := prefix + "br-" + hexIP(subnet.IP)
+
+	ones, _ := subnet.Mask.Size()
+	subnetShareable := (ones < 30)
+
+	return &Allocation{subnet, containerIP, containerIfcName, hostIfcName, subnetShareable, bridgeIfcName, f}, nil
 }
 
 func suffixIfNeeded(spec string) string {
@@ -82,21 +104,31 @@ func (f *f) Rebuild(rm *json.RawMessage) (fences.Fence, error) {
 		return nil, err
 	}
 
-	return &Allocation{ipn, net.ParseIP(ff.ContainerIP), f}, nil
+	return &Allocation{ipn, net.ParseIP(ff.ContainerIP), ff.ContainerIfcName, ff.HostIfcName, ff.SubnetShareable, ff.BridgeIfcName, f}, nil
 }
 
 type Allocation struct {
 	*net.IPNet
-	containerIP net.IP
-	fence       *f
+	containerIP      net.IP
+	containerIfcName string
+	hostIfcName      string
+	subnetShareable  bool
+	bridgeIfcName    string
+	fence            *f
 }
 
 func (a *Allocation) String() string {
-	return "Allocation{" + a.IPNet.String() + ", " + a.containerIP.String() + "}"
+	return fmt.Sprintf("Allocation%v", *a)
 }
 
 func (a *Allocation) Dismantle() error {
-	return a.fence.Release(a.IPNet, a.containerIP)
+	released, err := a.fence.Release(a.IPNet, a.containerIP)
+	if released {
+		deconfigureHost(a.hostIfcName, a.bridgeIfcName)
+	} else {
+		deconfigureHost(a.hostIfcName, "")
+	}
+	return err
 }
 
 func (a *Allocation) Info(i *api.ContainerInfo) {
@@ -106,7 +138,7 @@ func (a *Allocation) Info(i *api.ContainerInfo) {
 }
 
 func (a *Allocation) MarshalJSON() ([]byte, error) {
-	ff := FlatFence{a.IPNet.String(), a.containerIP.String()}
+	ff := FlatFence{a.IPNet.String(), a.containerIP.String(), a.containerIfcName, a.hostIfcName, a.subnetShareable, a.bridgeIfcName}
 	return json.Marshal(ff)
 }
 
@@ -117,6 +149,7 @@ func (a *Allocation) ConfigureProcess(env *[]string) error {
 		fmt.Sprintf("network_container_ip=%s", a.containerIP),
 		fmt.Sprintf("network_cidr_suffix=%d", suff),
 		fmt.Sprintf("container_iface_mtu=%d", a.fence.mtu),
+		fmt.Sprintf("subnet_shareable=%v", a.subnetShareable),
 		fmt.Sprintf("network_cidr=%s", a.IPNet.String()),
 		fmt.Sprintf("external_ip=%s", a.fence.externalIP.String()),
 		fmt.Sprintf("network_ip_hex=%s", hexIP(a.IPNet.IP))) // suitable for short bridge interface names

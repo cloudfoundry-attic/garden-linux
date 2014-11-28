@@ -16,7 +16,9 @@ type Subnets interface {
 	Allocate(SubnetSelector, IPSelector) (*net.IPNet, net.IP, error)
 
 	// Releases an allocated network and container IP.
-	Release(*net.IPNet, net.IP) error
+	// Return a boolean which is true if and only if the network is no longer in use by other containers.
+	// Returns an error if the given combination is not already in the pool.
+	Release(*net.IPNet, net.IP) (bool, error)
 
 	// Recovers an unallocated subnet and container IP so they appear to be allocated.
 	Recover(*net.IPNet, net.IP) error
@@ -26,7 +28,7 @@ type Subnets interface {
 }
 
 type pool struct {
-	allocated    map[string][]net.IP // net.IPNet.String -> net.IP
+	allocated    map[string][]net.IP // net.IPNet.String +> seq net.IP
 	dynamicRange *net.IPNet
 	mu           sync.Mutex
 }
@@ -91,21 +93,29 @@ func (p *pool) Recover(subnet *net.IPNet, ip net.IP) error {
 	return nil
 }
 
-// Release removes an existing subnet/IP combination from the pool. Returns an error
-// if the given combination is not already in the pool.
-func (p *pool) Release(subnet *net.IPNet, containerIP net.IP) error {
+func (p *pool) Release(subnet *net.IPNet, containerIP net.IP) (bool, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	for i, existing := range p.allocated[subnet.String()] {
+	existingIPs := p.allocated[subnet.String()]
+	found := false
+	for i, existing := range existingIPs {
 		if existing.Equal(containerIP) {
-			existingIPs := p.allocated[subnet.String()]
-			p.allocated[subnet.String()] = append(existingIPs[:i], existingIPs[i+1:]...)
-			return nil
+			found = true
+			existingIPs = append(existingIPs[:i], existingIPs[i+1:]...)
+			break
 		}
 	}
-
-	return ErrReleasedUnallocatedSubnet
+	if !found {
+		return true, ErrReleasedUnallocatedSubnet
+	}
+	if len(existingIPs) == 0 {
+		delete(p.allocated, subnet.String())
+		return true, nil
+	} else {
+		p.allocated[subnet.String()] = existingIPs
+		return false, nil
+	}
 }
 
 // Capacity returns the number of /30 subnets that can be allocated

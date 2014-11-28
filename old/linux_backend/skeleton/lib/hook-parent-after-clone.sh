@@ -78,10 +78,10 @@ done
 echo $PID > ./run/wshd.pid
 
 ./bin/net-fence -target=host \
-                -tag=$tag \
                 -hostIfcName=$network_host_iface \
                 -containerIfcName=$network_container_iface \
                 -gatewayIP=$network_host_ip \
+                -subnetShareable=$subnet_shareable \
                 -bridgeIfcName=$bridge_iface \
                 -subnet=$network_cidr \
                 -containerPid=$PID \
@@ -91,7 +91,7 @@ echo $PID > ./run/wshd.pid
 [ ! -d /var/run/netns ] && mkdir -p /var/run/netns
 [ -f /var/run/netns/$PID ] && rm -f /var/run/netns/$PID
 
-mkdir -p /sys 
+mkdir -p /sys
 mount -n -t tmpfs tmpfs /sys  # otherwise netns exec fails
 ln -s /proc/$PID/ns/net /var/run/netns/$PID
 

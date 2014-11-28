@@ -35,7 +35,7 @@ var ErrNetworkHostbitsNonZero = errors.New("network host bits non-zero")
 
 type FenceBuilders interface {
 	Rebuild(rm *json.RawMessage) (fences.Fence, error)
-	Build(spec string) (fences.Fence, error)
+	Build(spec string, sysconfig *sysconfig.Config, containerID string) (fences.Fence, error)
 	Capacity() int
 }
 
@@ -159,6 +159,16 @@ func (p *LinuxContainerPool) Prune(keep map[string]bool) error {
 
 		pLog.Info("pruning")
 
+		containerPath := path.Join(p.depotPath, id)
+		fence, err := p.recoverFence(containerPath)
+		if err != nil {
+			return err
+		}
+		err = fence.Dismantle()
+		if err != nil {
+			return err
+		}
+
 		err = p.releaseSystemResources(pLog, id)
 		if err != nil {
 			return err
@@ -168,6 +178,60 @@ func (p *LinuxContainerPool) Prune(keep map[string]bool) error {
 	return nil
 }
 
+type FencePersistor struct {
+	FenceRawMessage *json.RawMessage
+}
+
+func fenceConfigPath(containerPath string) string {
+	return path.Join(containerPath, "fenceConfig.json")
+}
+
+func (p *LinuxContainerPool) persistFence(fence fences.Fence, containerPath string) error {
+	var m json.RawMessage
+	m, err := fence.MarshalJSON()
+	if err != nil {
+		return err
+	}
+
+	fenceConfigPath := fenceConfigPath(containerPath)
+
+	out, err := os.Create(fenceConfigPath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	fp := FencePersistor{&m}
+	err = json.NewEncoder(out).Encode(fp)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (p *LinuxContainerPool) recoverFence(containerPath string) (fences.Fence, error) {
+	fenceConfigPath := fenceConfigPath(containerPath)
+	in, err := os.Open(fenceConfigPath)
+	if err != nil {
+		return nil, err
+	}
+	defer in.Close()
+
+	var fp FencePersistor
+	err = json.NewDecoder(in).Decode(&fp)
+	if err != nil {
+		return nil, err
+	}
+
+	fence, err := p.builders.Rebuild(fp.FenceRawMessage)
+	if err != nil {
+		return nil, err
+	}
+
+	return fence, nil
+}
+
 func (p *LinuxContainerPool) Create(spec api.ContainerSpec) (c linux_backend.Container, err error) {
 	id := <-p.containerIDs
 	containerPath := path.Join(p.depotPath, id)
@@ -175,13 +239,15 @@ func (p *LinuxContainerPool) Create(spec api.ContainerSpec) (c linux_backend.Con
 
 	pLog.Info("creating")
 
-	resources, err := p.acquirePoolResources(spec)
+	resources, err := p.acquirePoolResources(spec, id)
 	if err != nil {
 		return nil, err
 	}
 	defer cleanup(&err, func() {
 		p.releasePoolResources(resources)
 	})
+
+	p.persistFence(resources.Network, containerPath)
 
 	rootFSEnvVars, err := p.acquireSystemResources(id, containerPath, spec.RootFSPath, resources, spec.BindMounts, pLog)
 	if err != nil {
@@ -390,7 +456,7 @@ func (p *LinuxContainerPool) saveRootFSProvider(id string, provider string) erro
 	return ioutil.WriteFile(providerFile, []byte(provider), 0644)
 }
 
-func (p *LinuxContainerPool) acquirePoolResources(spec api.ContainerSpec) (*linux_backend.Resources, error) {
+func (p *LinuxContainerPool) acquirePoolResources(spec api.ContainerSpec, id string) (*linux_backend.Resources, error) {
 	var err error
 	resources := linux_backend.NewResources(0, 1, nil, nil)
 
@@ -398,7 +464,7 @@ func (p *LinuxContainerPool) acquirePoolResources(spec api.ContainerSpec) (*linu
 		return nil, err
 	}
 
-	if resources.Network, err = p.builders.Build(spec.Network); err != nil {
+	if resources.Network, err = p.builders.Build(spec.Network, &p.sysconfig, id); err != nil {
 		p.logger.Error("network-acquire-failed", err)
 		p.releasePoolResources(resources)
 		return nil, err

@@ -6,6 +6,7 @@ import (
 	"net"
 
 	"github.com/cloudfoundry-incubator/garden-linux/fences"
+	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
 	"github.com/cloudfoundry-incubator/garden/api"
 )
 
@@ -36,7 +37,7 @@ func New(ipNet *net.IPNet) *FakeFences {
 	}
 }
 
-func (p *FakeFences) Build(spec string) (fences.Fence, error) {
+func (p *FakeFences) Build(spec string, sysconfig *sysconfig.Config, containerID string) (fences.Fence, error) {
 	if spec == "" {
 		spec = "1.2.0.0/30"
 	}
@@ -65,6 +66,10 @@ func (p *FakeFences) Rebuild(rm *json.RawMessage) (fences.Fence, error) {
 
 func (p *FakeFences) Capacity() int {
 	return p.InitialPoolSize
+}
+
+func (f *FakeAllocation) Deconfigure() error {
+	return nil
 }
 
 func (f *FakeAllocation) Dismantle() error {

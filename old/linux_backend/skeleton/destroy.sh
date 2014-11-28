@@ -11,9 +11,6 @@ source ./etc/config
 
 ./net.sh teardown
 
-# FIXME: deleting the bridge belongs in the network fence.
-ip link delete $bridge_iface
-
 cgroup_path="${GARDEN_CGROUP_PATH}"
 
 if [ -f ./run/wshd.pid ]

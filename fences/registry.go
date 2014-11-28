@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 
+	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
 	"github.com/cloudfoundry-incubator/garden/api"
 )
 
@@ -24,7 +25,7 @@ type BuilderRegistry struct {
 var flagProcessors *FlagProcessors = &FlagProcessors{}
 
 type Builder interface {
-	Build(spec string) (Fence, error)
+	Build(spec string, sysconfig *sysconfig.Config, containerID string) (Fence, error)
 	Rebuild(*json.RawMessage) (Fence, error)
 	Capacity() int
 }
@@ -86,9 +87,9 @@ func (r *BuilderRegistry) Capacity() int {
 	return 0
 }
 
-func (r *BuilderRegistry) Build(spec string) (Fence, error) {
+func (r *BuilderRegistry) Build(spec string, sysconfig *sysconfig.Config, containerID string) (Fence, error) {
 	for _, r := range r.builders {
-		return r.Build(spec)
+		return r.Build(spec, sysconfig, containerID)
 	}
 
 	return nil, ErrNoFencesRegistered

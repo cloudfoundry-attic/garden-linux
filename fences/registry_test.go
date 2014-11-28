@@ -6,6 +6,7 @@ import (
 	"flag"
 
 	. "github.com/cloudfoundry-incubator/garden-linux/fences"
+	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
 	"github.com/cloudfoundry-incubator/garden/api"
 
 	. "github.com/onsi/ginkgo"
@@ -109,7 +110,7 @@ var _ = Describe("Fence Registry", func() {
 		Context("when no Allocators are registered", func() {
 			It("returns ErrNoFencesRegistered", func() {
 				r := &BuilderRegistry{}
-				_, err := r.Build("")
+				_, err := r.Build("", nil, "")
 				Ω(err).Should(Equal(ErrNoFencesRegistered))
 			})
 		})
@@ -136,7 +137,7 @@ var _ = Describe("Fence Registry", func() {
 			Context("and when it returns an error", func() {
 				It("returns the error to the caller", func() {
 					fakeAllocator.allocateError = errors.New("o no")
-					_, err := registry.Build("xyz")
+					_, err := registry.Build("xyz", nil, "")
 					Ω(err).Should(MatchError("o no"))
 				})
 			})
@@ -146,7 +147,7 @@ var _ = Describe("Fence Registry", func() {
 					fakeAllocation := &FakeAllocation{"fake"}
 					fakeAllocator.allocate = fakeAllocation
 
-					allocation, err := registry.Build("xyz")
+					allocation, err := registry.Build("xyz", nil, "")
 					Ω(err).ShouldNot(HaveOccurred())
 					Ω(allocation).Should(Equal(fakeAllocation))
 				})
@@ -258,7 +259,7 @@ type FakeAllocator struct {
 	capacity      int
 }
 
-func (f *FakeAllocator) Build(spec string) (Fence, error) {
+func (f *FakeAllocator) Build(spec string, sysconfig *sysconfig.Config, containerID string) (Fence, error) {
 	if f.allocateError != nil {
 		return nil, f.allocateError
 	}
@@ -282,6 +283,10 @@ func (f *FakeAllocator) Capacity() int {
 
 type FakeAllocation struct {
 	name string
+}
+
+func (a *FakeAllocation) Deconfigure() error {
+	return nil
 }
 
 func (a *FakeAllocation) Dismantle() error {
