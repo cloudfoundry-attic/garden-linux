@@ -141,6 +141,11 @@ var _ = Describe("Fence", func() {
 		return &Allocation{s, net.ParseIP(ip), "", "", false, "", fence}
 	}
 
+	It("correctly Strings Allocation instances", func() {
+		a := allocate("9.8.7.6/27", "1.2.3.4")
+		Ω(a.String()).Should(HavePrefix("Allocation{9.8.7.0/27 [0 0 0 0 0 0 0 0 0 0 255 255 1 2 3 4]   false "))
+	})
+
 	Describe("Rebuild", func() {
 		Context("When there is not an error", func() {
 			It("parses the message from JSON, delegates to Subnets, and rebuilds the fence correctly", func() {

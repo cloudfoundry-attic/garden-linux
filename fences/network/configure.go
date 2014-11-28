@@ -2,7 +2,6 @@ package network
 
 import (
 	"errors"
-	"fmt"
 	"net"
 
 	"github.com/cloudfoundry-incubator/garden-linux/fences/network/subnets"
@@ -42,7 +41,7 @@ func ConfigureHost(hostInterface string, containerInterface string, gatewayIP ne
 		return ErrFailedToSetContainerNs // FIXME: need rich error type
 	}
 
-	fmt.Println("---------------ConfigureHost: ", subnetShareable)
+	// FIXME: log this fmt.Println("---------------ConfigureHost: ", subnetShareable)
 
 	if bridger, err := tenus.NewBridgeWithName(bridgeInterface); err == nil {
 		if err = bridger.AddSlaveIfc(hostIfc); err != nil {
@@ -58,7 +57,7 @@ func ConfigureHost(hostInterface string, containerInterface string, gatewayIP ne
 			return ErrFailedToLinkUp // FIXME: need rich error type
 		}
 	} else if !subnetShareable {
-		fmt.Println("Failed to add bridge:", err)
+		// FIXME: log this fmt.Println("Failed to add bridge:", err)
 		return ErrFailedToCreateBridge // FIXME: need rich error type
 
 	} else {

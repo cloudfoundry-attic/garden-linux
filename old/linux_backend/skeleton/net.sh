@@ -37,6 +37,10 @@ function setup_filter() {
 
   # Create instance chain
   iptables -w -N ${filter_instance_chain}
+
+  # Allow intra-subnet traffic (Linux ethernet bridging goes through ip stack)
+  iptables -w -A ${filter_instance_chain} -s ${network_cidr} -d ${network_cidr} -j ACCEPT
+
   iptables -w -A ${filter_instance_chain} \
     --goto ${filter_default_chain}
 

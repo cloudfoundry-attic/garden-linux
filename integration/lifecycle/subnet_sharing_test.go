@@ -10,7 +10,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = FDescribe("With a blocked network range", func() {
+var _ = Describe("With a blocked network range", func() {
 	var (
 		blockedListener   api.Container
 		blockedListenerIP string = fmt.Sprintf("11.0.%d.1", GinkgoParallelNode())
@@ -20,11 +20,10 @@ var _ = FDescribe("With a blocked network range", func() {
 	)
 
 	BeforeEach(func() {
-		client = startGarden()
-		// "-denyNetworks", strings.Join([]string{
-		// 	blockedListenerIP + "/32",
-		// }, ","),
-		// )
+		client = startGarden(
+			"-denyNetworks",
+			blockedListenerIP+"/32",
+		)
 
 		var err error
 

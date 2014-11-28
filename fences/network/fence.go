@@ -118,7 +118,7 @@ type Allocation struct {
 }
 
 func (a *Allocation) String() string {
-	return "Allocation{" + a.IPNet.String() + ", " + a.containerIP.String() + "}" // FIXME: fill this out
+	return fmt.Sprintf("Allocation%v", *a)
 }
 
 func (a *Allocation) Dismantle() error {

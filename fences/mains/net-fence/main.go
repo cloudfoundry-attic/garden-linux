@@ -68,10 +68,10 @@ func main() {
 		err = network.ConfigureContainer(containerIfcName, containerIP.IP, gatewayIP.IP, subnet.IPNet, int(mtu))
 	} else {
 		fmt.Println("invalid target:", target)
-		os.Exit(1)
+		os.Exit(2)
 	}
 	if err != nil {
 		fmt.Println("error:", err)
-		os.Exit(1)
+		os.Exit(3)
 	}
 }

@@ -2,7 +2,6 @@ package network
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/docker/libcontainer/netlink"
 )
@@ -20,7 +19,7 @@ var (
 // deconfigureHost undoes the effects of ConfigureHost.
 // An empty bridge interface name should be specified if no bridge is to be deleted.
 func deconfigureHost(hostInterface string, bridgeInterface string) error {
-	fmt.Printf("deconfigureHost(%q, %q)\n", hostInterface, bridgeInterface)
+	// FIXME: log this fmt.Printf("deconfigureHost(%q, %q)\n", hostInterface, bridgeInterface)
 	if err := NetworkLinkDel(hostInterface); err != nil {
 		if err.Error() != "no such network interface" {
 			return ErrFailedToDeleteHostInterface // FIXME: rich error
