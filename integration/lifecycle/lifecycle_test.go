@@ -243,7 +243,7 @@ var _ = Describe("Creating a container", func() {
 
 			// there's some noise in 'open files' check, but it shouldn't grow
 			// linearly with the number of processes spawned
-			Eventually(openFileCount).Should(BeNumerically("<", initialOpenFileCount+10))
+			Eventually(openFileCount, "10s").Should(BeNumerically("<", initialOpenFileCount+10))
 		})
 
 		It("forwards the exit status even if stdin is still being written", func() {
