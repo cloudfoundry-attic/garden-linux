@@ -11,10 +11,7 @@ import (
 
 // Pre-condition: the gateway IP is a valid IP in the subnet.
 func ConfigureHost(hostInterface string, containerInterface string, gatewayIP net.IP, subnetShareable bool, bridgeInterface string, subnet *net.IPNet, containerPid int, mtu int) error {
-	_, err := tenus.NewVethPairWithOptions(hostInterface, tenus.VethOptions{
-		PeerName:   containerInterface,
-		TxQueueLen: 1,
-	})
+	err := netlink.NetworkCreateVethPair(hostInterface, containerInterface, 1)
 	if err != nil {
 		return ErrFailedToCreateVethPair // FIXME: need rich error type
 	}

@@ -59,7 +59,7 @@ func NewVethPair() (Vether, error) {
 	ifcName := makeNetInterfaceName("veth")
 	peerName := makeNetInterfaceName("veth")
 
-	if err := netlink.NetworkCreateVethPair(ifcName, peerName /*, 0*/); err != nil {
+	if err := netlink.NetworkCreateVethPair(ifcName, peerName, 0); err != nil {
 		return nil, err
 	}
 
@@ -116,7 +116,7 @@ func NewVethPairWithOptions(ifcName string, opts VethOptions) (Vether, error) {
 		return nil, fmt.Errorf("TX queue length must be a positive integer: %d", txQLen)
 	}
 
-	if err := netlink.NetworkCreateVethPair(ifcName, peerName /*, txQLen*/); err != nil {
+	if err := netlink.NetworkCreateVethPair(ifcName, peerName, txQLen); err != nil {
 		return nil, err
 	}
 

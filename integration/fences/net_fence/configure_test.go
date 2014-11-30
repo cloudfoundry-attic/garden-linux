@@ -11,10 +11,10 @@ import (
 	"os/exec"
 	"syscall"
 
-	"github.com/onsi/ginkgo/config"
-
+	"github.com/docker/libcontainer/netlink"
 	"github.com/milosgajdos83/tenus"
 	. "github.com/onsi/ginkgo"
+	"github.com/onsi/ginkgo/config"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
 )
@@ -70,10 +70,7 @@ var _ = Describe("Configure", func() {
 		var ctr *container
 
 		BeforeEach(func() {
-			_, err := tenus.NewVethPairWithOptions("testHostIfcName", tenus.VethOptions{
-				PeerName:   "testPeerIfcName",
-				TxQueueLen: 1,
-			})
+			err := netlink.NetworkCreateVethPair("testHostIfcName", "testPeerIfcName", 1)
 			Ω(err).ShouldNot(HaveOccurred())
 
 			ctr, err = createContainer(verbose, containerInitBin, syscall.CLONE_NEWNET, inContainerTestBin)
