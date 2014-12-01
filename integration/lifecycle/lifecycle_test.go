@@ -21,14 +21,16 @@ import (
 
 var _ = Describe("Creating a container", func() {
 	var container api.Container
+
 	var privilegedContainer bool
+	var rootfs string
 
 	JustBeforeEach(func() {
 		client = startGarden()
 
 		var err error
 
-		container, err = client.Create(api.ContainerSpec{Privileged: privilegedContainer})
+		container, err = client.Create(api.ContainerSpec{Privileged: privilegedContainer, RootFSPath: rootfs})
 		Ω(err).ShouldNot(HaveOccurred())
 	})
 
@@ -39,6 +41,7 @@ var _ = Describe("Creating a container", func() {
 
 	BeforeEach(func() {
 		privilegedContainer = false
+		rootfs = ""
 	})
 
 	It("sources /etc/seed", func() {
@@ -131,6 +134,21 @@ var _ = Describe("Creating a container", func() {
 
 				Ω(err).ShouldNot(HaveOccurred())
 				Eventually(stdout).Should(gbytes.Say("root\n"))
+			})
+
+			Context("and there is no /root directory in the image", func() {
+				BeforeEach(func() {
+					rootfs = "docker:///onsi/grace-busybox"
+				})
+
+				It("still allows running as root", func() {
+					_, err := container.Run(api.ProcessSpec{
+						Path: "ls",
+						User: "root",
+					}, api.ProcessIO{})
+
+					Ω(err).ShouldNot(HaveOccurred())
+				})
 			})
 
 			Context("by default", func() {
