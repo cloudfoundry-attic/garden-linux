@@ -1,20 +1,20 @@
-package networking_test
+package bind_mount_test
 
 import (
 	"fmt"
 	"log"
 	"os"
-	"strconv"
+	_ "os/exec"
 	"syscall"
+	"testing"
 
-	"github.com/cloudfoundry-incubator/garden-linux/integration/runner"
 	"github.com/cloudfoundry-incubator/garden/api"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
 	"github.com/tedsuo/ifrit"
 
-	"testing"
+	"github.com/cloudfoundry-incubator/garden-linux/integration/runner"
 )
 
 var binPath = "../../old/linux_backend/bin" // relative to test suite directory
@@ -26,7 +26,7 @@ var gardenBin string
 var gardenRunner *runner.Runner
 var gardenProcess ifrit.Process
 
-var client api.Client
+var gardenClient api.Client
 
 func startGarden(argv ...string) api.Client {
 	gardenAddr := fmt.Sprintf("/tmp/garden_%d.sock", GinkgoParallelNode())
@@ -44,14 +44,7 @@ func startGarden(argv ...string) api.Client {
 	return gardenRunner.NewClient()
 }
 
-func restartGarden(argv ...string) {
-	gardenProcess.Signal(syscall.SIGINT)
-	Eventually(gardenProcess.Wait(), "10s").Should(Receive())
-
-	startGarden(argv...)
-}
-
-func TestNetworking(t *testing.T) {
+func TestBindMount(t *testing.T) {
 	if rootFSPath == "" {
 		log.Println("GARDEN_TEST_ROOTFS undefined; skipping")
 		return
@@ -63,32 +56,22 @@ func TestNetworking(t *testing.T) {
 		return []byte(gardenPath)
 	}, func(gardenPath []byte) {
 		gardenBin = string(gardenPath)
-	})
-
-	AfterEach(func() {
-		gardenProcess.Signal(syscall.SIGKILL)
-		Eventually(gardenProcess.Wait(), "10s").Should(Receive())
+		gardenClient = startGarden()
 	})
 
 	SynchronizedAfterSuite(func() {
-		//noop
+		gardenProcess.Signal(syscall.SIGKILL)
+		Eventually(gardenProcess.Wait(), 10).Should(Receive())
 	}, func() {
 		gexec.CleanupBuildArtifacts()
 	})
 
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Networking Suite")
+	RunSpecs(t, "BindMount Suite")
 }
 
-// networking test utility functions
-func containerIfName(container api.Container) string {
-	return ifNamePrefix(container) + "-1"
-}
-
-func hostIfName(container api.Container) string {
-	return ifNamePrefix(container) + "-0"
-}
-
-func ifNamePrefix(container api.Container) string {
-	return "w" + strconv.Itoa(GinkgoParallelNode()) + container.Handle()
+func containerIP(ctr api.Container) string {
+	info, err := ctr.Info()
+	Ω(err).ShouldNot(HaveOccurred())
+	return info.ContainerIP
 }
