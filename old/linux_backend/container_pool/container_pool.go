@@ -402,7 +402,7 @@ func (p *LinuxContainerPool) generateContainerIDs() string {
 func (p *LinuxContainerPool) writeBindMounts(containerPath string,
 	rootfsPath string,
 	bindMounts []api.BindMount) error {
-	hook := path.Join(containerPath, "lib", "hook-child-before-pivot.sh")
+	hook := path.Join(containerPath, "lib", "hook-parent-before-clone.sh")
 
 	for _, bm := range bindMounts {
 		dstMount := path.Join(rootfsPath, bm.DstPath)

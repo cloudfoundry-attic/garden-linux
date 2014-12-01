@@ -471,7 +471,7 @@ var _ = Describe("Container pool", func() {
 		})
 
 		Context("when bind mounts are specified", func() {
-			It("appends mount commands to hook-child-before-pivot.sh", func() {
+			It("appends mount commands to hook-parent-before-clone.sh", func() {
 				container, err := pool.Create(api.ContainerSpec{
 					BindMounts: []api.BindMount{
 						{
@@ -503,7 +503,7 @@ var _ = Describe("Container pool", func() {
 						Path: "bash",
 						Args: []string{
 							"-c",
-							"echo >> " + containerPath + "/lib/hook-child-before-pivot.sh",
+							"echo >> " + containerPath + "/lib/hook-parent-before-clone.sh",
 						},
 					},
 					fake_command_runner.CommandSpec{
@@ -511,7 +511,7 @@ var _ = Describe("Container pool", func() {
 						Args: []string{
 							"-c",
 							"echo mkdir -p " + rootfsPath + "/dst/path-ro" +
-								" >> " + containerPath + "/lib/hook-child-before-pivot.sh",
+								" >> " + containerPath + "/lib/hook-parent-before-clone.sh",
 						},
 					},
 					fake_command_runner.CommandSpec{
@@ -519,7 +519,7 @@ var _ = Describe("Container pool", func() {
 						Args: []string{
 							"-c",
 							"echo mount -n --bind /src/path-ro " + rootfsPath + "/dst/path-ro" +
-								" >> " + containerPath + "/lib/hook-child-before-pivot.sh",
+								" >> " + containerPath + "/lib/hook-parent-before-clone.sh",
 						},
 					},
 					fake_command_runner.CommandSpec{
@@ -527,14 +527,14 @@ var _ = Describe("Container pool", func() {
 						Args: []string{
 							"-c",
 							"echo mount -n --bind -o remount,ro /src/path-ro " + rootfsPath + "/dst/path-ro" +
-								" >> " + containerPath + "/lib/hook-child-before-pivot.sh",
+								" >> " + containerPath + "/lib/hook-parent-before-clone.sh",
 						},
 					},
 					fake_command_runner.CommandSpec{
 						Path: "bash",
 						Args: []string{
 							"-c",
-							"echo >> " + containerPath + "/lib/hook-child-before-pivot.sh",
+							"echo >> " + containerPath + "/lib/hook-parent-before-clone.sh",
 						},
 					},
 					fake_command_runner.CommandSpec{
@@ -542,7 +542,7 @@ var _ = Describe("Container pool", func() {
 						Args: []string{
 							"-c",
 							"echo mkdir -p " + rootfsPath + "/dst/path-rw" +
-								" >> " + containerPath + "/lib/hook-child-before-pivot.sh",
+								" >> " + containerPath + "/lib/hook-parent-before-clone.sh",
 						},
 					},
 					fake_command_runner.CommandSpec{
@@ -550,7 +550,7 @@ var _ = Describe("Container pool", func() {
 						Args: []string{
 							"-c",
 							"echo mount -n --bind /src/path-rw " + rootfsPath + "/dst/path-rw" +
-								" >> " + containerPath + "/lib/hook-child-before-pivot.sh",
+								" >> " + containerPath + "/lib/hook-parent-before-clone.sh",
 						},
 					},
 					fake_command_runner.CommandSpec{
@@ -558,7 +558,7 @@ var _ = Describe("Container pool", func() {
 						Args: []string{
 							"-c",
 							"echo mount -n --bind -o remount,rw /src/path-rw " + rootfsPath + "/dst/path-rw" +
-								" >> " + containerPath + "/lib/hook-child-before-pivot.sh",
+								" >> " + containerPath + "/lib/hook-parent-before-clone.sh",
 						},
 					},
 					fake_command_runner.CommandSpec{
@@ -566,7 +566,7 @@ var _ = Describe("Container pool", func() {
 						Args: []string{
 							"-c",
 							"echo mkdir -p " + rootfsPath + "/dst/path-rw" +
-								" >> " + containerPath + "/lib/hook-child-before-pivot.sh",
+								" >> " + containerPath + "/lib/hook-parent-before-clone.sh",
 						},
 					},
 					fake_command_runner.CommandSpec{
@@ -574,7 +574,7 @@ var _ = Describe("Container pool", func() {
 						Args: []string{
 							"-c",
 							"echo mount -n --bind " + rootfsPath + "/src/path-rw " + rootfsPath + "/dst/path-rw" +
-								" >> " + containerPath + "/lib/hook-child-before-pivot.sh",
+								" >> " + containerPath + "/lib/hook-parent-before-clone.sh",
 						},
 					},
 					fake_command_runner.CommandSpec{
@@ -582,13 +582,13 @@ var _ = Describe("Container pool", func() {
 						Args: []string{
 							"-c",
 							"echo mount -n --bind -o remount,rw " + rootfsPath + "/src/path-rw " + rootfsPath + "/dst/path-rw" +
-								" >> " + containerPath + "/lib/hook-child-before-pivot.sh",
+								" >> " + containerPath + "/lib/hook-parent-before-clone.sh",
 						},
 					},
 				))
 			})
 
-			Context("when appending to hook-child-before-pivot.sh fails", func() {
+			Context("when appending to hook-parent-before-clone.sh", func() {
 				var err error
 				disaster := errors.New("oh no!")
 
