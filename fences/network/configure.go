@@ -6,7 +6,6 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden-linux/fences/network/subnets"
 	"github.com/docker/libcontainer/netlink"
-	"github.com/milosgajdos83/tenus"
 )
 
 // Pre-condition: the gateway IP is a valid IP in the subnet.
@@ -40,31 +39,25 @@ func ConfigureHost(hostInterface string, containerInterface string, gatewayIP ne
 
 	// FIXME: log this fmt.Println("---------------ConfigureHost: ", subnetShareable)
 
-	if bridger, err := tenus.NewBridgeWithName(bridgeInterface); err == nil {
-		if err = bridger.AddSlaveIfc(hostIfc); err != nil {
-			return ErrFailedToAddSlave // FIXME: need rich error type
-		}
-		bridgeIfc := bridger.NetInterface()
+	bridgeIfc, created := getBridge(bridgeInterface)
+	if bridgeIfc == nil {
+		// FIXME: log this fmt.Println("Failed to add bridge:", err)
+		return ErrFailedToCreateBridge // FIXME: need rich error type
+	} else if !created && !subnetShareable {
+		return ErrFailedToCreateBridge // FIXME: need rich error type
+	}
 
+	if netlink.AddToBridge(hostIfc, bridgeIfc) != nil {
+		return ErrFailedToAddSlave // FIXME: need rich error type
+	}
+
+	if created {
 		if err = NetworkLinkAddIp(bridgeIfc, gatewayIP, subnet); err != nil {
 			return ErrFailedToAddIp // FIXME: need rich error type
 		}
 
 		if err = NetworkLinkUp(bridgeIfc); err != nil {
 			return ErrFailedToLinkUp // FIXME: need rich error type
-		}
-	} else if !subnetShareable {
-		// FIXME: log this fmt.Println("Failed to add bridge:", err)
-		return ErrFailedToCreateBridge // FIXME: need rich error type
-
-	} else {
-		bridgeIfc, err := InterfaceByName(bridgeInterface)
-		if err != nil {
-			return ErrFailedToFindBridge // FIXME: rich error
-		}
-		err = netlink.AddToBridge(hostIfc, bridgeIfc)
-		if err != nil {
-			return ErrFailedToAddSlave // FIXME: need rich error type
 		}
 	}
 
@@ -73,6 +66,23 @@ func ConfigureHost(hostInterface string, containerInterface string, gatewayIP ne
 	}
 
 	return nil
+}
+
+func getBridge(ifcName string) (*net.Interface, bool) {
+	if brIfc, err := net.InterfaceByName(ifcName); err == nil {
+		return brIfc, false
+	}
+
+	if err := netlink.NetworkLinkAdd(ifcName, "bridge"); err != nil {
+		return nil, false
+	}
+
+	brIfc, err := net.InterfaceByName(ifcName)
+	if err != nil {
+		return nil, true
+	}
+
+	return brIfc, true
 }
 
 var (
@@ -105,8 +115,6 @@ var AddDefaultGw func(ip, device string) error = netlink.AddDefaultGw
 var NetworkLinkUp func(iface *net.Interface) error = netlink.NetworkLinkUp
 var NetworkSetMTU func(iface *net.Interface, mtu int) error = netlink.NetworkSetMTU
 var NetworkSetNsPid func(iface *net.Interface, nspid int) error = netlink.NetworkSetNsPid
-
-//var NewBridgeWithName func(ifcName string) (tenus.Bridger, error) = tenus.NewBridgeWithName
 
 // ConfigureContainer is called inside a network namespace to set the IP configuration for a container in a subnet.
 // This function is non-atomic: if an error is returned the container configuration may be partially set.

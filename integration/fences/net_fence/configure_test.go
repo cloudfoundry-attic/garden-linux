@@ -12,7 +12,6 @@ import (
 	"syscall"
 
 	"github.com/docker/libcontainer/netlink"
-	"github.com/milosgajdos83/tenus"
 	. "github.com/onsi/ginkgo"
 	"github.com/onsi/ginkgo/config"
 	. "github.com/onsi/gomega"
@@ -78,7 +77,7 @@ var _ = Describe("Configure", func() {
 		})
 
 		AfterEach(func() {
-			err := tenus.DeleteLink("testHostIfcName")
+			err := netlink.NetworkLinkDel("testHostIfcName")
 			Ω(err).ShouldNot(HaveOccurred())
 
 			if ctrProc, err := os.FindProcess(ctr.cmd.Process.Pid); err == nil {
