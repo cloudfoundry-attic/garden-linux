@@ -2,6 +2,7 @@ package bind_mount_test
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -12,145 +13,43 @@ import (
 
 var _ = Describe("A container", func() {
 	var (
+		container          api.Container
+		containerCreateErr error
+
+		// container create parms
 		privilegedContainer bool
-		bindMounts          []api.BindMount
-		container           api.Container
-		containerCreateErr  error
-		bmNetworkMask       string
+		srcPath             string              // bm: source
+		dstPath             string              // bm: destination
+		bindMountMode       api.BindMountMode   // bm: RO or RW
+		bindMountOrigin     api.BindMountOrigin // bm: Container or Host
+
+		// pre-existing file for permissions testing
+		testFileName string
 	)
 
-	checkFileAccess := func(readOnly bool, dstPath string, fileName string) {
-		// can we read a file?
-		filePath := filepath.Join(dstPath, fileName)
-
-		process, err := container.Run(api.ProcessSpec{
-			Path: "cat",
-			Args: []string{filePath},
-		}, api.ProcessIO{})
-		Ω(err).ShouldNot(HaveOccurred())
-
-		Ω(process.Wait()).Should(Equal(0))
-
-		// try to write a new file
-		filePath = filepath.Join(dstPath, "checkFileAccess-file")
-
-		process, err = container.Run(api.ProcessSpec{
-			Path: "touch",
-			Args: []string{filePath},
-		}, api.ProcessIO{})
-		Ω(err).ShouldNot(HaveOccurred())
-
-		if readOnly {
-			Ω(process.Wait()).ShouldNot(Equal(0))
-		} else {
-			Ω(process.Wait()).Should(Equal(0))
-		}
-
-		// try to delete an existing file
-		filePath = filepath.Join(dstPath, fileName)
-
-		process, err = container.Run(api.ProcessSpec{
-			Path: "rm",
-			Args: []string{filePath},
-		}, api.ProcessIO{})
-		Ω(err).ShouldNot(HaveOccurred())
-		if readOnly {
-			Ω(process.Wait()).ShouldNot(Equal(0))
-		} else {
-			Ω(process.Wait()).Should(Equal(0))
-		}
-	}
-
-	testContainerPrivileges := func(readOnly bool, srcPath, dstPath string) {
-
-		createContainerTestFileIn := func(dir string) string {
-			fileName := "bind-mount-test-file"
-			filePath := filepath.Join(dir, fileName)
-			process, err := container.Run(api.ProcessSpec{
-				Path: "touch",
-				Args: []string{filePath},
-			}, api.ProcessIO{})
-			Ω(err).ShouldNot(HaveOccurred())
-			Ω(process.Wait()).Should(Equal(0))
-			return fileName
-		}
-
-		Context("and with privileged=true", func() {
-			BeforeEach(func() {
-				privilegedContainer = true
-			})
-
-			It("is successfully created with correct privileges", func() {
-				Ω(containerCreateErr).ShouldNot(HaveOccurred())
-				testFileName := createContainerTestFileIn(srcPath)
-				checkFileAccess(readOnly, dstPath, testFileName)
-			})
-		})
-
-		Context("and with privileged=false", func() {
-			BeforeEach(func() {
-				privilegedContainer = false
-			})
-
-			It("is successfully created with correct privileges", func() {
-				Ω(containerCreateErr).ShouldNot(HaveOccurred())
-				testFileName := createContainerTestFileIn(srcPath)
-				checkFileAccess(readOnly, dstPath, testFileName)
-			})
-		})
-	}
-
-	testHostPrivileges := func(readOnly bool, srcPath, dstPath string) {
-
-		createHostTestFileIn := func(dir string) string {
-			fileName := fmt.Sprintf("bind-mount-%d-test-file", GinkgoParallelNode())
-			file, err := os.Create(filepath.Join(dir, fileName))
-			Ω(err).ShouldNot(HaveOccurred())
-			Ω(file.Close()).ShouldNot(HaveOccurred())
-			return fileName
-		}
-
-		Context("and with privileged=true", func() {
-			var testFileName string
-			BeforeEach(func() {
-				testFileName = createHostTestFileIn(srcPath)
-				privilegedContainer = true
-			})
-
-			AfterEach(func() {
-				os.RemoveAll(testFileName)
-			})
-
-			It("is successfully created with correct privileges", func() {
-				Ω(containerCreateErr).ShouldNot(HaveOccurred())
-				checkFileAccess(readOnly, dstPath, testFileName)
-			})
-		})
-
-		Context("and with privileged=false", func() {
-			var testFileName string
-			BeforeEach(func() {
-				testFileName = createHostTestFileIn(srcPath)
-				privilegedContainer = false
-			})
-
-			AfterEach(func() {
-				os.RemoveAll(testFileName)
-			})
-
-			It("is successfully created with correct privileges", func() {
-				Ω(containerCreateErr).ShouldNot(HaveOccurred())
-				checkFileAccess(readOnly, dstPath, testFileName)
-			})
-		})
-	}
-
 	BeforeEach(func() {
-		bmNetworkMask = "10.0.%d.0/24"
 		privilegedContainer = false
-		bindMounts = nil
 		container = nil
 		containerCreateErr = nil
+		srcPath = ""
+		dstPath = ""
+		bindMountMode = api.BindMountModeRO
+		bindMountOrigin = api.BindMountOriginHost
+		testFileName = ""
+	})
+
+	JustBeforeEach(func() {
+		container, containerCreateErr = gardenClient.Create(
+			api.ContainerSpec{
+				Privileged: privilegedContainer,
+				BindMounts: []api.BindMount{api.BindMount{
+					SrcPath: srcPath,
+					DstPath: dstPath,
+					Mode:    bindMountMode,
+					Origin:  bindMountOrigin,
+				}},
+				Network: fmt.Sprintf("10.0.%d.0/24", GinkgoParallelNode()),
+			})
 	})
 
 	AfterEach(func() {
@@ -160,74 +59,282 @@ var _ = Describe("A container", func() {
 		}
 	})
 
-	JustBeforeEach(func() {
-		bmNetwork := fmt.Sprintf(bmNetworkMask, GinkgoParallelNode())
-		cspec :=
-			api.ContainerSpec{
-				Privileged: privilegedContainer,
-				BindMounts: bindMounts,
-				Network:    bmNetwork,
-			}
-		container, containerCreateErr = gardenClient.Create(cspec)
-		Ω(containerCreateErr).ShouldNot(HaveOccurred())
-	})
-
-	Context("with a read-only host bind mount", func() {
-		srcPath := "/tmp"
-		dstPath := "/home/vcap/readonly"
+	Context("with an invalid source directory", func() {
 		BeforeEach(func() {
-			bindMounts = []api.BindMount{api.BindMount{
-				SrcPath: srcPath,
-				DstPath: dstPath,
-				Mode:    api.BindMountModeRO,
-				Origin:  api.BindMountOriginHost,
-			}}
-		})
-		testHostPrivileges(true, srcPath, dstPath) // == read-only
-	})
-
-	Context("with a read-write host bind mount", func() {
-		srcPath := "/tmp"
-		dstPath := "/home/vcap/readwrite"
-		BeforeEach(func() {
-			bindMounts = []api.BindMount{api.BindMount{
-				SrcPath: srcPath,
-				DstPath: dstPath,
-				Mode:    api.BindMountModeRW,
-				Origin:  api.BindMountOriginHost,
-			}}
-		})
-		testHostPrivileges(false, srcPath, dstPath) // == read-write
-	})
-
-	Context("with a read-only container bind mount", func() {
-		srcPath := "/home/vcap"
-		dstPath := "/home/vcap/readonly"
-		BeforeEach(func() {
-			bindMounts = []api.BindMount{api.BindMount{
-				SrcPath: srcPath,
-				DstPath: dstPath,
-				Mode:    api.BindMountModeRO,
-				Origin:  api.BindMountOriginContainer,
-			}}
+			srcPath = "/does-not-exist"
+			dstPath = "/home/vcap/should-not-be-created"
 		})
 
-		testContainerPrivileges(true, srcPath, dstPath) // == read-only
+		It("should fail to be created", func() {
+			Ω(containerCreateErr).Should(HaveOccurred())
+		})
 	})
 
-	Context("with a read-write container bind mount", func() {
-		srcPath := "/home/vcap"
-		dstPath := "/home/vcap/readwrite"
+	Context("with a host origin bind-mount", func() {
 		BeforeEach(func() {
-			bindMounts = []api.BindMount{api.BindMount{
-				SrcPath: srcPath,
-				DstPath: dstPath,
-				Mode:    api.BindMountModeRW,
-				Origin:  api.BindMountOriginContainer,
-			}}
+			srcPath, testFileName = createTestHostDirAndTestFile()
+			bindMountOrigin = api.BindMountOriginHost
 		})
 
-		testContainerPrivileges(false, srcPath, dstPath) // == read-write
+		AfterEach(func() {
+			err := os.RemoveAll(srcPath)
+			Ω(err).ShouldNot(HaveOccurred())
+		})
+
+		Context("which is read-only", func() {
+			BeforeEach(func() {
+				bindMountMode = api.BindMountModeRO
+				dstPath = "/home/vcap/readonly"
+			})
+
+			Context("and with privileged=true", func() {
+				BeforeEach(func() {
+					privilegedContainer = true
+				})
+
+				It("is successfully created with correct privileges for non-root in container", func() {
+					Ω(containerCreateErr).ShouldNot(HaveOccurred())
+					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, false)
+				})
+
+				It("is successfully created with correct privileges for root in container", func() {
+					Ω(containerCreateErr).ShouldNot(HaveOccurred())
+					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, true)
+				})
+			})
+
+			Context("and with privileged=false", func() {
+				BeforeEach(func() {
+					privilegedContainer = false
+				})
+
+				It("is successfully created with correct privileges for non-root in container", func() {
+					Ω(containerCreateErr).ShouldNot(HaveOccurred())
+					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, false)
+				})
+
+				It("is successfully created with correct privileges for root in container", func() {
+					Ω(containerCreateErr).ShouldNot(HaveOccurred())
+					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, true)
+				})
+			})
+		})
+
+		Context("which is read-write", func() {
+			BeforeEach(func() {
+				bindMountMode = api.BindMountModeRW
+				dstPath = "/home/vcap/readwrite"
+			})
+
+			Context("and with privileged=true", func() {
+				BeforeEach(func() {
+					privilegedContainer = true
+				})
+
+				It("is successfully created with correct privileges for non-root in container", func() {
+					Ω(containerCreateErr).ShouldNot(HaveOccurred())
+					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, false)
+				})
+
+				It("is successfully created with correct privileges for root in container", func() {
+					Ω(containerCreateErr).ShouldNot(HaveOccurred())
+					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, true)
+				})
+			})
+
+			Context("and with privileged=false", func() {
+				BeforeEach(func() {
+					privilegedContainer = false
+				})
+
+				It("is successfully created with correct privileges for non-root in container", func() {
+					Ω(containerCreateErr).ShouldNot(HaveOccurred())
+					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, false)
+				})
+
+				It("is successfully created with correct privileges for root in container", func() {
+					Ω(containerCreateErr).ShouldNot(HaveOccurred())
+					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, true)
+				})
+			})
+		})
 	})
 
+	Context("with a container origin bind-mount", func() {
+		BeforeEach(func() {
+			srcPath = "/home/vcap"
+			bindMountOrigin = api.BindMountOriginContainer
+		})
+
+		JustBeforeEach(func() {
+			testFileName = createContainerTestFileIn(container, srcPath)
+		})
+
+		Context("which is read-only", func() {
+			BeforeEach(func() {
+				bindMountMode = api.BindMountModeRO
+				dstPath = "/home/vcap/readonly"
+			})
+
+			Context("and with privileged=true", func() {
+				BeforeEach(func() {
+					privilegedContainer = true
+				})
+
+				It("is successfully created with correct privileges for non-root in container", func() {
+					Ω(containerCreateErr).ShouldNot(HaveOccurred())
+					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, false)
+				})
+
+				It("is successfully created with correct privileges for root in container", func() {
+					Ω(containerCreateErr).ShouldNot(HaveOccurred())
+					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, true)
+				})
+			})
+
+			Context("and with privileged=false", func() {
+				BeforeEach(func() {
+					privilegedContainer = false
+				})
+
+				It("is successfully created with correct privileges for non-root in container", func() {
+					Ω(containerCreateErr).ShouldNot(HaveOccurred())
+					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, false)
+				})
+
+				It("is successfully created with correct privileges for root in container", func() {
+					Ω(containerCreateErr).ShouldNot(HaveOccurred())
+					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, true)
+				})
+			})
+
+		})
+
+		Context("which is read-write", func() {
+			BeforeEach(func() {
+				bindMountMode = api.BindMountModeRW
+				dstPath = "/home/vcap/readwrite"
+			})
+
+			Context("and with privileged=true", func() {
+				BeforeEach(func() {
+					privilegedContainer = true
+				})
+
+				It("is successfully created with correct privileges for non-root in container", func() {
+					Ω(containerCreateErr).ShouldNot(HaveOccurred())
+					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, false)
+				})
+
+				It("is successfully created with correct privileges for root in container", func() {
+					Ω(containerCreateErr).ShouldNot(HaveOccurred())
+					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, true)
+				})
+			})
+
+			Context("and with privileged=false", func() {
+				BeforeEach(func() {
+					privilegedContainer = false
+				})
+
+				It("is successfully created with correct privileges for non-root in container", func() {
+					Ω(containerCreateErr).ShouldNot(HaveOccurred())
+					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, false)
+				})
+
+				It("is successfully created with correct privileges for root in container", func() {
+					Ω(containerCreateErr).ShouldNot(HaveOccurred())
+					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, true)
+				})
+			})
+		})
+	})
 })
+
+func createTestHostDirAndTestFile() (string, string) {
+	tstHostDir, err := ioutil.TempDir("", "bind-mount-test-dir")
+	Ω(err).ShouldNot(HaveOccurred())
+	err = os.Chown(tstHostDir, 0, 0)
+	Ω(err).ShouldNot(HaveOccurred())
+	err = os.Chmod(tstHostDir, 0755)
+	Ω(err).ShouldNot(HaveOccurred())
+
+	fileName := fmt.Sprintf("bind-mount-%d-test-file", GinkgoParallelNode())
+	file, err := os.OpenFile(filepath.Join(tstHostDir, fileName), os.O_CREATE|os.O_RDWR, 0777)
+	Ω(err).ShouldNot(HaveOccurred())
+	Ω(file.Close()).ShouldNot(HaveOccurred())
+
+	return tstHostDir, fileName
+}
+
+func createContainerTestFileIn(container api.Container, dir string) string {
+	fileName := "bind-mount-test-file"
+	filePath := filepath.Join(dir, fileName)
+
+	process, err := container.Run(api.ProcessSpec{
+		Path:       "touch",
+		Args:       []string{filePath},
+		Privileged: true,
+	}, api.ProcessIO{nil, os.Stdout, os.Stderr})
+	Ω(err).ShouldNot(HaveOccurred())
+	Ω(process.Wait()).Should(Equal(0))
+
+	process, err = container.Run(api.ProcessSpec{
+		Path:       "chmod",
+		Args:       []string{"0777", filePath},
+		Privileged: true,
+	}, api.ProcessIO{nil, os.Stdout, os.Stderr})
+	Ω(err).ShouldNot(HaveOccurred())
+	Ω(process.Wait()).Should(Equal(0))
+
+	return fileName
+}
+
+func checkFileAccess(container api.Container, bindMountMode api.BindMountMode, bindMountOrigin api.BindMountOrigin, dstPath string, fileName string, privCtr, privReq bool) {
+	readOnly := (api.BindMountModeRO == bindMountMode)
+	ctrOrigin := (api.BindMountOriginContainer == bindMountOrigin)
+	realRoot := (privReq && privCtr)
+
+	// can we read a file?
+	filePath := filepath.Join(dstPath, fileName)
+
+	process, err := container.Run(api.ProcessSpec{
+		Path:       "cat",
+		Args:       []string{filePath},
+		Privileged: privReq,
+	}, api.ProcessIO{})
+	Ω(err).ShouldNot(HaveOccurred())
+
+	Ω(process.Wait()).Should(Equal(0))
+
+	// try to write a new file
+	filePath = filepath.Join(dstPath, "checkFileAccess-file")
+
+	process, err = container.Run(api.ProcessSpec{
+		Path:       "touch",
+		Args:       []string{filePath},
+		Privileged: privReq,
+	}, api.ProcessIO{})
+	Ω(err).ShouldNot(HaveOccurred())
+
+	if readOnly || (!realRoot && !ctrOrigin) {
+		Ω(process.Wait()).ShouldNot(Equal(0))
+	} else {
+		Ω(process.Wait()).Should(Equal(0))
+	}
+
+	// try to delete an existing file
+	filePath = filepath.Join(dstPath, fileName)
+
+	process, err = container.Run(api.ProcessSpec{
+		Path:       "rm",
+		Args:       []string{filePath},
+		Privileged: privReq,
+	}, api.ProcessIO{})
+	Ω(err).ShouldNot(HaveOccurred())
+	if readOnly || (!realRoot && !ctrOrigin) {
+		Ω(process.Wait()).ShouldNot(Equal(0))
+	} else {
+		Ω(process.Wait()).Should(Equal(0))
+	}
+}
