@@ -21,7 +21,7 @@ var _ = Describe("Security", func() {
 
 			_, err = container.Run(api.ProcessSpec{
 				Path: "sleep",
-				Args: []string{"sleep 989898"},
+				Args: []string{"989898"},
 			}, api.ProcessIO{
 				Stdout: GinkgoWriter,
 				Stderr: GinkgoWriter,
@@ -38,7 +38,7 @@ var _ = Describe("Security", func() {
 			})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Eventually(psout).Should(gbytes.Say("5")) // wshd, sleep, ps, tail, wc
+			Eventually(psout).Should(gbytes.Say("6")) // wshd, sleep, ps, tail, sh, wc
 		})
 	})
 
