@@ -27,7 +27,7 @@ end
 execute "build root directory" do
   cwd "/vagrant"
 
-  command "make GOPATH=/go"
+  command "PATH=/usr/local/go/bin/:$PATH make GOPATH=/go"
   action :run
 end
 

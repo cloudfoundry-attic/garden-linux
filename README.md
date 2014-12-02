@@ -77,6 +77,21 @@ The rest of these instructions assume you are running inside an Ubuntu environme
 
     The external API is exposed using [Garden](https://github.com/cloudfoundry-incubator/garden), the instructions at that repo document the various API calls that you can now make (it will be running at `http://127.0.0.1:7777` if you followed the above instructions).
 
+## Using the supplied Vagrantfile to install Garden-linux inside vagrant
+
+Follow the steps below to create a vagrant box with garden-linux installed.
+
+```bash
+# if you need it:
+vagrant plugin install vagrant-omnibus
+
+# then:
+librarian-chef install
+vagrant up
+```
+
+With the box configured as above, you can run `./scripts/test-in-vagrant` (on your local machine) to run the test suite.
+
 ## External API
 
 The `garden-linux` executable provides a server which clients can use to perform operations on Garden Linux,
