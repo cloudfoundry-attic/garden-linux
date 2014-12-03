@@ -17,32 +17,52 @@ import (
 
 var _ = Describe("IP settings", func() {
 	var (
-		container          api.Container
-		containerNetwork   string
+		container1 api.Container
+		container2 api.Container
+
+		containerNetwork1 string
+		containerNetwork2 string
+
 		containerInterface string
-		hostInterface      string
 	)
+
+	BeforeEach(func() {
+		container1 = nil
+		container2 = nil
+		containerNetwork1 = ""
+		containerNetwork2 = ""
+	})
 
 	JustBeforeEach(func() {
 		client = startGarden()
 
 		var err error
-
-		container, err = client.Create(api.ContainerSpec{Network: containerNetwork})
+		container1, err = client.Create(api.ContainerSpec{Network: containerNetwork1})
 		Ω(err).ShouldNot(HaveOccurred())
 
-		containerInterface = "w" + strconv.Itoa(GinkgoParallelNode()) + container.Handle() + "-1"
-		hostInterface = "w" + strconv.Itoa(GinkgoParallelNode()) + container.Handle() + "-0"
+		if len(containerNetwork2) > 0 {
+			container2, err = client.Create(api.ContainerSpec{Network: containerNetwork2})
+			Ω(err).ShouldNot(HaveOccurred())
+		}
+
+		containerInterface = "w" + strconv.Itoa(GinkgoParallelNode()) + container1.Handle() + "-1"
 	})
 
 	AfterEach(func() {
-		err := client.Destroy(container.Handle())
-		Ω(err).ShouldNot(HaveOccurred())
+		if container1 != nil {
+			err := client.Destroy(container1.Handle())
+			Ω(err).ShouldNot(HaveOccurred())
+		}
+
+		if container2 != nil {
+			err := client.Destroy(container2.Handle())
+			Ω(err).ShouldNot(HaveOccurred())
+		}
 	})
 
 	Context("when the Network parameter is a subnet address", func() {
 		BeforeEach(func() {
-			containerNetwork = "10.3.0.0/24"
+			containerNetwork1 = fmt.Sprintf("10.%d.0.0/24", GinkgoParallelNode())
 		})
 
 		Describe("container's network interface", func() {
@@ -50,7 +70,7 @@ var _ = Describe("IP settings", func() {
 				stdout := gbytes.NewBuffer()
 				stderr := gbytes.NewBuffer()
 
-				process, err := container.Run(api.ProcessSpec{
+				process, err := container1.Run(api.ProcessSpec{
 					Path: "/sbin/ifconfig",
 					Args: []string{containerInterface},
 				}, api.ProcessIO{
@@ -62,14 +82,14 @@ var _ = Describe("IP settings", func() {
 				Ω(err).ShouldNot(HaveOccurred())
 				Ω(rc).Should(Equal(0))
 
-				Ω(stdout.Contents()).Should(ContainSubstring(" inet addr:10.3.0.1 "))
+				Ω(stdout.Contents()).Should(ContainSubstring(fmt.Sprintf(" inet addr:10.%d.0.1 ", GinkgoParallelNode())))
 			})
 		})
 	})
 
 	Context("when the Network parameter is not a subnet address", func() {
 		BeforeEach(func() {
-			containerNetwork = "10.3.0.2/24"
+			containerNetwork1 = fmt.Sprintf("10.%d.0.2/24", GinkgoParallelNode())
 		})
 
 		Describe("container's network interface", func() {
@@ -77,9 +97,9 @@ var _ = Describe("IP settings", func() {
 				stdout := gbytes.NewBuffer()
 				stderr := gbytes.NewBuffer()
 
-				process, err := container.Run(api.ProcessSpec{
+				process, err := container1.Run(api.ProcessSpec{
 					Path: "/sbin/ifconfig",
-					Args: []string{containerIfName(container)},
+					Args: []string{containerIfName(container1)},
 				}, api.ProcessIO{
 					Stdout: stdout,
 					Stderr: stderr,
@@ -89,33 +109,173 @@ var _ = Describe("IP settings", func() {
 				Ω(err).ShouldNot(HaveOccurred())
 				Ω(rc).Should(Equal(0))
 
-				Ω(stdout.Contents()).Should(ContainSubstring(" inet addr:10.3.0.2 "))
+				Ω(stdout.Contents()).Should(ContainSubstring(fmt.Sprintf(" inet addr:10.%d.0.2 ", GinkgoParallelNode())))
 			})
 		})
 	})
 
 	Describe("the container's network", func() {
 		BeforeEach(func() {
-			containerNetwork = "10.4.0.0/30"
+			containerNetwork1 = fmt.Sprintf("10.%d.0.0/24", GinkgoParallelNode())
 		})
 
 		It("is reachable from the host", func() {
-			info, ierr := container.Info()
+			info, ierr := container1.Info()
 			Ω(ierr).ShouldNot(HaveOccurred())
 
 			out, err := exec.Command("/bin/ping", "-c 2", info.ContainerIP).Output()
 			Ω(out).Should(ContainSubstring(" 0% packet loss"))
 			Ω(err).ShouldNot(HaveOccurred())
 		})
+
+		It("can reach external networks", func() {
+			sender, err := container1.Run(api.ProcessSpec{
+				Path: "sh",
+				Args: []string{"-c", "nc -w4 8.8.8.8 53"},
+			}, api.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(sender.Wait()).Should(Equal(0))
+		})
+	})
+
+	Describe("another container on the same subnet", func() {
+		BeforeEach(func() {
+			containerNetwork1 = fmt.Sprintf("10.%d.0.0/24", GinkgoParallelNode())
+			containerNetwork2 = fmt.Sprintf("10.%d.0.0/24", GinkgoParallelNode())
+		})
+
+		It("can reach the first container", func() {
+			info, err := container1.Info()
+			Ω(err).ShouldNot(HaveOccurred())
+
+			listener, err := container1.Run(api.ProcessSpec{
+				Path: "sh",
+				Args: []string{"-c", "echo hi | nc -l -p 8080"},
+			}, api.ProcessIO{})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			sender, err := container2.Run(api.ProcessSpec{
+				Path: "sh",
+				Args: []string{"-c", fmt.Sprintf("echo hello | nc -w1 %s 8080", info.ContainerIP)},
+			}, api.ProcessIO{})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(sender.Wait()).Should(Equal(0))
+			Ω(listener.Wait()).Should(Equal(0))
+		})
+
+		It("can be reached from the host", func() {
+			info, ierr := container2.Info()
+			Ω(ierr).ShouldNot(HaveOccurred())
+
+			out, err := exec.Command("/bin/ping", "-c 2", info.ContainerIP).Output()
+			Ω(out).Should(ContainSubstring(" 0% packet loss"))
+			Ω(err).ShouldNot(HaveOccurred())
+		})
+
+		It("can reach external networks", func() {
+			sender, err := container2.Run(api.ProcessSpec{
+				Path: "sh",
+				Args: []string{"-c", "nc -w4 8.8.8.8 53"},
+			}, api.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(sender.Wait()).Should(Equal(0))
+		})
+
+		Context("when the first container is deleted", func() {
+			JustBeforeEach(func() {
+				client.Destroy(container1.Handle())
+				container1 = nil
+			})
+
+			Context("the second container", func() {
+				It("can still reach external networks", func() {
+					sender, err := container2.Run(api.ProcessSpec{
+						Path: "sh",
+						Args: []string{"-c", "nc -w4 8.8.8.8 53"},
+					}, api.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
+					Ω(err).ShouldNot(HaveOccurred())
+
+					Ω(sender.Wait()).Should(Equal(0))
+				})
+
+				It("can still be reached from the host", func() {
+					info, ierr := container2.Info()
+					Ω(ierr).ShouldNot(HaveOccurred())
+
+					out, err := exec.Command("/bin/ping", "-c 2", info.ContainerIP).Output()
+					Ω(out).Should(ContainSubstring(" 0% packet loss"))
+					Ω(err).ShouldNot(HaveOccurred())
+				})
+			})
+
+			Context("a newly created container in the same subnet", func() {
+				var (
+					container3 api.Container
+				)
+
+				JustBeforeEach(func() {
+					var err error
+					container3, err = client.Create(api.ContainerSpec{Network: containerNetwork1})
+					Ω(err).ShouldNot(HaveOccurred())
+				})
+
+				AfterEach(func() {
+					err := client.Destroy(container3.Handle())
+					Ω(err).ShouldNot(HaveOccurred())
+				})
+
+				It("can reach external networks", func() {
+					sender, err := container3.Run(api.ProcessSpec{
+						Path: "sh",
+						Args: []string{"-c", "nc -w4 8.8.8.8 53"},
+					}, api.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
+					Ω(err).ShouldNot(HaveOccurred())
+
+					Ω(sender.Wait()).Should(Equal(0))
+				})
+
+				It("can reach the second container", func() {
+					info, err := container2.Info()
+					Ω(err).ShouldNot(HaveOccurred())
+
+					listener, err := container2.Run(api.ProcessSpec{
+						Path: "sh",
+						Args: []string{"-c", "echo hi | nc -l -p 8080"},
+					}, api.ProcessIO{})
+					Ω(err).ShouldNot(HaveOccurred())
+
+					sender, err := container3.Run(api.ProcessSpec{
+						Path: "sh",
+						Args: []string{"-c", fmt.Sprintf("echo hello | nc -w1 %s 8080", info.ContainerIP)},
+					}, api.ProcessIO{})
+					Ω(err).ShouldNot(HaveOccurred())
+
+					Ω(sender.Wait()).Should(Equal(0))
+					Ω(listener.Wait()).Should(Equal(0))
+				})
+
+				It("can be reached from the host", func() {
+					info, ierr := container3.Info()
+					Ω(ierr).ShouldNot(HaveOccurred())
+
+					out, err := exec.Command("/bin/ping", "-c 2", info.ContainerIP).Output()
+					Ω(out).Should(ContainSubstring(" 0% packet loss"))
+					Ω(err).ShouldNot(HaveOccurred())
+				})
+			})
+		})
 	})
 
 	Describe("host's network", func() {
 		BeforeEach(func() {
-			containerNetwork = "10.4.0.8/30"
+			containerNetwork1 = fmt.Sprintf("10.%d.0.8/30", GinkgoParallelNode())
 		})
 
 		It("is reachable from inside the container", func() {
-			info, ierr := container.Info()
+			info, ierr := container1.Info()
 			Ω(ierr).ShouldNot(HaveOccurred())
 
 			stdout := gbytes.NewBuffer()
@@ -132,7 +292,7 @@ var _ = Describe("IP settings", func() {
 
 			go (&http.Server{Handler: mux}).Serve(listener)
 
-			process, err := container.Run(api.ProcessSpec{
+			process, err := container1.Run(api.ProcessSpec{
 				Path: "sh",
 				Args: []string{"-c", fmt.Sprintf("(echo 'GET /test HTTP/1.1'; echo 'Host: foo.com'; echo) | nc %s %s", info.HostIP, strings.Split(listener.Addr().String(), ":")[1])},
 			}, api.ProcessIO{
@@ -151,7 +311,7 @@ var _ = Describe("IP settings", func() {
 
 	Describe("the container's external ip", func() {
 		It("is the external IP of its host", func() {
-			info, err := container.Info()
+			info, err := container1.Info()
 			Ω(err).ShouldNot(HaveOccurred())
 
 			localIP, err := localip.LocalIP()

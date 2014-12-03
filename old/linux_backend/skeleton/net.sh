@@ -60,15 +60,6 @@ function teardown_nat() {
   # Flush and delete instance chain
   iptables -w -t nat -F ${nat_instance_chain} 2> /dev/null || true
   iptables -w -t nat -X ${nat_instance_chain} 2> /dev/null || true
-
-  if [ -n "${network_cidr:-}" ]; then
-    # Delete NAT rule for container traffic
-      iptables -w -t nat -D ${nat_postrouting_chain} \
-        --source ${network_cidr} \
-        --jump SNAT \
-        --to $external_ip \
-      2> /dev/null || true
-  fi
 }
 
 function setup_nat() {
