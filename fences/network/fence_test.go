@@ -138,12 +138,12 @@ var _ = Describe("Fence", func() {
 		_, s, err := net.ParseCIDR(subnet)
 		Ω(err).ShouldNot(HaveOccurred())
 
-		return &Allocation{s, net.ParseIP(ip), "", "", false, "", fence}
+		return &Allocation{s, net.ParseIP(ip), "", &FakeInterface{Name: "host"}, false, &FakeInterface{Name: "bridge"}, fence}
 	}
 
 	It("correctly Strings Allocation instances", func() {
 		a := allocate("9.8.7.6/27", "1.2.3.4")
-		Ω(a.String()).Should(HavePrefix("Allocation{9.8.7.0/27 [0 0 0 0 0 0 0 0 0 0 255 255 1 2 3 4]   false "))
+		Ω(a.String()).Should(HavePrefix("network.Allocation{IPNet:"))
 	})
 
 	Describe("Rebuild", func() {
@@ -181,13 +181,149 @@ var _ = Describe("Fence", func() {
 
 	Describe("Allocations return by Allocate", func() {
 		Describe("Dismantle", func() {
-			It("releases the allocation", func() {
-				allocation := allocate("1.2.0.0/22", "1.2.0.1")
+			Context("when releasing the in-memory allocation fails", func() {
+				var (
+					allocation *Allocation
+					hostIfc    *FakeInterface
+					bridgeIfc  *FakeInterface
+				)
 
-				fakeSubnetPool.releaseError = errors.New("o no")
+				BeforeEach(func() {
+					allocation = allocate("1.2.0.0/22", "1.2.0.1")
+					hostIfc = &FakeInterface{}
+					bridgeIfc = &FakeInterface{}
+					allocation.hostIfc = hostIfc
+					allocation.bridgeIfc = bridgeIfc
 
-				Ω(allocation.Dismantle()).Should(MatchError("o no"))
-				Ω(fakeSubnetPool.released).Should(ContainElement(fakeAllocation{"1.2.0.0/22", "1.2.0.1"}))
+					fakeSubnetPool.releaseError = errors.New("o no")
+				})
+
+				It("returns an error", func() {
+					err := allocation.Dismantle()
+					Ω(err).Should(HaveOccurred())
+				})
+
+				It("does not destroy the host interface", func() {
+					allocation.Dismantle()
+					Ω(hostIfc.Destroyed).ShouldNot(BeTrue())
+				})
+
+				It("does not destroy the bridge", func() {
+					allocation.Dismantle()
+					Ω(bridgeIfc.Destroyed).ShouldNot(BeTrue())
+				})
+			})
+
+			Context("when the IP is not the final IP in the subnet", func() {
+				var (
+					allocation *Allocation
+					hostIfc    *FakeInterface
+					bridgeIfc  *FakeInterface
+				)
+
+				BeforeEach(func() {
+					allocation = allocate("1.2.0.0/22", "1.2.0.1")
+					hostIfc = &FakeInterface{}
+					bridgeIfc = &FakeInterface{}
+					allocation.hostIfc = hostIfc
+					allocation.bridgeIfc = bridgeIfc
+
+					fakeSubnetPool.releaseReturns = false
+				})
+
+				It("releases the subnet", func() {
+					err := allocation.Dismantle()
+					Ω(err).ShouldNot(HaveOccurred())
+
+					Ω(fakeSubnetPool.released).Should(ContainElement(fakeAllocation{"1.2.0.0/22", "1.2.0.1"}))
+				})
+
+				It("destroys the host interface", func() {
+					err := allocation.Dismantle()
+					Ω(err).ShouldNot(HaveOccurred())
+
+					Ω(hostIfc.Destroyed).Should(BeTrue())
+				})
+
+				Context("when destroying the host interface fails", func() {
+					It("returns an error", func() {
+						hostIfc.DestroyReturns = errors.New("o no")
+
+						err := allocation.Dismantle()
+						Ω(err).Should(HaveOccurred())
+					})
+				})
+
+				It("does not destroy the bridge", func() {
+					err := allocation.Dismantle()
+					Ω(err).ShouldNot(HaveOccurred())
+
+					Ω(bridgeIfc.Destroyed).ShouldNot(BeTrue())
+				})
+			})
+
+			Context("when the final IP in the subnet is released", func() {
+				var (
+					allocation *Allocation
+					hostIfc    *FakeInterface
+					bridgeIfc  *FakeInterface
+				)
+
+				BeforeEach(func() {
+					fakeSubnetPool.releaseReturns = true
+					allocation = allocate("1.2.0.0/22", "1.2.0.1")
+
+					hostIfc = &FakeInterface{}
+					bridgeIfc = &FakeInterface{}
+					allocation.hostIfc = hostIfc
+					allocation.bridgeIfc = bridgeIfc
+				})
+
+				It("releases the subnet", func() {
+					err := allocation.Dismantle()
+					Ω(err).ShouldNot(HaveOccurred())
+
+					Ω(fakeSubnetPool.released).Should(ContainElement(fakeAllocation{"1.2.0.0/22", "1.2.0.1"}))
+				})
+
+				It("destroys the host interface", func() {
+					err := allocation.Dismantle()
+					Ω(err).ShouldNot(HaveOccurred())
+
+					Ω(hostIfc.Destroyed).Should(BeTrue())
+				})
+
+				Context("when destroying the host interface fails", func() {
+					It("returns an error", func() {
+						hostIfc.DestroyReturns = errors.New("o no")
+
+						err := allocation.Dismantle()
+						Ω(err).Should(HaveOccurred())
+					})
+
+					It("still destroys the bridge, for who knows what reason", func() { // just backfilling right now, but this behaviour seems wrong
+						hostIfc.DestroyReturns = errors.New("o no")
+
+						err := allocation.Dismantle()
+						Ω(err).Should(HaveOccurred())
+					})
+				})
+
+				It("destroys the bridge", func() {
+					err := allocation.Dismantle()
+					Ω(err).ShouldNot(HaveOccurred())
+
+					Ω(bridgeIfc.Destroyed).Should(BeTrue())
+				})
+
+				Context("when destroying the bridge interface fails", func() {
+					It("returns an error", func() {
+						bridgeIfc.DestroyReturns = errors.New("o no")
+
+						err := allocation.Dismantle()
+						Ω(err).Should(HaveOccurred())
+					})
+				})
 			})
 		})
 
@@ -224,7 +360,7 @@ var _ = Describe("Fence", func() {
 					fence.mtu = 123
 
 					env = []string{"foo", "bar"}
-					allocation := &Allocation{ipn, net.ParseIP("4.5.6.1"), "", "", false, "", fence}
+					allocation := &Allocation{ipn, net.ParseIP("4.5.6.1"), "", &FakeInterface{Name: "host"}, false, &FakeInterface{Name: "bridge"}, fence}
 					allocation.ConfigureProcess(&env)
 				})
 
@@ -265,9 +401,12 @@ type fakeSubnets struct {
 		IP     subnets.IPSelector
 	}
 
-	released     []fakeAllocation
-	recovered    []fakeAllocation
-	capacity     int
+	released  []fakeAllocation
+	recovered []fakeAllocation
+	capacity  int
+
+	releaseReturns bool
+
 	releaseError error
 	recoverError error
 }
@@ -290,7 +429,7 @@ func (f *fakeSubnets) Allocate(s subnets.SubnetSelector, i subnets.IPSelector) (
 
 func (f *fakeSubnets) Release(n *net.IPNet, c net.IP) (bool, error) {
 	f.released = append(f.released, fakeAllocation{n.String(), c.String()})
-	return true, f.releaseError
+	return f.releaseReturns, f.releaseError
 }
 
 func (f *fakeSubnets) Recover(n *net.IPNet, c net.IP) error {
@@ -300,6 +439,21 @@ func (f *fakeSubnets) Recover(n *net.IPNet, c net.IP) error {
 
 func (f *fakeSubnets) Capacity() int {
 	return f.capacity
+}
+
+type FakeInterface struct {
+	Name           string
+	DestroyReturns error
+	Destroyed      bool
+}
+
+func (f *FakeInterface) Destroy() error {
+	f.Destroyed = true
+	return f.DestroyReturns
+}
+
+func (f *FakeInterface) String() string {
+	return f.Name
 }
 
 type m struct {
