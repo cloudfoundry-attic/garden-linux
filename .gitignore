@@ -4,7 +4,7 @@ tmp/
 .DS_Store
 out/
 root/
-*.coverprofile
+*.coverprofile*
 .rootfs/
 old/linux_backend/bin/repquota
 old/linux_backend/skeleton/bin/*
