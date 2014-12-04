@@ -75,7 +75,7 @@ func (f *f) Build(spec string, sysconfig *sysconfig.Config, containerID string) 
 	ones, _ := subnet.Mask.Size()
 	subnetShareable := (ones < 30)
 
-	return &Allocation{subnet, containerIP, containerIfcName, hostIfcName, subnetShareable, bridgeIfcName, f}, nil
+	return &Allocation{subnet, containerIP, containerIfcName, destroyableInterface(hostIfcName), subnetShareable, destroyableBridge(bridgeIfcName), f}, nil
 }
 
 func suffixIfNeeded(spec string) string {
@@ -104,31 +104,43 @@ func (f *f) Rebuild(rm *json.RawMessage) (fences.Fence, error) {
 		return nil, err
 	}
 
-	return &Allocation{ipn, net.ParseIP(ff.ContainerIP), ff.ContainerIfcName, ff.HostIfcName, ff.SubnetShareable, ff.BridgeIfcName, f}, nil
+	return &Allocation{ipn, net.ParseIP(ff.ContainerIP), ff.ContainerIfcName, destroyableInterface(ff.HostIfcName), ff.SubnetShareable, destroyableInterface(ff.BridgeIfcName), f}, nil
 }
 
 type Allocation struct {
 	*net.IPNet
-	containerIP      net.IP
-	containerIfcName string
-	hostIfcName      string
-	subnetShareable  bool
-	bridgeIfcName    string
-	fence            *f
+	containerIP     net.IP
+	containerIfc    string
+	hostIfc         StringerDestroyer
+	subnetShareable bool
+	bridgeIfc       StringerDestroyer
+	fence           *f
+}
+
+type Destroyer interface {
+	Destroy() error
+}
+
+type StringerDestroyer interface {
+	fmt.Stringer
+	Destroyer
 }
 
 func (a *Allocation) String() string {
-	return fmt.Sprintf("Allocation%v", *a)
+	return fmt.Sprintf("%#v", *a)
 }
 
 func (a *Allocation) Dismantle() error {
 	released, err := a.fence.Release(a.IPNet, a.containerIP)
-	if released {
-		deconfigureHost(a.hostIfcName, a.bridgeIfcName)
-	} else {
-		deconfigureHost(a.hostIfcName, "")
+	if err != nil {
+		return err
 	}
-	return err
+
+	if released {
+		return deconfigureHost(a.hostIfc, a.bridgeIfc)
+	} else {
+		return deconfigureHost(a.hostIfc, nil)
+	}
 }
 
 func (a *Allocation) Info(i *api.ContainerInfo) {
@@ -138,7 +150,7 @@ func (a *Allocation) Info(i *api.ContainerInfo) {
 }
 
 func (a *Allocation) MarshalJSON() ([]byte, error) {
-	ff := FlatFence{a.IPNet.String(), a.containerIP.String(), a.containerIfcName, a.hostIfcName, a.subnetShareable, a.bridgeIfcName}
+	ff := FlatFence{a.IPNet.String(), a.containerIP.String(), a.containerIfc, a.hostIfc.String(), a.subnetShareable, a.bridgeIfc.String()}
 	return json.Marshal(ff)
 }
 
