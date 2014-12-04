@@ -369,9 +369,8 @@ var _ = Describe("Subnet Pool", func() {
 						Ω(err).Should(HaveOccurred())
 
 						// release
-						gone, err := subnetpool.Release(allocated, ip)
+						_, err = subnetpool.Release(allocated, ip)
 						Ω(err).ShouldNot(HaveOccurred())
-						Ω(gone).Should(BeTrue())
 
 						// third - should work now because of release
 						network, _, err := subnetpool.Allocate(subnets.DynamicSubnetSelector, subnets.DynamicIPSelector)
@@ -379,6 +378,33 @@ var _ = Describe("Subnet Pool", func() {
 
 						Ω(network).ShouldNot(BeNil())
 						Ω(network.String()).Should(Equal(allocated.String()))
+					})
+
+					Context("and it is not the last IP in the subnet", func() {
+						It("returns gone=false", func() {
+							_, static := networkParms("10.3.3.0/29")
+
+							_, _, err := subnetpool.Allocate(subnets.StaticSubnetSelector{static}, subnets.DynamicIPSelector)
+							Ω(err).ShouldNot(HaveOccurred())
+
+							allocated, ip, err := subnetpool.Allocate(subnets.StaticSubnetSelector{static}, subnets.DynamicIPSelector)
+							Ω(err).ShouldNot(HaveOccurred())
+
+							gone, err := subnetpool.Release(allocated, ip)
+							Ω(err).ShouldNot(HaveOccurred())
+							Ω(gone).Should(BeFalse())
+						})
+					})
+
+					Context("and it is the last IP in the subnet", func() {
+						It("returns gone=true", func() {
+							allocated, ip, err := subnetpool.Allocate(subnets.DynamicSubnetSelector, subnets.DynamicIPSelector)
+							Ω(err).ShouldNot(HaveOccurred())
+
+							gone, err := subnetpool.Release(allocated, ip)
+							Ω(err).ShouldNot(HaveOccurred())
+							Ω(gone).Should(BeTrue())
+						})
 					})
 				})
 
@@ -389,15 +415,13 @@ var _ = Describe("Subnet Pool", func() {
 						Ω(err).ShouldNot(HaveOccurred())
 
 						// release
-						gone, err := subnetpool.Release(allocated, ip)
+						_, err = subnetpool.Release(allocated, ip)
 						Ω(err).ShouldNot(HaveOccurred())
-						Ω(gone).Should(BeTrue())
 
 						// release again
-						gone, err = subnetpool.Release(allocated, ip)
+						_, err = subnetpool.Release(allocated, ip)
 						Ω(err).Should(HaveOccurred())
 						Ω(err).Should(Equal(subnets.ErrReleasedUnallocatedSubnet))
-						Ω(gone).Should(BeTrue())
 					})
 				})
 			})

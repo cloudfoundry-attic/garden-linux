@@ -97,25 +97,11 @@ func (p *pool) Release(subnet *net.IPNet, containerIP net.IP) (bool, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	existingIPs := p.allocated[subnet.String()]
-	found := false
-	for i, existing := range existingIPs {
-		if existing.Equal(containerIP) {
-			found = true
-			existingIPs = append(existingIPs[:i], existingIPs[i+1:]...)
-			break
-		}
+	if i, found := indexOf(p.allocated[subnet.String()], containerIP); found {
+		return removeAtIndex(p.allocated, subnet.String(), i), nil
 	}
-	if !found {
-		return true, ErrReleasedUnallocatedSubnet
-	}
-	if len(existingIPs) == 0 {
-		delete(p.allocated, subnet.String())
-		return true, nil
-	} else {
-		p.allocated[subnet.String()] = existingIPs
-		return false, nil
-	}
+
+	return false, ErrReleasedUnallocatedSubnet
 }
 
 // Capacity returns the number of /30 subnets that can be allocated
@@ -157,4 +143,21 @@ func existingSubnets(m map[string][]net.IP) (result []*net.IPNet) {
 	}
 
 	return result
+}
+
+// indexOf returns the index that v occurs inside the array a
+func indexOf(a []net.IP, v net.IP) (int, bool) {
+	for i, v := range a {
+		if v.Equal(v) {
+			return i, true
+		}
+	}
+
+	return -1, false
+}
+
+// removeAtIndex removes from the array at the given key and index, and returns true if the array is then empty
+func removeAtIndex(m map[string][]net.IP, key string, i int) (removedAll bool) {
+	m[key] = append(m[key][:i], m[key][i+1:]...)
+	return len(m[key]) == 0
 }
