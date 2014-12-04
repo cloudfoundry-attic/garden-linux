@@ -24,10 +24,6 @@ func ConfigureHost(hostInterface string, containerInterface string, gatewayIP ne
 		return ErrFailedToSetMtu // FIXME: need rich error type
 	}
 
-	if err = NetworkSetNsPid(hostIfc, 1); err != nil {
-		return ErrFailedToSetHostNs // FIXME: need rich error type
-	}
-
 	var containerIfc *net.Interface
 	if containerIfc, err = InterfaceByName(containerInterface); err != nil {
 		return ErrBadContainerInterface // FIXME: need rich error type
