@@ -62,11 +62,12 @@ func main() {
 	}
 
 	var err error
+	c := network.NewConfigurer()
+
 	if target == "host" {
-		c := network.NewConfigurer()
 		err = c.ConfigureHost(hostIfcName, containerIfcName, bridgeIfcName, containerPid, gatewayIP.IP, subnet.IPNet, int(mtu))
 	} else if target == "container" {
-		err = network.ConfigureContainer(containerIfcName, containerIP.IP, gatewayIP.IP, subnet.IPNet, int(mtu))
+		err = c.ConfigureContainer(containerIfcName, containerIP.IP, gatewayIP.IP, subnet.IPNet, int(mtu))
 	} else {
 		fmt.Println("invalid target:", target)
 		os.Exit(2)

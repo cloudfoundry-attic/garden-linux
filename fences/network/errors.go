@@ -33,7 +33,7 @@ type SetNsFailedError struct {
 }
 
 func (err SetNsFailedError) Error() string {
-	return ""
+	return fmtErr("failed to move interface %v in to pid namespace %d: %v", err.Intf, err.Pid, err.Cause)
 }
 
 // BridgeCreationError is returned if an error occurs while creating a bridge
@@ -67,6 +67,41 @@ type LinkUpError struct {
 
 func (err LinkUpError) Error() string {
 	return fmtErr("failed to bring %s link %s up: %v", err.Role, err.Link.Name, err.Cause)
+}
+
+// FindLinkError is returned if an expected interface cannot be found inside the container
+type FindLinkError struct {
+	Cause error // may be nil if no error occurred other than the link not existing
+	Role  string
+	Name  string
+}
+
+func (err FindLinkError) Error() string {
+	return fmtErr("failed to find %s link with name %s", err.Role, err.Name)
+}
+
+// ConfigureLinkError is returned if configuring a link fails
+type ConfigureLinkError struct {
+	Cause          error
+	Role           string
+	Interface      *net.Interface
+	IntendedIP     net.IP
+	IntendedSubnet *net.IPNet
+}
+
+func (err ConfigureLinkError) Error() string {
+	return fmtErr("failed to configure %s link (%v) to IP %v, subnet %v", err.Role, err.Interface, err.IntendedIP, err.IntendedSubnet)
+}
+
+// ConfigureDefaultGWError is returned if the default gateway cannot be updated
+type ConfigureDefaultGWError struct {
+	Cause     error
+	Interface *net.Interface
+	IP        net.IP
+}
+
+func (err ConfigureDefaultGWError) Error() string {
+	return fmtErr("failed to set default gateway to IP %v via device %v", err.IP, err.Interface, err.Cause)
 }
 
 func fmtErr(msg string, args ...interface{}) string {

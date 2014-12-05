@@ -24,7 +24,7 @@ var _ = Describe("Configure", func() {
 
 		BeforeEach(func() {
 			vethCreater = &FakeVethCreater{}
-			linkConfigurer = &FakeLink{}
+			linkConfigurer = &FakeLink{AddIPReturns: make(map[string]error)}
 			bridger = &FakeBridge{}
 			configurer = &network.Configurer{Veth: vethCreater, Link: linkConfigurer, Bridge: bridger}
 		})
@@ -190,259 +190,175 @@ var _ = Describe("Configure", func() {
 	})
 
 	Describe("ConfigureContainer", func() {
-
 		var (
-			containerInterfaceName string
-			containerIP            net.IP
-			gatewayIP              net.IP
-			subnet                 *net.IPNet
-			mtu                    int
+			linkConfigurer *FakeLink
+			configurer     *network.Configurer
 		)
 
 		BeforeEach(func() {
-			containerInterfaceName = "testCifName"
-			containerIP = net.ParseIP("1.2.3.5")
-			gatewayIP = net.ParseIP("1.2.3.6")
-			_, subnet, _ = net.ParseCIDR("1.2.3.4/30")
-			mtu = 1234
+			linkConfigurer = &FakeLink{AddIPReturns: make(map[string]error)}
+			configurer = &network.Configurer{Link: linkConfigurer}
 		})
 
-		Context("when invalid parameters are specified", func() {
+		Context("when the loopback device does not exist", func() {
+			var eth *net.Interface
+			BeforeEach(func() {
+				linkConfigurer.InterfaceByNameFunc = func(name string) (*net.Interface, bool, error) {
+					if name != "lo" {
+						return eth, true, nil
+					}
 
-			It("returns an error when an empty container interface name is provided", func() {
-				containerInterfaceName = ""
-				err := network.ConfigureContainer(containerInterfaceName, containerIP, gatewayIP, subnet, mtu)
-				Ω(err).Should(Equal(network.ErrContainerInterfaceMissing))
+					return nil, false, nil
+				}
 			})
 
-			It("returns an error when the container IP is not in the subnet", func() {
-				containerIP = net.ParseIP("1.1.1.1")
-				err := network.ConfigureContainer(containerInterfaceName, containerIP, gatewayIP, subnet, mtu)
-				Ω(err).Should(Equal(network.ErrInvalidContainerIP))
+			It("returns a wrapped error", func() {
+				err := configurer.ConfigureContainer("foo", net.ParseIP("1.2.3.4"), net.ParseIP("2.3.4.5"), nil, 1234)
+				Ω(err).Should(MatchError(&network.FindLinkError{nil, "loopback", "lo"}))
 			})
 
-			It("returns an error when the container IP is the network IP", func() {
-				containerIP = net.ParseIP("1.2.3.4")
-				err := network.ConfigureContainer(containerInterfaceName, containerIP, gatewayIP, subnet, mtu)
-				Ω(err).Should(Equal(network.ErrInvalidContainerIP))
-			})
-
-			It("returns an error when the gateway IP is the broadcast address", func() {
-				gatewayIP = net.ParseIP("1.2.3.7")
-				err := network.ConfigureContainer(containerInterfaceName, containerIP, gatewayIP, subnet, mtu)
-				Ω(err).Should(Equal(network.ErrInvalidGatewayIP))
-			})
-
-			It("returns an error when the gateway IP is not in the subnet", func() {
-				gatewayIP = net.ParseIP("1.1.1.1")
-				err := network.ConfigureContainer(containerInterfaceName, containerIP, gatewayIP, subnet, mtu)
-				Ω(err).Should(Equal(network.ErrInvalidGatewayIP))
-			})
-
-			It("returns an error when the gateway IP is the network IP", func() {
-				gatewayIP = net.ParseIP("1.2.3.4")
-				err := network.ConfigureContainer(containerInterfaceName, containerIP, gatewayIP, subnet, mtu)
-				Ω(err).Should(Equal(network.ErrInvalidGatewayIP))
-			})
-
-			It("returns an error when the gateway IP is the broadcast address", func() {
-				gatewayIP = net.ParseIP("1.2.3.7")
-				err := network.ConfigureContainer(containerInterfaceName, containerIP, gatewayIP, subnet, mtu)
-				Ω(err).Should(Equal(network.ErrInvalidGatewayIP))
-			})
-
-			It("returns an error when the container IP equals the gateway IP", func() {
-				gatewayIP = containerIP
-				err := network.ConfigureContainer(containerInterfaceName, containerIP, gatewayIP, subnet, mtu)
-				Ω(err).Should(Equal(network.ErrConflictingIPs))
-			})
-
-			It("returns an error when a subnet is not provided", func() {
-				subnet = nil
-				err := network.ConfigureContainer(containerInterfaceName, containerIP, gatewayIP, subnet, mtu)
-				Ω(err).Should(Equal(network.ErrSubnetNil))
-			})
-
-			It("returns an error when an invalid MTU size is provided", func() {
-				mtu = 0
-				err := network.ConfigureContainer(containerInterfaceName, containerIP, gatewayIP, subnet, mtu)
-				Ω(err).Should(Equal(network.ErrInvalidMtu))
+			It("does not attempt to configure other devices", func() {
+				Ω(configurer.ConfigureContainer("eth", net.ParseIP("1.2.3.4"), net.ParseIP("2.3.4.5"), nil, 1234)).ShouldNot(Succeed())
+				Ω(linkConfigurer.SetUpCalledWith).ShouldNot(ContainElement(eth))
 			})
 		})
 
-		Context("with stubbed dependencies", func() {
-
-			var (
-				stubInterfaceByName     *stub
-				stubInterfaceByNameName string
-				stubInterfaceByNameIfc  *net.Interface
-
-				stubNetworkSetMTU    *stub
-				stubNetworkSetMTUIfc *net.Interface
-				stubNetworkSetMTUMtu int
-
-				stubNetworkLinkAddIp            *stub
-				stubNetworkLinkAddIpIfc         *net.Interface
-				stubNetworkLinkAddIpContainerIP net.IP
-				stubNetworkLinkAddIpsubnet      *net.IPNet
-
-				stubAddDefaultGw        *stub
-				stubAddDefaultGwIP      string
-				stubAddDefaultGwIfcName string
-
-				stubNetworkLinkUp    *stub
-				stubNetworkLinkUpIfc *net.Interface
-			)
+		Context("when the loopback exists", func() {
+			var lo *net.Interface
 
 			BeforeEach(func() {
-				stubInterfaceByName = errAt(nil, 0)
-				stubInterfaceByNameName = ""
-				stubInterfaceByNameIfc = &net.Interface{}
-				network.InterfaceByName = func(name string) (*net.Interface, error) {
-					stubInterfaceByNameName = name
-					return stubInterfaceByNameIfc, stubInterfaceByName.call()
-				}
-
-				stubNetworkSetMTU = errAt(nil, 0)
-				stubNetworkSetMTUIfc = nil
-				stubNetworkSetMTUMtu = 0
-				network.NetworkSetMTU = func(iface *net.Interface, mtu int) error {
-					stubNetworkSetMTUIfc = iface
-					stubNetworkSetMTUMtu = mtu
-					return stubNetworkSetMTU.call()
-				}
-
-				stubNetworkLinkAddIp = errAt(nil, 0)
-				stubNetworkLinkAddIpIfc = nil
-				stubNetworkLinkAddIpContainerIP = net.ParseIP("0.0.0.0")
-				stubNetworkLinkAddIpsubnet = nil
-				network.NetworkLinkAddIp = func(iface *net.Interface, ip net.IP, ipNet *net.IPNet) error {
-					stubNetworkLinkAddIpIfc = iface
-					stubNetworkLinkAddIpContainerIP = ip
-					stubNetworkLinkAddIpsubnet = ipNet
-					return stubNetworkLinkAddIp.call()
-				}
-
-				stubAddDefaultGw = errAt(nil, 0)
-				stubAddDefaultGwIP = ""
-				stubAddDefaultGwIfcName = ""
-				network.AddDefaultGw = func(ip, device string) error {
-					stubAddDefaultGwIP = ip
-					stubAddDefaultGwIfcName = device
-					return stubAddDefaultGw.call()
-				}
-
-				stubNetworkLinkUp = errAt(nil, 0)
-				stubNetworkLinkUpIfc = nil
-				network.NetworkLinkUp = func(iface *net.Interface) error {
-					stubNetworkLinkUpIfc = iface
-					return stubNetworkLinkUp.call()
+				lo = &net.Interface{Name: "lo"}
+				linkConfigurer.InterfaceByNameFunc = func(name string) (*net.Interface, bool, error) {
+					return &net.Interface{Name: name}, true, nil
 				}
 			})
 
-			It("passes the correct parameters to InterfaceByName", func() {
-				err := network.ConfigureContainer(containerInterfaceName, containerIP, gatewayIP, subnet, mtu)
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(stubInterfaceByNameName).Should(Equal(containerInterfaceName))
+			It("adds 127.0.0.1/8 as an address", func() {
+				ip, subnet, _ := net.ParseCIDR("127.0.0.1/8")
+				Ω(configurer.ConfigureContainer("foo", net.ParseIP("1.2.3.4"), net.ParseIP("2.3.4.5"), nil, 1234)).Should(Succeed())
+				Ω(linkConfigurer.AddIPCalledWith).Should(ContainElement(InterfaceIPAndSubnet{lo, ip, subnet}))
 			})
 
-			It("returns an error when InterfaceByName fails for loopback", func() {
-				stubInterfaceByName = errAt(testError, 1)
-				err := network.ConfigureContainer(containerInterfaceName, containerIP, gatewayIP, subnet, mtu)
-				Ω(err).Should(Equal(network.ErrBadLoopbackInterface))
+			Context("when adding the IP address fails", func() {
+				It("returns a wrapped error", func() {
+					linkConfigurer.AddIPReturns["lo"] = errors.New("o no")
+					err := configurer.ConfigureContainer("foo", net.ParseIP("1.2.3.4"), net.ParseIP("2.3.4.5"), nil, 1234)
+					ip, subnet, _ := net.ParseCIDR("127.0.0.1/8")
+					Ω(err).Should(MatchError(&network.ConfigureLinkError{errors.New("o no"), "loopback", lo, ip, subnet}))
+				})
 			})
 
-			It("returns an error when InterfaceByName fails", func() {
-				stubInterfaceByName = errAt(testError, 2)
-				err := network.ConfigureContainer(containerInterfaceName, containerIP, gatewayIP, subnet, mtu)
-				Ω(err).Should(Equal(network.ErrBadContainerInterface))
+			It("brings it up", func() {
+				Ω(configurer.ConfigureContainer("foo", net.ParseIP("1.2.3.4"), net.ParseIP("2.3.4.5"), nil, 1234)).Should(Succeed())
+				Ω(linkConfigurer.SetUpCalledWith).Should(ContainElement(lo))
 			})
 
-			It("passes the correct parameters to NetworkSetMTU", func() {
-				err := network.ConfigureContainer(containerInterfaceName, containerIP, gatewayIP, subnet, mtu)
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(stubNetworkSetMTUIfc).Should(Equal(stubInterfaceByNameIfc))
-				Ω(stubNetworkSetMTUMtu).Should(Equal(mtu))
+			Context("when bringing the link up fails", func() {
+				It("returns a wrapped error", func() {
+					linkConfigurer.SetUpFunc = func(intf *net.Interface) error {
+						return errors.New("o no")
+					}
+
+					err := configurer.ConfigureContainer("foo", net.ParseIP("1.2.3.4"), net.ParseIP("2.3.4.5"), nil, 1234)
+					Ω(err).Should(MatchError(&network.LinkUpError{errors.New("o no"), lo, "loopback"}))
+				})
+			})
+		})
+
+		Context("when the container interface does not exist", func() {
+			BeforeEach(func() {
+				linkConfigurer.InterfaceByNameFunc = func(name string) (*net.Interface, bool, error) {
+					if name == "lo" {
+						return &net.Interface{Name: name}, true, nil
+					}
+
+					return nil, false, nil
+				}
 			})
 
-			It("returns an error when NetworkSetMTU fails", func() {
-				stubNetworkSetMTU = errAt(testError, 1)
-				err := network.ConfigureContainer(containerInterfaceName, containerIP, gatewayIP, subnet, mtu)
-				Ω(err).Should(Equal(network.ErrFailedToSetMtu))
+			It("returns a wrapped error", func() {
+				err := configurer.ConfigureContainer("foo", net.ParseIP("1.2.3.4"), net.ParseIP("2.3.4.5"), nil, 1234)
+				Ω(err).Should(MatchError(&network.FindLinkError{nil, "container", "foo"}))
+			})
+		})
+
+		Context("when the container interface exists", func() {
+			BeforeEach(func() {
+				linkConfigurer.InterfaceByNameFunc = func(name string) (*net.Interface, bool, error) {
+					return &net.Interface{Name: name}, true, nil
+				}
 			})
 
-			It("passes the correct parameters to NetworkLinkAddIp", func() {
-				err := network.ConfigureContainer(containerInterfaceName, containerIP, gatewayIP, subnet, mtu)
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(stubNetworkLinkAddIpIfc).Should(Equal(stubInterfaceByNameIfc))
-				Ω(stubNetworkLinkAddIpContainerIP).Should(Equal(containerIP))
-				Ω(stubNetworkLinkAddIpsubnet).Should(Equal(subnet))
+			It("Adds the requested IP", func() {
+				ip, subnet, _ := net.ParseCIDR("2.3.4.5/6")
+				Ω(configurer.ConfigureContainer("foo", ip, net.ParseIP("2.3.4.5"), subnet, 1234)).Should(Succeed())
+				Ω(linkConfigurer.AddIPCalledWith).Should(ContainElement(InterfaceIPAndSubnet{&net.Interface{Name: "foo"}, ip, subnet}))
 			})
 
-			It("returns an error when NetworkLinkAddIp fails for loopback", func() {
-				stubNetworkLinkAddIp = errAt(testError, 1)
-				err := network.ConfigureContainer(containerInterfaceName, containerIP, gatewayIP, subnet, mtu)
-				Ω(err).Should(Equal(network.ErrFailedToAddLoopbackIp))
+			Context("when adding the IP fails", func() {
+				It("returns a wrapped error", func() {
+					linkConfigurer.AddIPReturns["foo"] = errors.New("o no")
+
+					ip, subnet, _ := net.ParseCIDR("2.3.4.5/6")
+					err := configurer.ConfigureContainer("foo", ip, net.ParseIP("8.8.8.8"), subnet, 1234)
+					Ω(err).Should(MatchError(&network.ConfigureLinkError{errors.New("o no"), "container", &net.Interface{Name: "foo"}, ip, subnet}))
+				})
 			})
 
-			It("returns an error when NetworkLinkAddIp fails", func() {
-				stubNetworkLinkAddIp = errAt(testError, 2)
-				err := network.ConfigureContainer(containerInterfaceName, containerIP, gatewayIP, subnet, mtu)
-				Ω(err).Should(Equal(network.ErrFailedToAddIp))
+			It("Brings the link up", func() {
+				Ω(configurer.ConfigureContainer("foo", nil, net.ParseIP("2.3.4.5"), nil, 1234)).Should(Succeed())
+				Ω(linkConfigurer.SetUpCalledWith).Should(ContainElement(&net.Interface{Name: "foo"}))
 			})
 
-			It("passes the correct parameters to AddDefaultGw", func() {
-				err := network.ConfigureContainer(containerInterfaceName, containerIP, gatewayIP, subnet, mtu)
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(stubAddDefaultGwIP).Should(Equal(gatewayIP.String()))
-				Ω(stubAddDefaultGwIfcName).Should(Equal(containerInterfaceName))
+			Context("when bringing the link up fails", func() {
+				It("returns a wrapped error", func() {
+					cause := errors.New("who ate my pie?")
+					linkConfigurer.SetUpFunc = func(iface *net.Interface) error {
+						if iface.Name == "foo" {
+							return cause
+						}
+
+						return nil
+					}
+
+					err := configurer.ConfigureContainer("foo", nil, net.ParseIP("2.3.4.5"), nil, 1234)
+					Ω(err).Should(MatchError(&network.LinkUpError{cause, &net.Interface{Name: "foo"}, "container"}))
+				})
 			})
 
-			It("returns an error when AddDefaultGw fails", func() {
-				stubAddDefaultGw = errAt(testError, 1)
-				err := network.ConfigureContainer(containerInterfaceName, containerIP, gatewayIP, subnet, mtu)
-				Ω(err).Should(Equal(network.ErrFailedToAddGateway))
+			It("sets the mtu", func() {
+				Ω(configurer.ConfigureContainer("foo", nil, net.ParseIP("2.3.4.5"), nil, 1234)).Should(Succeed())
+				Ω(linkConfigurer.SetMTUCalledWith.Interface).Should(Equal(&net.Interface{Name: "foo"}))
+				Ω(linkConfigurer.SetMTUCalledWith.MTU).Should(Equal(1234))
 			})
 
-			It("passes the correct parameters to NetworkLinkUp", func() {
-				err := network.ConfigureContainer(containerInterfaceName, containerIP, gatewayIP, subnet, mtu)
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(stubNetworkLinkUpIfc).Should(Equal(stubInterfaceByNameIfc))
+			Context("when setting the mtu fails", func() {
+				It("returns a wrapped error", func() {
+					linkConfigurer.SetMTUReturns = errors.New("this is NOT the right potato")
+
+					err := configurer.ConfigureContainer("foo", nil, net.ParseIP("2.3.4.5"), nil, 1234)
+					Ω(err).Should(MatchError(&network.MTUError{linkConfigurer.SetMTUReturns, &net.Interface{Name: "foo"}, 1234}))
+				})
 			})
 
-			It("returns an error when NetworkLinkUp fails for loopback", func() {
-				stubNetworkLinkUp = errAt(testError, 1)
-				err := network.ConfigureContainer(containerInterfaceName, containerIP, gatewayIP, subnet, mtu)
-				Ω(err).Should(Equal(network.ErrFailedToLinkUpLoopback))
+			It("adds a default gateway with the requested IP", func() {
+				Ω(configurer.ConfigureContainer("foo", nil, net.ParseIP("2.3.4.5"), nil, 1234)).Should(Succeed())
+				Ω(linkConfigurer.AddDefaultGWCalledWith.Interface).Should(Equal(&net.Interface{Name: "foo"}))
+				Ω(linkConfigurer.AddDefaultGWCalledWith.IP).Should(Equal(net.ParseIP("2.3.4.5")))
 			})
 
-			It("returns an error when NetworkLinkUp fails", func() {
-				stubNetworkLinkUp = errAt(testError, 2)
-				err := network.ConfigureContainer(containerInterfaceName, containerIP, gatewayIP, subnet, mtu)
-				Ω(err).Should(Equal(network.ErrFailedToLinkUp))
+			Context("when adding a default gateway fails", func() {
+				It("returns a wrapped error", func() {
+					linkConfigurer.AddDefaultGWReturns = errors.New("this is NOT the right potato")
+
+					err := configurer.ConfigureContainer("foo", nil, net.ParseIP("2.3.4.5"), nil, 1234)
+					Ω(err).Should(MatchError(&network.ConfigureDefaultGWError{linkConfigurer.AddDefaultGWReturns, &net.Interface{Name: "foo"}, net.ParseIP("2.3.4.5")}))
+				})
 			})
 		})
 	})
+
 })
-
-func errAt(err error, at int) *stub {
-	return &stub{failOnCount: at, err: err}
-}
-
-type stub struct {
-	err         error
-	failOnCount int
-	count       int
-}
-
-func (s *stub) call() error {
-	s.count++
-	if s.err != nil && s.count == s.failOnCount {
-		s.failOnCount = s.count + 1
-		return s.err
-	}
-	return nil
-}
 
 type FakeVethCreater struct {
 	CreateCalledWith struct {
@@ -462,8 +378,19 @@ func (f *FakeVethCreater) Create(hostIfcName, containerIfcName string) (*net.Int
 	return f.CreateReturns.host, f.CreateReturns.container, f.CreateReturns.err
 }
 
+type InterfaceIPAndSubnet struct {
+	Interface *net.Interface
+	IP        net.IP
+	Subnet    *net.IPNet
+}
+
 type FakeLink struct {
-	SetUpCalledWith []*net.Interface
+	AddIPCalledWith        []InterfaceIPAndSubnet
+	SetUpCalledWith        []*net.Interface
+	AddDefaultGWCalledWith struct {
+		Interface *net.Interface
+		IP        net.IP
+	}
 
 	SetMTUCalledWith struct {
 		Interface *net.Interface
@@ -478,8 +405,21 @@ type FakeLink struct {
 	SetUpFunc           func(*net.Interface) error
 	InterfaceByNameFunc func(string) (*net.Interface, bool, error)
 
-	SetMTUReturns error
-	SetNsReturns  error
+	AddIPReturns        map[string]error
+	AddDefaultGWReturns error
+	SetMTUReturns       error
+	SetNsReturns        error
+}
+
+func (f *FakeLink) AddIP(intf *net.Interface, ip net.IP, subnet *net.IPNet) error {
+	f.AddIPCalledWith = append(f.AddIPCalledWith, InterfaceIPAndSubnet{intf, ip, subnet})
+	return f.AddIPReturns[intf.Name]
+}
+
+func (f *FakeLink) AddDefaultGW(intf *net.Interface, ip net.IP) error {
+	f.AddDefaultGWCalledWith.Interface = intf
+	f.AddDefaultGWCalledWith.IP = ip
+	return f.AddDefaultGWReturns
 }
 
 func (f *FakeLink) SetUp(intf *net.Interface) error {
