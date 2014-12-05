@@ -5,6 +5,7 @@ import (
 	"net"
 
 	"github.com/cloudfoundry-incubator/garden-linux/fences/network"
+	"github.com/pivotal-golang/lager/lagertest"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -26,7 +27,7 @@ var _ = Describe("Configure", func() {
 			vethCreater = &FakeVethCreater{}
 			linkConfigurer = &FakeLink{AddIPReturns: make(map[string]error)}
 			bridger = &FakeBridge{}
-			configurer = &network.Configurer{Veth: vethCreater, Link: linkConfigurer, Bridge: bridger}
+			configurer = &network.Configurer{Veth: vethCreater, Link: linkConfigurer, Bridge: bridger, Logger: lagertest.NewTestLogger("test")}
 		})
 
 		It("creates a virtual ethernet pair", func() {

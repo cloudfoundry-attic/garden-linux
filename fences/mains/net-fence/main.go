@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/cloudfoundry-incubator/garden-linux/fences/network"
+	"github.com/pivotal-golang/lager"
 )
 
 const defaultMtuSize = 1500
@@ -46,34 +47,36 @@ func main() {
 
 	flag.Parse()
 
-	if verbose {
-		fmt.Println("\nnet-fence:",
-			"\n  target", target,
-			"\n  hostIfcName", hostIfcName,
-			"\n  containerIfcName", containerIfcName,
-			"\n  containerIP", containerIP.IP,
-			"\n  gatewayIP", gatewayIP.IP,
-			"\n  subnetShareable", subnetShareable,
-			"\n  bridgeIfcName", bridgeIfcName,
-			"\n  subnet", subnet.IPNet,
-			"\n  containerPid", containerPid,
-			"\n  mtu", int(mtu),
-		)
-	}
+	log := lager.NewLogger("net-fence")
 
-	var err error
-	c := network.NewConfigurer()
+	log.Info("args", lager.Data{
+		"target":           target,
+		"hostIfcName":      hostIfcName,
+		"containerIfcName": containerIfcName,
+		"containerIP":      containerIP.IP,
+		"gatewayIP":        gatewayIP.IP,
+		"subnetShareable":  subnetShareable,
+		"bridgeIfcName":    bridgeIfcName,
+		"subnet":           subnet.IPNet,
+		"containerPid":     containerPid,
+		"mtu":              int(mtu),
+	})
 
-	if target == "host" {
-		err = c.ConfigureHost(hostIfcName, containerIfcName, bridgeIfcName, containerPid, gatewayIP.IP, subnet.IPNet, int(mtu))
-	} else if target == "container" {
-		err = c.ConfigureContainer(containerIfcName, containerIP.IP, gatewayIP.IP, subnet.IPNet, int(mtu))
-	} else {
+	c := network.NewConfigurer(log)
+
+	switch target {
+	case "host":
+		if err := c.ConfigureHost(hostIfcName, containerIfcName, bridgeIfcName, containerPid, gatewayIP.IP, subnet.IPNet, int(mtu)); err != nil {
+			fmt.Printf("net-fence: configure host: error %v", err)
+			os.Exit(3)
+		}
+	case "container":
+		if err := c.ConfigureContainer(containerIfcName, containerIP.IP, gatewayIP.IP, subnet.IPNet, int(mtu)); err != nil {
+			fmt.Printf("net-fence: configure container: error %v", err)
+			os.Exit(3)
+		}
+	default:
 		fmt.Println("invalid target:", target)
 		os.Exit(2)
-	}
-	if err != nil {
-		fmt.Println("error:", err)
-		os.Exit(3)
 	}
 }

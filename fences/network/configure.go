@@ -3,6 +3,8 @@ package network
 import (
 	"errors"
 	"net"
+
+	"github.com/pivotal-golang/lager"
 )
 
 type Configurer struct {
@@ -23,6 +25,8 @@ type Configurer struct {
 		Create(bridgeName string, ip net.IP, subnet *net.IPNet) (*net.Interface, error)
 		Add(bridge, slave *net.Interface) error
 	}
+
+	Logger lager.Logger
 }
 
 func (c *Configurer) ConfigureHost(hostIfcName, containerIfcName, bridgeName string, containerPid int, bridgeIP net.IP, subnet *net.IPNet, mtu int) error {
@@ -33,15 +37,27 @@ func (c *Configurer) ConfigureHost(hostIfcName, containerIfcName, bridgeName str
 		bridge    *net.Interface
 	)
 
-	if bridge, err = c.configureBridgeIntf(bridgeName, bridgeIP, subnet); err != nil {
+	cLog := c.Logger.Session("configure-host", lager.Data{
+		"name":           bridgeName,
+		"bridgeIP":       bridgeIP,
+		"subnet":         subnet,
+		"containerIface": containerIfcName,
+		"hostIface":      hostIfcName,
+		"mtu":            mtu,
+		"pid":            containerPid,
+	})
+
+	cLog.Debug("configuring")
+
+	if bridge, err = c.configureBridgeIntf(cLog, bridgeName, bridgeIP, subnet); err != nil {
 		return err
 	}
 
-	if host, container, err = c.configureVethPair(hostIfcName, containerIfcName); err != nil {
+	if host, container, err = c.configureVethPair(cLog, hostIfcName, containerIfcName); err != nil {
 		return err
 	}
 
-	if err = c.configureHostIntf(host, bridge, mtu); err != nil {
+	if err = c.configureHostIntf(cLog, host, bridge, mtu); err != nil {
 		return err
 	}
 
@@ -53,43 +69,66 @@ func (c *Configurer) ConfigureHost(hostIfcName, containerIfcName, bridgeName str
 	return nil
 }
 
-func (c *Configurer) configureBridgeIntf(name string, ip net.IP, subnet *net.IPNet) (*net.Interface, error) {
+func (c *Configurer) configureBridgeIntf(log lager.Logger, name string, ip net.IP, subnet *net.IPNet) (*net.Interface, error) {
+	log = log.Session("bridge-interface")
+
+	log.Debug("configure")
 	bridge, bridgeExists, err := c.Link.InterfaceByName(name)
 	if err != nil {
+		log.Error("configure", err)
 		return nil, &BridgeCreationError{errors.New("look up existing bridge"), name, ip, subnet}
 	}
 
 	if !bridgeExists {
+		log.Debug("create")
 		if bridge, err = c.Bridge.Create(name, ip, subnet); err != nil {
+			log.Error("create", err)
 			return nil, &BridgeCreationError{err, name, ip, subnet}
 		}
 	}
 
+	log.Debug("bring-up")
 	if err = c.Link.SetUp(bridge); err != nil {
+		log.Error("bring-up", err)
 		return nil, &LinkUpError{err, bridge, "bridge"}
 	}
 
 	return bridge, nil
 }
 
-func (c *Configurer) configureVethPair(hostName, containerName string) (*net.Interface, *net.Interface, error) {
+func (c *Configurer) configureVethPair(log lager.Logger, hostName, containerName string) (*net.Interface, *net.Interface, error) {
+	log = log.Session("veth")
+
+	log.Debug("create")
 	if host, container, err := c.Veth.Create(hostName, containerName); err != nil {
+		log.Error("create", err)
 		return nil, nil, &VethPairCreationError{err, hostName, containerName}
 	} else {
 		return host, container, err
 	}
 }
 
-func (c *Configurer) configureHostIntf(intf *net.Interface, bridge *net.Interface, mtu int) error {
+func (c *Configurer) configureHostIntf(log lager.Logger, intf *net.Interface, bridge *net.Interface, mtu int) error {
+	log = log.Session("host-interface", lager.Data{
+		"bridge-interface": bridge,
+		"host-interface":   intf,
+	})
+
+	log.Debug("set-mtu")
 	if err := c.Link.SetMTU(intf, mtu); err != nil {
+		log.Error("set-mtu", err)
 		return &MTUError{err, intf, mtu}
 	}
 
+	log.Debug("add-to-bridge")
 	if err := c.Bridge.Add(bridge, intf); err != nil {
+		log.Error("add-to-bridge", err)
 		return &AddToBridgeError{err, bridge, intf}
 	}
 
+	log.Debug("bring-link-up")
 	if err := c.Link.SetUp(intf); err != nil {
+		log.Error("bring-link-up", err)
 		return &LinkUpError{err, intf, "host"}
 	}
 
