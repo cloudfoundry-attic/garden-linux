@@ -8,6 +8,14 @@ import (
 
 type Link struct{}
 
+func (Link) AddIP(intf *net.Interface, ip net.IP, subnet *net.IPNet) error {
+	return netlink.NetworkLinkAddIp(intf, ip, subnet)
+}
+
+func (Link) AddDefaultGW(intf *net.Interface, ip net.IP) error {
+	return netlink.AddDefaultGw(ip.String(), intf.Name)
+}
+
 func (Link) SetUp(intf *net.Interface) error {
 	return netlink.NetworkLinkUp(intf)
 }

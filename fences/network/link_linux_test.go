@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net"
 	"os/exec"
+	"strconv"
+	"strings"
 
 	"github.com/cloudfoundry-incubator/garden-linux/fences/network"
 	"github.com/docker/libcontainer/netlink"
@@ -27,6 +29,45 @@ var _ = Describe("Link Management", func() {
 
 	AfterEach(func() {
 		cleanup(name)
+	})
+
+	Describe("AddIP", func() {
+		Context("when the interface exists", func() {
+			It("adds the IP succesffuly", func() {
+				ip, subnet, _ := net.ParseCIDR("1.2.3.4/5")
+				Ω(l.AddIP(intf, ip, subnet)).Should(Succeed())
+
+				intf, err := net.InterfaceByName(name)
+				Ω(err).ShouldNot(HaveOccurred())
+				addrs, err := intf.Addrs()
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Ω(addrs).Should(HaveLen(1))
+				Ω(addrs[0].String()).Should(Equal("1.2.3.4/5"))
+			})
+		})
+	})
+
+	Describe("AddDefaultGW", func() {
+		Context("when the interface does not exist", func() {
+			It("returns an error", func() {
+				Ω(l.AddDefaultGW(&net.Interface{Name: "something"}, nil)).ShouldNot(Succeed())
+			})
+		})
+
+		Context("when the interface exists", func() {
+			//	if os.Getenv("GARDEN_CONTAINER_TESTS") == "true" { // avoid running in environments where we don't want to modify the actual system network config
+			// It("adds the gateway succesffuly", func() {
+			// 	ip, subnet, _ := net.ParseCIDR("1.2.3.4/5")
+			// 	Ω(l.AddIP(intf, ip, subnet)).Should(Succeed())
+
+			// 	cmd, err := gexec.Start(exec.Command("sh", "-c", fmt.Sprintf("/sbin/ip route | grep default")), GinkgoWriter, GinkgoWriter)
+			// 	Ω(err).ShouldNot(HaveOccurred())
+
+			// 	Ω(cmd.Out).Should(gbytes.Say("1.2.3.4/5"))
+			// })
+			//}
+		})
 	})
 
 	Describe("SetUp", func() {
@@ -92,15 +133,30 @@ var _ = Describe("Link Management", func() {
 		})
 
 		It("moves the interface in to the given namespace by pid", func() {
-			cmd := exec.Command("ip", "netns", "exec", "gdnsetnstest", "sleep", "400")
-			session, err := gexec.Start(cmd, GinkgoWriter, GinkgoWriter)
+			// look at this perfectly ordinary hat
+			netns, err := gexec.Start(exec.Command("ip", "netns", "exec", "gdnsetnstest", "sleep", "6312736"), GinkgoWriter, GinkgoWriter)
+			Ω(err).ShouldNot(HaveOccurred())
+			defer netns.Kill()
+
+			// (it has the following pid)
+			ps, err := gexec.Start(exec.Command("sh", "-c", "ps -A -opid,command | grep 'sleep 6312736' | head -n 1 | awk '{print $1}'"), GinkgoWriter, GinkgoWriter) // look at my hat
+			Ω(err).ShouldNot(HaveOccurred())
+			Eventually(ps).Should(gexec.Exit(0))
+			pid, err := strconv.Atoi(strings.TrimSuffix(string(ps.Out.Contents()), "\n"))
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Ω(l.SetNs(intf, cmd.Process.Pid)).Should(Succeed())
+			// I wave the magic wand
+			Ω(l.SetNs(intf, pid)).Should(Succeed())
 
-			session, err = gexec.Start(exec.Command("ip", "netns", "exec", "gdnsetnstest", "ifconfig", name), GinkgoWriter, GinkgoWriter)
+			// the bunny has vanished! where is the bunny?
+			intfs, _ := net.Interfaces()
+			Ω(intfs).ShouldNot(ContainElement(intf))
+
+			// oh my word it's in the hat!
+			session, err := gexec.Start(exec.Command("sh", "-c", fmt.Sprintf("ip netns exec gdnsetnstest ifconfig %s", name)), GinkgoWriter, GinkgoWriter)
 			Ω(err).ShouldNot(HaveOccurred())
 			Eventually(session).Should(gexec.Exit(0))
+
 		})
 	})
 
