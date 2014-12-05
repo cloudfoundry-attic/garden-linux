@@ -48,28 +48,6 @@ var _ = Describe("Link Management", func() {
 		})
 	})
 
-	Describe("AddDefaultGW", func() {
-		Context("when the interface does not exist", func() {
-			It("returns an error", func() {
-				Ω(l.AddDefaultGW(&net.Interface{Name: "something"}, nil)).ShouldNot(Succeed())
-			})
-		})
-
-		Context("when the interface exists", func() {
-			//	if os.Getenv("GARDEN_CONTAINER_TESTS") == "true" { // avoid running in environments where we don't want to modify the actual system network config
-			// It("adds the gateway succesffuly", func() {
-			// 	ip, subnet, _ := net.ParseCIDR("1.2.3.4/5")
-			// 	Ω(l.AddIP(intf, ip, subnet)).Should(Succeed())
-
-			// 	cmd, err := gexec.Start(exec.Command("sh", "-c", fmt.Sprintf("/sbin/ip route | grep default")), GinkgoWriter, GinkgoWriter)
-			// 	Ω(err).ShouldNot(HaveOccurred())
-
-			// 	Ω(cmd.Out).Should(gbytes.Say("1.2.3.4/5"))
-			// })
-			//}
-		})
-	})
-
 	Describe("SetUp", func() {
 		Context("when the interface does not exist", func() {
 			It("returns an error", func() {
