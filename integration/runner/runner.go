@@ -108,7 +108,7 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 
 	r.Command = exec.Command(r.bin, gardenArgs...)
 
-	process := ifrit.Envoke(&ginkgomon.Runner{
+	process := ifrit.Invoke(&ginkgomon.Runner{
 		Name:              "garden-linux",
 		Command:           r.Command,
 		AnsiColorCode:     "31m",

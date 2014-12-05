@@ -16,7 +16,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/integration/runner"
 )
 
-var binPath = "../../linux_backend/bin"
+var binPath = "../../linux_backend/bin" // relative to test suite directory
 var rootFSPath = os.Getenv("GARDEN_TEST_ROOTFS")
 var graphPath = os.Getenv("GARDEN_TEST_GRAPHPATH")
 
@@ -30,9 +30,15 @@ var client gardenClient.Client
 func startGarden(argv ...string) gardenClient.Client {
 	gardenAddr := fmt.Sprintf("/tmp/garden_%d.sock", GinkgoParallelNode())
 
+	{ // Check this test suite is in the correct directory
+		b, err := os.Open(binPath)
+		Ω(err).ShouldNot(HaveOccurred())
+		b.Close()
+	}
+
 	gardenRunner = runner.New("unix", gardenAddr, gardenBin, binPath, rootFSPath, graphPath, argv...)
 
-	gardenProcess = ifrit.Envoke(gardenRunner)
+	gardenProcess = ifrit.Invoke(gardenRunner)
 
 	return gardenRunner.NewClient()
 }
