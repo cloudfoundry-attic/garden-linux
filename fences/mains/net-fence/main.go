@@ -63,7 +63,8 @@ func main() {
 
 	var err error
 	if target == "host" {
-		err = network.ConfigureHost(hostIfcName, containerIfcName, gatewayIP.IP, subnetShareable, bridgeIfcName, subnet.IPNet, containerPid, int(mtu))
+		c := network.NewConfigurer()
+		err = c.ConfigureHost(hostIfcName, containerIfcName, bridgeIfcName, containerPid, gatewayIP.IP, subnet.IPNet, int(mtu))
 	} else if target == "container" {
 		err = network.ConfigureContainer(containerIfcName, containerIP.IP, gatewayIP.IP, subnet.IPNet, int(mtu))
 	} else {

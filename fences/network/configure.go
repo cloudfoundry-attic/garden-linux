@@ -8,77 +8,93 @@ import (
 	"github.com/docker/libcontainer/netlink"
 )
 
-// Pre-condition: the gateway IP is a valid IP in the subnet.
-func ConfigureHost(hostInterface string, containerInterface string, gatewayIP net.IP, subnetShareable bool, bridgeInterface string, subnet *net.IPNet, containerPid int, mtu int) error {
-	err := netlink.NetworkCreateVethPair(hostInterface, containerInterface, 1)
-	if err != nil {
-		return ErrFailedToCreateVethPair // FIXME: need rich error type
+type Configurer struct {
+	Veth interface {
+		Create(hostIfcName, containerIfcName string) (*net.Interface, *net.Interface, error)
 	}
 
-	var hostIfc *net.Interface
-	if hostIfc, err = InterfaceByName(hostInterface); err != nil {
-		return ErrBadHostInterface // FIXME: need rich error type
+	Link interface {
+		SetUp(intf *net.Interface) error
+		SetMTU(intf *net.Interface, mtu int) error
+		SetNs(intf *net.Interface, pid int) error
+		InterfaceByName(name string) (*net.Interface, bool, error)
 	}
 
-	if err = NetworkSetMTU(hostIfc, mtu); err != nil {
-		return ErrFailedToSetMtu // FIXME: need rich error type
+	Bridge interface {
+		Create(bridgeName string, ip net.IP, subnet *net.IPNet) (*net.Interface, error)
+		Add(bridge, slave *net.Interface) error
+	}
+}
+
+func (c *Configurer) ConfigureHost(hostIfcName, containerIfcName, bridgeName string, containerPid int, bridgeIP net.IP, subnet *net.IPNet, mtu int) error {
+	var (
+		err       error
+		host      *net.Interface
+		container *net.Interface
+		bridge    *net.Interface
+	)
+
+	if bridge, err = c.configureBridgeIntf(bridgeName, bridgeIP, subnet); err != nil {
+		return err
 	}
 
-	var containerIfc *net.Interface
-	if containerIfc, err = InterfaceByName(containerInterface); err != nil {
-		return ErrBadContainerInterface // FIXME: need rich error type
+	if host, container, err = c.configureVethPair(hostIfcName, containerIfcName); err != nil {
+		return err
 	}
 
-	if err = NetworkSetNsPid(containerIfc, containerPid); err != nil {
-		return ErrFailedToSetContainerNs // FIXME: need rich error type
+	if err = c.configureHostIntf(host, bridge, mtu); err != nil {
+		return err
 	}
 
-	// FIXME: log this fmt.Println("---------------ConfigureHost: ", subnetShareable)
-
-	bridgeIfc, created := getBridge(bridgeInterface)
-	if bridgeIfc == nil {
-		// FIXME: log this fmt.Println("Failed to add bridge:", err)
-		return ErrFailedToCreateBridge // FIXME: need rich error type
-	} else if !created && !subnetShareable {
-		return ErrFailedToCreateBridge // FIXME: need rich error type
-	}
-
-	if netlink.AddToBridge(hostIfc, bridgeIfc) != nil {
-		return ErrFailedToAddSlave // FIXME: need rich error type
-	}
-
-	if created {
-		if err = NetworkLinkAddIp(bridgeIfc, gatewayIP, subnet); err != nil {
-			return ErrFailedToAddIp // FIXME: need rich error type
-		}
-
-		if err = NetworkLinkUp(bridgeIfc); err != nil {
-			return ErrFailedToLinkUp // FIXME: need rich error type
-		}
-	}
-
-	if err = NetworkLinkUp(hostIfc); err != nil {
-		return ErrFailedToLinkUp // FIXME: need rich error type
+	// move container end in to container
+	if err = c.Link.SetNs(container, containerPid); err != nil {
+		return &SetNsFailedError{err, container, containerPid}
 	}
 
 	return nil
 }
 
-func getBridge(ifcName string) (*net.Interface, bool) {
-	if brIfc, err := net.InterfaceByName(ifcName); err == nil {
-		return brIfc, false
-	}
-
-	if err := netlink.NetworkLinkAdd(ifcName, "bridge"); err != nil {
-		return nil, false
-	}
-
-	brIfc, err := net.InterfaceByName(ifcName)
+func (c *Configurer) configureBridgeIntf(name string, ip net.IP, subnet *net.IPNet) (*net.Interface, error) {
+	bridge, bridgeExists, err := c.Link.InterfaceByName(name)
 	if err != nil {
-		return nil, true
+		return nil, &BridgeCreationError{errors.New("look up existing bridge"), name, ip, subnet}
 	}
 
-	return brIfc, true
+	if !bridgeExists {
+		if bridge, err = c.Bridge.Create(name, ip, subnet); err != nil {
+			return nil, &BridgeCreationError{err, name, ip, subnet}
+		}
+	}
+
+	if err = c.Link.SetUp(bridge); err != nil {
+		return nil, &LinkUpError{err, bridge, "bridge"}
+	}
+
+	return bridge, nil
+}
+
+func (c *Configurer) configureVethPair(hostName, containerName string) (*net.Interface, *net.Interface, error) {
+	if host, container, err := c.Veth.Create(hostName, containerName); err != nil {
+		return nil, nil, &VethPairCreationError{err, hostName, containerName}
+	} else {
+		return host, container, err
+	}
+}
+
+func (c *Configurer) configureHostIntf(intf *net.Interface, bridge *net.Interface, mtu int) error {
+	if err := c.Link.SetMTU(intf, mtu); err != nil {
+		return &MTUError{err, intf, mtu}
+	}
+
+	if err := c.Bridge.Add(bridge, intf); err != nil {
+		return &AddToBridgeError{err, bridge, intf}
+	}
+
+	if err := c.Link.SetUp(intf); err != nil {
+		return &LinkUpError{err, intf, "host"}
+	}
+
+	return nil
 }
 
 var (
