@@ -34,7 +34,7 @@ Vagrant.configure("2") do |config|
 
     chef.json = {
       go: {
-        version: "1.3",
+        version: "1.3.1",
       },
     }
   end

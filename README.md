@@ -2,7 +2,7 @@
 
 A Linux backend for [Garden](https://github.com/cloudfoundry-incubator/garden).
 
-You can deploy Garden using the [Garden BOSH Release repository](https://github.com/cloudfoundry-incubator/garden-linux-release).
+You can deploy Garden (inside a Garden container) using the [Garden BOSH Release repository](https://github.com/cloudfoundry-incubator/garden-linux-release).
 
 See the [old README](old/README.md) for old documentation, caveat lector.
 
@@ -76,6 +76,33 @@ The rest of these instructions assume you are running inside an Ubuntu environme
 * Kick the tyres
 
     The external API is exposed using [Garden](https://github.com/cloudfoundry-incubator/garden), the instructions at that repo document the various API calls that you can now make (it will be running at `http://127.0.0.1:7777` if you followed the above instructions).
+
+## Running the tests in vagrant
+
+This is a useful way of running the tests directly in a virtual machine rather than inside a Garden container.
+
+Pre-requisites:
+
+* [VirtualBox](https://www.virtualbox.org/)
+* [vagrant](https://www.vagrantup.com/)
+* [vagrant-omnibus](https://github.com/opscode/vagrant-omnibus) (`vagrant plugin install vagrant-omnibus')
+* [Ruby](https://www.ruby-lang.org/en/installation/)
+* [librarian-chef](https://github.com/applicationsonline/librarian-chef) (`gem install librarian-chef`)
+
+Enter the root of this repository (`cd`) and then follow the steps below to create a vagrant box with garden-linux installed.
+
+```bash
+librarian-chef install
+vagrant up
+```
+
+Note: `site-cookbooks/garden/recipes/rootfs.rb` sets up a root filesystem against which integration tests will run.
+
+With the box configured as above, run the test suite on your local machine by issuing:
+
+```bash
+./scripts/test-in-vagrant
+```
 
 ## External API
 
