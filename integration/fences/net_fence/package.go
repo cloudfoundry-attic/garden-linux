@@ -1,1 +1,1 @@
-package net_fence
+package netfence

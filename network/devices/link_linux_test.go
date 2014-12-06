@@ -1,4 +1,4 @@
-package network_test
+package devices_test
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cloudfoundry-incubator/garden-linux/fences/network"
+	"github.com/cloudfoundry-incubator/garden-linux/network/devices"
 	"github.com/docker/libcontainer/netlink"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -16,7 +16,7 @@ import (
 
 var _ = Describe("Link Management", func() {
 	var (
-		l    network.Link
+		l    devices.Link
 		name string
 		intf *net.Interface
 	)

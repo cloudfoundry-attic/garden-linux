@@ -1,4 +1,4 @@
-package network
+package netfence
 
 import (
 	"encoding/json"
@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/cloudfoundry-incubator/garden-linux/fences/network/subnets"
+	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
 	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
 	"github.com/cloudfoundry-incubator/garden/api"
 	. "github.com/onsi/ginkgo"
@@ -143,7 +143,7 @@ var _ = Describe("Fence", func() {
 
 	It("correctly Strings Allocation instances", func() {
 		a := allocate("9.8.7.6/27", "1.2.3.4")
-		Ω(a.String()).Should(HavePrefix("network.Allocation{IPNet:"))
+		Ω(a.String()).Should(HavePrefix("netfence.Allocation{IPNet:"))
 	})
 
 	Describe("Rebuild", func() {

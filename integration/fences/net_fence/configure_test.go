@@ -1,5 +1,6 @@
 // +build linux
-package net_fence_test
+
+package netfence_test
 
 import (
 	"bufio"

@@ -1,6 +1,7 @@
-package network
+package devices
 
 import (
+	"fmt"
 	"net"
 
 	"github.com/docker/libcontainer/netlink"
@@ -9,23 +10,31 @@ import (
 type Link struct{}
 
 func (Link) AddIP(intf *net.Interface, ip net.IP, subnet *net.IPNet) error {
-	return netlink.NetworkLinkAddIp(intf, ip, subnet)
+	return errF(netlink.NetworkLinkAddIp(intf, ip, subnet))
 }
 
 func (Link) AddDefaultGW(intf *net.Interface, ip net.IP) error {
-	return netlink.AddDefaultGw(ip.String(), intf.Name)
+	return errF(netlink.AddDefaultGw(ip.String(), intf.Name))
 }
 
 func (Link) SetUp(intf *net.Interface) error {
-	return netlink.NetworkLinkUp(intf)
+	return errF(netlink.NetworkLinkUp(intf))
 }
 
 func (Link) SetMTU(intf *net.Interface, mtu int) error {
-	return netlink.NetworkSetMTU(intf, mtu)
+	return errF(netlink.NetworkSetMTU(intf, mtu))
 }
 
 func (Link) SetNs(intf *net.Interface, ns int) error {
-	return netlink.NetworkSetNsPid(intf, ns)
+	return errF(netlink.NetworkSetNsPid(intf, ns))
+}
+
+func errF(err error) error {
+	if err == nil {
+		return err
+	}
+
+	return fmt.Errorf("devices: %v", err)
 }
 
 func (Link) InterfaceByName(name string) (*net.Interface, bool, error) {

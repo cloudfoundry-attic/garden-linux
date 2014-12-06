@@ -4,7 +4,8 @@ import (
 	"errors"
 	"net"
 
-	"github.com/cloudfoundry-incubator/garden-linux/fences/network"
+	"github.com/cloudfoundry-incubator/garden-linux/network"
+	"github.com/cloudfoundry-incubator/garden-linux/network/devices/fakedevices"
 	"github.com/pivotal-golang/lager/lagertest"
 
 	. "github.com/onsi/ginkgo"
@@ -16,46 +17,46 @@ var testError = errors.New("test error")
 var _ = Describe("Configure", func() {
 	Describe("ConfigureHost", func() {
 		var (
-			vethCreater    *FakeVethCreater
-			linkConfigurer *FakeLink
-			bridger        *FakeBridge
+			vethCreater    *fakedevices.FakeVethCreater
+			linkConfigurer *fakedevices.FakeLink
+			bridger        *fakedevices.FakeBridge
 
 			configurer *network.Configurer
 		)
 
 		BeforeEach(func() {
-			vethCreater = &FakeVethCreater{}
-			linkConfigurer = &FakeLink{AddIPReturns: make(map[string]error)}
-			bridger = &FakeBridge{}
+			vethCreater = &fakedevices.FakeVethCreater{}
+			linkConfigurer = &fakedevices.FakeLink{AddIPReturns: make(map[string]error)}
+			bridger = &fakedevices.FakeBridge{}
 			configurer = &network.Configurer{Veth: vethCreater, Link: linkConfigurer, Bridge: bridger, Logger: lagertest.NewTestLogger("test")}
 		})
 
 		It("creates a virtual ethernet pair", func() {
 			Ω(configurer.ConfigureHost("host", "container", "bridge", 1, net.ParseIP("1.2.3.4"), nil, 1500)).Should(Succeed())
 
-			Ω(vethCreater.CreateCalledWith.hostIfcName).Should(Equal("host"))
-			Ω(vethCreater.CreateCalledWith.containerIfcName).Should(Equal("container"))
+			Ω(vethCreater.CreateCalledWith.HostIfcName).Should(Equal("host"))
+			Ω(vethCreater.CreateCalledWith.ContainerIfcName).Should(Equal("container"))
 		})
 
 		Context("when creating the pair fails", func() {
 			It("returns a wrapped error", func() {
-				vethCreater.CreateReturns.err = errors.New("foo bar baz")
+				vethCreater.CreateReturns.Err = errors.New("foo bar baz")
 				err := configurer.ConfigureHost("host", "container", "bridge", 1, net.ParseIP("1.2.3.4"), nil, 1500)
 				Ω(err).Should(HaveOccurred())
-				Ω(err).Should(MatchError(&network.VethPairCreationError{vethCreater.CreateReturns.err, "host", "container"}))
+				Ω(err).Should(MatchError(&network.VethPairCreationError{vethCreater.CreateReturns.Err, "host", "container"}))
 			})
 		})
 
 		Context("when creating the pair succeeds", func() {
 			BeforeEach(func() {
-				vethCreater.CreateReturns.host = &net.Interface{Name: "the-host"}
-				vethCreater.CreateReturns.container = &net.Interface{Name: "the-container"}
+				vethCreater.CreateReturns.Host = &net.Interface{Name: "the-host"}
+				vethCreater.CreateReturns.Container = &net.Interface{Name: "the-container"}
 			})
 
 			It("should set mtu on the host interface", func() {
 				Ω(configurer.ConfigureHost("host", "container", "bridge", 1, net.ParseIP("1.2.3.4"), nil, 123)).Should(Succeed())
 
-				Ω(linkConfigurer.SetMTUCalledWith.Interface).Should(Equal(vethCreater.CreateReturns.host))
+				Ω(linkConfigurer.SetMTUCalledWith.Interface).Should(Equal(vethCreater.CreateReturns.Host))
 				Ω(linkConfigurer.SetMTUCalledWith.MTU).Should(Equal(123))
 			})
 
@@ -63,7 +64,7 @@ var _ = Describe("Configure", func() {
 				It("returns a wrapped error", func() {
 					linkConfigurer.SetMTUReturns = errors.New("o no")
 					err := configurer.ConfigureHost("host", "container", "bridge", 1, net.ParseIP("1.2.3.4"), nil, 14)
-					Ω(err).Should(MatchError(&network.MTUError{linkConfigurer.SetMTUReturns, vethCreater.CreateReturns.host, 14}))
+					Ω(err).Should(MatchError(&network.MTUError{linkConfigurer.SetMTUReturns, vethCreater.CreateReturns.Host, 14}))
 				})
 			})
 
@@ -76,7 +77,7 @@ var _ = Describe("Configure", func() {
 				It("returns a wrapped error", func() {
 					linkConfigurer.SetNsReturns = errors.New("o no")
 					err := configurer.ConfigureHost("host", "container", "bridge", 3, net.ParseIP("1.2.3.4"), nil, 14)
-					Ω(err).Should(MatchError(&network.SetNsFailedError{linkConfigurer.SetNsReturns, vethCreater.CreateReturns.container, 3}))
+					Ω(err).Should(MatchError(&network.SetNsFailedError{linkConfigurer.SetNsReturns, vethCreater.CreateReturns.Container, 3}))
 				})
 			})
 
@@ -114,7 +115,7 @@ var _ = Describe("Configure", func() {
 							It("returns a wrapped error", func() {
 								bridger.AddReturns = errors.New("is it a bird?")
 								err := configurer.ConfigureHost("host", "container", "bridge", 3, net.ParseIP("1.2.3.1"), nil, 14)
-								Ω(err).Should(MatchError(&network.AddToBridgeError{bridger.AddReturns, bridger.CreateReturns.Interface, vethCreater.CreateReturns.host}))
+								Ω(err).Should(MatchError(&network.AddToBridgeError{bridger.AddReturns, bridger.CreateReturns.Interface, vethCreater.CreateReturns.Host}))
 							})
 						})
 
@@ -169,14 +170,14 @@ var _ = Describe("Configure", func() {
 
 			It("brings the host interface up", func() {
 				Ω(configurer.ConfigureHost("host", "container", "bridge", 3, net.ParseIP("1.2.3.1"), nil, 14)).Should(Succeed())
-				Ω(linkConfigurer.SetUpCalledWith).Should(ContainElement(vethCreater.CreateReturns.host))
+				Ω(linkConfigurer.SetUpCalledWith).Should(ContainElement(vethCreater.CreateReturns.Host))
 			})
 
 			Context("when bringing the host interface up fails", func() {
 				It("returns a wrapped error", func() {
 					cause := errors.New("there's jam in this sandwich and it's not ok")
 					linkConfigurer.SetUpFunc = func(intf *net.Interface) error {
-						if vethCreater.CreateReturns.host == intf {
+						if vethCreater.CreateReturns.Host == intf {
 							return cause
 						}
 
@@ -184,7 +185,7 @@ var _ = Describe("Configure", func() {
 					}
 
 					err := configurer.ConfigureHost("host", "container", "bridge", 3, net.ParseIP("1.2.3.1"), nil, 14)
-					Ω(err).Should(MatchError(&network.LinkUpError{cause, vethCreater.CreateReturns.host, "host"}))
+					Ω(err).Should(MatchError(&network.LinkUpError{cause, vethCreater.CreateReturns.Host, "host"}))
 				})
 			})
 		})
@@ -192,12 +193,12 @@ var _ = Describe("Configure", func() {
 
 	Describe("ConfigureContainer", func() {
 		var (
-			linkConfigurer *FakeLink
+			linkConfigurer *fakedevices.FakeLink
 			configurer     *network.Configurer
 		)
 
 		BeforeEach(func() {
-			linkConfigurer = &FakeLink{AddIPReturns: make(map[string]error)}
+			linkConfigurer = &fakedevices.FakeLink{AddIPReturns: make(map[string]error)}
 			configurer = &network.Configurer{Link: linkConfigurer}
 		})
 
@@ -237,7 +238,7 @@ var _ = Describe("Configure", func() {
 			It("adds 127.0.0.1/8 as an address", func() {
 				ip, subnet, _ := net.ParseCIDR("127.0.0.1/8")
 				Ω(configurer.ConfigureContainer("foo", net.ParseIP("1.2.3.4"), net.ParseIP("2.3.4.5"), nil, 1234)).Should(Succeed())
-				Ω(linkConfigurer.AddIPCalledWith).Should(ContainElement(InterfaceIPAndSubnet{lo, ip, subnet}))
+				Ω(linkConfigurer.AddIPCalledWith).Should(ContainElement(fakedevices.InterfaceIPAndSubnet{lo, ip, subnet}))
 			})
 
 			Context("when adding the IP address fails", func() {
@@ -293,7 +294,7 @@ var _ = Describe("Configure", func() {
 			It("Adds the requested IP", func() {
 				ip, subnet, _ := net.ParseCIDR("2.3.4.5/6")
 				Ω(configurer.ConfigureContainer("foo", ip, net.ParseIP("2.3.4.5"), subnet, 1234)).Should(Succeed())
-				Ω(linkConfigurer.AddIPCalledWith).Should(ContainElement(InterfaceIPAndSubnet{&net.Interface{Name: "foo"}, ip, subnet}))
+				Ω(linkConfigurer.AddIPCalledWith).Should(ContainElement(fakedevices.InterfaceIPAndSubnet{&net.Interface{Name: "foo"}, ip, subnet}))
 			})
 
 			Context("when adding the IP fails", func() {
@@ -358,128 +359,4 @@ var _ = Describe("Configure", func() {
 			})
 		})
 	})
-
 })
-
-type FakeVethCreater struct {
-	CreateCalledWith struct {
-		hostIfcName, containerIfcName string
-	}
-
-	CreateReturns struct {
-		host, container *net.Interface
-		err             error
-	}
-}
-
-func (f *FakeVethCreater) Create(hostIfcName, containerIfcName string) (*net.Interface, *net.Interface, error) {
-	f.CreateCalledWith.hostIfcName = hostIfcName
-	f.CreateCalledWith.containerIfcName = containerIfcName
-
-	return f.CreateReturns.host, f.CreateReturns.container, f.CreateReturns.err
-}
-
-type InterfaceIPAndSubnet struct {
-	Interface *net.Interface
-	IP        net.IP
-	Subnet    *net.IPNet
-}
-
-type FakeLink struct {
-	AddIPCalledWith        []InterfaceIPAndSubnet
-	SetUpCalledWith        []*net.Interface
-	AddDefaultGWCalledWith struct {
-		Interface *net.Interface
-		IP        net.IP
-	}
-
-	SetMTUCalledWith struct {
-		Interface *net.Interface
-		MTU       int
-	}
-
-	SetNsCalledWith struct {
-		Interface *net.Interface
-		Pid       int
-	}
-
-	SetUpFunc           func(*net.Interface) error
-	InterfaceByNameFunc func(string) (*net.Interface, bool, error)
-
-	AddIPReturns        map[string]error
-	AddDefaultGWReturns error
-	SetMTUReturns       error
-	SetNsReturns        error
-}
-
-func (f *FakeLink) AddIP(intf *net.Interface, ip net.IP, subnet *net.IPNet) error {
-	f.AddIPCalledWith = append(f.AddIPCalledWith, InterfaceIPAndSubnet{intf, ip, subnet})
-	return f.AddIPReturns[intf.Name]
-}
-
-func (f *FakeLink) AddDefaultGW(intf *net.Interface, ip net.IP) error {
-	f.AddDefaultGWCalledWith.Interface = intf
-	f.AddDefaultGWCalledWith.IP = ip
-	return f.AddDefaultGWReturns
-}
-
-func (f *FakeLink) SetUp(intf *net.Interface) error {
-	f.SetUpCalledWith = append(f.SetUpCalledWith, intf)
-	if f.SetUpFunc == nil {
-		return nil
-	}
-
-	return f.SetUpFunc(intf)
-}
-
-func (f *FakeLink) SetMTU(intf *net.Interface, mtu int) error {
-	f.SetMTUCalledWith.Interface = intf
-	f.SetMTUCalledWith.MTU = mtu
-	return f.SetMTUReturns
-}
-
-func (f *FakeLink) SetNs(intf *net.Interface, pid int) error {
-	f.SetNsCalledWith.Interface = intf
-	f.SetNsCalledWith.Pid = pid
-	return f.SetNsReturns
-}
-
-func (f *FakeLink) InterfaceByName(name string) (*net.Interface, bool, error) {
-	if f.InterfaceByNameFunc != nil {
-		return f.InterfaceByNameFunc(name)
-	}
-
-	return nil, false, nil
-}
-
-type FakeBridge struct {
-	CreateCalledWith struct {
-		Name   string
-		IP     net.IP
-		Subnet *net.IPNet
-	}
-
-	CreateReturns struct {
-		Interface *net.Interface
-		Error     error
-	}
-
-	AddCalledWith struct {
-		Bridge, Slave *net.Interface
-	}
-
-	AddReturns error
-}
-
-func (f *FakeBridge) Create(name string, ip net.IP, subnet *net.IPNet) (*net.Interface, error) {
-	f.CreateCalledWith.Name = name
-	f.CreateCalledWith.IP = ip
-	f.CreateCalledWith.Subnet = subnet
-	return f.CreateReturns.Interface, f.CreateReturns.Error
-}
-
-func (f *FakeBridge) Add(bridge, slave *net.Interface) error {
-	f.AddCalledWith.Bridge = bridge
-	f.AddCalledWith.Slave = slave
-	return f.AddReturns
-}
