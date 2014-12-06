@@ -1,4 +1,4 @@
-package network
+package netfence
 
 import (
 	"encoding/hex"
@@ -8,7 +8,8 @@ import (
 	"strings"
 
 	"github.com/cloudfoundry-incubator/garden-linux/fences"
-	"github.com/cloudfoundry-incubator/garden-linux/fences/network/subnets"
+	"github.com/cloudfoundry-incubator/garden-linux/network"
+	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
 	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
 	"github.com/cloudfoundry-incubator/garden/api"
 )
@@ -75,7 +76,7 @@ func (f *f) Build(spec string, sysconfig *sysconfig.Config, containerID string) 
 	ones, _ := subnet.Mask.Size()
 	subnetShareable := (ones < 30)
 
-	return &Allocation{subnet, containerIP, containerIfcName, destroyableInterface(hostIfcName), subnetShareable, destroyableBridge(bridgeIfcName), f}, nil
+	return &Allocation{subnet, containerIP, containerIfcName, network.DestroyableInterface(hostIfcName), subnetShareable, network.DestroyableBridge(bridgeIfcName), f}, nil
 }
 
 func suffixIfNeeded(spec string) string {
@@ -104,7 +105,7 @@ func (f *f) Rebuild(rm *json.RawMessage) (fences.Fence, error) {
 		return nil, err
 	}
 
-	return &Allocation{ipn, net.ParseIP(ff.ContainerIP), ff.ContainerIfcName, destroyableInterface(ff.HostIfcName), ff.SubnetShareable, destroyableInterface(ff.BridgeIfcName), f}, nil
+	return &Allocation{ipn, net.ParseIP(ff.ContainerIP), ff.ContainerIfcName, network.DestroyableInterface(ff.HostIfcName), ff.SubnetShareable, network.DestroyableInterface(ff.BridgeIfcName), f}, nil
 }
 
 type Allocation struct {
@@ -137,9 +138,9 @@ func (a *Allocation) Dismantle() error {
 	}
 
 	if released {
-		return deconfigureHost(a.hostIfc, a.bridgeIfc)
+		return network.DeconfigureHost(a.hostIfc, a.bridgeIfc)
 	} else {
-		return deconfigureHost(a.hostIfc, nil)
+		return network.DeconfigureHost(a.hostIfc, nil)
 	}
 }
 

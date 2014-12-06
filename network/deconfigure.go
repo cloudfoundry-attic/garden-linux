@@ -2,6 +2,7 @@ package network
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/docker/libcontainer/netlink"
 )
@@ -11,9 +12,18 @@ var (
 	ErrFailedToDeleteHostInterface   = errors.New("failed to delete host interface")
 )
 
+type Destroyer interface {
+	Destroy() error
+}
+
+type StringerDestroyer interface {
+	fmt.Stringer
+	Destroyer
+}
+
 // deconfigureHost undoes the effects of ConfigureHost.
 // An empty bridge interface name should be specified if no bridge is to be deleted.
-func deconfigureHost(hostInterface Destroyer, bridgeInterface Destroyer) error {
+func DeconfigureHost(hostInterface Destroyer, bridgeInterface Destroyer) error {
 	// FIXME: log this fmt.Printf("deconfigureHost(%q, %q)\n", hostInterface, bridgeInterface)
 	if err := hostInterface.Destroy(); err != nil {
 		if err.Error() != "no such network interface" {
@@ -32,22 +42,22 @@ func deconfigureHost(hostInterface Destroyer, bridgeInterface Destroyer) error {
 	return nil
 }
 
-type destroyableInterface string
+type DestroyableInterface string
 
-func (d destroyableInterface) Destroy() error {
+func (d DestroyableInterface) Destroy() error {
 	return netlink.NetworkLinkDel(string(d))
 }
 
-func (d destroyableInterface) String() string {
+func (d DestroyableInterface) String() string {
 	return string(d)
 }
 
-type destroyableBridge string
+type DestroyableBridge string
 
-func (d destroyableBridge) Destroy() error {
+func (d DestroyableBridge) Destroy() error {
 	return netlink.DeleteBridge(string(d))
 }
 
-func (d destroyableBridge) String() string {
+func (d DestroyableBridge) String() string {
 	return string(d)
 }

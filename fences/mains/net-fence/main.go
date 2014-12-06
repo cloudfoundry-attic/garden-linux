@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/cloudfoundry-incubator/garden-linux/fences/network"
+	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence"
+	"github.com/cloudfoundry-incubator/garden-linux/network"
 	"github.com/pivotal-golang/lager"
 )
 
@@ -30,16 +31,16 @@ func main() {
 	var subnetShareable bool
 	flag.BoolVar(&subnetShareable, "subnetShareable", false, "permit sharing of subnet")
 
-	subnet := network.CidrVar{}
+	subnet := netfence.CidrVar{}
 	flag.Var(&subnet, "subnet", "the container's subnet")
 
-	gatewayIP := network.IPVar{}
+	gatewayIP := netfence.IPVar{}
 	flag.Var(&gatewayIP, "gatewayIP", "the gateway IP of the container's subnet")
 
-	containerIP := network.IPVar{}
+	containerIP := netfence.IPVar{}
 	flag.Var(&containerIP, "containerIP", "the IP of the container")
 
-	var mtu network.MtuVar = defaultMtuSize
+	var mtu netfence.MtuVar = defaultMtuSize
 	flag.Var(&mtu, "mtu", "the MTU size of the container-side device")
 
 	var containerPid int

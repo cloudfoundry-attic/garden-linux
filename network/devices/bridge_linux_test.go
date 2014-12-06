@@ -1,17 +1,17 @@
-package network_test
+package devices_test
 
 import (
 	"fmt"
 	"net"
 
-	"github.com/cloudfoundry-incubator/garden-linux/fences/network"
+	"github.com/cloudfoundry-incubator/garden-linux/network/devices"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Bridge Management", func() {
 	var (
-		b      network.Bridge
+		b      devices.Bridge
 		name   string
 		addr   string
 		ip     net.IP

@@ -1,12 +1,11 @@
-// The network fence provides Garden's networking function.
-package network
+package netfence
 
 import (
 	"flag"
 	"net"
 
 	"github.com/cloudfoundry-incubator/garden-linux/fences"
-	"github.com/cloudfoundry-incubator/garden-linux/fences/network/subnets"
+	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
 	"github.com/cloudfoundry/gunk/localip"
 )
 

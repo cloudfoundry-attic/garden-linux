@@ -1,10 +1,10 @@
-package network_test
+package devices_test
 
 import (
 	"fmt"
 	"net"
 
-	"github.com/cloudfoundry-incubator/garden-linux/fences/network"
+	"github.com/cloudfoundry-incubator/garden-linux/network/devices"
 	"github.com/docker/libcontainer/netlink"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -12,7 +12,7 @@ import (
 
 var _ = Describe("Veth Pair Creation", func() {
 	var (
-		v                       network.VethCreator
+		v                       devices.VethCreator
 		hostName, containerName string
 	)
 
