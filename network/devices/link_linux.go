@@ -29,18 +29,10 @@ func (Link) SetNs(intf *net.Interface, ns int) error {
 	return errF(netlink.NetworkSetNsPid(intf, ns))
 }
 
-func errF(err error) error {
-	if err == nil {
-		return err
-	}
-
-	return fmt.Errorf("devices: %v", err)
-}
-
 func (Link) InterfaceByName(name string) (*net.Interface, bool, error) {
 	intfs, err := net.Interfaces()
 	if err != nil {
-		return nil, false, err
+		return nil, false, errF(err)
 	}
 
 	for _, intf := range intfs {
@@ -50,4 +42,12 @@ func (Link) InterfaceByName(name string) (*net.Interface, bool, error) {
 	}
 
 	return nil, false, nil
+}
+
+func errF(err error) error {
+	if err == nil {
+		return err
+	}
+
+	return fmt.Errorf("devices: %v", err)
 }

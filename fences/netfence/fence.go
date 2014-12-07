@@ -12,12 +12,14 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
 	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
 	"github.com/cloudfoundry-incubator/garden/api"
+	"github.com/pivotal-golang/lager"
 )
 
 type f struct {
 	subnets.Subnets
 	mtu        uint32
 	externalIP net.IP
+	log        lager.Logger
 }
 
 type FlatFence struct {
@@ -76,7 +78,16 @@ func (f *f) Build(spec string, sysconfig *sysconfig.Config, containerID string) 
 	ones, _ := subnet.Mask.Size()
 	subnetShareable := (ones < 30)
 
-	return &Allocation{subnet, containerIP, containerIfcName, network.DestroyableInterface(hostIfcName), subnetShareable, network.DestroyableBridge(bridgeIfcName), f}, nil
+	return &Allocation{
+			IPNet:           subnet,
+			containerIP:     containerIP,
+			containerIfc:    containerIfcName,
+			hostIfc:         network.DestroyableInterface(hostIfcName),
+			subnetShareable: subnetShareable,
+			bridgeIfc:       network.DestroyableBridge(bridgeIfcName),
+			fence:           f,
+			log:             f.log.Session("allocation", lager.Data{"subnet": subnet, "ip": containerIP})},
+		nil
 }
 
 func suffixIfNeeded(spec string) string {
@@ -105,7 +116,17 @@ func (f *f) Rebuild(rm *json.RawMessage) (fences.Fence, error) {
 		return nil, err
 	}
 
-	return &Allocation{ipn, net.ParseIP(ff.ContainerIP), ff.ContainerIfcName, network.DestroyableInterface(ff.HostIfcName), ff.SubnetShareable, network.DestroyableInterface(ff.BridgeIfcName), f}, nil
+	containerIP := net.ParseIP(ff.ContainerIP)
+	return &Allocation{
+		IPNet:           ipn,
+		containerIP:     containerIP,
+		containerIfc:    ff.ContainerIfcName,
+		hostIfc:         network.DestroyableInterface(ff.HostIfcName),
+		subnetShareable: ff.SubnetShareable,
+		bridgeIfc:       network.DestroyableInterface(ff.BridgeIfcName),
+		fence:           f,
+		log:             f.log.Session("allocation", lager.Data{"subnet": ipn, "containerIP": containerIP}),
+	}, nil
 }
 
 type Allocation struct {
@@ -116,6 +137,7 @@ type Allocation struct {
 	subnetShareable bool
 	bridgeIfc       StringerDestroyer
 	fence           *f
+	log             lager.Logger
 }
 
 type Destroyer interface {
@@ -138,9 +160,9 @@ func (a *Allocation) Dismantle() error {
 	}
 
 	if released {
-		return network.DeconfigureHost(a.hostIfc, a.bridgeIfc)
+		return network.DeconfigureHost(a.log.Session("deconfigure-host"), a.hostIfc, a.bridgeIfc)
 	} else {
-		return network.DeconfigureHost(a.hostIfc, nil)
+		return network.DeconfigureHost(a.log.Session("deconfigure-host-and-bridge"), a.hostIfc, nil)
 	}
 }
 

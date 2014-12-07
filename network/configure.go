@@ -72,10 +72,10 @@ func (c *Configurer) ConfigureHost(hostIfcName, containerIfcName, bridgeName str
 func (c *Configurer) configureBridgeIntf(log lager.Logger, name string, ip net.IP, subnet *net.IPNet) (*net.Interface, error) {
 	log = log.Session("bridge-interface")
 
-	log.Debug("configure")
+	log.Debug("find")
 	bridge, bridgeExists, err := c.Link.InterfaceByName(name)
 	if err != nil {
-		log.Error("configure", err)
+		log.Error("find", err)
 		return nil, &BridgeCreationError{errors.New("look up existing bridge"), name, ip, subnet}
 	}
 
