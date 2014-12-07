@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/cloudfoundry-incubator/garden-linux/network"
 	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
 	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
 	"github.com/cloudfoundry-incubator/garden/api"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/pivotal-golang/lager/lagertest"
 )
 
 var _ = Describe("Fence", func() {
@@ -26,13 +28,13 @@ var _ = Describe("Fence", func() {
 		Ω(err).ShouldNot(HaveOccurred())
 
 		fakeSubnetPool = &fakeSubnets{nextSubnet: a}
-		fence = &f{fakeSubnetPool, 1500, net.ParseIP("1.2.3.4")}
+		fence = &f{fakeSubnetPool, 1500, net.ParseIP("1.2.3.4"), lagertest.NewTestLogger("fence")}
 	})
 
 	Describe("Capacity", func() {
 		It("delegates to Subnets", func() {
 			fakeSubnetPool.capacity = 4
-			fence := &f{fakeSubnetPool, 1500, net.ParseIP("1.2.3.4")}
+			fence := &f{fakeSubnetPool, 1500, net.ParseIP("1.2.3.4"), lagertest.NewTestLogger("fence")}
 
 			Ω(fence.Capacity()).Should(Equal(4))
 		})
@@ -138,7 +140,7 @@ var _ = Describe("Fence", func() {
 		_, s, err := net.ParseCIDR(subnet)
 		Ω(err).ShouldNot(HaveOccurred())
 
-		return &Allocation{s, net.ParseIP(ip), "", &FakeInterface{Name: "host"}, false, &FakeInterface{Name: "bridge"}, fence}
+		return &Allocation{s, net.ParseIP(ip), "", &FakeInterface{Name: "host"}, false, &FakeInterface{Name: "bridge"}, fence, lagertest.NewTestLogger("allocation")}
 	}
 
 	It("correctly Strings Allocation instances", func() {
@@ -246,11 +248,24 @@ var _ = Describe("Fence", func() {
 				})
 
 				Context("when destroying the host interface fails", func() {
-					It("returns an error", func() {
-						hostIfc.DestroyReturns = errors.New("o no")
+					Context("and the device is already gone", func() {
+						It("does not return an error", func() {
+							hostIfc.DestroyReturns = errors.New("no such network interface")
+							Ω(allocation.Dismantle()).Should(Succeed())
+						})
+					})
 
-						err := allocation.Dismantle()
-						Ω(err).Should(HaveOccurred())
+					Context("and the device still exists", func() {
+						It("returns a wrapped error", func() {
+							hostIfc.DestroyReturns = errors.New("o no")
+
+							err := allocation.Dismantle()
+							Ω(err).Should(MatchError(&network.DeleteLinkError{
+								Cause: hostIfc.DestroyReturns,
+								Role:  "host",
+								Name:  hostIfc.Name,
+							}))
+						})
 					})
 				})
 
@@ -301,11 +316,11 @@ var _ = Describe("Fence", func() {
 						Ω(err).Should(HaveOccurred())
 					})
 
-					It("still destroys the bridge, for who knows what reason", func() { // just backfilling right now, but this behaviour seems wrong
+					It("does not destroy the bridge", func() {
 						hostIfc.DestroyReturns = errors.New("o no")
 
-						err := allocation.Dismantle()
-						Ω(err).Should(HaveOccurred())
+						Ω(allocation.Dismantle()).ShouldNot(Succeed())
+						Ω(bridgeIfc.Destroyed).ShouldNot(BeTrue())
 					})
 				})
 
@@ -317,11 +332,27 @@ var _ = Describe("Fence", func() {
 				})
 
 				Context("when destroying the bridge interface fails", func() {
-					It("returns an error", func() {
-						bridgeIfc.DestroyReturns = errors.New("o no")
+					Context("and the device is already gone", func() {
+						It("does not return an error", func() {
+							bridgeIfc.DestroyReturns = errors.New("no such network interface")
+							Ω(allocation.Dismantle()).Should(Succeed())
+						})
 
-						err := allocation.Dismantle()
-						Ω(err).Should(HaveOccurred())
+						It("logs a warning", func() {
+						})
+					})
+
+					Context("and the device still exists", func() {
+						It("returns an error", func() {
+							bridgeIfc.DestroyReturns = errors.New("o no")
+
+							err := allocation.Dismantle()
+							Ω(err).Should(MatchError(&network.DeleteLinkError{
+								Cause: bridgeIfc.DestroyReturns,
+								Role:  "bridge",
+								Name:  bridgeIfc.Name,
+							}))
+						})
 					})
 				})
 			})
@@ -360,7 +391,7 @@ var _ = Describe("Fence", func() {
 					fence.mtu = 123
 
 					env = []string{"foo", "bar"}
-					allocation := &Allocation{ipn, net.ParseIP("4.5.6.1"), "", &FakeInterface{Name: "host"}, false, &FakeInterface{Name: "bridge"}, fence}
+					allocation := &Allocation{ipn, net.ParseIP("4.5.6.1"), "", &FakeInterface{Name: "host"}, false, &FakeInterface{Name: "bridge"}, fence, lagertest.NewTestLogger("allocation")}
 					allocation.ConfigureProcess(&env)
 				})
 

@@ -104,6 +104,17 @@ func (err ConfigureDefaultGWError) Error() string {
 	return fmtErr("failed to set default gateway to IP %v via device %v", err.IP, err.Interface, err.Cause)
 }
 
+// DeleteLinkError is returned if an interface cannot be succesfully destroyed
+type DeleteLinkError struct {
+	Cause error
+	Role  string
+	Name  string
+}
+
+func (err DeleteLinkError) Error() string {
+	return fmtErr("failed to delete %s link named %s: %v", err.Role, err.Name, err.Cause)
+}
+
 func fmtErr(msg string, args ...interface{}) string {
 	return fmt.Sprintf("network: "+msg, args...)
 }

@@ -1,15 +1,10 @@
 package network
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/docker/libcontainer/netlink"
-)
-
-var (
-	ErrFailedToDeleteBridgeInterface = errors.New("failed to delete bridge interface")
-	ErrFailedToDeleteHostInterface   = errors.New("failed to delete host interface")
+	"github.com/pivotal-golang/lager"
 )
 
 type Destroyer interface {
@@ -23,19 +18,28 @@ type StringerDestroyer interface {
 
 // deconfigureHost undoes the effects of ConfigureHost.
 // An empty bridge interface name should be specified if no bridge is to be deleted.
-func DeconfigureHost(hostInterface Destroyer, bridgeInterface Destroyer) error {
-	// FIXME: log this fmt.Printf("deconfigureHost(%q, %q)\n", hostInterface, bridgeInterface)
-	if err := hostInterface.Destroy(); err != nil {
-		if err.Error() != "no such network interface" {
-			return ErrFailedToDeleteHostInterface // FIXME: rich error
+func DeconfigureHost(log lager.Logger, hostIfc StringerDestroyer, bridgeIfc StringerDestroyer) error {
+	log.Debug("destroy-host-ifc", lager.Data{"name": hostIfc.String()})
+	if err := hostIfc.Destroy(); err != nil && err.Error() != "no such network interface" {
+		log.Error("destroy-host-ifc", err)
+		return &DeleteLinkError{
+			Cause: err,
+			Role:  "host",
+			Name:  hostIfc.String(),
 		}
 	}
 
-	if bridgeInterface != nil {
-		if err := bridgeInterface.Destroy(); err != nil {
-			if err.Error() != "no such device" {
-				return ErrFailedToDeleteBridgeInterface // FIXME: rich error
-			}
+	if bridgeIfc == nil {
+		return nil
+	}
+
+	log.Debug("destroy-bridge-ifc", lager.Data{"name": bridgeIfc.String()})
+	if err := bridgeIfc.Destroy(); err != nil && err.Error() != "no such network interface" {
+		log.Error("destroy-bridge-ifc", err)
+		return &DeleteLinkError{
+			Cause: err,
+			Role:  "bridge",
+			Name:  bridgeIfc.String(),
 		}
 	}
 
