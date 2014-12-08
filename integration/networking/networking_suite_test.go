@@ -1,8 +1,10 @@
 package networking_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
+	"net"
 	"os"
 	"strconv"
 	"syscall"
@@ -22,11 +24,13 @@ var rootFSPath = os.Getenv("GARDEN_TEST_ROOTFS")
 var graphPath = os.Getenv("GARDEN_TEST_GRAPHPATH")
 
 var gardenBin string
+var netdogBin string
 
 var gardenRunner *runner.Runner
 var gardenProcess ifrit.Process
 
 var client api.Client
+var externalIP net.IP
 
 func startGarden(argv ...string) api.Client {
 	gardenAddr := fmt.Sprintf("/tmp/garden_%d.sock", GinkgoParallelNode())
@@ -57,12 +61,37 @@ func TestNetworking(t *testing.T) {
 		return
 	}
 
+	var beforeSuite struct {
+		GardenPath    string
+		NetdogPath    string
+		ExampleDotCom net.IP
+	}
+
 	SynchronizedBeforeSuite(func() []byte {
-		gardenPath, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux", "-a", "-race", "-tags", "daemon")
+		var err error
+		beforeSuite.GardenPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux", "-a", "-race", "-tags", "daemon")
 		Ω(err).ShouldNot(HaveOccurred())
-		return []byte(gardenPath)
-	}, func(gardenPath []byte) {
-		gardenBin = string(gardenPath)
+
+		os.Setenv("CGO_ENABLED", "0")
+		beforeSuite.NetdogPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/integration/networking/netdog", "-a")
+		Ω(err).ShouldNot(HaveOccurred())
+
+		ips, err := net.LookupIP("www.example.com")
+		Ω(err).ShouldNot(HaveOccurred())
+		Ω(ips).ShouldNot(BeEmpty())
+		beforeSuite.ExampleDotCom = ips[0]
+
+		b, err := json.Marshal(beforeSuite)
+		Ω(err).ShouldNot(HaveOccurred())
+
+		return b
+	}, func(paths []byte) {
+		err := json.Unmarshal(paths, &beforeSuite)
+		Ω(err).ShouldNot(HaveOccurred())
+
+		gardenBin = beforeSuite.GardenPath
+		netdogBin = beforeSuite.NetdogPath
+		externalIP = beforeSuite.ExampleDotCom
 	})
 
 	AfterEach(func() {
