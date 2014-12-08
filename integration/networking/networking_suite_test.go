@@ -1,6 +1,7 @@
 package networking_test
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -22,6 +23,7 @@ var rootFSPath = os.Getenv("GARDEN_TEST_ROOTFS")
 var graphPath = os.Getenv("GARDEN_TEST_GRAPHPATH")
 
 var gardenBin string
+var netdogBin string
 
 var gardenRunner *runner.Runner
 var gardenProcess ifrit.Process
@@ -57,12 +59,30 @@ func TestNetworking(t *testing.T) {
 		return
 	}
 
+	var built struct {
+		GardenPath string
+		NetdogPath string
+	}
+
 	SynchronizedBeforeSuite(func() []byte {
-		gardenPath, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux", "-a", "-race", "-tags", "daemon")
+		var err error
+		built.GardenPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux", "-a", "-race", "-tags", "daemon")
 		Ω(err).ShouldNot(HaveOccurred())
-		return []byte(gardenPath)
-	}, func(gardenPath []byte) {
-		gardenBin = string(gardenPath)
+
+		os.Setenv("CGO_ENABLED", "0")
+		built.NetdogPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/integration/networking/netdog", "-a")
+		Ω(err).ShouldNot(HaveOccurred())
+
+		b, err := json.Marshal(built)
+		Ω(err).ShouldNot(HaveOccurred())
+
+		return b
+	}, func(paths []byte) {
+		err := json.Unmarshal(paths, &built)
+		Ω(err).ShouldNot(HaveOccurred())
+
+		gardenBin = built.GardenPath
+		netdogBin = built.NetdogPath
 	})
 
 	AfterEach(func() {
