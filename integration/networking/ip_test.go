@@ -120,10 +120,10 @@ var _ = Describe("IP settings", func() {
 		})
 
 		It("is reachable from the host", func() {
-			info, ierr := container1.Info()
+			info1, ierr := container1.Info()
 			Ω(ierr).ShouldNot(HaveOccurred())
 
-			out, err := exec.Command("/bin/ping", "-c 2", info.ContainerIP).Output()
+			out, err := exec.Command("/bin/ping", "-c 2", info1.ContainerIP).Output()
 			Ω(out).Should(ContainSubstring(" 0% packet loss"))
 			Ω(err).ShouldNot(HaveOccurred())
 		})
@@ -142,11 +142,11 @@ var _ = Describe("IP settings", func() {
 	Describe("another container on the same subnet", func() {
 		BeforeEach(func() {
 			containerNetwork1 = fmt.Sprintf("10.%d.0.0/24", GinkgoParallelNode())
-			containerNetwork2 = fmt.Sprintf("10.%d.0.0/24", GinkgoParallelNode())
+			containerNetwork2 = containerNetwork1
 		})
 
 		It("can reach the first container", func() {
-			info, err := container1.Info()
+			info1, err := container1.Info()
 			Ω(err).ShouldNot(HaveOccurred())
 
 			listener, err := container1.Run(api.ProcessSpec{
@@ -157,7 +157,7 @@ var _ = Describe("IP settings", func() {
 
 			sender, err := container2.Run(api.ProcessSpec{
 				Path: "sh",
-				Args: []string{"-c", fmt.Sprintf("echo hello | nc -w1 %s 8080", info.ContainerIP)},
+				Args: []string{"-c", fmt.Sprintf("echo hello | nc -w1 %s 8080", info1.ContainerIP)},
 			}, api.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -166,10 +166,10 @@ var _ = Describe("IP settings", func() {
 		})
 
 		It("can be reached from the host", func() {
-			info, ierr := container2.Info()
+			info2, ierr := container2.Info()
 			Ω(ierr).ShouldNot(HaveOccurred())
 
-			out, err := exec.Command("/bin/ping", "-c 2", info.ContainerIP).Output()
+			out, err := exec.Command("/bin/ping", "-c 2", info2.ContainerIP).Output()
 			Ω(out).Should(ContainSubstring(" 0% packet loss"))
 			Ω(err).ShouldNot(HaveOccurred())
 		})
@@ -186,7 +186,7 @@ var _ = Describe("IP settings", func() {
 
 		Context("when the first container is deleted", func() {
 			JustBeforeEach(func() {
-				client.Destroy(container1.Handle())
+				Ω(client.Destroy(container1.Handle())).Should(Succeed())
 				container1 = nil
 			})
 
@@ -202,10 +202,10 @@ var _ = Describe("IP settings", func() {
 				})
 
 				It("can still be reached from the host", func() {
-					info, ierr := container2.Info()
+					info2, ierr := container2.Info()
 					Ω(ierr).ShouldNot(HaveOccurred())
 
-					out, err := exec.Command("/bin/ping", "-c 2", info.ContainerIP).Output()
+					out, err := exec.Command("/bin/ping", "-c 2", info2.ContainerIP).Output()
 					Ω(out).Should(ContainSubstring(" 0% packet loss"))
 					Ω(err).ShouldNot(HaveOccurred())
 				})
@@ -238,7 +238,7 @@ var _ = Describe("IP settings", func() {
 				})
 
 				It("can reach the second container", func() {
-					info, err := container2.Info()
+					info2, err := container2.Info()
 					Ω(err).ShouldNot(HaveOccurred())
 
 					listener, err := container2.Run(api.ProcessSpec{
@@ -249,7 +249,7 @@ var _ = Describe("IP settings", func() {
 
 					sender, err := container3.Run(api.ProcessSpec{
 						Path: "sh",
-						Args: []string{"-c", fmt.Sprintf("echo hello | nc -w1 %s 8080", info.ContainerIP)},
+						Args: []string{"-c", fmt.Sprintf("echo hello | nc -w1 %s 8080", info2.ContainerIP)},
 					}, api.ProcessIO{})
 					Ω(err).ShouldNot(HaveOccurred())
 
@@ -258,10 +258,10 @@ var _ = Describe("IP settings", func() {
 				})
 
 				It("can be reached from the host", func() {
-					info, ierr := container3.Info()
+					info3, ierr := container3.Info()
 					Ω(ierr).ShouldNot(HaveOccurred())
 
-					out, err := exec.Command("/bin/ping", "-c 2", info.ContainerIP).Output()
+					out, err := exec.Command("/bin/ping", "-c 2", info3.ContainerIP).Output()
 					Ω(out).Should(ContainSubstring(" 0% packet loss"))
 					Ω(err).ShouldNot(HaveOccurred())
 				})
@@ -275,13 +275,13 @@ var _ = Describe("IP settings", func() {
 		})
 
 		It("is reachable from inside the container", func() {
-			info, ierr := container1.Info()
+			info1, ierr := container1.Info()
 			Ω(ierr).ShouldNot(HaveOccurred())
 
 			stdout := gbytes.NewBuffer()
 			stderr := gbytes.NewBuffer()
 
-			listener, err := net.Listen("tcp", fmt.Sprintf("%s:0", info.HostIP))
+			listener, err := net.Listen("tcp", fmt.Sprintf("%s:0", info1.HostIP))
 			Ω(err).ShouldNot(HaveOccurred())
 			defer listener.Close()
 
@@ -294,7 +294,7 @@ var _ = Describe("IP settings", func() {
 
 			process, err := container1.Run(api.ProcessSpec{
 				Path: "sh",
-				Args: []string{"-c", fmt.Sprintf("(echo 'GET /test HTTP/1.1'; echo 'Host: foo.com'; echo) | nc %s %s", info.HostIP, strings.Split(listener.Addr().String(), ":")[1])},
+				Args: []string{"-c", fmt.Sprintf("(echo 'GET /test HTTP/1.1'; echo 'Host: foo.com'; echo) | nc %s %s", info1.HostIP, strings.Split(listener.Addr().String(), ":")[1])},
 			}, api.ProcessIO{
 				Stdout: stdout,
 				Stderr: stderr,
@@ -311,13 +311,13 @@ var _ = Describe("IP settings", func() {
 
 	Describe("the container's external ip", func() {
 		It("is the external IP of its host", func() {
-			info, err := container1.Info()
+			info1, err := container1.Info()
 			Ω(err).ShouldNot(HaveOccurred())
 
 			localIP, err := localip.LocalIP()
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Ω(localIP).Should(Equal(info.ExternalIP))
+			Ω(localIP).Should(Equal(info1.ExternalIP))
 		})
 	})
 })
