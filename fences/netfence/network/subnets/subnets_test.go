@@ -4,7 +4,7 @@ import (
 	"net"
 	"runtime"
 
-	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
+	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/subnets"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

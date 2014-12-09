@@ -5,7 +5,7 @@ import (
 	"net"
 
 	"github.com/cloudfoundry-incubator/garden-linux/fences"
-	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
+	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/subnets"
 	"github.com/cloudfoundry/gunk/localip"
 	"github.com/pivotal-golang/lager"
 )

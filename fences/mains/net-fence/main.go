@@ -6,7 +6,7 @@ import (
 	"os"
 
 	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence"
-	"github.com/cloudfoundry-incubator/garden-linux/network"
+	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network"
 	"github.com/pivotal-golang/lager"
 )
 

@@ -4,8 +4,8 @@ import (
 	"errors"
 	"net"
 
-	"github.com/cloudfoundry-incubator/garden-linux/network"
-	"github.com/cloudfoundry-incubator/garden-linux/network/devices/fakedevices"
+	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network"
+	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/devices/fakedevices"
 	"github.com/pivotal-golang/lager/lagertest"
 
 	. "github.com/onsi/ginkgo"

@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cloudfoundry-incubator/garden-linux/network/devices"
+	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/devices"
 	"github.com/docker/libcontainer/netlink"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

@@ -1,7 +1,7 @@
 package network
 
 import "github.com/pivotal-golang/lager"
-import "github.com/cloudfoundry-incubator/garden-linux/network/devices"
+import "github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/devices"
 
 func NewConfigurer(log lager.Logger) *Configurer {
 	return &Configurer{

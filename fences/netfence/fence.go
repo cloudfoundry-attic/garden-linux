@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	"github.com/cloudfoundry-incubator/garden-linux/fences"
-	"github.com/cloudfoundry-incubator/garden-linux/network"
-	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
+	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network"
+	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/subnets"
 	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
 	"github.com/cloudfoundry-incubator/garden/api"
 	"github.com/pivotal-golang/lager"
