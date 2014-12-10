@@ -17,14 +17,11 @@ import (
 
 type FakeDeconfigurer struct {
 	DeconfiguredBridges []string
-	DeconfiguredHosts   []string
 	DestroyReturns      error
 }
 
-func (f *FakeDeconfigurer) DeconfigureHost(logger lager.Logger, hostIfc, bridgeIfc string) error {
+func (f *FakeDeconfigurer) DeconfigureBridge(logger lager.Logger, bridgeIfc string) error {
 	f.DeconfiguredBridges = append(f.DeconfiguredBridges, bridgeIfc)
-	f.DeconfiguredHosts = append(f.DeconfiguredHosts, hostIfc)
-
 	return f.DestroyReturns
 }
 
@@ -226,8 +223,7 @@ var _ = Describe("Fence", func() {
 					Ω(err).Should(HaveOccurred())
 				})
 
-				It("does not attempt to destroy the devices", func() {
-					Ω(fakeDeconfigurer.DeconfiguredHosts).Should(HaveLen(0))
+				It("does not attempt to destroy the bridge", func() {
 					Ω(fakeDeconfigurer.DeconfiguredBridges).Should(HaveLen(0))
 				})
 			})
@@ -250,13 +246,6 @@ var _ = Describe("Fence", func() {
 					Ω(err).ShouldNot(HaveOccurred())
 
 					Ω(fakeSubnetPool.released).Should(ContainElement(fakeAllocation{"1.2.0.0/22", "1.2.0.1"}))
-				})
-
-				It("destroys the host interface", func() {
-					err := allocation.Dismantle()
-					Ω(err).ShouldNot(HaveOccurred())
-
-					Ω(fakeDeconfigurer.DeconfiguredHosts).Should(ContainElement("thehost"))
 				})
 
 				It("does not destroy the bridge", func() {
@@ -285,13 +274,6 @@ var _ = Describe("Fence", func() {
 					Ω(err).ShouldNot(HaveOccurred())
 
 					Ω(fakeSubnetPool.released).Should(ContainElement(fakeAllocation{"1.2.0.0/22", "1.2.0.1"}))
-				})
-
-				It("destroys the host interface", func() {
-					err := allocation.Dismantle()
-					Ω(err).ShouldNot(HaveOccurred())
-
-					Ω(fakeDeconfigurer.DeconfiguredHosts).Should(ContainElement("thehost"))
 				})
 
 				It("destroys the bridge", func() {

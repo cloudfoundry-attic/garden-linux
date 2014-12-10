@@ -19,8 +19,9 @@ type f struct {
 	mtu          uint32
 	externalIP   net.IP
 	deconfigurer interface {
-		DeconfigureHost(logger lager.Logger, hostIfc, bridgeIfc string) error
+		DeconfigureBridge(logger lager.Logger, bridgeIfc string) error
 	}
+
 	log lager.Logger
 }
 
@@ -157,10 +158,10 @@ func (a *Allocation) Dismantle() error {
 	}
 
 	if releasedSubnet {
-		return a.fence.deconfigurer.DeconfigureHost(a.log.Session("deconfigure-host-and-bridge"), a.hostIfc, a.bridgeIfc)
-	} else {
-		return a.fence.deconfigurer.DeconfigureHost(a.log.Session("deconfigure-host"), a.hostIfc, "")
+		return a.fence.deconfigurer.DeconfigureBridge(a.log.Session("deconfigure-bridge"), a.bridgeIfc)
 	}
+
+	return nil
 }
 
 func (a *Allocation) Info(i *api.ContainerInfo) {
