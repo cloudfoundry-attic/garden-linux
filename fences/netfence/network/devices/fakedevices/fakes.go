@@ -51,6 +51,9 @@ type FakeLink struct {
 	AddDefaultGWReturns error
 	SetMTUReturns       error
 	SetNsReturns        error
+
+	DeleteCalledWith []*net.Interface
+	DeleteReturns    error
 }
 
 func (f *FakeLink) AddIP(intf *net.Interface, ip net.IP, subnet *net.IPNet) error {
@@ -93,6 +96,11 @@ func (f *FakeLink) InterfaceByName(name string) (*net.Interface, bool, error) {
 	return nil, false, nil
 }
 
+func (f *FakeLink) Delete(intf *net.Interface) error {
+	f.DeleteCalledWith = append(f.DeleteCalledWith, intf)
+	return f.DeleteReturns
+}
+
 type FakeBridge struct {
 	CreateCalledWith struct {
 		Name   string
@@ -110,6 +118,10 @@ type FakeBridge struct {
 	}
 
 	AddReturns error
+
+	DeleteCalledWith []*net.Interface
+
+	DeleteReturns error
 }
 
 func (f *FakeBridge) Create(name string, ip net.IP, subnet *net.IPNet) (*net.Interface, error) {
@@ -123,4 +135,9 @@ func (f *FakeBridge) Add(bridge, slave *net.Interface) error {
 	f.AddCalledWith.Bridge = bridge
 	f.AddCalledWith.Slave = slave
 	return f.AddReturns
+}
+
+func (f *FakeBridge) Delete(bridge *net.Interface) error {
+	f.DeleteCalledWith = append(f.DeleteCalledWith, bridge)
+	return f.DeleteReturns
 }

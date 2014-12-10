@@ -28,3 +28,7 @@ func (Bridge) Create(name string, ip net.IP, subnet *net.IPNet) (intf *net.Inter
 func (Bridge) Add(bridge, slave *net.Interface) error {
 	return netlink.AddToBridge(slave, bridge)
 }
+
+func (Bridge) Delete(bridge *net.Interface) error {
+	return netlink.DeleteBridge(bridge.Name)
+}

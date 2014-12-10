@@ -83,4 +83,40 @@ var _ = Describe("Bridge Management", func() {
 			})
 		})
 	})
+
+	Describe("Delete", func() {
+		Context("when the bridge exists", func() {
+			It("deletes it", func() {
+				br, err := b.Create(name, ip, subnet)
+				Ω(err).ShouldNot(HaveOccurred())
+
+				// sanity check
+				Ω(interfaceNames()).Should(ContainElement(name))
+
+				// delete
+				Ω(b.Delete(br)).Should(Succeed())
+
+				// should be gone
+				Eventually(interfaceNames).ShouldNot(ContainElement(name))
+			})
+		})
+
+		Context("when the bridge does not exists", func() {
+			It("it returns an error", func() {
+				Ω(b.Delete(&net.Interface{Name: "something"})).ShouldNot(Succeed())
+			})
+		})
+	})
 })
+
+func interfaceNames() []string {
+	intfs, err := net.Interfaces()
+	Ω(err).ShouldNot(HaveOccurred())
+
+	v := make([]string, 0)
+	for _, i := range intfs {
+		v = append(v, i.Name)
+	}
+
+	return v
+}

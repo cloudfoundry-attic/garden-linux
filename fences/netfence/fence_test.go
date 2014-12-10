@@ -6,21 +6,35 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network"
 	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/subnets"
 	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
 	"github.com/cloudfoundry-incubator/garden/api"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/pivotal-golang/lager"
 	"github.com/pivotal-golang/lager/lagertest"
 )
 
+type FakeDeconfigurer struct {
+	DeconfiguredBridges []string
+	DeconfiguredHosts   []string
+	DestroyReturns      error
+}
+
+func (f *FakeDeconfigurer) DeconfigureHost(logger lager.Logger, hostIfc, bridgeIfc string) error {
+	f.DeconfiguredBridges = append(f.DeconfiguredBridges, bridgeIfc)
+	f.DeconfiguredHosts = append(f.DeconfiguredHosts, hostIfc)
+
+	return f.DestroyReturns
+}
+
 var _ = Describe("Fence", func() {
 	var (
-		fakeSubnetPool *fakeSubnets
-		fence          *f
-		syscfg         sysconfig.Config  = sysconfig.NewConfig("")
-		sysconfig      *sysconfig.Config = &syscfg
+		fakeSubnetPool   *fakeSubnets
+		fence            *f
+		syscfg           sysconfig.Config  = sysconfig.NewConfig("")
+		sysconfig        *sysconfig.Config = &syscfg
+		fakeDeconfigurer *FakeDeconfigurer
 	)
 
 	BeforeEach(func() {
@@ -28,13 +42,14 @@ var _ = Describe("Fence", func() {
 		Ω(err).ShouldNot(HaveOccurred())
 
 		fakeSubnetPool = &fakeSubnets{nextSubnet: a}
-		fence = &f{fakeSubnetPool, 1500, net.ParseIP("1.2.3.4"), lagertest.NewTestLogger("fence")}
+		fakeDeconfigurer = &FakeDeconfigurer{}
+		fence = &f{fakeSubnetPool, 1500, net.ParseIP("1.2.3.4"), fakeDeconfigurer, lagertest.NewTestLogger("fence")}
 	})
 
 	Describe("Capacity", func() {
 		It("delegates to Subnets", func() {
 			fakeSubnetPool.capacity = 4
-			fence := &f{fakeSubnetPool, 1500, net.ParseIP("1.2.3.4"), lagertest.NewTestLogger("fence")}
+			fence := &f{fakeSubnetPool, 1500, net.ParseIP("1.2.3.4"), fakeDeconfigurer, lagertest.NewTestLogger("fence")}
 
 			Ω(fence.Capacity()).Should(Equal(4))
 		})
@@ -140,7 +155,7 @@ var _ = Describe("Fence", func() {
 		_, s, err := net.ParseCIDR(subnet)
 		Ω(err).ShouldNot(HaveOccurred())
 
-		return &Allocation{s, net.ParseIP(ip), "", &FakeInterface{Name: "host"}, false, &FakeInterface{Name: "bridge"}, fence, lagertest.NewTestLogger("allocation")}
+		return &Allocation{s, net.ParseIP(ip), "", "host", false, "bridge", fence, lagertest.NewTestLogger("allocation")}
 	}
 
 	It("correctly Strings Allocation instances", func() {
@@ -153,7 +168,11 @@ var _ = Describe("Fence", func() {
 			It("parses the message from JSON, delegates to Subnets, and rebuilds the fence correctly", func() {
 				var err error
 				var md json.RawMessage
-				md, err = allocate("1.2.0.0/28", "1.2.0.5").MarshalJSON()
+
+				ip, s, err := net.ParseCIDR("1.2.0.5/28")
+				original := &Allocation{s, ip, "", "foo", false, "bridge", fence, nil}
+				Ω(err).ShouldNot(HaveOccurred())
+				md, err = original.MarshalJSON()
 				Ω(err).ShouldNot(HaveOccurred())
 
 				recovered, err := fence.Rebuild(&md)
@@ -163,6 +182,12 @@ var _ = Describe("Fence", func() {
 				recoveredAllocation := recovered.(*Allocation)
 				Ω(recoveredAllocation.IPNet.String()).Should(Equal("1.2.0.0/28"))
 				Ω(recoveredAllocation.containerIP.String()).Should(Equal("1.2.0.5"))
+
+				recoveredAllocation.fence = nil
+				original.fence = nil
+				recoveredAllocation.log = nil
+				original.log = nil
+				Ω(recoveredAllocation).Should(Equal(original))
 			})
 		})
 
@@ -186,16 +211,12 @@ var _ = Describe("Fence", func() {
 			Context("when releasing the in-memory allocation fails", func() {
 				var (
 					allocation *Allocation
-					hostIfc    *FakeInterface
-					bridgeIfc  *FakeInterface
 				)
 
 				BeforeEach(func() {
 					allocation = allocate("1.2.0.0/22", "1.2.0.1")
-					hostIfc = &FakeInterface{}
-					bridgeIfc = &FakeInterface{}
-					allocation.hostIfc = hostIfc
-					allocation.bridgeIfc = bridgeIfc
+					allocation.hostIfc = "thehost"
+					allocation.bridgeIfc = "thebridge"
 
 					fakeSubnetPool.releaseError = errors.New("o no")
 				})
@@ -205,30 +226,21 @@ var _ = Describe("Fence", func() {
 					Ω(err).Should(HaveOccurred())
 				})
 
-				It("does not destroy the host interface", func() {
-					allocation.Dismantle()
-					Ω(hostIfc.Destroyed).ShouldNot(BeTrue())
-				})
-
-				It("does not destroy the bridge", func() {
-					allocation.Dismantle()
-					Ω(bridgeIfc.Destroyed).ShouldNot(BeTrue())
+				It("does not attempt to destroy the devices", func() {
+					Ω(fakeDeconfigurer.DeconfiguredHosts).Should(HaveLen(0))
+					Ω(fakeDeconfigurer.DeconfiguredBridges).Should(HaveLen(0))
 				})
 			})
 
 			Context("when the IP is not the final IP in the subnet", func() {
 				var (
 					allocation *Allocation
-					hostIfc    *FakeInterface
-					bridgeIfc  *FakeInterface
 				)
 
 				BeforeEach(func() {
 					allocation = allocate("1.2.0.0/22", "1.2.0.1")
-					hostIfc = &FakeInterface{}
-					bridgeIfc = &FakeInterface{}
-					allocation.hostIfc = hostIfc
-					allocation.bridgeIfc = bridgeIfc
+					allocation.hostIfc = "thehost"
+					allocation.bridgeIfc = "thebridge"
 
 					fakeSubnetPool.releaseReturns = false
 				})
@@ -244,54 +256,28 @@ var _ = Describe("Fence", func() {
 					err := allocation.Dismantle()
 					Ω(err).ShouldNot(HaveOccurred())
 
-					Ω(hostIfc.Destroyed).Should(BeTrue())
-				})
-
-				Context("when destroying the host interface fails", func() {
-					Context("and the device is already gone", func() {
-						It("does not return an error", func() {
-							hostIfc.DestroyReturns = errors.New("no such network interface")
-							Ω(allocation.Dismantle()).Should(Succeed())
-						})
-					})
-
-					Context("and the device still exists", func() {
-						It("returns a wrapped error", func() {
-							hostIfc.DestroyReturns = errors.New("o no")
-
-							err := allocation.Dismantle()
-							Ω(err).Should(MatchError(&network.DeleteLinkError{
-								Cause: hostIfc.DestroyReturns,
-								Role:  "host",
-								Name:  hostIfc.Name,
-							}))
-						})
-					})
+					Ω(fakeDeconfigurer.DeconfiguredHosts).Should(ContainElement("thehost"))
 				})
 
 				It("does not destroy the bridge", func() {
 					err := allocation.Dismantle()
 					Ω(err).ShouldNot(HaveOccurred())
 
-					Ω(bridgeIfc.Destroyed).ShouldNot(BeTrue())
+					Ω(fakeDeconfigurer.DeconfiguredBridges).ShouldNot(ContainElement("thebridge"))
 				})
 			})
 
 			Context("when the final IP in the subnet is released", func() {
 				var (
 					allocation *Allocation
-					hostIfc    *FakeInterface
-					bridgeIfc  *FakeInterface
 				)
 
 				BeforeEach(func() {
 					fakeSubnetPool.releaseReturns = true
 					allocation = allocate("1.2.0.0/22", "1.2.0.1")
 
-					hostIfc = &FakeInterface{}
-					bridgeIfc = &FakeInterface{}
-					allocation.hostIfc = hostIfc
-					allocation.bridgeIfc = bridgeIfc
+					allocation.hostIfc = "thehost"
+					allocation.bridgeIfc = "thebridge"
 				})
 
 				It("releases the subnet", func() {
@@ -305,55 +291,14 @@ var _ = Describe("Fence", func() {
 					err := allocation.Dismantle()
 					Ω(err).ShouldNot(HaveOccurred())
 
-					Ω(hostIfc.Destroyed).Should(BeTrue())
-				})
-
-				Context("when destroying the host interface fails", func() {
-					It("returns an error", func() {
-						hostIfc.DestroyReturns = errors.New("o no")
-
-						err := allocation.Dismantle()
-						Ω(err).Should(HaveOccurred())
-					})
-
-					It("does not destroy the bridge", func() {
-						hostIfc.DestroyReturns = errors.New("o no")
-
-						Ω(allocation.Dismantle()).ShouldNot(Succeed())
-						Ω(bridgeIfc.Destroyed).ShouldNot(BeTrue())
-					})
+					Ω(fakeDeconfigurer.DeconfiguredHosts).Should(ContainElement("thehost"))
 				})
 
 				It("destroys the bridge", func() {
 					err := allocation.Dismantle()
 					Ω(err).ShouldNot(HaveOccurred())
 
-					Ω(bridgeIfc.Destroyed).Should(BeTrue())
-				})
-
-				Context("when destroying the bridge interface fails", func() {
-					Context("and the device is already gone", func() {
-						It("does not return an error", func() {
-							bridgeIfc.DestroyReturns = errors.New("no such network interface")
-							Ω(allocation.Dismantle()).Should(Succeed())
-						})
-
-						It("logs a warning", func() {
-						})
-					})
-
-					Context("and the device still exists", func() {
-						It("returns an error", func() {
-							bridgeIfc.DestroyReturns = errors.New("o no")
-
-							err := allocation.Dismantle()
-							Ω(err).Should(MatchError(&network.DeleteLinkError{
-								Cause: bridgeIfc.DestroyReturns,
-								Role:  "bridge",
-								Name:  bridgeIfc.Name,
-							}))
-						})
-					})
+					Ω(fakeDeconfigurer.DeconfiguredBridges).Should(ContainElement("thebridge"))
 				})
 			})
 		})
@@ -391,7 +336,7 @@ var _ = Describe("Fence", func() {
 					fence.mtu = 123
 
 					env = []string{"foo", "bar"}
-					allocation := &Allocation{ipn, net.ParseIP("4.5.6.1"), "", &FakeInterface{Name: "host"}, false, &FakeInterface{Name: "bridge"}, fence, lagertest.NewTestLogger("allocation")}
+					allocation := &Allocation{ipn, net.ParseIP("4.5.6.1"), "", "host", false, "bridge", fence, lagertest.NewTestLogger("allocation")}
 					allocation.ConfigureProcess(&env)
 				})
 

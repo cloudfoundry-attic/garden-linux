@@ -1,67 +1,67 @@
 package network
 
 import (
-	"fmt"
+	"net"
 
-	"github.com/docker/libcontainer/netlink"
 	"github.com/pivotal-golang/lager"
 )
 
-type Destroyer interface {
-	Destroy() error
-}
+type Deconfigurer struct {
+	Finder interface {
+		InterfaceByName(name string) (*net.Interface, bool, error)
+	}
 
-type StringerDestroyer interface {
-	fmt.Stringer
-	Destroyer
+	HostDeleter interface {
+		Delete(bridge *net.Interface) error
+	}
+
+	BridgeDeleter interface {
+		Delete(bridge *net.Interface) error
+	}
 }
 
 // deconfigureHost undoes the effects of ConfigureHost.
 // An empty bridge interface name should be specified if no bridge is to be deleted.
-func DeconfigureHost(log lager.Logger, hostIfc StringerDestroyer, bridgeIfc StringerDestroyer) error {
-	log.Debug("destroy-host-ifc", lager.Data{"name": hostIfc.String()})
-	if err := hostIfc.Destroy(); err != nil && err.Error() != "no such network interface" {
+func (d *Deconfigurer) DeconfigureHost(log lager.Logger, hostIfc string, bridgeIfc string) error {
+	log.Debug("destroy-host-ifc", lager.Data{"name": hostIfc})
+	if err := d.deleteHost(hostIfc); err != nil {
 		log.Error("destroy-host-ifc", err)
 		return &DeleteLinkError{
 			Cause: err,
 			Role:  "host",
-			Name:  hostIfc.String(),
+			Name:  hostIfc,
 		}
 	}
 
-	if bridgeIfc == nil {
+	if bridgeIfc == "" {
 		return nil
 	}
 
-	log.Debug("destroy-bridge-ifc", lager.Data{"name": bridgeIfc.String()})
-	if err := bridgeIfc.Destroy(); err != nil && err.Error() != "no such network interface" {
+	log.Debug("destroy-bridge-ifc", lager.Data{"name": bridgeIfc})
+	if err := d.deleteBridge(bridgeIfc); err != nil {
 		log.Error("destroy-bridge-ifc", err)
 		return &DeleteLinkError{
 			Cause: err,
 			Role:  "bridge",
-			Name:  bridgeIfc.String(),
+			Name:  bridgeIfc,
 		}
 	}
 
 	return nil
 }
 
-type DestroyableInterface string
-
-func (d DestroyableInterface) Destroy() error {
-	return netlink.NetworkLinkDel(string(d))
+func (d *Deconfigurer) deleteHost(name string) error {
+	if intf, found, err := d.Finder.InterfaceByName(name); err != nil || !found {
+		return err
+	} else {
+		return d.HostDeleter.Delete(intf)
+	}
 }
 
-func (d DestroyableInterface) String() string {
-	return string(d)
-}
-
-type DestroyableBridge string
-
-func (d DestroyableBridge) Destroy() error {
-	return netlink.DeleteBridge(string(d))
-}
-
-func (d DestroyableBridge) String() string {
-	return string(d)
+func (d *Deconfigurer) deleteBridge(name string) error {
+	if intf, found, err := d.Finder.InterfaceByName(name); err != nil || !found {
+		return err
+	} else {
+		return d.BridgeDeleter.Delete(intf)
+	}
 }
