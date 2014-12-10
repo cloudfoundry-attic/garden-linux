@@ -143,10 +143,6 @@ type Allocation struct {
 	log             lager.Logger
 }
 
-type Destroyer interface {
-	Destroy() error
-}
-
 func (a *Allocation) String() string {
 	return fmt.Sprintf("%#v", *a)
 }
