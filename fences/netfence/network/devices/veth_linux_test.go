@@ -5,7 +5,6 @@ import (
 	"net"
 
 	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/devices"
-	"github.com/docker/libcontainer/netlink"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -57,10 +56,3 @@ var _ = Describe("Veth Pair Creation", func() {
 		})
 	})
 })
-
-func cleanup(intfName string) error {
-	if _, err := net.InterfaceByName(intfName); err == nil {
-		return netlink.NetworkLinkDel(intfName)
-	}
-	return nil
-}
