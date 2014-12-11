@@ -2,7 +2,7 @@ package fakedevices
 
 import "net"
 
-type FakeVethCreater struct {
+type FaveVethCreator struct {
 	CreateCalledWith struct {
 		HostIfcName, ContainerIfcName string
 	}
@@ -13,7 +13,7 @@ type FakeVethCreater struct {
 	}
 }
 
-func (f *FakeVethCreater) Create(hostIfcName, containerIfcName string) (*net.Interface, *net.Interface, error) {
+func (f *FaveVethCreator) Create(hostIfcName, containerIfcName string) (*net.Interface, *net.Interface, error) {
 	f.CreateCalledWith.HostIfcName = hostIfcName
 	f.CreateCalledWith.ContainerIfcName = containerIfcName
 

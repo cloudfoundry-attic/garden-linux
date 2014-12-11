@@ -17,7 +17,7 @@ var testError = errors.New("test error")
 var _ = Describe("Configure", func() {
 	Describe("ConfigureHost", func() {
 		var (
-			vethCreater    *fakedevices.FakeVethCreater
+			vethCreator    *fakedevices.FaveVethCreator
 			linkConfigurer *fakedevices.FakeLink
 			bridger        *fakedevices.FakeBridge
 
@@ -25,38 +25,38 @@ var _ = Describe("Configure", func() {
 		)
 
 		BeforeEach(func() {
-			vethCreater = &fakedevices.FakeVethCreater{}
+			vethCreator = &fakedevices.FaveVethCreator{}
 			linkConfigurer = &fakedevices.FakeLink{AddIPReturns: make(map[string]error)}
 			bridger = &fakedevices.FakeBridge{}
-			configurer = &network.Configurer{Veth: vethCreater, Link: linkConfigurer, Bridge: bridger, Logger: lagertest.NewTestLogger("test")}
+			configurer = &network.Configurer{Veth: vethCreator, Link: linkConfigurer, Bridge: bridger, Logger: lagertest.NewTestLogger("test")}
 		})
 
 		It("creates a virtual ethernet pair", func() {
 			Ω(configurer.ConfigureHost("host", "container", "", 0, nil, nil, 0)).Should(Succeed())
 
-			Ω(vethCreater.CreateCalledWith.HostIfcName).Should(Equal("host"))
-			Ω(vethCreater.CreateCalledWith.ContainerIfcName).Should(Equal("container"))
+			Ω(vethCreator.CreateCalledWith.HostIfcName).Should(Equal("host"))
+			Ω(vethCreator.CreateCalledWith.ContainerIfcName).Should(Equal("container"))
 		})
 
 		Context("when creating the pair fails", func() {
 			It("returns a wrapped error", func() {
-				vethCreater.CreateReturns.Err = errors.New("foo bar baz")
+				vethCreator.CreateReturns.Err = errors.New("foo bar baz")
 				err := configurer.ConfigureHost("host", "container", "", 0, nil, nil, 0)
 				Ω(err).Should(HaveOccurred())
-				Ω(err).Should(MatchError(&network.VethPairCreationError{vethCreater.CreateReturns.Err, "host", "container"}))
+				Ω(err).Should(MatchError(&network.VethPairCreationError{vethCreator.CreateReturns.Err, "host", "container"}))
 			})
 		})
 
 		Context("when creating the pair succeeds", func() {
 			BeforeEach(func() {
-				vethCreater.CreateReturns.Host = &net.Interface{Name: "the-host"}
-				vethCreater.CreateReturns.Container = &net.Interface{Name: "the-container"}
+				vethCreator.CreateReturns.Host = &net.Interface{Name: "the-host"}
+				vethCreator.CreateReturns.Container = &net.Interface{Name: "the-container"}
 			})
 
 			It("should set mtu on the host interface", func() {
 				Ω(configurer.ConfigureHost("host", "", "", 0, nil, nil, 123)).Should(Succeed())
 
-				Ω(linkConfigurer.SetMTUCalledWith.Interface).Should(Equal(vethCreater.CreateReturns.Host))
+				Ω(linkConfigurer.SetMTUCalledWith.Interface).Should(Equal(vethCreator.CreateReturns.Host))
 				Ω(linkConfigurer.SetMTUCalledWith.MTU).Should(Equal(123))
 			})
 
@@ -64,7 +64,7 @@ var _ = Describe("Configure", func() {
 				It("returns a wrapped error", func() {
 					linkConfigurer.SetMTUReturns = errors.New("o no")
 					err := configurer.ConfigureHost("host", "container", "", 0, nil, nil, 14)
-					Ω(err).Should(MatchError(&network.MTUError{linkConfigurer.SetMTUReturns, vethCreater.CreateReturns.Host, 14}))
+					Ω(err).Should(MatchError(&network.MTUError{linkConfigurer.SetMTUReturns, vethCreator.CreateReturns.Host, 14}))
 				})
 			})
 
@@ -77,7 +77,7 @@ var _ = Describe("Configure", func() {
 				It("returns a wrapped error", func() {
 					linkConfigurer.SetNsReturns = errors.New("o no")
 					err := configurer.ConfigureHost("", "", "", 3, nil, nil, 0)
-					Ω(err).Should(MatchError(&network.SetNsFailedError{linkConfigurer.SetNsReturns, vethCreater.CreateReturns.Container, 3}))
+					Ω(err).Should(MatchError(&network.SetNsFailedError{linkConfigurer.SetNsReturns, vethCreator.CreateReturns.Container, 3}))
 				})
 			})
 
@@ -115,7 +115,7 @@ var _ = Describe("Configure", func() {
 							It("returns a wrapped error", func() {
 								bridger.AddReturns = errors.New("is it a bird?")
 								err := configurer.ConfigureHost("", "", "", 0, nil, nil, 0)
-								Ω(err).Should(MatchError(&network.AddToBridgeError{bridger.AddReturns, bridger.CreateReturns.Interface, vethCreater.CreateReturns.Host}))
+								Ω(err).Should(MatchError(&network.AddToBridgeError{bridger.AddReturns, bridger.CreateReturns.Interface, vethCreator.CreateReturns.Host}))
 							})
 						})
 
@@ -170,14 +170,14 @@ var _ = Describe("Configure", func() {
 
 			It("brings the host interface up", func() {
 				Ω(configurer.ConfigureHost("", "", "", 0, nil, nil, 0)).Should(Succeed())
-				Ω(linkConfigurer.SetUpCalledWith).Should(ContainElement(vethCreater.CreateReturns.Host))
+				Ω(linkConfigurer.SetUpCalledWith).Should(ContainElement(vethCreator.CreateReturns.Host))
 			})
 
 			Context("when bringing the host interface up fails", func() {
 				It("returns a wrapped error", func() {
 					cause := errors.New("there's jam in this sandwich and it's not ok")
 					linkConfigurer.SetUpFunc = func(intf *net.Interface) error {
-						if vethCreater.CreateReturns.Host == intf {
+						if vethCreator.CreateReturns.Host == intf {
 							return cause
 						}
 
@@ -185,7 +185,7 @@ var _ = Describe("Configure", func() {
 					}
 
 					err := configurer.ConfigureHost("", "", "", 0, nil, nil, 0)
-					Ω(err).Should(MatchError(&network.LinkUpError{cause, vethCreater.CreateReturns.Host, "host"}))
+					Ω(err).Should(MatchError(&network.LinkUpError{cause, vethCreator.CreateReturns.Host, "host"}))
 				})
 			})
 		})
