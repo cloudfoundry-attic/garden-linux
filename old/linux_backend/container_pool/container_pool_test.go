@@ -43,6 +43,7 @@ var _ = Describe("Container pool", func() {
 	var defaultFakeRootFSProvider *fake_rootfs_provider.FakeRootFSProvider
 	var fakeRootFSProvider *fake_rootfs_provider.FakeRootFSProvider
 	var pool *container_pool.LinuxContainerPool
+	var config sysconfig.Config
 
 	BeforeEach(func() {
 		_, ipNet, err := net.ParseCIDR("1.2.0.0/20")
@@ -61,11 +62,12 @@ var _ = Describe("Container pool", func() {
 		depotPath, err = ioutil.TempDir("", "depot-path")
 		Ω(err).ShouldNot(HaveOccurred())
 
+		config = sysconfig.NewConfig("0")
 		pool = container_pool.New(
 			lagertest.NewTestLogger("test"),
 			"/root/path",
 			depotPath,
-			sysconfig.NewConfig("0"),
+			config,
 			map[string]rootfs_provider.RootFSProvider{
 				"":     defaultFakeRootFSProvider,
 				"fake": fakeRootFSProvider,
@@ -73,8 +75,8 @@ var _ = Describe("Container pool", func() {
 			fakeUIDPool,
 			fakeFences,
 			fakePortPool,
-			[]string{"1.1.0.0/16", "2.2.0.0/16"},
-			[]string{"1.1.1.1/32", "2.2.2.2/32"},
+			[]string{"1.1.0.0/16", "", "2.2.0.0/16"}, // empty string to test that this is ignored
+			[]string{"1.1.1.1/32", "", "2.2.2.2/32"},
 			fakeRunner,
 			fakeQuotaManager,
 		)
@@ -118,8 +120,6 @@ var _ = Describe("Container pool", func() {
 				fake_command_runner.CommandSpec{
 					Path: "/root/path/setup.sh",
 					Env: []string{
-						"DENY_NETWORKS=1.1.0.0/16 2.2.0.0/16",
-						"ALLOW_NETWORKS=1.1.1.1/32 2.2.2.2/32",
 						"CONTAINER_DEPOT_PATH=" + depotPath,
 						"CONTAINER_DEPOT_MOUNT_POINT_PATH=/depot/mount/point",
 						"DISK_QUOTA_ENABLED=true",
@@ -128,7 +128,6 @@ var _ = Describe("Container pool", func() {
 					},
 				},
 			))
-
 		})
 
 		Context("when setup.sh fails", func() {
@@ -147,6 +146,54 @@ var _ = Describe("Container pool", func() {
 			It("returns the error", func() {
 				err := pool.Setup()
 				Ω(err).Should(Equal(nastyError))
+			})
+		})
+
+		Describe("Setting up IPTables", func() {
+			It("sets up global allow and deny rules, adding allow before deny", func() {
+				err := pool.Setup()
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Ω(fakeRunner).Should(HaveExecutedSerially(
+					fake_command_runner.CommandSpec{
+						Path: "/root/path/setup.sh", // must run iptables rules after setup.sh
+					},
+					fake_command_runner.CommandSpec{
+						Path: "/sbin/iptables",
+						Args: []string{"-w", "-A", config.IPTables.Filter.DefaultChain, "--destination", "1.1.1.1/32", "--jump", "RETURN"},
+					},
+					fake_command_runner.CommandSpec{
+						Path: "/sbin/iptables",
+						Args: []string{"-w", "-A", config.IPTables.Filter.DefaultChain, "--destination", "2.2.2.2/32", "--jump", "RETURN"},
+					},
+					fake_command_runner.CommandSpec{
+						Path: "/sbin/iptables",
+						Args: []string{"-w", "-A", config.IPTables.Filter.DefaultChain, "--destination", "1.1.0.0/16", "--jump", "REJECT"},
+					},
+					fake_command_runner.CommandSpec{
+						Path: "/sbin/iptables",
+						Args: []string{"-w", "-A", config.IPTables.Filter.DefaultChain, "--destination", "2.2.0.0/16", "--jump", "REJECT"},
+					},
+				))
+			})
+
+			Context("when setting up a rule fails", func() {
+				nastyError := errors.New("oh no!")
+
+				BeforeEach(func() {
+					fakeRunner.WhenRunning(
+						fake_command_runner.CommandSpec{
+							Path: "/sbin/iptables",
+						}, func(*exec.Cmd) error {
+							return nastyError
+						},
+					)
+				})
+
+				It("returns a wrapped error", func() {
+					err := pool.Setup()
+					Ω(err).Should(MatchError("container_pool: setting up allow rules in iptables: oh no!"))
+				})
 			})
 		})
 	})
