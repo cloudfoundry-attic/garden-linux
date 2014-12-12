@@ -9,6 +9,9 @@ cd $(dirname $0)/../
 
 source etc/config
 
+# write uid map if user namespacing is enabled
+if [ "$root_uid" -ne 0 ]
+then
 cat > /proc/$PID/uid_map <<EOF
 0 $root_uid 1
 $user_uid $user_uid 1
@@ -18,6 +21,7 @@ cat > /proc/$PID/gid_map <<EOF
 0 $root_uid 1
 $user_uid $user_uid 1
 EOF
+fi
 
 # Add new group for every subsystem
 

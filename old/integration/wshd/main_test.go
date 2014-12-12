@@ -72,12 +72,12 @@ set -o errexit
 
 cd $(dirname $0)/../
 
-cat > /proc/$PID/uid_map <<EOF
+cat > /proc/$PID/uid_map <<EOF || true
 0 0 1
 10000 10000 1
 EOF
 
-cat > /proc/$PID/gid_map <<EOF
+cat > /proc/$PID/gid_map <<EOF || true
 0 0 1
 10000 10000 1
 EOF
