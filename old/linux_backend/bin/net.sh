@@ -13,10 +13,6 @@ nat_postrouting_chain="${GARDEN_IPTABLES_NAT_POSTROUTING_CHAIN}"
 nat_instance_prefix="${GARDEN_IPTABLES_NAT_INSTANCE_PREFIX}"
 interface_name_prefix="${GARDEN_NETWORK_INTERFACE_PREFIX}"
 
-# Default ALLOW_NETWORKS/DENY_NETWORKS to empty
-ALLOW_NETWORKS=${ALLOW_NETWORKS:-}
-DENY_NETWORKS=${DENY_NETWORKS:-}
-
 function teardown_deprecated_rules() {
   # Remove jump to garden-dispatch from INPUT
   iptables -w -S INPUT 2> /dev/null |
@@ -80,24 +76,6 @@ function setup_filter() {
 
   # Always allow established connections to containers
   iptables -w -A ${filter_default_chain} -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
-
-  for n in ${ALLOW_NETWORKS}; do
-    if [ "$n" == "" ]
-    then
-      break
-    fi
-
-    iptables -w -A ${filter_default_chain} --destination "$n" --jump RETURN
-  done
-
-  for n in ${DENY_NETWORKS}; do
-    if [ "$n" == "" ]
-    then
-      break
-    fi
-
-    iptables -w -A ${filter_default_chain} --destination "$n" --jump DROP
-  done
 
   # Forward outbound traffic via ${filter_forward_chain}
   iptables -w -A FORWARD -i ${GARDEN_NETWORK_INTERFACE_PREFIX}+ --jump ${filter_forward_chain}

@@ -43,6 +43,9 @@ struct wshd_s {
   /* Process title */
   char title[32];
 
+  /* Extra flags to pass to clone operation */
+  int clone_flags;
+
   /* File descriptor of listening socket */
   int fd;
 
@@ -77,6 +80,10 @@ int wshd__usage(wshd_t *w, int argc, char **argv) {
     "Process title"
     "\n");
 
+  fprintf(stderr, "  --userns 1 "
+    "If specified, use user namespacing"
+    "\n");
+
   return 0;
 }
 
@@ -85,6 +92,7 @@ int wshd__getopt(wshd_t *w, int argc, char **argv) {
   int j = argc - i;
   int rv;
 
+  w->clone_flags = 0;
   while (i < argc) {
     if (j >= 2) {
       if (strcmp("--run", argv[i]) == 0) {
@@ -106,6 +114,10 @@ int wshd__getopt(wshd_t *w, int argc, char **argv) {
         rv = snprintf(w->title, sizeof(w->title), "%s", argv[i+1]);
         if (rv >= sizeof(w->title)) {
           goto toolong;
+        }
+      } else if (strcmp("--userns", argv[i]) == 0) {
+        if (strcmp("disabled", argv[i+1]) != 0) {
+          w->clone_flags = CLONE_NEWUSER;
         }
       } else {
         goto invalid;
@@ -819,7 +831,7 @@ pid_t child_start(wshd_t *w) {
   flags |= CLONE_NEWNS;
   flags |= CLONE_NEWPID;
   flags |= CLONE_NEWUTS;
-  flags |= CLONE_NEWUSER;
+  flags |= w->clone_flags;
 
   pid = clone(child_run, stack, flags, w);
   if (pid == -1) {
