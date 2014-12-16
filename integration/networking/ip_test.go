@@ -131,7 +131,7 @@ var _ = Describe("IP settings", func() {
 		It("can reach external networks", func() {
 			sender, err := container1.Run(api.ProcessSpec{
 				Path: "sh",
-				Args: []string{"-c", "nc -w4 8.8.8.8 53"},
+				Args: []string{"-c", fmt.Sprintf("nc -w4 %s 80", externalIP)},
 			}, api.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -177,7 +177,7 @@ var _ = Describe("IP settings", func() {
 		It("can reach external networks", func() {
 			sender, err := container2.Run(api.ProcessSpec{
 				Path: "sh",
-				Args: []string{"-c", "nc -w4 8.8.8.8 53"},
+				Args: []string{"-c", fmt.Sprintf("nc -w4 %s 80", externalIP)},
 			}, api.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -194,7 +194,7 @@ var _ = Describe("IP settings", func() {
 				It("can still reach external networks", func() {
 					sender, err := container2.Run(api.ProcessSpec{
 						Path: "sh",
-						Args: []string{"-c", "nc -w4 8.8.8.8 53"},
+						Args: []string{"-c", fmt.Sprintf("nc -w4 %s 80", externalIP)},
 					}, api.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
 					Ω(err).ShouldNot(HaveOccurred())
 
@@ -230,7 +230,7 @@ var _ = Describe("IP settings", func() {
 				It("can reach external networks", func() {
 					sender, err := container3.Run(api.ProcessSpec{
 						Path: "sh",
-						Args: []string{"-c", "nc -w4 8.8.8.8 53"},
+						Args: []string{"-c", fmt.Sprintf("nc -w4 %s 80", externalIP)},
 					}, api.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
 					Ω(err).ShouldNot(HaveOccurred())
 
