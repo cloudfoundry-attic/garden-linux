@@ -3,7 +3,6 @@ package lifecycle_test
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"path/filepath"
@@ -32,9 +31,6 @@ var _ = Describe("When nested", func() {
 		var err error
 		client = startGarden()
 
-		tmpdir, err := ioutil.TempDir("", "nested-garden-test")
-		Ω(err).ShouldNot(HaveOccurred())
-
 		absoluteBinPath, err := filepath.Abs(binPath)
 		Ω(err).ShouldNot(HaveOccurred())
 
@@ -62,11 +58,6 @@ var _ = Describe("When nested", func() {
 					SrcPath: rootFSPath,
 					DstPath: "/home/vcap/rootfs",
 					Mode:    api.BindMountModeRO,
-				},
-				{
-					SrcPath: tmpdir,
-					DstPath: "/tmp/nested/",
-					Mode:    api.BindMountModeRW,
 				},
 			},
 		})
