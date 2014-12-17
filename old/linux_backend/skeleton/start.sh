@@ -17,4 +17,9 @@ fi
 
 ./net.sh setup
 
-./bin/wshd --run ./run --lib ./lib --root $rootfs_path --title "wshd: $id"
+if [ "$root_uid" -eq 0 ]
+then
+  ./bin/wshd --run ./run --lib ./lib --root $rootfs_path --title "wshd: $id" --userns disabled
+else
+  ./bin/wshd --run ./run --lib ./lib --root $rootfs_path --title "wshd: $id" --userns enabled
+fi

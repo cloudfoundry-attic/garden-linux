@@ -19,6 +19,7 @@ import (
 	"github.com/pivotal-golang/lager"
 
 	"github.com/cloudfoundry-incubator/garden-linux/fences"
+	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/iptables"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/cgroups_manager"
@@ -119,8 +120,6 @@ func (p *LinuxContainerPool) MaxContainers() int {
 func (p *LinuxContainerPool) Setup() error {
 	setup := exec.Command(path.Join(p.binPath, "setup.sh"))
 	setup.Env = []string{
-		"DENY_NETWORKS=" + formatNetworks(p.denyNetworks),
-		"ALLOW_NETWORKS=" + formatNetworks(p.allowNetworks),
 		"CONTAINER_DEPOT_PATH=" + p.depotPath,
 		"CONTAINER_DEPOT_MOUNT_POINT_PATH=" + p.quotaManager.MountPoint(),
 		fmt.Sprintf("DISK_QUOTA_ENABLED=%v", p.quotaManager.IsEnabled()),
@@ -130,6 +129,41 @@ func (p *LinuxContainerPool) Setup() error {
 	err := p.runner.Run(setup)
 	if err != nil {
 		return err
+	}
+
+	return p.setupIPTables()
+}
+
+func (p *LinuxContainerPool) setupIPTables() error {
+	defaultChain := &iptables.Chain{Name: p.sysconfig.IPTables.Filter.DefaultChain, Runner: p.runner}
+	for _, n := range p.allowNetworks {
+		if n == "" {
+			continue
+		}
+
+		err := defaultChain.Create(&iptables.Rule{
+			Destination: n,
+			Jump:        iptables.Return,
+		})
+
+		if err != nil {
+			return fmt.Errorf("container_pool: setting up allow rules in iptables: %v", err)
+		}
+	}
+
+	for _, n := range p.denyNetworks {
+		if n == "" {
+			continue
+		}
+
+		err := defaultChain.Create(&iptables.Rule{
+			Destination: n,
+			Jump:        iptables.Reject,
+		})
+
+		if err != nil {
+			return fmt.Errorf("container_pool: setting up deny rules in iptables: %v", err)
+		}
 	}
 
 	return nil

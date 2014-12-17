@@ -622,6 +622,25 @@ var _ = Describe("Creating a container", func() {
 			Ω(output).Should(gbytes.Say("vcap"))
 		})
 
+		Context("in a privileged container", func() {
+			BeforeEach(func() {
+				privilegedContainer = true
+			})
+
+			It("streams in relative to the default run directory", func() {
+				err := container.StreamIn(".", tarStream)
+				Ω(err).ShouldNot(HaveOccurred())
+
+				process, err := container.Run(api.ProcessSpec{
+					Path: "test",
+					Args: []string{"-f", "some-temp-dir/some-temp-file"},
+				}, api.ProcessIO{})
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Ω(process.Wait()).Should(Equal(0))
+			})
+		})
+
 		It("streams in relative to the default run directory", func() {
 			err := container.StreamIn(".", tarStream)
 			Ω(err).ShouldNot(HaveOccurred())

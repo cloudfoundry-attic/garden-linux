@@ -37,6 +37,9 @@ function setup_fs_other() {
   overlay_directory_in_rootfs /sbin rw
   overlay_directory_in_rootfs /var rw
 
+  mkdir -p $overlay_path/run
+  overlay_directory_in_rootfs /run rw
+
   mkdir -p $overlay_path/tmp
   chmod 777 $overlay_path/tmp
   overlay_directory_in_rootfs /tmp rw

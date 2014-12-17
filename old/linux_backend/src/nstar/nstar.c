@@ -152,12 +152,8 @@ int main(int argc, char **argv) {
   close(mntnsfd);
 
   /* switch to container's user namespace so that user lookup returns correct uids */
-  rv = setns(usrnsfd, CLONE_NEWUSER);
-  if(rv == -1) {
-    perror("setns user");
-    return 1;
-  }
-  close(usrnsfd);
+  /* we allow this to fail if the container isn't user-namespaced */
+  setns(usrnsfd, CLONE_NEWUSER);
 
   pw = getpwnam(user);
   if(pw == NULL) {

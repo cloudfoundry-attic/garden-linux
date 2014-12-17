@@ -126,8 +126,8 @@ if rm -r "$rootfs_path/root" 2>&1; then
 fi
 rm -rf "$rootfs_path/tmp/root"
 
-# map the root user id in the rootfs to the container root uid
-# this is a noop if the container is privileged (0:0 -> 0:0)
-[ -d "$rootfs_path/root" ] && chown -R --from=0:0 $root_uid:$root_uid "$rootfs_path/root"
+# map the root user id in the rootfs to the container root uid if they
+# differ and if /root exists
+[ -d "$rootfs_path/root" ] && [ "$root_uid" -ne 0 ] && chown -R --from=0:0 $root_uid:$root_uid "$rootfs_path/root"
 
 exit 0 # explicitly exit 0 in case previous line benignly failed
