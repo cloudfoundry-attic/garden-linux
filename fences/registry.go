@@ -35,6 +35,7 @@ type Fence interface {
 	ConfigureProcess(*[]string) error
 	Dismantle() error
 	Info(*api.ContainerInfo)
+	String() string
 }
 
 type Process interface {

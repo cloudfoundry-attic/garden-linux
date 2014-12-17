@@ -66,7 +66,7 @@ func TestNetworking(t *testing.T) {
 	})
 
 	AfterEach(func() {
-		gardenProcess.Signal(syscall.SIGKILL)
+		gardenProcess.Signal(syscall.SIGQUIT)
 		Eventually(gardenProcess.Wait(), "10s").Should(Receive())
 	})
 

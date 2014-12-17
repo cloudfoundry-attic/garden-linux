@@ -303,3 +303,7 @@ func (a *FakeAllocation) MarshalJSON() ([]byte, error) {
 func (a *FakeAllocation) ConfigureProcess(env *[]string) error {
 	return nil
 }
+
+func (a *FakeAllocation) String() string {
+	return "fake allocation"
+}

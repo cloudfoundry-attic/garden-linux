@@ -2187,3 +2187,7 @@ func (f *fakeNetworkResources) Info(i *api.ContainerInfo) {
 	i.HostIP = "fakeHostIp"
 	i.ContainerIP = "fakeContainerIp"
 }
+
+func (f *fakeNetworkResources) String() string {
+	return "fake network resources"
+}

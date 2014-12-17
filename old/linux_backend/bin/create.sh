@@ -14,11 +14,11 @@ fi
 
 target=${1}
 
-if [ -d ${target} ]; then
-  echo "\"${target}\" already exists, aborting..."
+if [ ! -d ${target} ]; then
+  echo "\"${target}\" does not exist, aborting..."
   exit 1
 fi
 
-cp -r skeleton "${target}"
+cp -r skeleton/* "${target}"/.
 unshare -m "${target}"/setup.sh
 echo ${target}

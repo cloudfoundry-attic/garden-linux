@@ -33,7 +33,7 @@ import (
 var ErrUnknownRootFSProvider = errors.New("unknown rootfs provider")
 var ErrNetworkHostbitsNonZero = errors.New("network host bits non-zero")
 
-type FenceBuilders interface {
+type FenceBuilder interface {
 	Rebuild(rm *json.RawMessage) (fences.Fence, error)
 	Build(spec string, sysconfig *sysconfig.Config, containerID string) (fences.Fence, error)
 	Capacity() int
@@ -52,9 +52,10 @@ type LinuxContainerPool struct {
 
 	rootfsProviders map[string]rootfs_provider.RootFSProvider
 
-	uidPool  uid_pool.UIDPool
-	builders FenceBuilders
-	portPool linux_backend.PortPool
+	uidPool        uid_pool.UIDPool
+	builders       FenceBuilder
+	fencePersistor FencePersistor
+	portPool       linux_backend.PortPool
 
 	runner command_runner.CommandRunner
 
@@ -69,7 +70,8 @@ func New(
 	sysconfig sysconfig.Config,
 	rootfsProviders map[string]rootfs_provider.RootFSProvider,
 	uidPool uid_pool.UIDPool,
-	builders FenceBuilders,
+	builders FenceBuilder,
+	fencePersistor FencePersistor,
 	portPool linux_backend.PortPool,
 	denyNetworks, allowNetworks []string,
 	runner command_runner.CommandRunner,
@@ -88,9 +90,10 @@ func New(
 		allowNetworks: allowNetworks,
 		denyNetworks:  denyNetworks,
 
-		uidPool:  uidPool,
-		builders: builders,
-		portPool: portPool,
+		uidPool:        uidPool,
+		builders:       builders,
+		fencePersistor: fencePersistor,
+		portPool:       portPool,
 
 		runner: runner,
 
@@ -139,12 +142,13 @@ func formatNetworks(networks []string) string {
 func (p *LinuxContainerPool) Prune(keep map[string]bool) error {
 	entries, err := ioutil.ReadDir(p.depotPath)
 	if err != nil {
-		return err
+		p.logger.Error("prune-container-pool-path-error", err, lager.Data{"depotPath": p.depotPath})
+		return fmt.Errorf("Cannot read path %q: %s", p.depotPath, err)
 	}
 
 	for _, entry := range entries {
 		id := entry.Name()
-		if id == "tmp" {
+		if id == "tmp" { // ignore temporary directory in depotPath
 			continue
 		}
 
@@ -153,83 +157,35 @@ func (p *LinuxContainerPool) Prune(keep map[string]bool) error {
 			continue
 		}
 
-		pLog := p.logger.Session("prune", lager.Data{
-			"id": id,
-		})
+		p.pruneEntry(id)
+	}
 
-		pLog.Info("pruning")
+	return nil
+}
 
-		containerPath := path.Join(p.depotPath, id)
-		fence, err := p.recoverFence(containerPath)
-		if err != nil {
-			return err
-		}
+// pruneEntry does not report errors, only log them
+func (p *LinuxContainerPool) pruneEntry(id string) {
+	pLog := p.logger.Session("prune", lager.Data{"id": id})
+
+	pLog.Info("prune")
+
+	containerPath := path.Join(p.depotPath, id)
+	fence, err := p.fencePersistor.Recover(containerPath)
+	if err != nil {
+		pLog.Error("fence-recovery-error", err)
+	} else {
 		err = fence.Dismantle()
 		if err != nil {
-			return err
-		}
-
-		err = p.releaseSystemResources(pLog, id)
-		if err != nil {
-			return err
+			pLog.Error("fence-dismantle-error", err)
 		}
 	}
 
-	return nil
-}
-
-type FencePersistor struct {
-	FenceRawMessage *json.RawMessage
-}
-
-func fenceConfigPath(containerPath string) string {
-	return path.Join(containerPath, "fenceConfig.json")
-}
-
-func (p *LinuxContainerPool) persistFence(fence fences.Fence, containerPath string) error {
-	var m json.RawMessage
-	m, err := fence.MarshalJSON()
+	err = p.releaseSystemResources(pLog, id)
 	if err != nil {
-		return err
+		pLog.Error("release-system-resources-error", err)
 	}
 
-	fenceConfigPath := fenceConfigPath(containerPath)
-
-	out, err := os.Create(fenceConfigPath)
-	if err != nil {
-		return err
-	}
-	defer out.Close()
-
-	fp := FencePersistor{&m}
-	err = json.NewEncoder(out).Encode(fp)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (p *LinuxContainerPool) recoverFence(containerPath string) (fences.Fence, error) {
-	fenceConfigPath := fenceConfigPath(containerPath)
-	in, err := os.Open(fenceConfigPath)
-	if err != nil {
-		return nil, err
-	}
-	defer in.Close()
-
-	var fp FencePersistor
-	err = json.NewDecoder(in).Decode(&fp)
-	if err != nil {
-		return nil, err
-	}
-
-	fence, err := p.builders.Rebuild(fp.FenceRawMessage)
-	if err != nil {
-		return nil, err
-	}
-
-	return fence, nil
+	pLog.Info("end of prune")
 }
 
 func (p *LinuxContainerPool) Create(spec api.ContainerSpec) (c linux_backend.Container, err error) {
@@ -247,7 +203,13 @@ func (p *LinuxContainerPool) Create(spec api.ContainerSpec) (c linux_backend.Con
 		p.releasePoolResources(resources)
 	})
 
-	p.persistFence(resources.Network, containerPath)
+	err = p.fencePersistor.Persist(resources.Network, containerPath)
+	if err != nil {
+		if releaseErr := p.releaseSystemResources(pLog, id); releaseErr != nil {
+			pLog.Error("failed-to-release-system-resources", releaseErr)
+		}
+		return nil, err
+	}
 
 	rootFSEnvVars, err := p.acquireSystemResources(id, containerPath, spec.RootFSPath, resources, spec.BindMounts, pLog)
 	if err != nil {

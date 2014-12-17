@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/cloudfoundry-incubator/cf-lager"
 	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence"
 	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network"
 	"github.com/pivotal-golang/lager"
@@ -48,7 +49,7 @@ func main() {
 
 	flag.Parse()
 
-	log := lager.NewLogger("net-fence")
+	log := cf_lager.New("net-fence")
 
 	log.Info("args", lager.Data{
 		"target":           target,

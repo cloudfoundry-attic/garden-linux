@@ -230,6 +230,7 @@ func Main(builders *fences.BuilderRegistry) {
 		rootFSProviders,
 		uidPool,
 		builders,
+		container_pool.NewFencePersistor(logger, builders),
 		portPool,
 		strings.Split(*denyNetworks, ","),
 		strings.Split(*allowNetworks, ","),

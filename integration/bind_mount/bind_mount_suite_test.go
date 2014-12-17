@@ -60,7 +60,7 @@ func TestBindMount(t *testing.T) {
 	})
 
 	SynchronizedAfterSuite(func() {
-		gardenProcess.Signal(syscall.SIGKILL)
+		gardenProcess.Signal(syscall.SIGQUIT)
 		Eventually(gardenProcess.Wait(), 10).Should(Receive())
 	}, func() {
 		gexec.CleanupBuildArtifacts()

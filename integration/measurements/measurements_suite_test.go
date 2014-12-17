@@ -65,7 +65,7 @@ func TestLifecycle(t *testing.T) {
 	})
 
 	AfterEach(func() {
-		gardenProcess.Signal(syscall.SIGKILL)
+		gardenProcess.Signal(syscall.SIGQUIT)
 		Eventually(gardenProcess.Wait(), 5).Should(Receive())
 	})
 

@@ -45,10 +45,17 @@ func startGarden(argv ...string) api.Client {
 }
 
 func restartGarden(argv ...string) {
-	gardenProcess.Signal(syscall.SIGINT)
+	gardenProcess.Signal(syscall.SIGTERM)
 	Eventually(gardenProcess.Wait(), 10).Should(Receive())
 
 	startGarden(argv...)
+}
+
+func ensureGardenRunning() {
+	if err := client.Ping(); err != nil {
+		client = startGarden()
+	}
+	Ω(client.Ping()).ShouldNot(HaveOccurred())
 }
 
 func TestLifecycle(t *testing.T) {
@@ -66,7 +73,8 @@ func TestLifecycle(t *testing.T) {
 	})
 
 	AfterEach(func() {
-		gardenProcess.Signal(syscall.SIGKILL)
+		ensureGardenRunning()
+		gardenProcess.Signal(syscall.SIGQUIT)
 		Eventually(gardenProcess.Wait(), 10).Should(Receive())
 	})
 

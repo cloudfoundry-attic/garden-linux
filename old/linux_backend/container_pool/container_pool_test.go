@@ -21,6 +21,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/fences/fake_fences"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool"
+	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/fake_fence_persistor"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/rootfs_provider/fake_rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/port_pool/fake_port_pool"
@@ -38,6 +39,7 @@ var _ = Describe("Container pool", func() {
 	var fakeRunner *fake_command_runner.FakeCommandRunner
 	var fakeUIDPool *fake_uid_pool.FakeUIDPool
 	var fakeFences *fake_fences.FakeFences
+	var fakeFencePersistor *fake_fence_persistor.FakeFencePersistor
 	var fakeQuotaManager *fake_quota_manager.FakeQuotaManager
 	var fakePortPool *fake_port_pool.FakePortPool
 	var defaultFakeRootFSProvider *fake_rootfs_provider.FakeRootFSProvider
@@ -50,6 +52,11 @@ var _ = Describe("Container pool", func() {
 
 		fakeUIDPool = fake_uid_pool.New(10000)
 		fakeFences = fake_fences.New(ipNet)
+
+		fakeFencePersistor = fake_fence_persistor.New()
+		fakeFencePersistor.RecoverResult, err = fakeFences.Build("", nil, "container id")
+		Ω(err).ShouldNot(HaveOccurred())
+
 		fakeRunner = fake_command_runner.New()
 		fakeQuotaManager = fake_quota_manager.New()
 		fakePortPool = fake_port_pool.New(1000)
@@ -72,6 +79,7 @@ var _ = Describe("Container pool", func() {
 			},
 			fakeUIDPool,
 			fakeFences,
+			fakeFencePersistor,
 			fakePortPool,
 			[]string{"1.1.0.0/16", "2.2.0.0/16"},
 			[]string{"1.1.1.1/32", "2.2.2.2/32"},
@@ -639,6 +647,19 @@ var _ = Describe("Container pool", func() {
 			})
 		})
 
+		Context("when persisting a fence fails", func() {
+			nastyError := errors.New("oh no!")
+
+			JustBeforeEach(func() {
+				fakeFencePersistor.PersistError = nastyError
+			})
+
+			It("returns the error", func() {
+				_, err := pool.Create(api.ContainerSpec{})
+				Ω(err).Should(Equal(nastyError))
+			})
+		})
+
 		Context("when executing create.sh fails", func() {
 			nastyError := errors.New("oh no!")
 
@@ -816,7 +837,7 @@ var _ = Describe("Container pool", func() {
 			disaster := errors.New("oh no!")
 
 			JustBeforeEach(func() {
-				fakeFences.RecoverError = disaster
+				fakeFences.RebuildError = disaster
 			})
 
 			It("returns the error and releases the uid", func() {
@@ -952,9 +973,9 @@ var _ = Describe("Container pool", func() {
 						Ω(err).ShouldNot(HaveOccurred())
 					})
 
-					It("returns ErrUnknownRootFSProvider", func() {
+					It("ignores the error", func() {
 						err := pool.Prune(map[string]bool{})
-						Ω(err).Should(Equal(container_pool.ErrUnknownRootFSProvider))
+						Ω(err).ShouldNot(HaveOccurred())
 					})
 				})
 			})
@@ -966,9 +987,9 @@ var _ = Describe("Container pool", func() {
 					fakeRootFSProvider.CleanupRootFSReturns(disaster)
 				})
 
-				It("returns the error", func() {
+				It("ignores the error", func() {
 					err := pool.Prune(map[string]bool{})
-					Ω(err).Should(Equal(disaster))
+					Ω(err).ShouldNot(HaveOccurred())
 				})
 			})
 
@@ -1009,15 +1030,11 @@ var _ = Describe("Container pool", func() {
 					)
 				})
 
-				It("returns the error", func() {
+				It("ignores the error", func() {
 					err := pool.Prune(map[string]bool{})
-					Ω(err).Should(Equal(disaster))
-				})
+					Ω(err).ShouldNot(HaveOccurred())
 
-				It("does not clean up the container's rootfs", func() {
-					err := pool.Prune(map[string]bool{})
-					Ω(err).Should(HaveOccurred())
-
+					By("and does not clean up the container's rootfs")
 					Ω(fakeRootFSProvider.CleanupRootFSCallCount()).Should(Equal(0))
 				})
 			})
@@ -1152,7 +1169,7 @@ func createJsonFile(name string) error {
 
 	b := []byte("{}")
 	rm := json.RawMessage(b)
-	fp := container_pool.FencePersistor{&rm}
+	fp := container_pool.RawFence{&rm}
 	err = json.NewEncoder(f).Encode(fp)
 	if err != nil {
 		return err

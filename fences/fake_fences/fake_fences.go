@@ -16,8 +16,11 @@ type FakeFences struct {
 
 	InitialPoolSize int
 
-	RecoverError  error
+	RebuildError  error
 	AllocateError error
+	MarshalError  error
+
+	MarshalReturns []byte
 
 	Released  []string
 	Recovered []string
@@ -56,12 +59,12 @@ func (p *FakeFences) Build(spec string, sysconfig *sysconfig.Config, containerID
 }
 
 func (p *FakeFences) Rebuild(rm *json.RawMessage) (fences.Fence, error) {
-	if p.RecoverError != nil {
-		return nil, p.RecoverError
+	if p.RebuildError != nil {
+		return nil, p.RebuildError
 	}
 
 	p.Recovered = append(p.Recovered, string(*rm))
-	return &FakeAllocation{string(*rm), p}, nil
+	return &FakeAllocation{p.ipNet.String(), p}, nil
 }
 
 func (p *FakeFences) Capacity() int {
@@ -85,8 +88,23 @@ func (f *FakeAllocation) ConfigureProcess(env *[]string) error {
 	return nil
 }
 
+type FakeFlatFence struct {
+	Subnet string
+}
+
 func (f *FakeAllocation) MarshalJSON() ([]byte, error) {
-	return nil, nil
+	if f.MarshalError != nil {
+		return nil, f.MarshalError
+	}
+	if f.MarshalReturns != nil {
+		return f.MarshalReturns, nil
+	}
+	ff := FakeFlatFence{f.FakeFences.Allocated[0]}
+	return json.Marshal(ff)
+}
+
+func (f *FakeAllocation) String() string {
+	return "fake allocation"
 }
 
 func inc(ip net.IP) {

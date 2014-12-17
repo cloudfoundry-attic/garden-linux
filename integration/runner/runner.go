@@ -14,6 +14,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden/client/connection"
 	"github.com/onsi/ginkgo"
 	"github.com/pivotal-golang/lager"
+	"github.com/pivotal-golang/lager/lagertest"
 	"github.com/tedsuo/ifrit"
 	"github.com/tedsuo/ifrit/ginkgomon"
 )
@@ -64,8 +65,7 @@ func (r *Runner) DebugAddr() string {
 }
 
 func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
-	logger := lager.NewLogger("garden-runner")
-	logger.RegisterSink(lager.NewWriterSink(ginkgo.GinkgoWriter, lager.DEBUG))
+	logger := lagertest.NewTestLogger("garden-runner")
 
 	err := os.MkdirAll(r.tmpdir, 0755)
 	if err != nil {
@@ -115,12 +115,12 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 		StartCheck:        "garden-linux.started",
 		StartCheckTimeout: 10 * time.Second,
 		Cleanup: func() {
-			if signal == syscall.SIGKILL {
-				logger.Info("removing-tmp-dirs")
+			if signal == syscall.SIGQUIT {
+				logger.Info("cleanup-tempdirs")
 				if err := os.RemoveAll(r.tmpdir); err != nil {
 					logger.Error("cleanup-tempdirs-failed", err, lager.Data{"tmpdir": r.tmpdir})
 				} else {
-					logger.Info("tmp-dirs-removed")
+					logger.Info("tempdirs-removed")
 				}
 			}
 		},
@@ -128,30 +128,29 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 
 	close(ready)
 
-	var waitErr error
-
-dance:
 	for {
 		select {
 		case signal = <-signals:
-			if signal == syscall.SIGKILL {
-				logger.Info("received-sigkill")
+			// SIGQUIT means clean up the containers, the garden process (SIGTERM) and the temporary directories
+			// SIGKILL, SIGTERM and SIGINT are passed through to the garden process
+			if signal == syscall.SIGQUIT {
+				logger.Info("received-signal SIGQUIT")
 				if err := r.destroyContainers(); err != nil {
 					logger.Error("destroy-containers-failed", err)
 					return err
 				}
 				logger.Info("destroyed-containers")
+				process.Signal(syscall.SIGTERM)
+			} else {
+				logger.Info("received-signal", lager.Data{"signal": signal})
+				process.Signal(signal)
 			}
 
-			process.Signal(syscall.SIGTERM)
-		case waitErr = <-process.Wait():
-			break dance
+		case waitErr := <-process.Wait():
+			logger.Info("process-exited")
+			return waitErr
 		}
 	}
-
-	logger.Info("process-exited")
-
-	return waitErr
 }
 
 func (r *Runner) TryDial() error {

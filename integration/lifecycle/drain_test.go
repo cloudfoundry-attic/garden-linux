@@ -15,14 +15,26 @@ import (
 
 var _ = Describe("Through a restart", func() {
 	var container api.Container
+	var gardenArgs []string
 
 	BeforeEach(func() {
-		client = startGarden()
+		gardenArgs = []string{}
+	})
+
+	JustBeforeEach(func() {
+		client = startGarden(gardenArgs...)
 
 		var err error
 
 		container, err = client.Create(api.ContainerSpec{})
 		Ω(err).ShouldNot(HaveOccurred())
+	})
+
+	AfterEach(func() {
+		if container != nil {
+			err := client.Destroy(container.Handle())
+			Ω(err).ShouldNot(HaveOccurred())
+		}
 	})
 
 	It("retains the container list", func() {
@@ -395,17 +407,15 @@ var _ = Describe("Through a restart", func() {
 
 	Describe("a container's grace time", func() {
 		BeforeEach(func() {
-			restartGarden("--containerGraceTime", "5s")
+			gardenArgs = []string{"--containerGraceTime", "5s"}
 		})
 
 		It("is still enforced", func() {
-			container, err := client.Create(api.ContainerSpec{})
-			Ω(err).ShouldNot(HaveOccurred())
-
 			restartGarden()
 
 			Ω(getContainerHandles()).Should(ContainElement(container.Handle()))
 			Eventually(getContainerHandles, 10*time.Second).ShouldNot(ContainElement(container.Handle()))
+			container = nil
 		})
 	})
 })

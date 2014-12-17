@@ -224,7 +224,7 @@ var _ = Describe("Creating a container", func() {
 		})
 
 		It("collects the process's full output, even if it exits quickly after", func() {
-			for i := 0; i < 1000; i++ {
+			for i := 0; i < 500; i++ {
 				stdout := gbytes.NewBuffer()
 
 				process, err := container.Run(api.ProcessSpec{
