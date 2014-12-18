@@ -3,6 +3,7 @@ package linux_backend
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -339,7 +340,7 @@ func (c *LinuxContainer) Restore(snapshot ContainerSnapshot) error {
 	}
 
 	for _, out := range snapshot.NetOuts {
-		err = c.NetOut(out.Network, out.Port)
+		err = c.NetOut(out.Network, out.Port, api.ProtocolTCP)
 		if err != nil {
 			cLog.Error("failed-to-reenforce-allowed-traffic", err)
 			return err
@@ -788,14 +789,29 @@ func (c *LinuxContainer) NetIn(hostPort uint32, containerPort uint32) (uint32, u
 	return hostPort, containerPort, nil
 }
 
-func (c *LinuxContainer) NetOut(network string, port uint32) error {
+func (c *LinuxContainer) NetOut(network string, port uint32, protocol api.Protocol) error {
 	net := exec.Command(path.Join(c.path, "net.sh"), "out")
+
+	protocols := map[api.Protocol]string{
+		api.ProtocolAll: "all",
+		api.ProtocolTCP: "tcp",
+	}
+	protocolString, ok := protocols[protocol]
+
+	if !ok {
+		return fmt.Errorf("invalid protocol: %d", protocol)
+	}
+
+	if port != 0 && protocol != api.ProtocolTCP {
+		return errors.New("invalid rule: a port can only be specified with protocol TCP")
+	}
 
 	if port != 0 {
 		net.Env = []string{
 			"NETWORK=" + network,
 			fmt.Sprintf("PORT=%d", port),
 			"PATH=" + os.Getenv("PATH"),
+			"PROTOCOL=" + protocolString,
 		}
 	} else {
 		if network == "" {
@@ -806,6 +822,7 @@ func (c *LinuxContainer) NetOut(network string, port uint32) error {
 			"NETWORK=" + network,
 			"PORT=",
 			"PATH=" + os.Getenv("PATH"),
+			"PROTOCOL=" + protocolString,
 		}
 	}
 

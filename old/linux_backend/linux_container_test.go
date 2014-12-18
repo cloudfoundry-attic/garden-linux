@@ -131,10 +131,10 @@ var _ = Describe("Linux containers", func() {
 			_, _, err = container.NetIn(3, 4)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			err = container.NetOut("network-a", 1)
+			err = container.NetOut("network-a", 1, api.ProtocolTCP)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			err = container.NetOut("network-b", 2)
+			err = container.NetOut("network-b", 2, api.ProtocolTCP)
 			Ω(err).ShouldNot(HaveOccurred())
 
 			p1 := new(wfakes.FakeProcess)
@@ -1779,8 +1779,8 @@ var _ = Describe("Linux containers", func() {
 	})
 
 	Describe("Net out", func() {
-		It("executes net.sh out with NETWORK and PORT", func() {
-			err := container.NetOut("1.2.3.4/22", 567)
+		It("executes net.sh out with NETWORK, PORT, and PROTOCOL", func() {
+			err := container.NetOut("1.2.3.4/22", 567, api.ProtocolTCP)
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(fakeRunner).Should(HaveExecutedSerially(
@@ -1791,15 +1791,25 @@ var _ = Describe("Linux containers", func() {
 						"NETWORK=1.2.3.4/22",
 						"PORT=567",
 						"PATH=" + os.Getenv("PATH"),
+						"PROTOCOL=tcp",
 					},
 				},
 			))
+		})
 
+		It("does not allow invalid protocols", func() {
+			err := container.NetOut("1.2.3.4/22", 567, api.Protocol(52))
+			Ω(err).Should(MatchError("invalid protocol: 52"))
+		})
+
+		It("does not allow a port to be specified with ProtocolAll", func() {
+			err := container.NetOut("1.2.3.4/22", 567, api.ProtocolAll)
+			Ω(err).Should(MatchError("invalid rule: a port can only be specified with protocol TCP"))
 		})
 
 		Context("when port 0 is given", func() {
 			It("executes with PORT as an empty string", func() {
-				err := container.NetOut("1.2.3.4/22", 0)
+				err := container.NetOut("1.2.3.4/22", 0, api.ProtocolAll)
 				Ω(err).ShouldNot(HaveOccurred())
 
 				Ω(fakeRunner).Should(HaveExecutedSerially(
@@ -1810,6 +1820,7 @@ var _ = Describe("Linux containers", func() {
 							"NETWORK=1.2.3.4/22",
 							"PORT=",
 							"PATH=" + os.Getenv("PATH"),
+							"PROTOCOL=all",
 						},
 					},
 				))
@@ -1818,7 +1829,7 @@ var _ = Describe("Linux containers", func() {
 
 			Context("and a network is not given", func() {
 				It("returns an error", func() {
-					err := container.NetOut("", 0)
+					err := container.NetOut("", 0, api.ProtocolAll)
 					Ω(err).Should(HaveOccurred())
 				})
 			})
@@ -1838,7 +1849,7 @@ var _ = Describe("Linux containers", func() {
 			})
 
 			It("returns the error", func() {
-				err := container.NetOut("1.2.3.4/22", 567)
+				err := container.NetOut("1.2.3.4/22", 0, api.ProtocolAll)
 				Ω(err).Should(Equal(disaster))
 			})
 		})

@@ -68,60 +68,66 @@ var _ = Describe("Net In/Out", func() {
 		return process, out
 	}
 
-	Context("external addresses", func() {
-		ByAllowingTCP := func() {
-			By("allowing outbound tcp traffic", func() {
-				process, _ := runInContainer(
-					container,
-					fmt.Sprintf("(echo 'GET / HTTP/1.1'; echo 'Host: example.com'; echo) | nc -w5 %s 80", externalIP),
-				)
+	FContext("external addresses", func() {
+		var (
+			ByAllowingTCP, ByAllowingICMP, ByRejectingTCP, ByRejectingICMP func()
+		)
 
-				Ω(process.Wait()).Should(Equal(0))
-			})
-		}
+		BeforeEach(func() {
+			ByAllowingTCP = func() {
+				By("allowing outbound tcp traffic", func() {
+					process, _ := runInContainer(
+						container,
+						fmt.Sprintf("(echo 'GET / HTTP/1.1'; echo 'Host: example.com'; echo) | nc -w5 %s 80", externalIP),
+					)
 
-		ByAllowingICMP := func() {
-			if err := exec.Command("sh", "-c", fmt.Sprintf("ping -c 1 -w 1 %s", externalIP)).Run(); err != nil {
-				fmt.Println("Ginkgo host environment cannot ping out, skipping ICMP out test: ", err)
-				return
+					Ω(process.Wait()).Should(Equal(0))
+				})
 			}
 
-			By("allowing outbound icmp traffic", func() {
-				_, out := runInContainer(
-					container,
-					fmt.Sprintf("ping -c 1 -w 1 %s", externalIP),
-				)
+			ByAllowingICMP = func() {
+				if err := exec.Command("sh", "-c", fmt.Sprintf("ping -c 1 -w 1 %s", externalIP)).Run(); err != nil {
+					fmt.Println("Ginkgo host environment cannot ping out, skipping ICMP out test: ", err)
+					return
+				}
 
-				Eventually(out, "5s").Should(gbytes.Say(" 0% packet loss"))
-			})
-		}
+				By("allowing outbound icmp traffic", func() {
+					_, out := runInContainer(
+						container,
+						fmt.Sprintf("ping -c 1 -w 1 %s", externalIP),
+					)
 
-		ByRejectingTCP := func() {
-			By("rejecting outbound tcp traffic", func() {
-				process, _ := runInContainer(
-					container,
-					fmt.Sprintf("(echo 'GET / HTTP/1.1'; echo 'Host: example.com'; echo) | nc -w5 %s 80", externalIP),
-				)
-
-				Ω(process.Wait()).Should(Equal(1))
-			})
-		}
-
-		ByRejectingICMP := func() {
-			if err := exec.Command("sh", "-c", fmt.Sprintf("ping  -c 1 -w 1 %s", externalIP)).Run(); err != nil {
-				fmt.Println("Ginkgo host environment cannot ping out, skipping ICMP out test: ", err)
-				return
+					Eventually(out, "5s").Should(gbytes.Say(" 0% packet loss"))
+				})
 			}
 
-			By("rejecting outbound icmp traffic", func() {
-				_, out := runInContainer(
-					container,
-					fmt.Sprintf("ping  -c 1 -w 1 %s", externalIP),
-				)
+			ByRejectingTCP = func() {
+				By("rejecting outbound tcp traffic", func() {
+					process, _ := runInContainer(
+						container,
+						fmt.Sprintf("(echo 'GET / HTTP/1.1'; echo 'Host: example.com'; echo) | nc -w5 %s 80", externalIP),
+					)
 
-				Eventually(out, "5s").Should(gbytes.Say(" 100% packet loss"))
-			})
-		}
+					Ω(process.Wait()).Should(Equal(1))
+				})
+			}
+
+			ByRejectingICMP = func() {
+				if err := exec.Command("sh", "-c", fmt.Sprintf("ping  -c 1 -w 1 %s", externalIP)).Run(); err != nil {
+					fmt.Println("Ginkgo host environment cannot ping out, skipping ICMP out test: ", err)
+					return
+				}
+
+				By("rejecting outbound icmp traffic", func() {
+					_, out := runInContainer(
+						container,
+						fmt.Sprintf("ping  -c 1 -w 1 %s", externalIP),
+					)
+
+					Eventually(out, "5s").Should(gbytes.Say(" 100% packet loss"))
+				})
+			}
+		})
 
 		Context("when the target address is inside DENY_NETWORKS", func() {
 			BeforeEach(func() {
@@ -139,7 +145,7 @@ var _ = Describe("Net In/Out", func() {
 
 			Context("after a net_out of another range", func() {
 				It("does not allow connections to that address", func() {
-					container.NetOut("1.2.3.4/30", 0)
+					container.NetOut("1.2.3.4/30", 0, api.ProtocolAll)
 					ByRejectingTCP()
 					ByRejectingICMP()
 				})
@@ -148,17 +154,19 @@ var _ = Describe("Net In/Out", func() {
 			Context("after net_out allows tcp traffic to that IP and port", func() {
 				Context("when no port is specified", func() {
 					It("allows both tcp and icmp to that address", func() {
-						container.NetOut(denyRange, 0)
+						container.NetOut(denyRange, 0, api.ProtocolAll)
 						ByAllowingTCP()
 						ByAllowingICMP()
 					})
 				})
+			})
 
-				Context("when a port is specified", func() {
-					It("allows only tcp connections to that port", func() {
-						container.NetOut(denyRange, 12345)
-						ByRejectingTCP()
-						container.NetOut(denyRange, 80)
+			Describe("allowing individual protocols", func() {
+				Context("when all TCP traffic is allowed", func() {
+					It("allows TCP and blocks ICMP", func() {
+						err := container.NetOut(denyRange, 0, api.ProtocolTCP)
+						Ω(err).ShouldNot(HaveOccurred())
+						dumpIP()
 						ByAllowingTCP()
 						ByRejectingICMP()
 					})
@@ -340,7 +348,7 @@ var _ = Describe("Net In/Out", func() {
 
 				Context("after a net_out of another range", func() {
 					It("still does not allow connections to that address", func() {
-						container.NetOut("1.2.3.4/30", 0)
+						container.NetOut("1.2.3.4/30", 0, api.ProtocolAll)
 						ByRejectingICMP()
 						ByRejectingUDP()
 						ByRejectingTCP()
@@ -350,7 +358,7 @@ var _ = Describe("Net In/Out", func() {
 				Context("after net_out allows tcp traffic to that IP and port", func() {
 					Context("when no port is specified", func() {
 						It("allows both tcp and icmp to that address", func() {
-							container.NetOut(otherContainerNetwork.String(), 0)
+							container.NetOut(otherContainerNetwork.String(), 0, api.ProtocolAll)
 							ByAllowingICMP()
 							ByAllowingUDP()
 							ByAllowingTCP()
@@ -359,12 +367,22 @@ var _ = Describe("Net In/Out", func() {
 
 					Context("when a port is specified", func() {
 						It("allows only tcp connections to that port", func() {
-							container.NetOut(otherContainerNetwork.String(), 12345) // wrong port
+							container.NetOut(otherContainerNetwork.String(), 12345, api.ProtocolTCP) // wrong port
 							ByRejectingTCP()
-							container.NetOut(otherContainerNetwork.String(), tcpPort)
+							container.NetOut(otherContainerNetwork.String(), tcpPort, api.ProtocolTCP)
 							ByRejectingUDP()
 							ByRejectingICMP()
 							ByAllowingTCP()
+						})
+					})
+				})
+
+				Describe("allowing individual protocols", func() {
+					Context("when all TCP traffic is allowed", func() {
+						It("allows TCP and blocks ICMP", func() {
+							container.NetOut(otherContainerNetwork.String(), 0, api.ProtocolTCP)
+							ByAllowingTCP()
+							ByRejectingICMP()
 						})
 					})
 				})
@@ -427,4 +445,21 @@ func tgzReader(path string) io.Reader {
 	Ω(err).ShouldNot(HaveOccurred())
 
 	return tarStream
+}
+
+func dumpIP() {
+	cmd := exec.Command("ip", "a")
+	op, err := cmd.CombinedOutput()
+	Ω(err).ShouldNot(HaveOccurred())
+	fmt.Println("IP status:\n", string(op))
+
+	cmd = exec.Command("iptables", "--list")
+	op, err = cmd.CombinedOutput()
+	Ω(err).ShouldNot(HaveOccurred())
+	fmt.Println("IP tables chains:\n", string(op))
+
+	cmd = exec.Command("iptables", "--list-rules")
+	op, err = cmd.CombinedOutput()
+	Ω(err).ShouldNot(HaveOccurred())
+	fmt.Println("IP tables rules:\n", string(op))
 }

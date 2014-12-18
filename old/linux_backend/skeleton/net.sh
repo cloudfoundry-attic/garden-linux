@@ -119,15 +119,20 @@ case "${1}" in
       exit 1
     fi
 
+    if [ -z "${PROTOCOL:-}" ]; then
+      echo "Please specify PROTOCOL." 1>&2
+      exit 1
+    fi
+
     opts=""
+
+    opts="${opts} --protocol ${PROTOCOL}"
 
     if [ -n "${NETWORK:-}" ]; then
       opts="${opts} --destination ${NETWORK}"
     fi
 
-    # Restrict protocol to tcp when port is specified
     if [ -n "${PORT:-}" ]; then
-      opts="${opts} --protocol tcp"
       opts="${opts} --destination-port ${PORT}"
     fi
 
