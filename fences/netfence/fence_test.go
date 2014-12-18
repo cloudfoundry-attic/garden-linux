@@ -28,7 +28,7 @@ func (f *FakeDeconfigurer) DeconfigureBridge(logger lager.Logger, bridgeIfc stri
 var _ = Describe("Fence", func() {
 	var (
 		fakeSubnetPool   *fakeSubnets
-		fence            *f
+		fence            *fenceBuilder
 		syscfg           sysconfig.Config  = sysconfig.NewConfig("")
 		sysconfig        *sysconfig.Config = &syscfg
 		fakeDeconfigurer *FakeDeconfigurer
@@ -40,13 +40,25 @@ var _ = Describe("Fence", func() {
 
 		fakeSubnetPool = &fakeSubnets{nextSubnet: a}
 		fakeDeconfigurer = &FakeDeconfigurer{}
-		fence = &f{fakeSubnetPool, 1500, net.ParseIP("1.2.3.4"), fakeDeconfigurer, lagertest.NewTestLogger("fence")}
+		fence = &fenceBuilder{
+			Subnets:      fakeSubnetPool,
+			mtu:          1500,
+			externalIP:   net.ParseIP("1.2.3.4"),
+			deconfigurer: fakeDeconfigurer,
+			log:          lagertest.NewTestLogger("fence"),
+		}
 	})
 
 	Describe("Capacity", func() {
 		It("delegates to Subnets", func() {
 			fakeSubnetPool.capacity = 4
-			fence := &f{fakeSubnetPool, 1500, net.ParseIP("1.2.3.4"), fakeDeconfigurer, lagertest.NewTestLogger("fence")}
+			fence := &fenceBuilder{
+				Subnets:      fakeSubnetPool,
+				mtu:          1500,
+				externalIP:   net.ParseIP("1.2.3.4"),
+				deconfigurer: fakeDeconfigurer,
+				log:          lagertest.NewTestLogger("fence"),
+			}
 
 			Ω(fence.Capacity()).Should(Equal(4))
 		})
@@ -148,16 +160,16 @@ var _ = Describe("Fence", func() {
 		})
 	})
 
-	var allocate = func(subnet, ip string) *Allocation {
+	var allocate = func(subnet, ip string) *Fence {
 		_, s, err := net.ParseCIDR(subnet)
 		Ω(err).ShouldNot(HaveOccurred())
 
-		return &Allocation{s, net.ParseIP(ip), "", "host", false, "bridge", fence, lagertest.NewTestLogger("allocation")}
+		return &Fence{s, net.ParseIP(ip), "", "host", false, "bridge", fence, lagertest.NewTestLogger("allocation")}
 	}
 
 	It("correctly Strings Allocation instances", func() {
 		a := allocate("9.8.7.6/27", "1.2.3.4")
-		Ω(a.String()).Should(HavePrefix("netfence.Allocation{IPNet:"))
+		Ω(a.String()).Should(HavePrefix("netfence.Fence{IPNet:"))
 	})
 
 	Describe("Rebuild", func() {
@@ -167,7 +179,7 @@ var _ = Describe("Fence", func() {
 				var md json.RawMessage
 
 				ip, s, err := net.ParseCIDR("1.2.0.5/28")
-				original := &Allocation{s, ip, "", "foo", false, "bridge", fence, nil}
+				original := &Fence{s, ip, "", "foo", false, "bridge", fence, nil}
 				Ω(err).ShouldNot(HaveOccurred())
 				md, err = original.MarshalJSON()
 				Ω(err).ShouldNot(HaveOccurred())
@@ -176,12 +188,12 @@ var _ = Describe("Fence", func() {
 				Ω(err).ShouldNot(HaveOccurred())
 				Ω(fakeSubnetPool.recovered).Should(ContainElement(fakeAllocation{"1.2.0.0/28", "1.2.0.5"}))
 
-				recoveredAllocation := recovered.(*Allocation)
+				recoveredAllocation := recovered.(*Fence)
 				Ω(recoveredAllocation.IPNet.String()).Should(Equal("1.2.0.0/28"))
 				Ω(recoveredAllocation.containerIP.String()).Should(Equal("1.2.0.5"))
 
-				recoveredAllocation.fence = nil
-				original.fence = nil
+				recoveredAllocation.fenceBldr = nil
+				original.fenceBldr = nil
 				recoveredAllocation.log = nil
 				original.log = nil
 				Ω(recoveredAllocation).Should(Equal(original))
@@ -207,7 +219,7 @@ var _ = Describe("Fence", func() {
 		Describe("Dismantle", func() {
 			Context("when releasing the in-memory allocation fails", func() {
 				var (
-					allocation *Allocation
+					allocation *Fence
 				)
 
 				BeforeEach(func() {
@@ -230,7 +242,7 @@ var _ = Describe("Fence", func() {
 
 			Context("when the IP is not the final IP in the subnet", func() {
 				var (
-					allocation *Allocation
+					allocation *Fence
 				)
 
 				BeforeEach(func() {
@@ -258,7 +270,7 @@ var _ = Describe("Fence", func() {
 
 			Context("when the final IP in the subnet is released", func() {
 				var (
-					allocation *Allocation
+					allocation *Fence
 				)
 
 				BeforeEach(func() {
@@ -318,7 +330,7 @@ var _ = Describe("Fence", func() {
 					fence.mtu = 123
 
 					env = []string{"foo", "bar"}
-					allocation := &Allocation{ipn, net.ParseIP("4.5.6.1"), "", "host", false, "bridge", fence, lagertest.NewTestLogger("allocation")}
+					allocation := &Fence{ipn, net.ParseIP("4.5.6.1"), "", "host", false, "bridge", fence, lagertest.NewTestLogger("allocation")}
 					allocation.ConfigureProcess(&env)
 				})
 
@@ -430,9 +442,9 @@ func HaveContainerIP(ip string) *m {
 func (m *m) Match(actual interface{}) (success bool, err error) {
 	switch m.field {
 	case "subnet":
-		return Equal(actual.(*Allocation).IPNet.String()).Match(m.value)
+		return Equal(actual.(*Fence).IPNet.String()).Match(m.value)
 	case "containerIP":
-		return Equal(actual.(*Allocation).containerIP.String()).Match(m.value)
+		return Equal(actual.(*Fence).containerIP.String()).Match(m.value)
 	}
 
 	panic(fmt.Sprintf("unknown match type: %s", m.field))

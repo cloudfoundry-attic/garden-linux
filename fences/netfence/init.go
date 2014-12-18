@@ -56,7 +56,13 @@ func (config *Config) Main(registry *fences.BuilderRegistry) error {
 	}
 
 	log := cf_lager.New("netfence")
-	fence := &f{subnets, uint32(config.Mtu), config.ExternalIP.IP, network.NewDeconfigurer(), log}
+	fence := &fenceBuilder{
+		Subnets:      subnets,
+		mtu:          uint32(config.Mtu),
+		externalIP:   config.ExternalIP.IP,
+		deconfigurer: network.NewDeconfigurer(),
+		log:          log,
+	}
 	registry.Register(fence)
 
 	return nil
