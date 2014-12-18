@@ -14,7 +14,7 @@ import (
 	"github.com/pivotal-golang/lager"
 )
 
-type f struct {
+type fenceBuilder struct {
 	subnets.Subnets
 	mtu          uint32
 	externalIP   net.IP
@@ -42,7 +42,7 @@ type FlatFence struct {
 // meets the requirements, an error is returned.
 //
 // The given allocation is stored in the returned fence.
-func (f *f) Build(spec string, sysconfig *sysconfig.Config, containerID string) (fences.Fence, error) {
+func (f *fenceBuilder) Build(spec string, sysconfig *sysconfig.Config, containerID string) (fences.Fence, error) {
 	var ipSelector subnets.IPSelector = subnets.DynamicIPSelector
 	var subnetSelector subnets.SubnetSelector = subnets.DynamicSubnetSelector
 
@@ -81,14 +81,14 @@ func (f *f) Build(spec string, sysconfig *sysconfig.Config, containerID string) 
 	ones, _ := subnet.Mask.Size()
 	subnetShareable := (ones < 30)
 
-	return &Allocation{
+	return &Fence{
 			IPNet:           subnet,
 			containerIP:     containerIP,
 			containerIfc:    containerIfcName,
 			hostIfc:         hostIfcName,
 			subnetShareable: subnetShareable,
 			bridgeIfc:       bridgeIfcName,
-			fence:           f,
+			fenceBldr:       f,
 			log:             f.log.Session("allocation", lager.Data{"subnet": subnet, "ip": containerIP})},
 		nil
 }
@@ -104,7 +104,7 @@ func suffixIfNeeded(spec string) string {
 // Rebuilds a Fence from the marshalled JSON from an existing Fence's MarshalJSON method.
 // Returns an error if any of the allocations stored in the recovered fence are no longer
 // available.
-func (f *f) Rebuild(rm *json.RawMessage) (fences.Fence, error) {
+func (f *fenceBuilder) Rebuild(rm *json.RawMessage) (fences.Fence, error) {
 	ff := FlatFence{}
 	if err := json.Unmarshal(*rm, &ff); err != nil {
 		return nil, err
@@ -120,67 +120,67 @@ func (f *f) Rebuild(rm *json.RawMessage) (fences.Fence, error) {
 	}
 
 	containerIP := net.ParseIP(ff.ContainerIP)
-	return &Allocation{
+	return &Fence{
 		IPNet:           ipn,
 		containerIP:     containerIP,
 		containerIfc:    ff.ContainerIfcName,
 		hostIfc:         ff.HostIfcName,
 		subnetShareable: ff.SubnetShareable,
 		bridgeIfc:       ff.BridgeIfcName,
-		fence:           f,
+		fenceBldr:       f,
 		log:             f.log.Session("allocation", lager.Data{"subnet": ipn, "containerIP": containerIP}),
 	}, nil
 }
 
-type Allocation struct {
+type Fence struct {
 	*net.IPNet
 	containerIP     net.IP
 	containerIfc    string
 	hostIfc         string
 	subnetShareable bool
 	bridgeIfc       string
-	fence           *f
+	fenceBldr       *fenceBuilder
 	log             lager.Logger
 }
 
-func (a *Allocation) String() string {
+func (a *Fence) String() string {
 	return fmt.Sprintf("%#v", *a)
 }
 
-func (a *Allocation) Dismantle() error {
-	releasedSubnet, err := a.fence.Release(a.IPNet, a.containerIP)
+func (a *Fence) Dismantle() error {
+	releasedSubnet, err := a.fenceBldr.Release(a.IPNet, a.containerIP)
 	if err != nil {
 		return err
 	}
 
 	if releasedSubnet {
-		return a.fence.deconfigurer.DeconfigureBridge(a.log.Session("deconfigure-bridge"), a.bridgeIfc)
+		return a.fenceBldr.deconfigurer.DeconfigureBridge(a.log.Session("deconfigure-bridge"), a.bridgeIfc)
 	}
 
 	return nil
 }
 
-func (a *Allocation) Info(i *api.ContainerInfo) {
+func (a *Fence) Info(i *api.ContainerInfo) {
 	i.HostIP = subnets.GatewayIP(a.IPNet).String()
 	i.ContainerIP = a.containerIP.String()
-	i.ExternalIP = a.fence.externalIP.String()
+	i.ExternalIP = a.fenceBldr.externalIP.String()
 }
 
-func (a *Allocation) MarshalJSON() ([]byte, error) {
+func (a *Fence) MarshalJSON() ([]byte, error) {
 	ff := FlatFence{a.IPNet.String(), a.containerIP.String(), a.containerIfc, a.hostIfc, a.subnetShareable, a.bridgeIfc}
 	return json.Marshal(ff)
 }
 
-func (a *Allocation) ConfigureProcess(env *[]string) error {
+func (a *Fence) ConfigureProcess(env *[]string) error {
 	suff, _ := a.IPNet.Mask.Size()
 
 	*env = append(*env, fmt.Sprintf("network_host_ip=%s", subnets.GatewayIP(a.IPNet)),
 		fmt.Sprintf("network_container_ip=%s", a.containerIP),
 		fmt.Sprintf("network_cidr_suffix=%d", suff),
-		fmt.Sprintf("container_iface_mtu=%d", a.fence.mtu),
+		fmt.Sprintf("container_iface_mtu=%d", a.fenceBldr.mtu),
 		fmt.Sprintf("subnet_shareable=%v", a.subnetShareable),
 		fmt.Sprintf("network_cidr=%s", a.IPNet.String()),
-		fmt.Sprintf("external_ip=%s", a.fence.externalIP.String()),
+		fmt.Sprintf("external_ip=%s", a.fenceBldr.externalIP.String()),
 		fmt.Sprintf("network_ip_hex=%s", hexIP(a.IPNet.IP))) // suitable for short bridge interface names
 
 	return nil
