@@ -1,6 +1,6 @@
 {
 	"ImportPath": "github.com/cloudfoundry-incubator/garden-linux",
-	"GoVersion": "go1.3.1",
+	"GoVersion": "go1.4",
 	"Packages": [
 		"./..."
 	],
@@ -28,33 +28,33 @@
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/api",
-			"Comment": "go-wshd-631-g8a8baf3",
-			"Rev": "8a8baf3a9f2f886bb2f813a89aa2c5e1bc2047f7"
+			"Comment": "go-wshd-641-g4b5edf7",
+			"Rev": "4b5edf74844699f912a30bc6ff93d9f7fc519e98"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/client",
-			"Comment": "go-wshd-631-g8a8baf3",
-			"Rev": "8a8baf3a9f2f886bb2f813a89aa2c5e1bc2047f7"
+			"Comment": "go-wshd-641-g4b5edf7",
+			"Rev": "4b5edf74844699f912a30bc6ff93d9f7fc519e98"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/protocol",
-			"Comment": "go-wshd-631-g8a8baf3",
-			"Rev": "8a8baf3a9f2f886bb2f813a89aa2c5e1bc2047f7"
+			"Comment": "go-wshd-641-g4b5edf7",
+			"Rev": "4b5edf74844699f912a30bc6ff93d9f7fc519e98"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/routes",
-			"Comment": "go-wshd-631-g8a8baf3",
-			"Rev": "8a8baf3a9f2f886bb2f813a89aa2c5e1bc2047f7"
+			"Comment": "go-wshd-641-g4b5edf7",
+			"Rev": "4b5edf74844699f912a30bc6ff93d9f7fc519e98"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/server",
-			"Comment": "go-wshd-631-g8a8baf3",
-			"Rev": "8a8baf3a9f2f886bb2f813a89aa2c5e1bc2047f7"
+			"Comment": "go-wshd-641-g4b5edf7",
+			"Rev": "4b5edf74844699f912a30bc6ff93d9f7fc519e98"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/transport",
-			"Comment": "go-wshd-631-g8a8baf3",
-			"Rev": "8a8baf3a9f2f886bb2f813a89aa2c5e1bc2047f7"
+			"Comment": "go-wshd-641-g4b5edf7",
+			"Rev": "4b5edf74844699f912a30bc6ff93d9f7fc519e98"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry/dropsonde",
@@ -231,6 +231,10 @@
 		{
 			"ImportPath": "github.com/docker/libtrust",
 			"Rev": "9f61d4554f6af00705c15714f4711f3019da7760"
+		},
+		{
+			"ImportPath": "github.com/gogo/protobuf/proto",
+			"Rev": "d59ce9ecb817e6fbca932115f03520207f5a8a07"
 		},
 		{
 			"ImportPath": "github.com/gorilla/context",
