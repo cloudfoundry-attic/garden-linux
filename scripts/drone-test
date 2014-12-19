@@ -13,7 +13,7 @@ make
 
 go install github.com/onsi/ginkgo/ginkgo
 
-ginkgo -r -p -race -cover -skipMeasurements -keepGoing "$@"
+ginkgo -r -p -race -cover -skipMeasurements -keepGoing -nodes=4 "$@"
 
 # don't leak coveralls token
 set +x
