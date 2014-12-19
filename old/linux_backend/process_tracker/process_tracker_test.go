@@ -50,20 +50,20 @@ var _ = Describe("Running processes", func() {
 	It("runs the process and returns its exit code", func() {
 		cmd := exec.Command("bash", "-c", "exit 42")
 
-		process, err := processTracker.Run(cmd, api.ProcessIO{}, nil)
+		process, err := processTracker.Run(55, cmd, api.ProcessIO{}, nil, nil)
 		Expect(err).NotTo(HaveOccurred())
 
 		Ω(process.Wait()).Should(Equal(42))
 	})
 
-	It("returns unique process IDs", func() {
-		process1, err := processTracker.Run(exec.Command("/bin/echo"), api.ProcessIO{}, nil)
+	It("assigns a signaller to the process", func() {
+		signaller := &FakeSignaller{}
+		cmd := exec.Command("bash", "-c", "echo hi")
+		process, err := processTracker.Run(2, cmd, api.ProcessIO{}, nil, signaller)
 		Expect(err).NotTo(HaveOccurred())
 
-		process2, err := processTracker.Run(exec.Command("/bin/date"), api.ProcessIO{}, nil)
-		Expect(err).NotTo(HaveOccurred())
-
-		Ω(process1.ID()).ShouldNot(Equal(process2.ID()))
+		Ω(process.Signal(api.SignalKill)).Should(Succeed())
+		Ω(signaller.sent).Should(Equal([]os.Signal{os.Kill}))
 	})
 
 	It("streams the process's stdout and stderr", func() {
@@ -76,10 +76,10 @@ var _ = Describe("Running processes", func() {
 		stdout := gbytes.NewBuffer()
 		stderr := gbytes.NewBuffer()
 
-		_, err := processTracker.Run(cmd, api.ProcessIO{
+		_, err := processTracker.Run(55, cmd, api.ProcessIO{
 			Stdout: stdout,
 			Stderr: stderr,
-		}, nil)
+		}, nil, nil)
 		Expect(err).NotTo(HaveOccurred())
 
 		Eventually(stdout).Should(gbytes.Say("hi out\n"))
@@ -89,10 +89,10 @@ var _ = Describe("Running processes", func() {
 	It("streams input to the process", func() {
 		stdout := gbytes.NewBuffer()
 
-		_, err := processTracker.Run(exec.Command("cat"), api.ProcessIO{
+		_, err := processTracker.Run(55, exec.Command("cat"), api.ProcessIO{
 			Stdin:  bytes.NewBufferString("stdin-line1\nstdin-line2\n"),
 			Stdout: stdout,
-		}, nil)
+		}, nil, nil)
 		Expect(err).NotTo(HaveOccurred())
 
 		Eventually(stdout).Should(gbytes.Say("stdin-line1\nstdin-line2\n"))
@@ -103,10 +103,10 @@ var _ = Describe("Running processes", func() {
 			pipeR, pipeW := io.Pipe()
 			stdout := gbytes.NewBuffer()
 
-			process, err := processTracker.Run(exec.Command("cat"), api.ProcessIO{
+			process, err := processTracker.Run(55, exec.Command("cat"), api.ProcessIO{
 				Stdin:  pipeR,
 				Stdout: stdout,
-			}, nil)
+			}, nil, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			pipeW.Write([]byte("Hello stdin!"))
@@ -138,14 +138,14 @@ var _ = Describe("Running processes", func() {
 
 			stdout := gbytes.NewBuffer()
 
-			process, err := processTracker.Run(cmd, api.ProcessIO{
+			process, err := processTracker.Run(55, cmd, api.ProcessIO{
 				Stdout: stdout,
 			}, &api.TTYSpec{
 				WindowSize: &api.WindowSize{
 					Columns: 95,
 					Rows:    13,
 				},
-			})
+			}, nil)
 			Expect(err).NotTo(HaveOccurred())
 
 			Eventually(stdout).Should(gbytes.Say("13 95"))
@@ -169,9 +169,9 @@ var _ = Describe("Running processes", func() {
 
 				stdout := gbytes.NewBuffer()
 
-				_, err := processTracker.Run(cmd, api.ProcessIO{
+				_, err := processTracker.Run(55, cmd, api.ProcessIO{
 					Stdout: stdout,
-				}, &api.TTYSpec{})
+				}, &api.TTYSpec{}, nil)
 				Expect(err).NotTo(HaveOccurred())
 
 				Eventually(stdout).Should(gbytes.Say("24 80"))
@@ -181,7 +181,7 @@ var _ = Describe("Running processes", func() {
 
 	Context("when spawning fails", func() {
 		It("returns the error", func() {
-			_, err := processTracker.Run(exec.Command("/bin/does-not-exist"), api.ProcessIO{}, nil)
+			_, err := processTracker.Run(55, exec.Command("/bin/does-not-exist"), api.ProcessIO{}, nil, nil)
 			Ω(err).Should(HaveOccurred())
 		})
 	})
@@ -192,26 +192,23 @@ var _ = Describe("Restoring processes", func() {
 		processTracker = process_tracker.New(tmpdir, linux_command_runner.New())
 	})
 
-	It("makes the next process ID be higher than the highest restored ID", func() {
-		processTracker.Restore(0)
-
-		process, err := processTracker.Run(exec.Command("date"), api.ProcessIO{}, nil)
-		Ω(err).ShouldNot(HaveOccurred())
-		Ω(process.ID()).Should(Equal(uint32(1)))
-
-		processTracker.Restore(5)
-
-		process, err = processTracker.Run(exec.Command("date"), api.ProcessIO{}, nil)
-		Ω(err).ShouldNot(HaveOccurred())
-		Ω(process.ID()).Should(Equal(uint32(6)))
-	})
-
 	It("tracks the restored process", func() {
-		processTracker.Restore(2)
+		processTracker.Restore(2, nil)
 
 		activeProcesses := processTracker.ActiveProcesses()
 		Ω(activeProcesses).Should(HaveLen(1))
 		Ω(activeProcesses[0].ID()).Should(Equal(uint32(2)))
+	})
+
+	It("assigns the signaller to the process", func() {
+		signaller := &FakeSignaller{}
+		processTracker.Restore(2, signaller)
+
+		activeProcesses := processTracker.ActiveProcesses()
+		Ω(activeProcesses).Should(HaveLen(1))
+
+		Ω(activeProcesses[0].Signal(api.SignalKill)).Should(Succeed())
+		Ω(signaller.sent).Should(Equal([]os.Signal{os.Kill}))
 	})
 })
 
@@ -227,7 +224,7 @@ var _ = Describe("Attaching to running processes", func() {
 			echo "hi stderr" $stuff >&2
 		`)
 
-		process, err := processTracker.Run(cmd, api.ProcessIO{}, nil)
+		process, err := processTracker.Run(55, cmd, api.ProcessIO{}, nil, nil)
 		Expect(err).NotTo(HaveOccurred())
 
 		stdout := gbytes.NewBuffer()
@@ -256,16 +253,16 @@ var _ = Describe("Listing active process IDs", func() {
 
 		Ω(processTracker.ActiveProcesses()).Should(BeEmpty())
 
-		process1, err := processTracker.Run(exec.Command("cat"), api.ProcessIO{
+		process1, err := processTracker.Run(55, exec.Command("cat"), api.ProcessIO{
 			Stdin: stdin1,
-		}, nil)
+		}, nil, nil)
 		Ω(err).ShouldNot(HaveOccurred())
 
 		Eventually(processTracker.ActiveProcesses).Should(ConsistOf(process1))
 
-		process2, err := processTracker.Run(exec.Command("cat"), api.ProcessIO{
+		process2, err := processTracker.Run(56, exec.Command("cat"), api.ProcessIO{
 			Stdin: stdin2,
-		}, nil)
+		}, nil, nil)
 		Ω(err).ShouldNot(HaveOccurred())
 
 		Eventually(processTracker.ActiveProcesses).Should(ConsistOf(process1, process2))
@@ -277,3 +274,12 @@ var _ = Describe("Listing active process IDs", func() {
 		Eventually(processTracker.ActiveProcesses).Should(BeEmpty())
 	})
 })
+
+type FakeSignaller struct {
+	sent []os.Signal
+}
+
+func (f *FakeSignaller) Signal(s os.Signal) error {
+	f.sent = append(f.sent, s)
+	return nil
+}

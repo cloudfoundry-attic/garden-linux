@@ -24,6 +24,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/bandwidth_manager/fake_bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/cgroups_manager/fake_cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/port_pool/fake_port_pool"
+	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/process_tracker"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/process_tracker/fake_process_tracker"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/quota_manager/fake_quota_manager"
 	"github.com/cloudfoundry-incubator/garden/api"
@@ -335,11 +336,60 @@ var _ = Describe("Linux containers", func() {
 			})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			pid := fakeProcessTracker.RestoreArgsForCall(0)
+			pid, _ := fakeProcessTracker.RestoreArgsForCall(0)
 			Ω(pid).Should(Equal(uint32(0)))
 
-			pid = fakeProcessTracker.RestoreArgsForCall(1)
+			pid, _ = fakeProcessTracker.RestoreArgsForCall(1)
 			Ω(pid).Should(Equal(uint32(1)))
+		})
+
+		It("makes the next process ID be higher than the highest restored ID", func() {
+			err := container.Restore(linux_backend.ContainerSnapshot{
+				State:  "active",
+				Events: []string{},
+
+				Processes: []linux_backend.ProcessSnapshot{
+					{
+						ID:  0,
+						TTY: false,
+					},
+					{
+						ID:  5,
+						TTY: true,
+					},
+				},
+			})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			_, err = container.Run(api.ProcessSpec{
+				Path: "/some/script",
+			}, api.ProcessIO{})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			nextId, _, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
+
+			Ω(nextId).Should(BeNumerically(">", 5))
+		})
+
+		It("configures a signaller with the correct pidfile for the process", func() {
+			Ω(container.Restore(linux_backend.ContainerSnapshot{
+				State:  "active",
+				Events: []string{},
+
+				Processes: []linux_backend.ProcessSnapshot{
+					{
+						ID:  456,
+						TTY: true,
+					},
+				},
+			})).Should(Succeed())
+
+			_, signaller := fakeProcessTracker.RestoreArgsForCall(0)
+			Ω(signaller).Should(Equal(&linux_backend.NamespacedSignaller{
+				ContainerPath: containerDir,
+				Runner:        fakeRunner,
+				PidFilePath:   containerDir + "/processes/456.pid",
+			}))
 		})
 
 		It("restores environment variables", func() {
@@ -872,7 +922,7 @@ var _ = Describe("Linux containers", func() {
 
 			Ω(err).ShouldNot(HaveOccurred())
 
-			ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
+			_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
 			Ω(ranCmd.Path).Should(Equal(containerDir + "/bin/wsh"))
 
 			Ω(ranCmd.Args).Should(Equal([]string{
@@ -881,6 +931,7 @@ var _ = Describe("Linux containers", func() {
 				"--user", "vcap",
 				"--env", "env1=env1Value",
 				"--env", "env2=env2Value",
+				"--pidfile", containerDir + "/processes/1.pid",
 				"/some/script",
 				"arg1",
 				"arg2",
@@ -905,6 +956,55 @@ var _ = Describe("Linux containers", func() {
 			}))
 		})
 
+		It("runs wsh with the --pidfile parameter and configures the Process with this pidfile", func() {
+			_, err := container.Run(api.ProcessSpec{
+				Path: "/some/script",
+			}, api.ProcessIO{})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
+			Ω(ranCmd.Args).Should(Equal([]string{
+				containerDir + "/bin/wsh",
+				"--socket", containerDir + "/run/wshd.sock",
+				"--user", "vcap",
+				"--env", "env1=env1Value",
+				"--env", "env2=env2Value",
+				"--pidfile", containerDir + "/processes/1.pid",
+				"/some/script",
+			}))
+		})
+
+		It("configures a signaller with the same pid as the pidfile parameter", func() {
+			_, err := container.Run(api.ProcessSpec{
+				Path: "/some/script",
+			}, api.ProcessIO{})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			_, _, _, _, signaller := fakeProcessTracker.RunArgsForCall(0)
+			Ω(signaller).Should(Equal(&linux_backend.NamespacedSignaller{
+				ContainerPath: containerDir,
+				Runner:        fakeRunner,
+				PidFilePath:   containerDir + "/processes/1.pid",
+			}))
+		})
+
+		It("uses unique process IDs for each process", func() {
+			_, err := container.Run(api.ProcessSpec{
+				Path: "/some/script",
+			}, api.ProcessIO{})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			_, err = container.Run(api.ProcessSpec{
+				Path: "/some/script",
+			}, api.ProcessIO{})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			id1, _, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
+			id2, _, _, _, _ := fakeProcessTracker.RunArgsForCall(1)
+
+			Ω(id1).ShouldNot(Equal(id2))
+		})
+
 		It("runs the script with environment variables", func() {
 			_, err := container.Run(api.ProcessSpec{
 				Path: "/some/script",
@@ -913,7 +1013,7 @@ var _ = Describe("Linux containers", func() {
 
 			Ω(err).ShouldNot(HaveOccurred())
 
-			ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
+			_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
 			Ω(ranCmd.Args).Should(Equal([]string{
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
@@ -922,6 +1022,7 @@ var _ = Describe("Linux containers", func() {
 				"--env", "env2=env2Value",
 				"--env", `ESCAPED=kurt "russell"`,
 				"--env", "UNESCAPED=isaac\nhayes",
+				"--pidfile", containerDir + "/processes/1.pid",
 				"/some/script",
 			}))
 		})
@@ -934,7 +1035,7 @@ var _ = Describe("Linux containers", func() {
 
 			Ω(err).ShouldNot(HaveOccurred())
 
-			ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
+			_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
 			Ω(ranCmd.Args).Should(Equal([]string{
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
@@ -942,6 +1043,7 @@ var _ = Describe("Linux containers", func() {
 				"--env", "env1=env1Value",
 				"--env", "env2=env2Value",
 				"--dir", "/some/dir",
+				"--pidfile", containerDir + "/processes/1.pid",
 				"/some/script",
 			}))
 		})
@@ -961,13 +1063,13 @@ var _ = Describe("Linux containers", func() {
 
 			Ω(err).ShouldNot(HaveOccurred())
 
-			_, _, tty := fakeProcessTracker.RunArgsForCall(0)
+			_, _, _, tty, _ := fakeProcessTracker.RunArgsForCall(0)
 			Ω(tty).Should(Equal(ttySpec))
 		})
 
 		Describe("streaming", func() {
 			JustBeforeEach(func() {
-				fakeProcessTracker.RunStub = func(cmd *exec.Cmd, io api.ProcessIO, tty *api.TTYSpec) (api.Process, error) {
+				fakeProcessTracker.RunStub = func(processID uint32, cmd *exec.Cmd, io api.ProcessIO, tty *api.TTYSpec, _ process_tracker.Signaller) (api.Process, error) {
 					writing := new(sync.WaitGroup)
 					writing.Add(1)
 
@@ -984,7 +1086,7 @@ var _ = Describe("Linux containers", func() {
 
 					process := new(wfakes.FakeProcess)
 
-					process.IDReturns(42)
+					process.IDReturns(processID)
 
 					process.WaitStub = func() (int, error) {
 						writing.Wait()
@@ -1007,7 +1109,7 @@ var _ = Describe("Linux containers", func() {
 				})
 				Ω(err).ShouldNot(HaveOccurred())
 
-				Ω(process.ID()).Should(Equal(uint32(42)))
+				Ω(process.ID()).Should(Equal(uint32(1)))
 
 				Eventually(stdout).Should(gbytes.Say("hi out\n"))
 				Eventually(stderr).Should(gbytes.Say("hi err\n"))
@@ -1033,7 +1135,7 @@ var _ = Describe("Linux containers", func() {
 
 			Ω(err).ShouldNot(HaveOccurred())
 
-			ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
+			_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
 			Ω(ranCmd.Path).Should(Equal(containerDir + "/bin/wsh"))
 
 			Ω(ranCmd.Args).Should(Equal([]string{
@@ -1042,6 +1144,7 @@ var _ = Describe("Linux containers", func() {
 				"--user", "vcap",
 				"--env", "env1=env1Value",
 				"--env", "env2=env2Value",
+				"--pidfile", containerDir + "/processes/1.pid",
 				"/some/script",
 			}))
 
@@ -1067,7 +1170,7 @@ var _ = Describe("Linux containers", func() {
 
 					Ω(err).ToNot(HaveOccurred())
 
-					ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
+					_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
 					Ω(ranCmd.Path).Should(Equal(containerDir + "/bin/wsh"))
 
 					Ω(ranCmd.Args).Should(Equal([]string{
@@ -1076,6 +1179,7 @@ var _ = Describe("Linux containers", func() {
 						"--user", "root",
 						"--env", "env1=env1Value",
 						"--env", "env2=env2Value",
+						"--pidfile", containerDir + "/processes/1.pid",
 						"/some/script",
 					}))
 				})
@@ -1091,7 +1195,7 @@ var _ = Describe("Linux containers", func() {
 
 					Ω(err).ToNot(HaveOccurred())
 
-					ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
+					_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
 					Ω(ranCmd.Path).Should(Equal(containerDir + "/bin/wsh"))
 
 					Ω(ranCmd.Args).Should(Equal([]string{
@@ -1100,6 +1204,7 @@ var _ = Describe("Linux containers", func() {
 						"--user", "potato",
 						"--env", "env1=env1Value",
 						"--env", "env2=env2Value",
+						"--pidfile", containerDir + "/processes/1.pid",
 						"/some/script",
 					}))
 				})
@@ -1116,7 +1221,7 @@ var _ = Describe("Linux containers", func() {
 
 					Ω(err).ToNot(HaveOccurred())
 
-					ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
+					_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
 					Ω(ranCmd.Path).Should(Equal(containerDir + "/bin/wsh"))
 
 					Ω(ranCmd.Args).Should(Equal([]string{
@@ -1125,6 +1230,7 @@ var _ = Describe("Linux containers", func() {
 						"--user", "vcap",
 						"--env", "env1=env1Value",
 						"--env", "env2=env2Value",
+						"--pidfile", containerDir + "/processes/1.pid",
 						"/some/script",
 					}))
 				})
@@ -1140,7 +1246,7 @@ var _ = Describe("Linux containers", func() {
 
 					Ω(err).ToNot(HaveOccurred())
 
-					ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
+					_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
 					Ω(ranCmd.Path).Should(Equal(containerDir + "/bin/wsh"))
 
 					Ω(ranCmd.Args).Should(Equal([]string{
@@ -1149,6 +1255,7 @@ var _ = Describe("Linux containers", func() {
 						"--user", "potato",
 						"--env", "env1=env1Value",
 						"--env", "env2=env2Value",
+						"--pidfile", containerDir + "/processes/1.pid",
 						"/some/script",
 					}))
 				})

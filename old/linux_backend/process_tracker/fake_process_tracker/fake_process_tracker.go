@@ -10,12 +10,14 @@ import (
 )
 
 type FakeProcessTracker struct {
-	RunStub        func(*exec.Cmd, api.ProcessIO, *api.TTYSpec) (api.Process, error)
+	RunStub        func(uint32, *exec.Cmd, api.ProcessIO, *api.TTYSpec, process_tracker.Signaller) (api.Process, error)
 	runMutex       sync.RWMutex
 	runArgsForCall []struct {
-		arg1 *exec.Cmd
-		arg2 api.ProcessIO
-		arg3 *api.TTYSpec
+		arg1 uint32
+		arg2 *exec.Cmd
+		arg3 api.ProcessIO
+		arg4 *api.TTYSpec
+		arg5 process_tracker.Signaller
 	}
 	runReturns struct {
 		result1 api.Process
@@ -31,29 +33,32 @@ type FakeProcessTracker struct {
 		result1 api.Process
 		result2 error
 	}
-	RestoreStub        func(processID uint32)
+	RestoreStub        func(processID uint32, signaller process_tracker.Signaller)
 	restoreMutex       sync.RWMutex
 	restoreArgsForCall []struct {
 		processID uint32
+		signaller process_tracker.Signaller
 	}
 	ActiveProcessesStub        func() []api.Process
 	activeProcessesMutex       sync.RWMutex
 	activeProcessesArgsForCall []struct{}
-	activeProcessesReturns     struct {
+	activeProcessesReturns struct {
 		result1 []api.Process
 	}
 }
 
-func (fake *FakeProcessTracker) Run(arg1 *exec.Cmd, arg2 api.ProcessIO, arg3 *api.TTYSpec) (api.Process, error) {
+func (fake *FakeProcessTracker) Run(arg1 uint32, arg2 *exec.Cmd, arg3 api.ProcessIO, arg4 *api.TTYSpec, arg5 process_tracker.Signaller) (api.Process, error) {
 	fake.runMutex.Lock()
-	defer fake.runMutex.Unlock()
 	fake.runArgsForCall = append(fake.runArgsForCall, struct {
-		arg1 *exec.Cmd
-		arg2 api.ProcessIO
-		arg3 *api.TTYSpec
-	}{arg1, arg2, arg3})
+		arg1 uint32
+		arg2 *exec.Cmd
+		arg3 api.ProcessIO
+		arg4 *api.TTYSpec
+		arg5 process_tracker.Signaller
+	}{arg1, arg2, arg3, arg4, arg5})
+	fake.runMutex.Unlock()
 	if fake.RunStub != nil {
-		return fake.RunStub(arg1, arg2, arg3)
+		return fake.RunStub(arg1, arg2, arg3, arg4, arg5)
 	} else {
 		return fake.runReturns.result1, fake.runReturns.result2
 	}
@@ -65,10 +70,10 @@ func (fake *FakeProcessTracker) RunCallCount() int {
 	return len(fake.runArgsForCall)
 }
 
-func (fake *FakeProcessTracker) RunArgsForCall(i int) (*exec.Cmd, api.ProcessIO, *api.TTYSpec) {
+func (fake *FakeProcessTracker) RunArgsForCall(i int) (uint32, *exec.Cmd, api.ProcessIO, *api.TTYSpec, process_tracker.Signaller) {
 	fake.runMutex.RLock()
 	defer fake.runMutex.RUnlock()
-	return fake.runArgsForCall[i].arg1, fake.runArgsForCall[i].arg2, fake.runArgsForCall[i].arg3
+	return fake.runArgsForCall[i].arg1, fake.runArgsForCall[i].arg2, fake.runArgsForCall[i].arg3, fake.runArgsForCall[i].arg4, fake.runArgsForCall[i].arg5
 }
 
 func (fake *FakeProcessTracker) RunReturns(result1 api.Process, result2 error) {
@@ -81,11 +86,11 @@ func (fake *FakeProcessTracker) RunReturns(result1 api.Process, result2 error) {
 
 func (fake *FakeProcessTracker) Attach(arg1 uint32, arg2 api.ProcessIO) (api.Process, error) {
 	fake.attachMutex.Lock()
-	defer fake.attachMutex.Unlock()
 	fake.attachArgsForCall = append(fake.attachArgsForCall, struct {
 		arg1 uint32
 		arg2 api.ProcessIO
 	}{arg1, arg2})
+	fake.attachMutex.Unlock()
 	if fake.AttachStub != nil {
 		return fake.AttachStub(arg1, arg2)
 	} else {
@@ -113,14 +118,15 @@ func (fake *FakeProcessTracker) AttachReturns(result1 api.Process, result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeProcessTracker) Restore(processID uint32) {
+func (fake *FakeProcessTracker) Restore(processID uint32, signaller process_tracker.Signaller) {
 	fake.restoreMutex.Lock()
-	defer fake.restoreMutex.Unlock()
 	fake.restoreArgsForCall = append(fake.restoreArgsForCall, struct {
 		processID uint32
-	}{processID})
+		signaller process_tracker.Signaller
+	}{processID, signaller})
+	fake.restoreMutex.Unlock()
 	if fake.RestoreStub != nil {
-		fake.RestoreStub(processID)
+		fake.RestoreStub(processID, signaller)
 	}
 }
 
@@ -130,16 +136,16 @@ func (fake *FakeProcessTracker) RestoreCallCount() int {
 	return len(fake.restoreArgsForCall)
 }
 
-func (fake *FakeProcessTracker) RestoreArgsForCall(i int) uint32 {
+func (fake *FakeProcessTracker) RestoreArgsForCall(i int) (uint32, process_tracker.Signaller) {
 	fake.restoreMutex.RLock()
 	defer fake.restoreMutex.RUnlock()
-	return fake.restoreArgsForCall[i].processID
+	return fake.restoreArgsForCall[i].processID, fake.restoreArgsForCall[i].signaller
 }
 
 func (fake *FakeProcessTracker) ActiveProcesses() []api.Process {
 	fake.activeProcessesMutex.Lock()
-	defer fake.activeProcessesMutex.Unlock()
 	fake.activeProcessesArgsForCall = append(fake.activeProcessesArgsForCall, struct{}{})
+	fake.activeProcessesMutex.Unlock()
 	if fake.ActiveProcessesStub != nil {
 		return fake.ActiveProcessesStub()
 	} else {

@@ -10,9 +10,9 @@ import (
 )
 
 type ProcessTracker interface {
-	Run(*exec.Cmd, api.ProcessIO, *api.TTYSpec) (api.Process, error)
+	Run(uint32, *exec.Cmd, api.ProcessIO, *api.TTYSpec, Signaller) (api.Process, error)
 	Attach(uint32, api.ProcessIO) (api.Process, error)
-	Restore(processID uint32)
+	Restore(processID uint32, signaller Signaller)
 	ActiveProcesses() []api.Process
 }
 
@@ -21,7 +21,6 @@ type processTracker struct {
 	runner        command_runner.CommandRunner
 
 	processes      map[uint32]*Process
-	nextProcessID  uint32
 	processesMutex *sync.RWMutex
 }
 
@@ -40,18 +39,13 @@ func New(containerPath string, runner command_runner.CommandRunner) ProcessTrack
 
 		processes:      make(map[uint32]*Process),
 		processesMutex: new(sync.RWMutex),
-
-		nextProcessID: 1,
 	}
 }
 
-func (t *processTracker) Run(cmd *exec.Cmd, processIO api.ProcessIO, tty *api.TTYSpec) (api.Process, error) {
+func (t *processTracker) Run(processID uint32, cmd *exec.Cmd, processIO api.ProcessIO, tty *api.TTYSpec, signaller Signaller) (api.Process, error) {
 	t.processesMutex.Lock()
 
-	processID := t.nextProcessID
-	t.nextProcessID++
-
-	process := NewProcess(processID, t.containerPath, t.runner)
+	process := NewProcess(processID, t.containerPath, t.runner, signaller)
 
 	t.processes[processID] = process
 
@@ -66,7 +60,7 @@ func (t *processTracker) Run(cmd *exec.Cmd, processIO api.ProcessIO, tty *api.TT
 
 	process.Attach(processIO)
 
-	go t.link(processID)
+	go t.link(process.ID())
 
 	err = <-active
 	if err != nil {
@@ -92,16 +86,12 @@ func (t *processTracker) Attach(processID uint32, processIO api.ProcessIO) (api.
 	return process, nil
 }
 
-func (t *processTracker) Restore(processID uint32) {
+func (t *processTracker) Restore(processID uint32, signaller Signaller) {
 	t.processesMutex.Lock()
 
-	process := NewProcess(processID, t.containerPath, t.runner)
+	process := NewProcess(processID, t.containerPath, t.runner, signaller)
 
 	t.processes[processID] = process
-
-	if processID >= t.nextProcessID {
-		t.nextProcessID = processID + 1
-	}
 
 	go t.link(processID)
 

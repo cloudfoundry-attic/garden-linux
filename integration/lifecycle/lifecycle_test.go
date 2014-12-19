@@ -223,6 +223,53 @@ var _ = Describe("Creating a container", func() {
 			Ω(process.Wait()).Should(Equal(42))
 		})
 
+		It("sends a TERM signal to the process if requested", func() {
+			stdout := gbytes.NewBuffer()
+
+			process, err := container.Run(api.ProcessSpec{
+				Path: "sh",
+				Args: []string{"-c", `
+				  trap 'echo termed; exit 42' SIGTERM
+
+					while true; do
+					  echo waiting
+					  sleep 1
+					done
+				`},
+			}, api.ProcessIO{
+				Stdout: io.MultiWriter(GinkgoWriter, stdout),
+				Stderr: GinkgoWriter,
+			})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Eventually(stdout).Should(gbytes.Say("waiting"))
+			Ω(process.Signal(api.SignalTerminate)).Should(Succeed())
+			Eventually(stdout, "2s").Should(gbytes.Say("termed"))
+			Ω(process.Wait()).Should(Equal(42))
+		})
+
+		It("sends a KILL signal to the process if requested", func() {
+			stdout := gbytes.NewBuffer()
+
+			process, err := container.Run(api.ProcessSpec{
+				Path: "sh",
+				Args: []string{"-c", `
+				while true; do
+				  echo waiting
+					sleep 1
+				done
+			`},
+			}, api.ProcessIO{
+				Stdout: io.MultiWriter(GinkgoWriter, stdout),
+				Stderr: GinkgoWriter,
+			})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Eventually(stdout).Should(gbytes.Say("waiting"))
+			Ω(process.Signal(api.SignalKill)).Should(Succeed())
+			Ω(process.Wait()).ShouldNot(Equal(0))
+		})
+
 		It("collects the process's full output, even if it exits quickly after", func() {
 			for i := 0; i < 500; i++ {
 				stdout := gbytes.NewBuffer()

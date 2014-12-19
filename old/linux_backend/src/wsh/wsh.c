@@ -2,6 +2,7 @@
 
 #include <assert.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -33,6 +34,9 @@ struct wsh_s {
 
   /* Working directory of process */
   const char *dir;
+
+  /* File to save container-namespaced pid of spawned process in to */
+  const char *pid_file;
 };
 
 int wsh__usage(wsh_t *w) {
@@ -56,6 +60,10 @@ int wsh__usage(wsh_t *w) {
     "Working directory for the running process"
     "\n");
 
+  fprintf(stderr, "  --pidfile PIDFILE      "
+    "File to save container-namespaced pid of spawned process to"
+    "\n");
+
   fprintf(stderr, "  --rsh           "
     "RSH compatibility mode"
     "\n");
@@ -65,6 +73,8 @@ int wsh__usage(wsh_t *w) {
 int wsh__getopt(wsh_t *w) {
   int i = 1;
   int j = w->argc - i;
+
+  w->pid_file = 0;
 
   while (i < w->argc) {
     if (w->argv[i][0] != '-') {
@@ -84,6 +94,10 @@ int wsh__getopt(wsh_t *w) {
       j -= 2;
     } else if (j >= 2 && strcmp(w->argv[i], "--dir") == 0) {
       w->dir = strdup(w->argv[i+1]);
+      i += 2;
+      j -= 2;
+    } else if (j >= 2 && strcmp(w->argv[i], "--pidfile") == 0) {
+      w->pid_file = strdup(w->argv[i+1]);
       i += 2;
       j -= 2;
     } else if (j >= 2 && strcmp(w->argv[i], "--env") == 0) {
@@ -143,8 +157,39 @@ invalid:
   return -1;
 }
 
-void pump_loop(pump_t *p, int exit_status_fd, pump_pair_t *pp, int pplen) {
-  int i, rv;
+static pid_t pid;
+
+void cleanup_pidfile(const char *pidfile, int pid_fd) {
+  int rv;
+
+  rv = unlink(pidfile);
+  if (rv != 0) {
+    perror("unlink pidfile");
+  }
+}
+
+void pump_loop(const char *pid_file, pump_t *p, int pid_fd, int exit_status_fd, pump_pair_t *pp, int pplen) {
+  int i, rv, pidfd;
+  char pidstr[10];
+
+  rv = read(pid_fd, &pid, sizeof(pid));
+  assert(rv >= 0);
+
+  if (pid_file != 0) {
+    pidfd = open(pid_file, O_RDWR|O_CREAT, 0600);
+    if (pidfd == -1 ) {
+      perror("open pidfile");
+      exit(1);
+    }
+
+    sprintf(pidstr, "%d\n", pid);
+    write(pidfd, pidstr, strlen(pidstr));
+
+    rv = close(pid_fd);
+    if (rv != 0) {
+      perror("close pidfile");
+    }
+  }
 
   for (;;) {
     pump_init(p);
@@ -163,6 +208,7 @@ void pump_loop(pump_t *p, int exit_status_fd, pump_pair_t *pp, int pplen) {
 
     if (rv == -1) {
       perror("select");
+      cleanup_pidfile(pid_file, pidfd);
       abort();
     }
 
@@ -183,10 +229,12 @@ void pump_loop(pump_t *p, int exit_status_fd, pump_pair_t *pp, int pplen) {
 
       if (rv == 0) {
         /* EOF: process terminated by signal */
+        cleanup_pidfile(pid_file, pidfd);
         exit(255);
       }
 
       assert(rv == sizeof(status));
+      cleanup_pidfile(pid_file, pidfd);
       exit(status);
     }
   }
@@ -254,9 +302,9 @@ void tty_winsz(void) {
   tty_swinsz();
 }
 
-void loop_interactive(int fd) {
+void loop_interactive(const char *pidfile, int fd) {
   msg_response_t res;
-  int fds[2];
+  int fds[3];
   size_t fdslen = sizeof(fds)/sizeof(fds[0]);
   int rv;
 
@@ -281,12 +329,12 @@ void loop_interactive(int fd) {
   pump_pair_init(&pp[0], &p, STDIN_FILENO, dup(fds[0]));
   pump_pair_init(&pp[1], &p, dup(fds[0]), STDOUT_FILENO);
 
-  pump_loop(&p, fds[1], pp, 2);
+  pump_loop(pidfile, &p, fds[2], fds[1], pp, 2);
 }
 
-void loop_noninteractive(int fd) {
+void loop_noninteractive(const char* pidfile, int fd) {
   msg_response_t res;
-  int fds[4];
+  int fds[5];
   size_t fdslen = sizeof(fds)/sizeof(fds[0]);
   int rv;
 
@@ -305,7 +353,7 @@ void loop_noninteractive(int fd) {
   pump_pair_init(&pp[1], &p, fds[1], STDOUT_FILENO);
   pump_pair_init(&pp[2], &p, fds[2], STDERR_FILENO);
 
-  pump_loop(&p, fds[3], pp, 3);
+  pump_loop(pidfile, &p, fds[4], fds[3], pp, 3);
 }
 
 int main(int argc, char **argv) {
@@ -380,9 +428,9 @@ int main(int argc, char **argv) {
   }
 
   if (req.tty) {
-    loop_interactive(fd);
+    loop_interactive(w->pid_file, fd);
   } else {
-    loop_noninteractive(fd);
+    loop_noninteractive(w->pid_file, fd);
   }
 
   perror("unreachable");

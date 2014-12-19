@@ -189,6 +189,34 @@ var _ = Describe("Through a restart", func() {
 			Ω(process1.ID()).ShouldNot(Equal(process2.ID()))
 		})
 
+		It("can still be signalled", func() {
+			process, err := container.Run(api.ProcessSpec{
+				Path: "sh",
+				Args: []string{"-c", `
+				  trap 'echo termed; exit 42' SIGTERM
+
+					while true; do
+					  echo waiting
+					  sleep 1
+					done
+				`},
+			}, api.ProcessIO{})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			restartGarden()
+
+			stdout := gbytes.NewBuffer()
+			attached, err := container.Attach(process.ID(), api.ProcessIO{
+				Stdout: io.MultiWriter(GinkgoWriter, stdout),
+				Stderr: GinkgoWriter,
+			})
+
+			Eventually(stdout).Should(gbytes.Say("waiting"))
+			Ω(attached.Signal(api.SignalTerminate)).Should(Succeed())
+			Eventually(stdout, "2s").Should(gbytes.Say("termed"))
+			Ω(attached.Wait()).Should(Equal(42))
+		})
+
 		It("does not duplicate its output on reconnect", func() {
 			stdinR, stdinW := io.Pipe()
 			stdout := gbytes.NewBuffer()

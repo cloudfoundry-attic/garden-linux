@@ -72,12 +72,12 @@ set -o errexit
 
 cd $(dirname $0)/../
 
-cat > /proc/$PID/uid_map <<EOF || true
+cat > /proc/$PID/uid_map 2> /dev/null <<EOF || true
 0 0 1
 10000 10000 1
 EOF
 
-cat > /proc/$PID/gid_map <<EOF || true
+cat > /proc/$PID/gid_map 2> /dev/null <<EOF || true
 0 0 1
 10000 10000 1
 EOF
@@ -435,6 +435,40 @@ setup_fs
 
 			Eventually(session).Should(Say("VAR1=VALUE1\n"))
 			Eventually(session).Should(Say("VAR2=VALUE2\n"))
+		})
+
+		It("saves the child's pid in a pidfile and cleans the pidfile up after the process exits", func() {
+			tmp, err := ioutil.TempDir("", "wshdchildpid")
+			Ω(err).ShouldNot(HaveOccurred())
+
+			pwd := exec.Command(wsh,
+				"--socket", socketPath,
+				"--user", "vcap",
+				"--pidfile", filepath.Join(tmp, "foo.pid"),
+				"sh", "-c", "echo $$; read",
+			)
+
+			in, err := pwd.StdinPipe()
+			Ω(err).ShouldNot(HaveOccurred())
+
+			session, err := Start(pwd, GinkgoWriter, GinkgoWriter)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Eventually(func() error {
+				_, err := os.Stat(filepath.Join(tmp, "foo.pid"))
+				return err
+			}).Should(BeNil())
+
+			read, err := ioutil.ReadFile(filepath.Join(tmp, "foo.pid"))
+			Ω(err).ShouldNot(HaveOccurred())
+
+			in.Write([]byte("\n"))
+
+			Eventually(session).Should(Exit())
+			Ω(string(read)).Should(Equal(string(session.Out.Contents())))
+
+			_, err = os.Stat(filepath.Join(tmp, "foo.pid"))
+			Ω(err).Should(HaveOccurred(), "pid file was not cleaned up")
 		})
 	})
 
