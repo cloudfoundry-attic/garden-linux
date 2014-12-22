@@ -68,7 +68,7 @@ var _ = Describe("Net In/Out", func() {
 		return process, out
 	}
 
-	FContext("external addresses", func() {
+	Context("external addresses", func() {
 		var (
 			ByAllowingTCP, ByAllowingICMP, ByRejectingTCP, ByRejectingICMP func()
 		)
@@ -154,7 +154,8 @@ var _ = Describe("Net In/Out", func() {
 			Context("after net_out allows tcp traffic to that IP and port", func() {
 				Context("when no port is specified", func() {
 					It("allows both tcp and icmp to that address", func() {
-						container.NetOut(denyRange, 0, api.ProtocolAll)
+						err := container.NetOut(externalIP.String(), 0, api.ProtocolAll)
+						Ω(err).ShouldNot(HaveOccurred())
 						ByAllowingTCP()
 						ByAllowingICMP()
 					})
@@ -162,11 +163,16 @@ var _ = Describe("Net In/Out", func() {
 			})
 
 			Describe("allowing individual protocols", func() {
+				// To prevent test pollution due to connection tracking, each test
+				// should use a distinct container IP address.
 				Context("when all TCP traffic is allowed", func() {
+					BeforeEach(func() {
+						containerNetwork = fmt.Sprintf("10.1%d.1.0/24", GinkgoParallelNode())
+					})
+
 					It("allows TCP and blocks ICMP", func() {
-						err := container.NetOut(denyRange, 0, api.ProtocolTCP)
+						err := container.NetOut(externalIP.String(), 0, api.ProtocolTCP)
 						Ω(err).ShouldNot(HaveOccurred())
-						dumpIP()
 						ByAllowingTCP()
 						ByRejectingICMP()
 					})
