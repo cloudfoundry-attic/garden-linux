@@ -1,9 +1,12 @@
 package iptables
 
 import (
+	"fmt"
 	"net"
 	"os/exec"
+	"strconv"
 
+	"github.com/cloudfoundry-incubator/garden/api"
 	"github.com/cloudfoundry/gunk/command_runner"
 )
 
@@ -13,6 +16,8 @@ type Chain interface {
 
 	AppendNatRule(source string, destination string, jump Action, to net.IP) error
 	DeleteNatRule(source string, destination string, jump Action, to net.IP) error
+
+	PrependFilterRule(protocol api.Protocol, dest string, destPort uint32) error
 }
 
 func NewChain(name string, runner command_runner.CommandRunner) Chain {
@@ -58,6 +63,34 @@ func (ch *chain) DeleteNatRule(source string, destination string, jump Action, t
 		Jump:        jump,
 		To:          to,
 	})
+}
+
+func (ch *chain) PrependFilterRule(protocol api.Protocol, dest string, destPort uint32) error {
+	parms := []string{"-w", "-I", ch.Name, "1"}
+
+	protocols := map[api.Protocol]string{
+		api.ProtocolAll: "all",
+		api.ProtocolTCP: "tcp",
+	}
+	protocolString, ok := protocols[protocol]
+
+	if !ok {
+		return fmt.Errorf("invalid protocol: %d", protocol)
+	}
+
+	parms = append(parms, "--protocol", protocolString)
+
+	if dest != "" {
+		parms = append(parms, "--destination", dest)
+	}
+
+	if destPort != 0 {
+		parms = append(parms, "--destination-port", strconv.Itoa(int(destPort)))
+	}
+
+	parms = append(parms, "--jump", "RETURN")
+
+	return ch.Runner.Run(exec.Command("/sbin/iptables", parms...))
 }
 
 type rule struct {

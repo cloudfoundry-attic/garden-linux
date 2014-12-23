@@ -6,6 +6,7 @@ import (
 	"os/exec"
 
 	. "github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/iptables"
+	"github.com/cloudfoundry-incubator/garden/api"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
 
@@ -161,6 +162,66 @@ var _ = Describe("Iptables", func() {
 					)
 
 					Ω(subject.DeleteNatRule("1.3.4.5/6", "", "", nil)).ShouldNot(Succeed())
+				})
+			})
+		})
+
+		Describe("PrependFilterRule", func() {
+			Context("when all parameters are specified", func() {
+				It("runs iptables to prepend the rule with the correct parameters", func() {
+					subject.PrependFilterRule(api.ProtocolAll, "1.2.3.4/24", 8080)
+
+					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+						Path: "/sbin/iptables",
+						Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--destination", "1.2.3.4/24", "--destination-port", "8080", "--jump", "RETURN"},
+					}))
+				})
+			})
+
+			Context("when tcp protcol is specified", func() {
+				It("passes tcp protcol to iptables", func() {
+					subject.PrependFilterRule(api.ProtocolTCP, "1.2.3.4/24", 8080)
+
+					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+						Path: "/sbin/iptables",
+						Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "tcp", "--destination", "1.2.3.4/24", "--destination-port", "8080", "--jump", "RETURN"},
+					}))
+				})
+			})
+
+			Context("when destination is omitted", func() {
+				It("does not pass destination to iptables", func() {
+					subject.PrependFilterRule(api.ProtocolAll, "", 8080)
+
+					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+						Path: "/sbin/iptables",
+						Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--destination-port", "8080", "--jump", "RETURN"},
+					}))
+				})
+			})
+
+			Context("when port is omitted", func() {
+				It("does not pass port to iptables", func() {
+					subject.PrependFilterRule(api.ProtocolAll, "1.2.3.4/24", 0)
+
+					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+						Path: "/sbin/iptables",
+						Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--destination", "1.2.3.4/24", "--jump", "RETURN"},
+					}))
+				})
+			})
+
+			Context("when the command returns an error", func() {
+				It("returns an error", func() {
+					someError := errors.New("badly laid iptable")
+					fakeRunner.WhenRunning(
+						fake_command_runner.CommandSpec{Path: "/sbin/iptables"},
+						func(cmd *exec.Cmd) error {
+							return someError
+						},
+					)
+
+					Ω(subject.PrependFilterRule(api.ProtocolAll, "1.3.4.5/6", 0)).ShouldNot(Succeed())
 				})
 			})
 		})
