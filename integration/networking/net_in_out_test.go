@@ -162,6 +162,14 @@ var _ = Describe("Net In/Out", func() {
 				})
 			})
 
+			Context("after net_out allows tcp traffic to a range of IP addresses", func() {
+				It("allows tcp to an address in the range", func() {
+					err := container.NetOut(externalIP.String()+"-"+"255.255.255.254", 0, api.ProtocolTCP)
+					Ω(err).ShouldNot(HaveOccurred())
+					ByAllowingTCP()
+				})
+			})
+
 			Describe("allowing individual protocols", func() {
 				// To prevent test pollution due to connection tracking, each test
 				// should use a distinct container IP address.

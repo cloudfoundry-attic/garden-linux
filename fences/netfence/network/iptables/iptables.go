@@ -5,6 +5,7 @@ import (
 	"net"
 	"os/exec"
 	"strconv"
+	"strings"
 
 	"github.com/cloudfoundry-incubator/garden/api"
 	"github.com/cloudfoundry/gunk/command_runner"
@@ -93,7 +94,11 @@ func (ch *chain) PrependFilterRule(protocol api.Protocol, dest string, destPort 
 	parms = append(parms, "--protocol", protocolString)
 
 	if dest != "" {
-		parms = append(parms, "--destination", dest)
+		if strings.Contains(dest, "-") {
+			parms = append(parms, "-m", "iprange", "--dst-range", dest)
+		} else {
+			parms = append(parms, "--destination", dest)
+		}
 	}
 
 	if destPort != 0 {

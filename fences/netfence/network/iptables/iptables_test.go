@@ -211,6 +211,17 @@ var _ = Describe("Iptables", func() {
 				})
 			})
 
+			Context("when an IP range is specified", func() {
+				It("runs iptables to prepend the rule with the correct parameters", func() {
+					subject.PrependFilterRule(api.ProtocolAll, "1.2.3.4-1.2.3.6", 8080)
+
+					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+						Path: "/sbin/iptables",
+						Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "-m", "iprange", "--dst-range", "1.2.3.4-1.2.3.6", "--destination-port", "8080", "--jump", "RETURN"},
+					}))
+				})
+			})
+
 			Context("when an invaild protocol is specified", func() {
 				It("returns an error", func() {
 					err := subject.PrependFilterRule(api.Protocol(52), "1.2.3.4/24", 8080)
