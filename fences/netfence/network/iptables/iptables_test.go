@@ -15,24 +15,29 @@ import (
 
 var _ = Describe("Iptables", func() {
 	var fakeRunner *fake_command_runner.FakeCommandRunner
-	var subject *Chain
+	var subject Chain
 
 	BeforeEach(func() {
 		fakeRunner = fake_command_runner.New()
-		subject = &Chain{"foo-bar-baz", fakeRunner}
+		subject = NewChain("foo-bar-baz", fakeRunner)
 	})
 
-	Describe("NATRule", func() {
+	Describe("AppendRule", func() {
+		It("runs iptables to create the rule with the correct parameters", func() {
+			subject.AppendRule("", "2.0.0.0/11", Return)
+
+			Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+				Path: "/sbin/iptables",
+				Args: []string{"-w", "-A", "foo-bar-baz", "--destination", "2.0.0.0/11", "--jump", "RETURN"},
+			}))
+		})
+	})
+
+	Describe("AppendNatRule", func() {
 		Context("creating a rule", func() {
 			Context("when all parameters are specified", func() {
 				It("runs iptables to create the rule with the correct parameters", func() {
-					subject.Create(&Rule{
-						Type:        Nat,
-						Source:      "1.3.5.0/28",
-						Destination: "2.0.0.0/11",
-						Jump:        Return,
-						To:          net.ParseIP("1.2.3.4"),
-					})
+					subject.AppendNatRule("1.3.5.0/28", "2.0.0.0/11", Return, net.ParseIP("1.2.3.4"))
 
 					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
 						Path: "/sbin/iptables",
@@ -41,29 +46,9 @@ var _ = Describe("Iptables", func() {
 				})
 			})
 
-			Context("when Type is not specified", func() {
-				It("does not include the -t parameter in the command", func() {
-					subject.Create(&Rule{
-						Jump:        Return,
-						Destination: "2.0.0.0/11",
-						To:          net.ParseIP("1.2.3.4"),
-					})
-
-					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
-						Path: "/sbin/iptables",
-						Args: []string{"-w", "-A", "foo-bar-baz", "--destination", "2.0.0.0/11", "--jump", "RETURN", "--to", "1.2.3.4"},
-					}))
-				})
-			})
-
 			Context("when Source is not specified", func() {
 				It("does not include the --source parameter in the command", func() {
-					subject.Create(&Rule{
-						Type:        Nat,
-						Jump:        Return,
-						Destination: "2.0.0.0/11",
-						To:          net.ParseIP("1.2.3.4"),
-					})
+					subject.AppendNatRule("", "2.0.0.0/11", Return, net.ParseIP("1.2.3.4"))
 
 					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
 						Path: "/sbin/iptables",
@@ -74,12 +59,7 @@ var _ = Describe("Iptables", func() {
 
 			Context("when Destination is not specified", func() {
 				It("does not include the --destination parameter in the command", func() {
-					subject.Create(&Rule{
-						Type:   Nat,
-						Source: "1.3.5.0/28",
-						Jump:   Return,
-						To:     net.ParseIP("1.2.3.4"),
-					})
+					subject.AppendNatRule("1.3.5.0/28", "", Return, net.ParseIP("1.2.3.4"))
 
 					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
 						Path: "/sbin/iptables",
@@ -90,12 +70,7 @@ var _ = Describe("Iptables", func() {
 
 			Context("when To is not specified", func() {
 				It("does not include the --to parameter in the command", func() {
-					subject.Create(&Rule{
-						Type:        Nat,
-						Source:      "1.3.5.0/28",
-						Destination: "2.0.0.0/11",
-						Jump:        Return,
-					})
+					subject.AppendNatRule("1.3.5.0/28", "2.0.0.0/11", Return, nil)
 
 					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
 						Path: "/sbin/iptables",
@@ -114,21 +89,26 @@ var _ = Describe("Iptables", func() {
 						},
 					)
 
-					Ω(subject.Create(&Rule{Source: "1.2.3.4/5"})).ShouldNot(Succeed())
+					Ω(subject.AppendRule("1.2.3.4/5", "", "")).ShouldNot(Succeed())
 				})
 			})
 		})
 
-		Context("deleting a rule", func() {
+		Describe("DeleteRule", func() {
+			It("runs iptables to delete the rule with the correct parameters", func() {
+				subject.DeleteRule("", "2.0.0.0/11", Return)
+
+				Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+					Path: "/sbin/iptables",
+					Args: []string{"-w", "-D", "foo-bar-baz", "--destination", "2.0.0.0/11", "--jump", "RETURN"},
+				}))
+			})
+		})
+
+		Context("DeleteNatRule", func() {
 			Context("when all parameters are specified", func() {
 				It("runs iptables to delete the rule with the correct parameters", func() {
-					subject.Destroy(&Rule{
-						Type:        Nat,
-						Source:      "1.3.5.0/28",
-						Destination: "2.0.0.0/11",
-						Jump:        Return,
-						To:          net.ParseIP("1.2.3.4"),
-					})
+					subject.DeleteNatRule("1.3.5.0/28", "2.0.0.0/11", Return, net.ParseIP("1.2.3.4"))
 
 					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
 						Path: "/sbin/iptables",
@@ -137,29 +117,9 @@ var _ = Describe("Iptables", func() {
 				})
 			})
 
-			Context("when Type is not specified", func() {
-				It("does not include the -t parameter in the command", func() {
-					subject.Destroy(&Rule{
-						Jump:        Return,
-						Destination: "2.0.0.0/11",
-						To:          net.ParseIP("1.2.3.4"),
-					})
-
-					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
-						Path: "/sbin/iptables",
-						Args: []string{"-w", "-D", "foo-bar-baz", "--destination", "2.0.0.0/11", "--jump", "RETURN", "--to", "1.2.3.4"},
-					}))
-				})
-			})
-
 			Context("when Source is not specified", func() {
 				It("does not include the --source parameter in the command", func() {
-					subject.Destroy(&Rule{
-						Type:        Nat,
-						Jump:        Return,
-						Destination: "2.0.0.0/11",
-						To:          net.ParseIP("1.2.3.4"),
-					})
+					subject.DeleteNatRule("", "2.0.0.0/11", Return, net.ParseIP("1.2.3.4"))
 
 					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
 						Path: "/sbin/iptables",
@@ -170,12 +130,7 @@ var _ = Describe("Iptables", func() {
 
 			Context("when Destination is not specified", func() {
 				It("does not include the --destination parameter in the command", func() {
-					subject.Destroy(&Rule{
-						Type:   Nat,
-						Source: "1.3.5.0/28",
-						Jump:   Return,
-						To:     net.ParseIP("1.2.3.4"),
-					})
+					subject.DeleteNatRule("1.3.5.0/28", "", Return, net.ParseIP("1.2.3.4"))
 
 					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
 						Path: "/sbin/iptables",
@@ -186,12 +141,7 @@ var _ = Describe("Iptables", func() {
 
 			Context("when To is not specified", func() {
 				It("does not include the --to parameter in the command", func() {
-					subject.Destroy(&Rule{
-						Type:        Nat,
-						Source:      "1.3.5.0/28",
-						Destination: "2.0.0.0/11",
-						Jump:        Return,
-					})
+					subject.DeleteNatRule("1.3.5.0/28", "2.0.0.0/11", Return, nil)
 
 					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
 						Path: "/sbin/iptables",
@@ -210,7 +160,7 @@ var _ = Describe("Iptables", func() {
 						},
 					)
 
-					Ω(subject.Destroy(&Rule{Source: "1.3.4.5/6"})).ShouldNot(Succeed())
+					Ω(subject.DeleteNatRule("1.3.4.5/6", "", "", nil)).ShouldNot(Succeed())
 				})
 			})
 		})

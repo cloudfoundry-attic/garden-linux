@@ -24,12 +24,11 @@ var _ = Describe("Persistor", func() {
 		fence          fences.Fence
 		persistPath    string
 		ipNet          *net.IPNet
-		ipAddr         net.IP
 	)
 
 	BeforeEach(func() {
 		var err error
-		ipAddr, ipNet, err = net.ParseCIDR("1.2.0.0/20")
+		_, ipNet, err = net.ParseCIDR("1.2.0.0/20")
 		Ω(err).ShouldNot(HaveOccurred())
 
 		fakeFence = fake_fences.New(ipNet)

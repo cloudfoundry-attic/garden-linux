@@ -7,12 +7,60 @@ import (
 	"github.com/cloudfoundry/gunk/command_runner"
 )
 
-type Chain struct {
+type Chain interface {
+	AppendRule(source string, destination string, jump Action) error
+	DeleteRule(source string, destination string, jump Action) error
+
+	AppendNatRule(source string, destination string, jump Action, to net.IP) error
+	DeleteNatRule(source string, destination string, jump Action, to net.IP) error
+}
+
+func NewChain(name string, runner command_runner.CommandRunner) Chain {
+	return &chain{Name: name, Runner: runner}
+}
+
+type chain struct {
 	Name   string
 	Runner command_runner.CommandRunner
 }
 
-type Rule struct {
+func (ch *chain) AppendRule(source string, destination string, jump Action) error {
+	return ch.Create(&rule{
+		Source:      source,
+		Destination: destination,
+		Jump:        jump,
+	})
+}
+
+func (ch *chain) DeleteRule(source string, destination string, jump Action) error {
+	return ch.Destroy(&rule{
+		Source:      source,
+		Destination: destination,
+		Jump:        jump,
+	})
+}
+
+func (ch *chain) AppendNatRule(source string, destination string, jump Action, to net.IP) error {
+	return ch.Create(&rule{
+		Type:        Nat,
+		Source:      source,
+		Destination: destination,
+		Jump:        jump,
+		To:          to,
+	})
+}
+
+func (ch *chain) DeleteNatRule(source string, destination string, jump Action, to net.IP) error {
+	return ch.Destroy(&rule{
+		Type:        Nat,
+		Source:      source,
+		Destination: destination,
+		Jump:        jump,
+		To:          to,
+	})
+}
+
+type rule struct {
 	Type        Type
 	Source      string
 	Destination string
@@ -20,15 +68,15 @@ type Rule struct {
 	Jump        Action
 }
 
-func (n *Rule) create(chain string, runner command_runner.CommandRunner) error {
+func (n *rule) create(chain string, runner command_runner.CommandRunner) error {
 	return runner.Run(exec.Command("/sbin/iptables", flags("-A", chain, n)...))
 }
 
-func (n *Rule) destroy(chain string, runner command_runner.CommandRunner) error {
+func (n *rule) destroy(chain string, runner command_runner.CommandRunner) error {
 	return runner.Run(exec.Command("/sbin/iptables", flags("-D", chain, n)...))
 }
 
-func flags(action, chain string, n *Rule) []string {
+func flags(action, chain string, n *rule) []string {
 	rule := []string{"-w"}
 
 	if n.Type != "" {
@@ -66,11 +114,11 @@ type destroyer interface {
 	destroy(chain string, runner command_runner.CommandRunner) error
 }
 
-func (c *Chain) Create(rule creater) error {
+func (c *chain) Create(rule creater) error {
 	return rule.create(c.Name, c.Runner)
 }
 
-func (c *Chain) Destroy(rule destroyer) error {
+func (c *chain) Destroy(rule destroyer) error {
 	return rule.destroy(c.Name, c.Runner)
 }
 

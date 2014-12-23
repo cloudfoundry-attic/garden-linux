@@ -135,18 +135,13 @@ func (p *LinuxContainerPool) Setup() error {
 }
 
 func (p *LinuxContainerPool) setupIPTables() error {
-	defaultChain := &iptables.Chain{Name: p.sysconfig.IPTables.Filter.DefaultChain, Runner: p.runner}
+	defaultChain := iptables.NewChain(p.sysconfig.IPTables.Filter.DefaultChain, p.runner)
 	for _, n := range p.allowNetworks {
 		if n == "" {
 			continue
 		}
 
-		err := defaultChain.Create(&iptables.Rule{
-			Destination: n,
-			Jump:        iptables.Return,
-		})
-
-		if err != nil {
+		if err := defaultChain.AppendRule("", n, iptables.Return); err != nil {
 			return fmt.Errorf("container_pool: setting up allow rules in iptables: %v", err)
 		}
 	}
@@ -156,12 +151,7 @@ func (p *LinuxContainerPool) setupIPTables() error {
 			continue
 		}
 
-		err := defaultChain.Create(&iptables.Rule{
-			Destination: n,
-			Jump:        iptables.Reject,
-		})
-
-		if err != nil {
+		if err := defaultChain.AppendRule("", n, iptables.Reject); err != nil {
 			return fmt.Errorf("container_pool: setting up deny rules in iptables: %v", err)
 		}
 	}
