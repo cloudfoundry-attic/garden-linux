@@ -211,6 +211,14 @@ var _ = Describe("Iptables", func() {
 				})
 			})
 
+			Context("when an invaild protocol is specified", func() {
+				It("returns an error", func() {
+					err := subject.PrependFilterRule(api.Protocol(52), "1.2.3.4/24", 8080)
+					Ω(err).Should(HaveOccurred())
+					Ω(err).Should(MatchError("invalid protocol: 52"))
+				})
+			})
+
 			Context("when the command returns an error", func() {
 				It("returns an error", func() {
 					someError := errors.New("badly laid iptable")

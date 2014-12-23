@@ -45,15 +45,24 @@ var _ = Describe("Filter", func() {
 		})
 
 		It("should mutate iptables correctly", func() {
-			err := filter.NetOut("1.2.3.4/24", 8080, api.ProtocolAll)
+			err := filter.NetOut("1.2.3.4/24", 8080, api.ProtocolTCP)
 			Ω(err).ShouldNot(HaveOccurred())
 			Ω(fakeChain.PrependFilterRuleCallCount()).Should(Equal(1))
 			protocol, dest, destPort := fakeChain.PrependFilterRuleArgsForCall(0)
-			Ω(protocol).Should(Equal(api.ProtocolAll))
+			Ω(protocol).Should(Equal(api.ProtocolTCP))
 			Ω(dest).Should(Equal("1.2.3.4/24"))
 			Ω(destPort).Should(Equal(uint32(8080)))
 		})
 
+		It("return an error if port is specified and protocol is all", func() {
+			err := filter.NetOut("1.2.3.4/24", 8080, api.ProtocolAll)
+			Ω(err).Should(HaveOccurred())
+		})
+
+		It("return an error if network and port are omitted", func() {
+			err := filter.NetOut("", 0, api.ProtocolAll)
+			Ω(err).Should(HaveOccurred())
+		})
 	})
 
 })

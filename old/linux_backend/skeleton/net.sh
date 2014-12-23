@@ -113,32 +113,6 @@ case "${1}" in
 
     ;;
 
-  "out")
-    if [ -z "${NETWORK:-}" ] && [ -z "${PORT:-}" ]; then
-      echo "Please specify NETWORK and/or PORT..." 1>&2
-      exit 1
-    fi
-
-    if [ -z "${PROTOCOL:-}" ]; then
-      echo "Please specify PROTOCOL." 1>&2
-      exit 1
-    fi
-
-    opts=""
-
-    opts="${opts} --protocol ${PROTOCOL}"
-
-    if [ -n "${NETWORK:-}" ]; then
-      opts="${opts} --destination ${NETWORK}"
-    fi
-
-    if [ -n "${PORT:-}" ]; then
-      opts="${opts} --destination-port ${PORT}"
-    fi
-
-    iptables -w -I ${filter_instance_chain} 1 ${opts} --jump RETURN
-
-    ;;
   "get_ingress_info")
     if [ -z "${ID:-}" ]; then
       echo "Please specify container ID..." 1>&2

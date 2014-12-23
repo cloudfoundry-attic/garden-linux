@@ -3,7 +3,6 @@ package linux_backend
 import (
 	"bufio"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -15,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/process_tracker"
@@ -63,6 +63,8 @@ type LinuxContainer struct {
 
 	processTracker process_tracker.ProcessTracker
 
+	filter network.Filter
+
 	oomMutex    sync.RWMutex
 	oomNotifier *exec.Cmd
 
@@ -94,6 +96,7 @@ type NetInSpec struct {
 	ContainerPort uint32
 }
 
+// TODO: extend this for security groups https://www.pivotaltracker.com/story/show/82554270
 type NetOutSpec struct {
 	Network string
 	Port    uint32
@@ -126,6 +129,7 @@ func NewLinuxContainer(
 	bandwidthManager bandwidth_manager.BandwidthManager,
 	processTracker process_tracker.ProcessTracker,
 	envvars []string,
+	filter network.Filter,
 ) *LinuxContainer {
 	return &LinuxContainer{
 		logger: logger,
@@ -152,6 +156,8 @@ func NewLinuxContainer(
 		bandwidthManager: bandwidthManager,
 
 		processTracker: processTracker,
+
+		filter: filter,
 
 		envvars: envvars,
 	}
@@ -790,43 +796,7 @@ func (c *LinuxContainer) NetIn(hostPort uint32, containerPort uint32) (uint32, u
 }
 
 func (c *LinuxContainer) NetOut(network string, port uint32, protocol api.Protocol) error {
-	net := exec.Command(path.Join(c.path, "net.sh"), "out")
-
-	protocols := map[api.Protocol]string{
-		api.ProtocolAll: "all",
-		api.ProtocolTCP: "tcp",
-	}
-	protocolString, ok := protocols[protocol]
-
-	if !ok {
-		return fmt.Errorf("invalid protocol: %d", protocol)
-	}
-
-	if port != 0 && protocol != api.ProtocolTCP {
-		return errors.New("invalid rule: a port can only be specified with protocol TCP")
-	}
-
-	if port != 0 {
-		net.Env = []string{
-			"NETWORK=" + network,
-			fmt.Sprintf("PORT=%d", port),
-			"PATH=" + os.Getenv("PATH"),
-			"PROTOCOL=" + protocolString,
-		}
-	} else {
-		if network == "" {
-			return fmt.Errorf("network and/or port must be provided")
-		}
-
-		net.Env = []string{
-			"NETWORK=" + network,
-			"PORT=",
-			"PATH=" + os.Getenv("PATH"),
-			"PROTOCOL=" + protocolString,
-		}
-	}
-
-	err := c.runner.Run(net)
+	err := c.filter.NetOut(network, port, protocol)
 	if err != nil {
 		return err
 	}

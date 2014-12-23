@@ -19,6 +19,7 @@ import (
 	"github.com/onsi/gomega/gbytes"
 	"github.com/pivotal-golang/lager/lagertest"
 
+	networkFakes "github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/fakes"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/bandwidth_manager/fake_bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/cgroups_manager/fake_cgroups_manager"
@@ -39,6 +40,7 @@ var containerResources *linux_backend.Resources
 var container *linux_backend.LinuxContainer
 var fakePortPool *fake_port_pool.FakePortPool
 var fakeProcessTracker *fake_process_tracker.FakeProcessTracker
+var fakeFilter *networkFakes.FakeFilter
 var containerDir string
 var mtu uint32
 
@@ -51,6 +53,7 @@ var _ = Describe("Linux containers", func() {
 		fakeQuotaManager = fake_quota_manager.New()
 		fakeBandwidthManager = fake_bandwidth_manager.New()
 		fakeProcessTracker = new(fake_process_tracker.FakeProcessTracker)
+		fakeFilter = new(networkFakes.FakeFilter)
 
 		fakePortPool = fake_port_pool.New(1000)
 
@@ -91,6 +94,7 @@ var _ = Describe("Linux containers", func() {
 			fakeBandwidthManager,
 			fakeProcessTracker,
 			[]string{"env1=env1Value", "env2=env2Value"},
+			fakeFilter,
 		)
 	})
 
@@ -390,18 +394,15 @@ var _ = Describe("Linux containers", func() {
 					Path: containerDir + "/net.sh",
 					Args: []string{"in"},
 				},
-				fake_command_runner.CommandSpec{
-					Path: containerDir + "/net.sh",
-					Args: []string{"out"},
-				},
-				fake_command_runner.CommandSpec{
-					Path: containerDir + "/net.sh",
-					Args: []string{"out"},
-				},
 			))
+			Ω(fakeFilter.NetOutCallCount()).Should(Equal(2))
+			network, port, protocol := fakeFilter.NetOutArgsForCall(0)
+			Ω(network).Should(Equal("somehost.example.com"))
+			Ω(port).Should(Equal(uint32(80)))
+			Ω(protocol).Should(Equal(api.ProtocolTCP))
 		})
 
-		for _, cmd := range []string{"setup", "in", "out"} {
+		for _, cmd := range []string{"setup", "in"} {
 			command := cmd
 
 			Context("when net.sh "+cmd+" fails", func() {
@@ -434,19 +435,33 @@ var _ = Describe("Linux containers", func() {
 							},
 						},
 
-						NetOuts: []linux_backend.NetOutSpec{
-							{
-								Network: "somehost.example.com",
-								Port:    80,
-							},
-							{
-								Network: "someotherhost.example.com",
-								Port:    8080,
-							},
-						},
+						NetOuts: []linux_backend.NetOutSpec{},
 					})
 					Ω(err).Should(Equal(disaster))
 				})
+			})
+
+			It("when filter returns an error", func() {
+				disaster := errors.New("fail")
+				fakeFilter.NetOutReturns(disaster)
+				err := container.Restore(linux_backend.ContainerSnapshot{
+					State:  "active",
+					Events: []string{},
+
+					NetIns: []linux_backend.NetInSpec{},
+
+					NetOuts: []linux_backend.NetOutSpec{
+						{
+							Network: "somehost.example.com",
+							Port:    80,
+						},
+						{
+							Network: "someotherhost.example.com",
+							Port:    8080,
+						},
+					},
+				})
+				Ω(err).Should(Equal(disaster))
 			})
 		}
 
@@ -1779,77 +1794,26 @@ var _ = Describe("Linux containers", func() {
 	})
 
 	Describe("Net out", func() {
-		It("executes net.sh out with NETWORK, PORT, and PROTOCOL", func() {
+		It("delegates correctly to the filter", func() {
 			err := container.NetOut("1.2.3.4/22", 567, api.ProtocolTCP)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Ω(fakeRunner).Should(HaveExecutedSerially(
-				fake_command_runner.CommandSpec{
-					Path: containerDir + "/net.sh",
-					Args: []string{"out"},
-					Env: []string{
-						"NETWORK=1.2.3.4/22",
-						"PORT=567",
-						"PATH=" + os.Getenv("PATH"),
-						"PROTOCOL=tcp",
-					},
-				},
-			))
+			Ω(fakeFilter.NetOutCallCount()).Should(Equal(1))
+			network, port, protocol := fakeFilter.NetOutArgsForCall(0)
+			Ω(network).Should(Equal("1.2.3.4/22"))
+			Ω(port).Should(Equal(uint32(567)))
+			Ω(protocol).Should(Equal(api.ProtocolTCP))
 		})
 
-		It("does not allow invalid protocols", func() {
-			err := container.NetOut("1.2.3.4/22", 567, api.Protocol(52))
-			Ω(err).Should(MatchError("invalid protocol: 52"))
-		})
-
-		It("does not allow a port to be specified with ProtocolAll", func() {
-			err := container.NetOut("1.2.3.4/22", 567, api.ProtocolAll)
-			Ω(err).Should(MatchError("invalid rule: a port can only be specified with protocol TCP"))
-		})
-
-		Context("when port 0 is given", func() {
-			It("executes with PORT as an empty string", func() {
-				err := container.NetOut("1.2.3.4/22", 0, api.ProtocolAll)
-				Ω(err).ShouldNot(HaveOccurred())
-
-				Ω(fakeRunner).Should(HaveExecutedSerially(
-					fake_command_runner.CommandSpec{
-						Path: containerDir + "/net.sh",
-						Args: []string{"out"},
-						Env: []string{
-							"NETWORK=1.2.3.4/22",
-							"PORT=",
-							"PATH=" + os.Getenv("PATH"),
-							"PROTOCOL=all",
-						},
-					},
-				))
-
-			})
-
-			Context("and a network is not given", func() {
-				It("returns an error", func() {
-					err := container.NetOut("", 0, api.ProtocolAll)
-					Ω(err).Should(HaveOccurred())
-				})
-			})
-		})
-
-		Context("when net.sh fails", func() {
+		Context("when the filter fails", func() {
 			disaster := errors.New("oh no!")
 
-			JustBeforeEach(func() {
-				fakeRunner.WhenRunning(
-					fake_command_runner.CommandSpec{
-						Path: containerDir + "/net.sh",
-					}, func(*exec.Cmd) error {
-						return disaster
-					},
-				)
+			BeforeEach(func() {
+				fakeFilter.NetOutReturns(disaster)
 			})
 
 			It("returns the error", func() {
-				err := container.NetOut("1.2.3.4/22", 0, api.ProtocolAll)
+				err := container.NetOut("1.2.3.4/22", 567, api.ProtocolTCP)
 				Ω(err).Should(Equal(disaster))
 			})
 		})

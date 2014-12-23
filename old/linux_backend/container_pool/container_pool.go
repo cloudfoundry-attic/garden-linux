@@ -19,6 +19,7 @@ import (
 	"github.com/pivotal-golang/lager"
 
 	"github.com/cloudfoundry-incubator/garden-linux/fences"
+	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network"
 	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/iptables"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/bandwidth_manager"
@@ -258,6 +259,7 @@ func (p *LinuxContainerPool) Create(spec api.ContainerSpec) (c linux_backend.Con
 		bandwidth_manager.New(containerPath, id, p.runner),
 		process_tracker.New(containerPath, p.runner),
 		mergeEnv(spec.Env, rootFSEnvVars),
+		network.NewFilterFactory(p.sysconfig.Tag, iptables.NewChainFactory(p.runner)).Create(id),
 	), nil
 }
 
@@ -337,6 +339,7 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 		bandwidthManager,
 		process_tracker.New(containerPath, p.runner),
 		containerSnapshot.EnvVars,
+		network.NewFilterFactory(p.sysconfig.Tag, iptables.NewChainFactory(p.runner)).Create(id),
 	)
 
 	err = container.Restore(containerSnapshot)
