@@ -3,11 +3,11 @@ package network
 import (
 	"fmt"
 
+	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/iptables"
 	"github.com/cloudfoundry-incubator/garden/api"
 )
 
 type FilterFactory interface {
-	fmt.Stringer
 	Create(id string) Filter
 }
 
@@ -17,24 +17,23 @@ type Filter interface {
 
 type filterFactory struct {
 	instancePrefix string
+	chainFactory   iptables.ChainFactory
 }
 
 type filter struct {
-	instanceChain string
+	instanceChain iptables.Chain
 }
 
-func NewFilterFactory(tag string) FilterFactory {
-	return &filterFactory{instancePrefix: fmt.Sprintf("w-%s-instance-", tag)}
+func NewFilterFactory(tag string, chainFactory iptables.ChainFactory) FilterFactory {
+	return &filterFactory{instancePrefix: fmt.Sprintf("w-%s-instance-", tag),
+		chainFactory: chainFactory,
+	}
 }
 
 func (ff *filterFactory) Create(id string) Filter {
-	return &filter{instanceChain: ff.instancePrefix + id}
-}
-
-func (ff *filterFactory) String() string {
-	return fmt.Sprintf("%#v", ff)
+	return &filter{instanceChain: ff.chainFactory.CreateChain(ff.instancePrefix + id)}
 }
 
 func (fltr *filter) NetOut(network string, port uint32, protocol api.Protocol) error {
-	return nil
+	return fltr.instanceChain.PrependFilterRule(protocol, network, port)
 }

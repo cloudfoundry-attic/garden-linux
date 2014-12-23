@@ -20,7 +20,7 @@ var _ = Describe("Iptables", func() {
 
 	BeforeEach(func() {
 		fakeRunner = fake_command_runner.New()
-		subject = NewChain("foo-bar-baz", fakeRunner)
+		subject = NewChainFactory(fakeRunner).CreateChain("foo-bar-baz")
 	})
 
 	Describe("AppendRule", func() {

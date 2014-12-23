@@ -10,6 +10,22 @@ import (
 	"github.com/cloudfoundry/gunk/command_runner"
 )
 
+type ChainFactory interface {
+	CreateChain(name string) Chain
+}
+
+func NewChainFactory(runner command_runner.CommandRunner) ChainFactory {
+	return &chainFactory{runner}
+}
+
+type chainFactory struct {
+	runner command_runner.CommandRunner
+}
+
+func (cf *chainFactory) CreateChain(name string) Chain {
+	return &chain{name: name, runner: cf.runner}
+}
+
 type Chain interface {
 	AppendRule(source string, destination string, jump Action) error
 	DeleteRule(source string, destination string, jump Action) error
@@ -20,53 +36,49 @@ type Chain interface {
 	PrependFilterRule(protocol api.Protocol, dest string, destPort uint32) error
 }
 
-func NewChain(name string, runner command_runner.CommandRunner) Chain {
-	return &chain{Name: name, Runner: runner}
-}
-
 type chain struct {
-	Name   string
-	Runner command_runner.CommandRunner
+	name   string
+	runner command_runner.CommandRunner
 }
 
 func (ch *chain) AppendRule(source string, destination string, jump Action) error {
 	return ch.Create(&rule{
-		Source:      source,
-		Destination: destination,
-		Jump:        jump,
+		source:      source,
+		destination: destination,
+		jump:        jump,
 	})
 }
 
 func (ch *chain) DeleteRule(source string, destination string, jump Action) error {
 	return ch.Destroy(&rule{
-		Source:      source,
-		Destination: destination,
-		Jump:        jump,
+		source:      source,
+		destination: destination,
+		jump:        jump,
 	})
 }
 
 func (ch *chain) AppendNatRule(source string, destination string, jump Action, to net.IP) error {
 	return ch.Create(&rule{
-		Type:        Nat,
-		Source:      source,
-		Destination: destination,
-		Jump:        jump,
-		To:          to,
+		typ:         Nat,
+		source:      source,
+		destination: destination,
+		jump:        jump,
+		to:          to,
 	})
 }
 
 func (ch *chain) DeleteNatRule(source string, destination string, jump Action, to net.IP) error {
 	return ch.Destroy(&rule{
-		Type:        Nat,
-		Source:      source,
-		Destination: destination,
-		Jump:        jump,
-		To:          to,
+		typ:         Nat,
+		source:      source,
+		destination: destination,
+		jump:        jump,
+		to:          to,
 	})
 }
 
 func (ch *chain) PrependFilterRule(protocol api.Protocol, dest string, destPort uint32) error {
-	parms := []string{"-w", "-I", ch.Name, "1"}
+	parms := []string{"-w", "-I", ch.name, "1"}
 
 	protocols := map[api.Protocol]string{
 		api.ProtocolAll: "all",
@@ -90,15 +102,15 @@ func (ch *chain) PrependFilterRule(protocol api.Protocol, dest string, destPort 
 
 	parms = append(parms, "--jump", "RETURN")
 
-	return ch.Runner.Run(exec.Command("/sbin/iptables", parms...))
+	return ch.runner.Run(exec.Command("/sbin/iptables", parms...))
 }
 
 type rule struct {
-	Type        Type
-	Source      string
-	Destination string
-	To          net.IP
-	Jump        Action
+	typ         Type
+	source      string
+	destination string
+	to          net.IP
+	jump        Action
 }
 
 func (n *rule) create(chain string, runner command_runner.CommandRunner) error {
@@ -112,24 +124,24 @@ func (n *rule) destroy(chain string, runner command_runner.CommandRunner) error 
 func flags(action, chain string, n *rule) []string {
 	rule := []string{"-w"}
 
-	if n.Type != "" {
-		rule = append(rule, "-t", string(n.Type))
+	if n.typ != "" {
+		rule = append(rule, "-t", string(n.typ))
 	}
 
 	rule = append(rule, action, chain)
 
-	if n.Source != "" {
-		rule = append(rule, "--source", n.Source)
+	if n.source != "" {
+		rule = append(rule, "--source", n.source)
 	}
 
-	if n.Destination != "" {
-		rule = append(rule, "--destination", n.Destination)
+	if n.destination != "" {
+		rule = append(rule, "--destination", n.destination)
 	}
 
-	rule = append(rule, "--jump", string(n.Jump))
+	rule = append(rule, "--jump", string(n.jump))
 
-	if n.To != nil {
-		rule = append(rule, "--to", string(n.To.String()))
+	if n.to != nil {
+		rule = append(rule, "--to", string(n.to.String()))
 	}
 
 	return rule
@@ -148,11 +160,11 @@ type destroyer interface {
 }
 
 func (c *chain) Create(rule creater) error {
-	return rule.create(c.Name, c.Runner)
+	return rule.create(c.name, c.runner)
 }
 
 func (c *chain) Destroy(rule destroyer) error {
-	return rule.destroy(c.Name, c.Runner)
+	return rule.destroy(c.name, c.runner)
 }
 
 type Action string

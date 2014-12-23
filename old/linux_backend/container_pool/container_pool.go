@@ -135,7 +135,8 @@ func (p *LinuxContainerPool) Setup() error {
 }
 
 func (p *LinuxContainerPool) setupIPTables() error {
-	defaultChain := iptables.NewChain(p.sysconfig.IPTables.Filter.DefaultChain, p.runner)
+	defaultChain := iptables.NewChainFactory(p.runner).CreateChain(p.sysconfig.IPTables.Filter.DefaultChain)
+
 	for _, n := range p.allowNetworks {
 		if n == "" {
 			continue

@@ -2,26 +2,58 @@ package network_test
 
 import (
 	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network"
+	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/iptables/fakes"
+	"github.com/cloudfoundry-incubator/garden/api"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
-var _ = FDescribe("Filter", func() {
-	It("constructs a filter factory correctly from a tag", func() {
-		ff := network.NewFilterFactory("tag")
-		Ω(ff.String()).Should(Equal(`&network.filterFactory{instancePrefix:"w-tag-instance-"}`))
+var _ = Describe("Filter", func() {
+	var (
+		fakeChainFactory *fakes.FakeChainFactory
+		fakeChain        *fakes.FakeChain
+	)
+
+	BeforeEach(func() {
+		fakeChainFactory = new(fakes.FakeChainFactory)
+		fakeChain = new(fakes.FakeChain)
+		fakeChainFactory.CreateChainReturns(fakeChain)
 	})
 
 	Describe("FilterFactory", func() {
 		var filterFactory network.FilterFactory
 		BeforeEach(func() {
-			filterFactory = network.NewFilterFactory("tag")
+			filterFactory = network.NewFilterFactory("tag", fakeChainFactory)
 		})
 
 		It("constructs a filter from a container id", func() {
 			filter := filterFactory.Create("id")
 			Ω(filter).ShouldNot(BeNil())
+			Ω(fakeChainFactory.CreateChainCallCount()).Should(Equal(1))
+			Ω(fakeChainFactory.CreateChainArgsForCall(0)).Should(Equal("w-tag-instance-id"))
 		})
+	})
+
+	Context("NetOut", func() {
+		var filter network.Filter
+		BeforeEach(func() {
+			filterFactory := network.NewFilterFactory("tag", fakeChainFactory)
+			filter = filterFactory.Create("id")
+			Ω(filter).ShouldNot(BeNil())
+			Ω(fakeChainFactory.CreateChainCallCount()).Should(Equal(1))
+			Ω(fakeChainFactory.CreateChainArgsForCall(0)).Should(Equal("w-tag-instance-id"))
+		})
+
+		It("should mutate iptables correctly", func() {
+			err := filter.NetOut("1.2.3.4/24", 8080, api.ProtocolAll)
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(fakeChain.PrependFilterRuleCallCount()).Should(Equal(1))
+			protocol, dest, destPort := fakeChain.PrependFilterRuleArgsForCall(0)
+			Ω(protocol).Should(Equal(api.ProtocolAll))
+			Ω(dest).Should(Equal("1.2.3.4/24"))
+			Ω(destPort).Should(Equal(uint32(8080)))
+		})
+
 	})
 
 })
