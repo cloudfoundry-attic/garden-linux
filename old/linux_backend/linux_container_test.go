@@ -135,10 +135,10 @@ var _ = Describe("Linux containers", func() {
 			_, _, err = container.NetIn(3, 4)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			err = container.NetOut("network-a", 1, api.ProtocolTCP)
+			err = container.NetOut("network-a", 1, "", api.ProtocolTCP)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			err = container.NetOut("network-b", 2, api.ProtocolTCP)
+			err = container.NetOut("network-b", 2, "", api.ProtocolTCP)
 			Ω(err).ShouldNot(HaveOccurred())
 
 			p1 := new(wfakes.FakeProcess)
@@ -396,9 +396,10 @@ var _ = Describe("Linux containers", func() {
 				},
 			))
 			Ω(fakeFilter.NetOutCallCount()).Should(Equal(2))
-			network, port, protocol := fakeFilter.NetOutArgsForCall(0)
+			network, port, portRange, protocol := fakeFilter.NetOutArgsForCall(0)
 			Ω(network).Should(Equal("somehost.example.com"))
 			Ω(port).Should(Equal(uint32(80)))
+			Ω(portRange).Should(Equal(""))
 			Ω(protocol).Should(Equal(api.ProtocolTCP))
 		})
 
@@ -1794,14 +1795,27 @@ var _ = Describe("Linux containers", func() {
 	})
 
 	Describe("Net out", func() {
-		It("delegates correctly to the filter", func() {
-			err := container.NetOut("1.2.3.4/22", 567, api.ProtocolTCP)
+		It("delegates correctly to the filter when port is specified", func() {
+			err := container.NetOut("1.2.3.4/22", 567, "", api.ProtocolTCP)
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(fakeFilter.NetOutCallCount()).Should(Equal(1))
-			network, port, protocol := fakeFilter.NetOutArgsForCall(0)
+			network, port, portRange, protocol := fakeFilter.NetOutArgsForCall(0)
 			Ω(network).Should(Equal("1.2.3.4/22"))
 			Ω(port).Should(Equal(uint32(567)))
+			Ω(portRange).Should(Equal(""))
+			Ω(protocol).Should(Equal(api.ProtocolTCP))
+		})
+
+		It("delegates correctly to the filter when port range is specified", func() {
+			err := container.NetOut("1.2.3.4/22", 0, "80:81", api.ProtocolTCP)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(fakeFilter.NetOutCallCount()).Should(Equal(1))
+			network, port, portRange, protocol := fakeFilter.NetOutArgsForCall(0)
+			Ω(network).Should(Equal("1.2.3.4/22"))
+			Ω(port).Should(Equal(uint32(0)))
+			Ω(portRange).Should(Equal("80:81"))
 			Ω(protocol).Should(Equal(api.ProtocolTCP))
 		})
 
@@ -1813,7 +1827,7 @@ var _ = Describe("Linux containers", func() {
 			})
 
 			It("returns the error", func() {
-				err := container.NetOut("1.2.3.4/22", 567, api.ProtocolTCP)
+				err := container.NetOut("1.2.3.4/22", 567, "", api.ProtocolTCP)
 				Ω(err).Should(Equal(disaster))
 			})
 		})

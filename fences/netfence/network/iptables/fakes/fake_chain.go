@@ -52,12 +52,13 @@ type FakeChain struct {
 	deleteNatRuleReturns struct {
 		result1 error
 	}
-	PrependFilterRuleStub        func(protocol api.Protocol, dest string, destPort uint32) error
+	PrependFilterRuleStub        func(protocol api.Protocol, dest string, destPort uint32, destPortRange string) error
 	prependFilterRuleMutex       sync.RWMutex
 	prependFilterRuleArgsForCall []struct {
-		protocol api.Protocol
-		dest     string
-		destPort uint32
+		protocol      api.Protocol
+		dest          string
+		destPort      uint32
+		destPortRange string
 	}
 	prependFilterRuleReturns struct {
 		result1 error
@@ -202,16 +203,17 @@ func (fake *FakeChain) DeleteNatRuleReturns(result1 error) {
 	}{result1}
 }
 
-func (fake *FakeChain) PrependFilterRule(protocol api.Protocol, dest string, destPort uint32) error {
+func (fake *FakeChain) PrependFilterRule(protocol api.Protocol, dest string, destPort uint32, destPortRange string) error {
 	fake.prependFilterRuleMutex.Lock()
 	fake.prependFilterRuleArgsForCall = append(fake.prependFilterRuleArgsForCall, struct {
-		protocol api.Protocol
-		dest     string
-		destPort uint32
-	}{protocol, dest, destPort})
+		protocol      api.Protocol
+		dest          string
+		destPort      uint32
+		destPortRange string
+	}{protocol, dest, destPort, destPortRange})
 	fake.prependFilterRuleMutex.Unlock()
 	if fake.PrependFilterRuleStub != nil {
-		return fake.PrependFilterRuleStub(protocol, dest, destPort)
+		return fake.PrependFilterRuleStub(protocol, dest, destPort, destPortRange)
 	} else {
 		return fake.prependFilterRuleReturns.result1
 	}
@@ -223,10 +225,10 @@ func (fake *FakeChain) PrependFilterRuleCallCount() int {
 	return len(fake.prependFilterRuleArgsForCall)
 }
 
-func (fake *FakeChain) PrependFilterRuleArgsForCall(i int) (api.Protocol, string, uint32) {
+func (fake *FakeChain) PrependFilterRuleArgsForCall(i int) (api.Protocol, string, uint32, string) {
 	fake.prependFilterRuleMutex.RLock()
 	defer fake.prependFilterRuleMutex.RUnlock()
-	return fake.prependFilterRuleArgsForCall[i].protocol, fake.prependFilterRuleArgsForCall[i].dest, fake.prependFilterRuleArgsForCall[i].destPort
+	return fake.prependFilterRuleArgsForCall[i].protocol, fake.prependFilterRuleArgsForCall[i].dest, fake.prependFilterRuleArgsForCall[i].destPort, fake.prependFilterRuleArgsForCall[i].destPortRange
 }
 
 func (fake *FakeChain) PrependFilterRuleReturns(result1 error) {

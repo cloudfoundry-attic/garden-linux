@@ -13,7 +13,7 @@ type FilterFactory interface {
 }
 
 type Filter interface {
-	NetOut(network string, port uint32, protocol api.Protocol) error
+	NetOut(network string, port uint32, portRange string, protocol api.Protocol) error
 }
 
 type filterFactory struct {
@@ -35,12 +35,12 @@ func (ff *filterFactory) Create(id string) Filter {
 	return &filter{instanceChain: ff.chainFactory.CreateChain(ff.instancePrefix + id)}
 }
 
-func (fltr *filter) NetOut(network string, port uint32, protocol api.Protocol) error {
+func (fltr *filter) NetOut(network string, port uint32, portRange string, protocol api.Protocol) error {
 	if network == "" && port == 0 {
 		return errors.New("invalid rule: either network or port must be specified")
 	}
 	if port != 0 && protocol != api.ProtocolTCP {
 		return errors.New("invalid rule: a port can only be specified with protocol TCP")
 	}
-	return fltr.instanceChain.PrependFilterRule(protocol, network, port)
+	return fltr.instanceChain.PrependFilterRule(protocol, network, port, portRange)
 }

@@ -44,23 +44,35 @@ var _ = Describe("Filter", func() {
 			Ω(fakeChainFactory.CreateChainArgsForCall(0)).Should(Equal("w-tag-instance-id"))
 		})
 
-		It("should mutate iptables correctly", func() {
-			err := filter.NetOut("1.2.3.4/24", 8080, api.ProtocolTCP)
+		It("should mutate iptables correctly when port is specified", func() {
+			err := filter.NetOut("1.2.3.4/24", 8080, "", api.ProtocolTCP)
 			Ω(err).ShouldNot(HaveOccurred())
 			Ω(fakeChain.PrependFilterRuleCallCount()).Should(Equal(1))
-			protocol, dest, destPort := fakeChain.PrependFilterRuleArgsForCall(0)
+			protocol, dest, destPort, destPortRange := fakeChain.PrependFilterRuleArgsForCall(0)
 			Ω(protocol).Should(Equal(api.ProtocolTCP))
 			Ω(dest).Should(Equal("1.2.3.4/24"))
 			Ω(destPort).Should(Equal(uint32(8080)))
+			Ω(destPortRange).Should(Equal(""))
+		})
+
+		It("should mutate iptables correctly when port range is specified", func() {
+			err := filter.NetOut("1.2.3.4/24", 0, "80:81", api.ProtocolTCP)
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(fakeChain.PrependFilterRuleCallCount()).Should(Equal(1))
+			protocol, dest, destPort, destPortRange := fakeChain.PrependFilterRuleArgsForCall(0)
+			Ω(protocol).Should(Equal(api.ProtocolTCP))
+			Ω(dest).Should(Equal("1.2.3.4/24"))
+			Ω(destPort).Should(Equal(uint32(0)))
+			Ω(destPortRange).Should(Equal("80:81"))
 		})
 
 		It("return an error if port is specified and protocol is all", func() {
-			err := filter.NetOut("1.2.3.4/24", 8080, api.ProtocolAll)
+			err := filter.NetOut("1.2.3.4/24", 8080, "", api.ProtocolAll)
 			Ω(err).Should(HaveOccurred())
 		})
 
 		It("return an error if network and port are omitted", func() {
-			err := filter.NetOut("", 0, api.ProtocolAll)
+			err := filter.NetOut("", 0, "", api.ProtocolAll)
 			Ω(err).Should(HaveOccurred())
 		})
 	})

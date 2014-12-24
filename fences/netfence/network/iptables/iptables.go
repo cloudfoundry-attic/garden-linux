@@ -34,7 +34,7 @@ type Chain interface {
 	AppendNatRule(source string, destination string, jump Action, to net.IP) error
 	DeleteNatRule(source string, destination string, jump Action, to net.IP) error
 
-	PrependFilterRule(protocol api.Protocol, dest string, destPort uint32) error
+	PrependFilterRule(protocol api.Protocol, dest string, destPort uint32, destPortRange string) error
 }
 
 type chain struct {
@@ -78,7 +78,7 @@ func (ch *chain) DeleteNatRule(source string, destination string, jump Action, t
 	})
 }
 
-func (ch *chain) PrependFilterRule(protocol api.Protocol, dest string, destPort uint32) error {
+func (ch *chain) PrependFilterRule(protocol api.Protocol, dest string, destPort uint32, destPortRange string) error {
 	parms := []string{"-w", "-I", ch.name, "1"}
 
 	protocols := map[api.Protocol]string{
@@ -102,7 +102,12 @@ func (ch *chain) PrependFilterRule(protocol api.Protocol, dest string, destPort 
 	}
 
 	if destPort != 0 {
+		if destPortRange != "" {
+			return fmt.Errorf("port %d and port range %s cannot both be specified", destPort, destPortRange)
+		}
 		parms = append(parms, "--destination-port", strconv.Itoa(int(destPort)))
+	} else if destPortRange != "" {
+		parms = append(parms, "--destination-port", destPortRange)
 	}
 
 	parms = append(parms, "--jump", "RETURN")
