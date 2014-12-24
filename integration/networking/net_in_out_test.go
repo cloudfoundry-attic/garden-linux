@@ -222,6 +222,7 @@ var _ = Describe("Net In/Out", func() {
 
 		const tcpPort = 8080
 		const udpPort = 8081
+		const tcpPortRange = "8080:8090"
 
 		targetIP := func(c api.Container) string {
 			info, err := c.Info()
@@ -384,6 +385,15 @@ var _ = Describe("Net In/Out", func() {
 							container.NetOut(otherContainerNetwork.String(), 12345, "", api.ProtocolTCP) // wrong port
 							ByRejectingTCP()
 							container.NetOut(otherContainerNetwork.String(), tcpPort, "", api.ProtocolTCP)
+							ByRejectingUDP()
+							ByRejectingICMP()
+							ByAllowingTCP()
+						})
+					})
+
+					Context("when a port range is specified", func() {
+						It("allows only tcp connections a port in that range", func() {
+							container.NetOut(otherContainerNetwork.String(), 0, tcpPortRange, api.ProtocolTCP)
 							ByRejectingUDP()
 							ByRejectingICMP()
 							ByAllowingTCP()
