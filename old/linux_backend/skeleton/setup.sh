@@ -58,14 +58,14 @@ function adddev()
 }
 
 # /dev/tty
-adddev tty  $rootfs_path/dev/tty 5 0
+adddev tty  $rootfs_path/dev/tty     5 0
 # /dev/random, /dev/urandom
-adddev root $rootfs_path/dev/random 1 8
+adddev root $rootfs_path/dev/random  1 8
 adddev root $rootfs_path/dev/urandom 1 9
 # /dev/null, /dev/zero, /dev/full
-adddev root $rootfs_path/dev/null 1 3
-adddev root $rootfs_path/dev/zero 1 5
-adddev root $rootfs_path/dev/full 1 7
+adddev root $rootfs_path/dev/null    1 3
+adddev root $rootfs_path/dev/zero    1 5
+adddev root $rootfs_path/dev/full    1 7
 
 # /dev/fd, /dev/std{in,out,err}
 pushd $rootfs_path/dev > /dev/null
@@ -74,6 +74,14 @@ ln -s fd/0 stdin
 ln -s fd/1 stdout
 ln -s fd/2 stderr
 popd > /dev/null
+
+# Add fuse group and device, so fuse can work inside the container
+mknod -m 666 $rootfs_path/dev/fuse c 10 229
+chroot $rootfs_path env -i /bin/sh -l <<-EOS
+  set -e
+  chown $root_uid:$root_uid /dev/fuse
+  chmod ugo+rw /dev/fuse
+EOS
 
 cat > $rootfs_path/etc/hostname <<-EOS
 $id
@@ -112,22 +120,25 @@ if ! chroot $rootfs_path id vcap >/dev/null 2>&1; then
     shell=/bin/bash
   fi
 
-  useradd -R $rootfs_path -mU -u $user_uid -s $shell vcap
+  useradd -R $rootfs_path -m -u $user_uid -s $shell vcap
 fi
 
 # workaround aufs limitations by copying /root directory out and back
-# in order to get it a new inode. This is the only way to prevent the 
+# in order to get it a new inode. This is the only way to prevent the
 # ownership in the read-only layer affecting the read-write layer. Later
 # versions of aufs support a dirperm1 mount option which should allow us
 # to remove this workaround.
+rm -rf "$rootfs_path/tmp/root" || true # just in case
 [ -d "$rootfs_path/root" ] && cp -r "$rootfs_path/root" "$rootfs_path/tmp/root"
 if rm -r "$rootfs_path/root" 2>&1; then
   mv "$rootfs_path/tmp/root" "$rootfs_path/root"
 fi
 rm -rf "$rootfs_path/tmp/root"
 
-# map the root user id in the rootfs to the container root uid if they
+# change the root user id in the rootfs /root dir to the container root uid if they
 # differ and if /root exists
-[ -d "$rootfs_path/root" ] && [ "$root_uid" -ne 0 ] && chown -R --from=0:0 $root_uid:$root_uid "$rootfs_path/root"
+if [ -d "$rootfs_path/root" ] && [ "$root_uid" -ne 0 ]; then
+  chown -R --from=0:0 $root_uid:$root_uid "$rootfs_path/root" || true # ignore failures
+fi
 
-exit 0 # explicitly exit 0 in case previous line benignly failed
+exit 0
