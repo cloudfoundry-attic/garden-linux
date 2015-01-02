@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/process_tracker"
@@ -62,6 +63,8 @@ type LinuxContainer struct {
 
 	processTracker process_tracker.ProcessTracker
 
+	filter network.Filter
+
 	oomMutex    sync.RWMutex
 	oomNotifier *exec.Cmd
 
@@ -93,6 +96,7 @@ type NetInSpec struct {
 	ContainerPort uint32
 }
 
+// TODO: extend this for security groups https://www.pivotaltracker.com/story/show/82554270
 type NetOutSpec struct {
 	Network string
 	Port    uint32
@@ -125,6 +129,7 @@ func NewLinuxContainer(
 	bandwidthManager bandwidth_manager.BandwidthManager,
 	processTracker process_tracker.ProcessTracker,
 	envvars []string,
+	filter network.Filter,
 ) *LinuxContainer {
 	return &LinuxContainer{
 		logger: logger,
@@ -151,6 +156,8 @@ func NewLinuxContainer(
 		bandwidthManager: bandwidthManager,
 
 		processTracker: processTracker,
+
+		filter: filter,
 
 		envvars: envvars,
 	}
@@ -339,7 +346,7 @@ func (c *LinuxContainer) Restore(snapshot ContainerSnapshot) error {
 	}
 
 	for _, out := range snapshot.NetOuts {
-		err = c.NetOut(out.Network, out.Port)
+		err = c.NetOut(out.Network, out.Port, "", api.ProtocolTCP)
 		if err != nil {
 			cLog.Error("failed-to-reenforce-allowed-traffic", err)
 			return err
@@ -788,28 +795,8 @@ func (c *LinuxContainer) NetIn(hostPort uint32, containerPort uint32) (uint32, u
 	return hostPort, containerPort, nil
 }
 
-func (c *LinuxContainer) NetOut(network string, port uint32) error {
-	net := exec.Command(path.Join(c.path, "net.sh"), "out")
-
-	if port != 0 {
-		net.Env = []string{
-			"NETWORK=" + network,
-			fmt.Sprintf("PORT=%d", port),
-			"PATH=" + os.Getenv("PATH"),
-		}
-	} else {
-		if network == "" {
-			return fmt.Errorf("network and/or port must be provided")
-		}
-
-		net.Env = []string{
-			"NETWORK=" + network,
-			"PORT=",
-			"PATH=" + os.Getenv("PATH"),
-		}
-	}
-
-	err := c.runner.Run(net)
+func (c *LinuxContainer) NetOut(network string, port uint32, portRange string, protocol api.Protocol) error {
+	err := c.filter.NetOut(network, port, portRange, protocol)
 	if err != nil {
 		return err
 	}

@@ -25,6 +25,7 @@ import (
 
 var _ = Describe("When a client connects", func() {
 	var socketPath string
+	var tmpdir string
 
 	var serverBackend *fakes.FakeBackend
 
@@ -39,7 +40,8 @@ var _ = Describe("When a client connects", func() {
 	BeforeEach(func() {
 		logger = lagertest.NewTestLogger("test")
 
-		tmpdir, err := ioutil.TempDir(os.TempDir(), "api-server-test")
+		var err error
+		tmpdir, err = ioutil.TempDir(os.TempDir(), "api-server-test")
 		Ω(err).ShouldNot(HaveOccurred())
 
 		socketPath = path.Join(tmpdir, "api.sock")
@@ -67,6 +69,9 @@ var _ = Describe("When a client connects", func() {
 	AfterEach(func() {
 		if isRunning {
 			apiServer.Stop()
+		}
+		if tmpdir != "" {
+			os.RemoveAll(tmpdir)
 		}
 	})
 
@@ -380,7 +385,7 @@ var _ = Describe("When a client connects", func() {
 
 		itResetsGraceTimeWhenHandling := func(call func()) {
 			Context("when created with a grace time", func() {
-				graceTime := 1 * time.Second
+				graceTime := 200 * time.Millisecond
 
 				BeforeEach(func() {
 					serverBackend.GraceTimeReturns(graceTime)
@@ -397,7 +402,7 @@ var _ = Describe("When a client connects", func() {
 					Eventually(serverBackend.DestroyCallCount, 2*graceTime).Should(Equal(1))
 					Ω(serverBackend.DestroyArgsForCall(0)).Should(Equal(container.Handle()))
 
-					Ω(time.Since(before)).Should(BeNumerically("~", graceTime, 100*time.Millisecond))
+					Ω(time.Since(before)).Should(BeNumerically("~", graceTime, 20*time.Millisecond))
 				})
 			})
 		}
@@ -1000,22 +1005,35 @@ var _ = Describe("When a client connects", func() {
 		})
 
 		Describe("net out", func() {
-			It("permits traffic outside of the container", func() {
-				err := container.NetOut("1.2.3.4/22", 456)
+			It("permits traffic outside of the container with port specified", func() {
+				err := container.NetOut("1.2.3.4/22", 456, "", api.ProtocolAll)
 				Ω(err).ShouldNot(HaveOccurred())
 
-				cidr, port := fakeContainer.NetOutArgsForCall(0)
+				cidr, port, portRange, protoc := fakeContainer.NetOutArgsForCall(0)
 				Ω(cidr).Should(Equal("1.2.3.4/22"))
 				Ω(port).Should(Equal(uint32(456)))
+				Ω(portRange).Should(Equal(""))
+				Ω(protoc).Should(Equal(api.ProtocolAll))
+			})
+
+			It("permits traffic outside of the container with port range specified", func() {
+				err := container.NetOut("1.2.3.4/22", 0, "80:81", api.ProtocolAll)
+				Ω(err).ShouldNot(HaveOccurred())
+
+				cidr, port, portRange, protoc := fakeContainer.NetOutArgsForCall(0)
+				Ω(cidr).Should(Equal("1.2.3.4/22"))
+				Ω(port).Should(Equal(uint32(0)))
+				Ω(portRange).Should(Equal("80:81"))
+				Ω(protoc).Should(Equal(api.ProtocolAll))
 			})
 
 			itResetsGraceTimeWhenHandling(func() {
-				err := container.NetOut("1.2.3.4/22", 456)
+				err := container.NetOut("1.2.3.4/22", 456, "", api.ProtocolAll)
 				Ω(err).ShouldNot(HaveOccurred())
 			})
 
 			itFailsWhenTheContainerIsNotFound(func() {
-				err := container.NetOut("1.2.3.4/22", 456)
+				err := container.NetOut("1.2.3.4/22", 456, "", api.ProtocolAll)
 				Ω(err).Should(HaveOccurred())
 			})
 
@@ -1025,7 +1043,7 @@ var _ = Describe("When a client connects", func() {
 				})
 
 				It("fails", func() {
-					err := container.NetOut("1.2.3.4/22", 456)
+					err := container.NetOut("1.2.3.4/22", 456, "", api.ProtocolAll)
 					Ω(err).Should(HaveOccurred())
 				})
 			})
