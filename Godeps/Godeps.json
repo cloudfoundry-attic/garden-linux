@@ -28,33 +28,33 @@
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/api",
-			"Comment": "go-wshd-650-gc968d9d",
-			"Rev": "c968d9da08ee4768b91c1a2ce5384ecdde406bbf"
+			"Comment": "go-wshd-651-g013ed51",
+			"Rev": "013ed517c4eeeea8da0ff96b01b3e38e4e318d0f"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/client",
-			"Comment": "go-wshd-650-gc968d9d",
-			"Rev": "c968d9da08ee4768b91c1a2ce5384ecdde406bbf"
+			"Comment": "go-wshd-651-g013ed51",
+			"Rev": "013ed517c4eeeea8da0ff96b01b3e38e4e318d0f"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/protocol",
-			"Comment": "go-wshd-650-gc968d9d",
-			"Rev": "c968d9da08ee4768b91c1a2ce5384ecdde406bbf"
+			"Comment": "go-wshd-651-g013ed51",
+			"Rev": "013ed517c4eeeea8da0ff96b01b3e38e4e318d0f"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/routes",
-			"Comment": "go-wshd-650-gc968d9d",
-			"Rev": "c968d9da08ee4768b91c1a2ce5384ecdde406bbf"
+			"Comment": "go-wshd-651-g013ed51",
+			"Rev": "013ed517c4eeeea8da0ff96b01b3e38e4e318d0f"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/server",
-			"Comment": "go-wshd-650-gc968d9d",
-			"Rev": "c968d9da08ee4768b91c1a2ce5384ecdde406bbf"
+			"Comment": "go-wshd-651-g013ed51",
+			"Rev": "013ed517c4eeeea8da0ff96b01b3e38e4e318d0f"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden/transport",
-			"Comment": "go-wshd-650-gc968d9d",
-			"Rev": "c968d9da08ee4768b91c1a2ce5384ecdde406bbf"
+			"Comment": "go-wshd-651-g013ed51",
+			"Rev": "013ed517c4eeeea8da0ff96b01b3e38e4e318d0f"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry/dropsonde",
