@@ -136,7 +136,7 @@ func (p *LinuxContainerPool) Setup() error {
 }
 
 func (p *LinuxContainerPool) setupIPTables() error {
-	defaultChain := iptables.NewChainFactory(p.runner).CreateChain(p.sysconfig.IPTables.Filter.DefaultChain)
+	defaultChain := iptables.NewChainFactory(p.runner, p.logger).CreateChain(p.sysconfig.IPTables.Filter.DefaultChain)
 
 	for _, n := range p.allowNetworks {
 		if n == "" {
@@ -259,7 +259,7 @@ func (p *LinuxContainerPool) Create(spec api.ContainerSpec) (c linux_backend.Con
 		bandwidth_manager.New(containerPath, id, p.runner),
 		process_tracker.New(containerPath, p.runner),
 		mergeEnv(spec.Env, rootFSEnvVars),
-		network.NewFilterFactory(p.sysconfig.Tag, iptables.NewChainFactory(p.runner)).Create(id),
+		network.NewFilterFactory(p.sysconfig.Tag, iptables.NewChainFactory(p.runner, pLog)).Create(id),
 	), nil
 }
 
@@ -319,8 +319,10 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 
 	bandwidthManager := bandwidth_manager.New(containerPath, id, p.runner)
 
+	containerLogger := p.logger.Session(id)
+
 	container := linux_backend.NewLinuxContainer(
-		p.logger.Session(id),
+		containerLogger,
 		id,
 		containerSnapshot.Handle,
 		containerPath,
@@ -339,7 +341,7 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 		bandwidthManager,
 		process_tracker.New(containerPath, p.runner),
 		containerSnapshot.EnvVars,
-		network.NewFilterFactory(p.sysconfig.Tag, iptables.NewChainFactory(p.runner)).Create(id),
+		network.NewFilterFactory(p.sysconfig.Tag, iptables.NewChainFactory(p.runner, containerLogger)).Create(id),
 	)
 
 	err = container.Restore(containerSnapshot)

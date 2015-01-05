@@ -9,22 +9,24 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden/api"
 	"github.com/cloudfoundry/gunk/command_runner"
+	"github.com/pivotal-golang/lager"
 )
 
 type ChainFactory interface {
 	CreateChain(name string) Chain
 }
 
-func NewChainFactory(runner command_runner.CommandRunner) ChainFactory {
-	return &chainFactory{runner}
+func NewChainFactory(runner command_runner.CommandRunner, logger lager.Logger) ChainFactory {
+	return &chainFactory{runner, logger}
 }
 
 type chainFactory struct {
 	runner command_runner.CommandRunner
+	logger lager.Logger
 }
 
 func (cf *chainFactory) CreateChain(name string) Chain {
-	return &chain{name: name, runner: cf.runner}
+	return &chain{name: name, runner: cf.runner, logger: cf.logger}
 }
 
 type Chain interface {
@@ -40,6 +42,7 @@ type Chain interface {
 type chain struct {
 	name   string
 	runner command_runner.CommandRunner
+	logger lager.Logger
 }
 
 func (ch *chain) AppendRule(source string, destination string, jump Action) error {
@@ -112,6 +115,7 @@ func (ch *chain) PrependFilterRule(protocol api.Protocol, dest string, destPort 
 
 	parms = append(parms, "--jump", "RETURN")
 
+	ch.logger.Debug("prepend-filter-rule", lager.Data{"parms": parms})
 	return ch.runner.Run(exec.Command("/sbin/iptables", parms...))
 }
 

@@ -9,6 +9,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden/api"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
+	"github.com/pivotal-golang/lager/lagertest"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -20,7 +21,7 @@ var _ = Describe("Iptables", func() {
 
 	BeforeEach(func() {
 		fakeRunner = fake_command_runner.New()
-		subject = NewChainFactory(fakeRunner).CreateChain("foo-bar-baz")
+		subject = NewChainFactory(fakeRunner, lagertest.NewTestLogger("test")).CreateChain("foo-bar-baz")
 	})
 
 	Describe("AppendRule", func() {
