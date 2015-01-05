@@ -103,7 +103,7 @@ var _ = Describe("Filter", func() {
 		It("return an error if network, port, and port range are omitted", func() {
 			err := filter.NetOut("", 0, "", api.ProtocolAll)
 			Ω(err).Should(HaveOccurred())
-			Ω(err).Should(MatchError("invalid rule: either network or port must be specified"))
+			Ω(err).Should(MatchError("invalid rule: either network or port (range) must be specified"))
 		})
 
 		It("return an error if port and port range are specified", func() {

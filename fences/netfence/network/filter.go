@@ -37,7 +37,7 @@ func (ff *filterFactory) Create(id string) Filter {
 
 func (fltr *filter) NetOut(network string, port uint32, portRange string, protocol api.Protocol) error {
 	if network == "" && port == 0 && portRange == "" {
-		return errors.New("invalid rule: either network or port must be specified")
+		return errors.New("invalid rule: either network or port (range) must be specified")
 	}
 	if (port != 0 || portRange != "") && protocol != api.ProtocolTCP {
 		return errors.New("invalid rule: a port (range) can only be specified with protocol TCP")
