@@ -92,12 +92,17 @@ var _ = Describe("Net In/Out", func() {
 				}
 
 				By("allowing outbound icmp traffic", func() {
+					// sacrificial ping, which appears not to work on first packet
+					runInContainer(
+						container,
+						fmt.Sprintf("ping -c 1 %s", externalIP),
+					)
 					_, out := runInContainer(
 						container,
 						fmt.Sprintf("ping -c 1 -w 1 %s", externalIP),
 					)
 
-					Eventually(out, "5s").Should(gbytes.Say(" 0% packet loss"))
+					Eventually(out, "5s").Should(gbytes.Say(" 0% packet loss"), "lost packets on ping")
 				})
 			}
 
