@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"time"
 
-	"code.google.com/p/gogoprotobuf/proto"
+	"github.com/gogo/protobuf/proto"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
@@ -518,22 +518,57 @@ var _ = Describe("Connection", func() {
 	})
 
 	Describe("NetOut", func() {
-		BeforeEach(func() {
-			server.AppendHandlers(
-				ghttp.CombineHandlers(
-					ghttp.VerifyRequest("POST", "/containers/foo-handle/net/out"),
-					verifyProtoBody(&protocol.NetOutRequest{
-						Handle:  proto.String("foo-handle"),
-						Network: proto.String("foo-network"),
-						Port:    proto.Uint32(42),
-					}),
-					ghttp.RespondWith(200, marshalProto(&protocol.NetOutResponse{}))))
+		Context("with port", func() {
+			BeforeEach(func() {
+				all := protocol.NetOutRequest_ALL
+
+				server.AppendHandlers(
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("POST", "/containers/foo-handle/net/out"),
+						verifyProtoBody(&protocol.NetOutRequest{
+							Handle:    proto.String("foo-handle"),
+							Network:   proto.String("foo-network"),
+							Port:      proto.Uint32(42),
+							PortRange: proto.String(""),
+							Protocol:  &all,
+						}),
+						ghttp.RespondWith(200, marshalProto(&protocol.NetOutResponse{}))))
+			})
+
+			It("should return the port", func() {
+				err := connection.NetOut("foo-handle", "foo-network", 42, "", api.ProtocolAll)
+				Ω(err).ShouldNot(HaveOccurred())
+			})
+
+			It("returns an error if the protocol is unknown", func() {
+				err := connection.NetOut("foo-handle", "foo-network", 42, "", 58)
+				Ω(err).Should(MatchError("invalid protocol"))
+			})
 		})
 
-		It("should return the allocated ports", func() {
-			err := connection.NetOut("foo-handle", "foo-network", 42)
-			Ω(err).ShouldNot(HaveOccurred())
+		Context("with port range", func() {
+			BeforeEach(func() {
+				all := protocol.NetOutRequest_ALL
+
+				server.AppendHandlers(
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("POST", "/containers/foo-handle/net/out"),
+						verifyProtoBody(&protocol.NetOutRequest{
+							Handle:    proto.String("foo-handle"),
+							Network:   proto.String("foo-network"),
+							Port:      proto.Uint32(0),
+							PortRange: proto.String("8080:8081"),
+							Protocol:  &all,
+						}),
+						ghttp.RespondWith(200, marshalProto(&protocol.NetOutResponse{}))))
+			})
+
+			It("should return the port range", func() {
+				err := connection.NetOut("foo-handle", "foo-network", 0, "8080:8081", api.ProtocolAll)
+				Ω(err).ShouldNot(HaveOccurred())
+			})
 		})
+
 	})
 
 	Describe("Listing containers", func() {
@@ -564,10 +599,7 @@ var _ = Describe("Connection", func() {
 						Events:        []string{"maxing", "relaxing all cool"},
 						HostIp:        proto.String("host-ip"),
 						ContainerIp:   proto.String("container-ip"),
-						ContainerPath: proto.String("container-path"),
-						ProcessIds:    []uint64{1, 2},
-
-						Properties: []*protocol.Property{
+						ContainerPath: proto.String("container-path"), ProcessIds: []uint64{1, 2}, Properties: []*protocol.Property{
 							{
 								Key:   proto.String("prop-key"),
 								Value: proto.String("prop-value"),
@@ -917,6 +949,104 @@ var _ = Describe("Connection", func() {
 				Eventually(stdout).Should(gbytes.Say("stdout data"))
 				Eventually(stdout).Should(gbytes.Say("roundtripped stdin data"))
 				Eventually(stderr).Should(gbytes.Say("stderr data"))
+
+				status, err := process.Wait()
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(status).Should(Equal(3))
+			})
+		})
+
+		Context("when the process is terminated", func() {
+			termSignal := protocol.ProcessPayload_terminate
+
+			BeforeEach(func() {
+				server.AppendHandlers(
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("POST", "/containers/foo-handle/processes"),
+						func(w http.ResponseWriter, r *http.Request) {
+							w.WriteHeader(http.StatusOK)
+
+							conn, br, err := w.(http.Hijacker).Hijack()
+							Ω(err).ShouldNot(HaveOccurred())
+
+							defer conn.Close()
+
+							decoder := json.NewDecoder(br)
+
+							transport.WriteMessage(conn, &protocol.ProcessPayload{ProcessId: proto.Uint32(42)})
+
+							var payload protocol.ProcessPayload
+							err = decoder.Decode(&payload)
+							Ω(err).ShouldNot(HaveOccurred())
+
+							Ω(payload).Should(Equal(protocol.ProcessPayload{
+								ProcessId: proto.Uint32(42),
+								Signal:    &termSignal,
+							}))
+
+							transport.WriteMessage(conn, &protocol.ProcessPayload{ProcessId: proto.Uint32(42), ExitStatus: proto.Uint32(3)})
+						},
+					),
+				)
+			})
+
+			It("sends the appropriate protocol message", func() {
+				process, err := connection.Run("foo-handle", api.ProcessSpec{}, api.ProcessIO{})
+
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(process.ID()).Should(Equal(uint32(42)))
+
+				err = process.Signal(api.SignalTerminate)
+				Ω(err).ShouldNot(HaveOccurred())
+
+				status, err := process.Wait()
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(status).Should(Equal(3))
+			})
+		})
+
+		Context("when the process is killed", func() {
+			killSignal := protocol.ProcessPayload_kill
+
+			BeforeEach(func() {
+				server.AppendHandlers(
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("POST", "/containers/foo-handle/processes"),
+						func(w http.ResponseWriter, r *http.Request) {
+							w.WriteHeader(http.StatusOK)
+
+							conn, br, err := w.(http.Hijacker).Hijack()
+							Ω(err).ShouldNot(HaveOccurred())
+
+							defer conn.Close()
+
+							decoder := json.NewDecoder(br)
+
+							transport.WriteMessage(conn, &protocol.ProcessPayload{ProcessId: proto.Uint32(42)})
+
+							var payload protocol.ProcessPayload
+							err = decoder.Decode(&payload)
+							Ω(err).ShouldNot(HaveOccurred())
+
+							Ω(payload).Should(Equal(protocol.ProcessPayload{
+								ProcessId: proto.Uint32(42),
+								Signal:    &killSignal,
+							}))
+
+							transport.WriteMessage(conn, &protocol.ProcessPayload{ProcessId: proto.Uint32(42), ExitStatus: proto.Uint32(3)})
+						},
+					),
+				)
+			})
+
+			It("sends the appropriate protocol message", func() {
+				process, err := connection.Run("foo-handle", api.ProcessSpec{}, api.ProcessIO{})
+
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(process.ID()).Should(Equal(uint32(42)))
+
+				err = process.Signal(api.SignalKill)
+				Ω(err).ShouldNot(HaveOccurred())
 
 				status, err := process.Wait()
 				Ω(err).ShouldNot(HaveOccurred())

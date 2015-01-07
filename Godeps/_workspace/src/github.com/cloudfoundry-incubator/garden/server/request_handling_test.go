@@ -25,6 +25,7 @@ import (
 
 var _ = Describe("When a client connects", func() {
 	var socketPath string
+	var tmpdir string
 
 	var serverBackend *fakes.FakeBackend
 
@@ -39,7 +40,8 @@ var _ = Describe("When a client connects", func() {
 	BeforeEach(func() {
 		logger = lagertest.NewTestLogger("test")
 
-		tmpdir, err := ioutil.TempDir(os.TempDir(), "api-server-test")
+		var err error
+		tmpdir, err = ioutil.TempDir(os.TempDir(), "api-server-test")
 		Ω(err).ShouldNot(HaveOccurred())
 
 		socketPath = path.Join(tmpdir, "api.sock")
@@ -67,6 +69,9 @@ var _ = Describe("When a client connects", func() {
 	AfterEach(func() {
 		if isRunning {
 			apiServer.Stop()
+		}
+		if tmpdir != "" {
+			os.RemoveAll(tmpdir)
 		}
 	})
 
@@ -380,7 +385,7 @@ var _ = Describe("When a client connects", func() {
 
 		itResetsGraceTimeWhenHandling := func(call func()) {
 			Context("when created with a grace time", func() {
-				graceTime := 1 * time.Second
+				graceTime := 200 * time.Millisecond
 
 				BeforeEach(func() {
 					serverBackend.GraceTimeReturns(graceTime)
@@ -397,7 +402,7 @@ var _ = Describe("When a client connects", func() {
 					Eventually(serverBackend.DestroyCallCount, 2*graceTime).Should(Equal(1))
 					Ω(serverBackend.DestroyArgsForCall(0)).Should(Equal(container.Handle()))
 
-					Ω(time.Since(before)).Should(BeNumerically("~", graceTime, 100*time.Millisecond))
+					Ω(time.Since(before)).Should(BeNumerically("~", graceTime, 20*time.Millisecond))
 				})
 			})
 		}
@@ -1000,22 +1005,116 @@ var _ = Describe("When a client connects", func() {
 		})
 
 		Describe("net out", func() {
-			It("permits traffic outside of the container", func() {
-				err := container.NetOut("1.2.3.4/22", 456)
+			It("permits traffic outside of the container with port specified", func() {
+				err := container.NetOut("1.2.3.4/22", 456, "", api.ProtocolAll)
 				Ω(err).ShouldNot(HaveOccurred())
 
-				cidr, port := fakeContainer.NetOutArgsForCall(0)
+				cidr, port, portRange, protoc := fakeContainer.NetOutArgsForCall(0)
 				Ω(cidr).Should(Equal("1.2.3.4/22"))
 				Ω(port).Should(Equal(uint32(456)))
+				Ω(portRange).Should(Equal(""))
+				Ω(protoc).Should(Equal(api.ProtocolAll))
+			})
+
+			It("permits traffic outside of the container with port range specified", func() {
+				err := container.NetOut("1.2.3.4/22", 0, "80:81", api.ProtocolAll)
+				Ω(err).ShouldNot(HaveOccurred())
+
+				cidr, port, portRange, protoc := fakeContainer.NetOutArgsForCall(0)
+				Ω(cidr).Should(Equal("1.2.3.4/22"))
+				Ω(port).Should(Equal(uint32(0)))
+				Ω(portRange).Should(Equal("80:81"))
+				Ω(protoc).Should(Equal(api.ProtocolAll))
+			})
+
+			Context("with an invalid port range", func() {
+				It("should return an error when the port range is malformed", func() {
+					err := container.NetOut("foo-network", 0, "8080-8081", api.ProtocolAll)
+					Ω(err).Should(HaveOccurred())
+					Ω(err).Should(MatchError(`invalid port range: "8080-8081"`))
+				})
+
+				It("should return an error when there are too many colons in the port range", func() {
+					err := container.NetOut("foo-network", 0, "1:2:3", api.ProtocolAll)
+					Ω(err).Should(HaveOccurred())
+					Ω(err).Should(MatchError(`invalid port range: "1:2:3"`))
+				})
+
+				It("should return an error when the port range has no start", func() {
+					err := container.NetOut("foo-network", 0, ":8081", api.ProtocolAll)
+					Ω(err).Should(HaveOccurred())
+					Ω(err).Should(MatchError(`invalid port range: ":8081"`))
+				})
+
+				It("should return an error when the port range has no end", func() {
+					err := container.NetOut("foo-network", 0, "8080:", api.ProtocolAll)
+					Ω(err).Should(HaveOccurred())
+					Ω(err).Should(MatchError(`invalid port range: "8080:"`))
+				})
+
+				It("should return an error when the start of the port range is not an integer", func() {
+					err := container.NetOut("foo-network", 0, "x:8081", api.ProtocolAll)
+					Ω(err).Should(HaveOccurred())
+					Ω(err).Should(MatchError(`invalid port range: "x:8081"`))
+				})
+
+				It("should return an error when the end of the port range is not an integer", func() {
+					err := container.NetOut("foo-network", 0, "8080:x", api.ProtocolAll)
+					Ω(err).Should(HaveOccurred())
+					Ω(err).Should(MatchError(`invalid port range: "8080:x"`))
+				})
+
+				It("should return an error when the start of the port range is 0", func() {
+					err := container.NetOut("foo-network", 0, "0:8081", api.ProtocolAll)
+					Ω(err).Should(HaveOccurred())
+					Ω(err).Should(MatchError(`invalid port range: "0:8081"`))
+				})
+
+				It("should return an error when the end of the port range is 0", func() {
+					err := container.NetOut("foo-network", 0, "8080:0", api.ProtocolAll)
+					Ω(err).Should(HaveOccurred())
+					Ω(err).Should(MatchError(`invalid port range: "8080:0"`))
+				})
+
+				It("should return an error when the start of the port range is negative", func() {
+					err := container.NetOut("foo-network", 0, "-8080:8081", api.ProtocolAll)
+					Ω(err).Should(HaveOccurred())
+					Ω(err).Should(MatchError(`invalid port range: "-8080:8081"`))
+				})
+
+				It("should return an error when the end of the port range is negative", func() {
+					err := container.NetOut("foo-network", 0, "8080:-8081", api.ProtocolAll)
+					Ω(err).Should(HaveOccurred())
+					Ω(err).Should(MatchError(`invalid port range: "8080:-8081"`))
+				})
+
+				It("should return an error when the start of the port range is too large", func() {
+					err := container.NetOut("foo-network", 0, "65536:8081", api.ProtocolAll)
+					Ω(err).Should(HaveOccurred())
+					Ω(err).Should(MatchError(`invalid port range: "65536:8081"`))
+				})
+
+				It("should return an error when the end of the port range is too large", func() {
+					err := container.NetOut("foo-network", 0, "8080:65536", api.ProtocolAll)
+					Ω(err).Should(HaveOccurred())
+					Ω(err).Should(MatchError(`invalid port range: "8080:65536"`))
+				})
+
+				It("should return an error when the start of the port range is much too large", func() {
+					err := container.NetOut("foo-network", 0, "200000000000000000000000000000000000000:8081", api.ProtocolAll)
+					Ω(err).Should(HaveOccurred())
+					Ω(err).Should(MatchError(`invalid port range: "200000000000000000000000000000000000000:8081"`))
+				})
+
 			})
 
 			itResetsGraceTimeWhenHandling(func() {
-				err := container.NetOut("1.2.3.4/22", 456)
+				err := container.NetOut("1.2.3.4/22", 456, "", api.ProtocolAll)
 				Ω(err).ShouldNot(HaveOccurred())
 			})
 
 			itFailsWhenTheContainerIsNotFound(func() {
-				err := container.NetOut("1.2.3.4/22", 456)
+				err := container.NetOut("1.2.3.4/22", 456, "", api.ProtocolAll)
 				Ω(err).Should(HaveOccurred())
 			})
 
@@ -1025,7 +1124,7 @@ var _ = Describe("When a client connects", func() {
 				})
 
 				It("fails", func() {
-					err := container.NetOut("1.2.3.4/22", 456)
+					err := container.NetOut("1.2.3.4/22", 456, "", api.ProtocolAll)
 					Ω(err).Should(HaveOccurred())
 				})
 			})
@@ -1393,6 +1492,58 @@ var _ = Describe("When a client connects", func() {
 					Eventually(readExited).Should(BeClosed())
 					Ω(err).Should(HaveOccurred())
 					Ω(err).ShouldNot(Equal(io.EOF))
+				})
+			})
+
+			Context("when the process is killed", func() {
+				var fakeProcess *fakes.FakeProcess
+
+				BeforeEach(func() {
+					fakeProcess = new(fakes.FakeProcess)
+					fakeProcess.IDReturns(42)
+					fakeProcess.WaitStub = func() (int, error) {
+						select {}
+						return 0, nil
+					}
+
+					fakeContainer.RunReturns(fakeProcess, nil)
+				})
+
+				It("is eventually killed in the backend", func() {
+					process, err := container.Run(processSpec, api.ProcessIO{})
+					Ω(err).ShouldNot(HaveOccurred())
+
+					err = process.Signal(api.SignalKill)
+					Ω(err).ShouldNot(HaveOccurred())
+
+					Eventually(fakeProcess.SignalCallCount).Should(Equal(1))
+					Ω(fakeProcess.SignalArgsForCall(0)).Should(Equal(api.SignalKill))
+				})
+			})
+
+			Context("when the process is terminated", func() {
+				var fakeProcess *fakes.FakeProcess
+
+				BeforeEach(func() {
+					fakeProcess = new(fakes.FakeProcess)
+					fakeProcess.IDReturns(42)
+					fakeProcess.WaitStub = func() (int, error) {
+						select {}
+						return 0, nil
+					}
+
+					fakeContainer.RunReturns(fakeProcess, nil)
+				})
+
+				It("is eventually terminated in the backend", func() {
+					process, err := container.Run(processSpec, api.ProcessIO{})
+					Ω(err).ShouldNot(HaveOccurred())
+
+					err = process.Signal(api.SignalTerminate)
+					Ω(err).ShouldNot(HaveOccurred())
+
+					Eventually(fakeProcess.SignalCallCount).Should(Equal(1))
+					Ω(fakeProcess.SignalArgsForCall(0)).Should(Equal(api.SignalTerminate))
 				})
 			})
 

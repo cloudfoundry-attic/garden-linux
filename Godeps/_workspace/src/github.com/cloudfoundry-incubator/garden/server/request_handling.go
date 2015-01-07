@@ -7,9 +7,11 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
-	"code.google.com/p/gogoprotobuf/proto"
+	"github.com/gogo/protobuf/proto"
 
 	"github.com/cloudfoundry-incubator/garden/api"
 	protocol "github.com/cloudfoundry-incubator/garden/protocol"
@@ -713,6 +715,19 @@ func (s *GardenServer) handleNetIn(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func validPortRange(portRange string) bool {
+	if portRange != "" {
+		r := strings.Split(portRange, ":")
+		if len(r) != 2 {
+			return false
+		}
+		lo, startErr := strconv.Atoi(r[0])
+		hi, endErr := strconv.Atoi(r[1])
+		return startErr == nil && endErr == nil && lo > 0 && lo <= 65535 && hi > 0 && hi <= 65535
+	}
+	return true
+}
+
 func (s *GardenServer) handleNetOut(w http.ResponseWriter, r *http.Request) {
 	handle := r.FormValue(":handle")
 
@@ -725,8 +740,27 @@ func (s *GardenServer) handleNetOut(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var protoc api.Protocol
+	switch request.GetProtocol() {
+	case protocol.NetOutRequest_TCP:
+		protoc = api.ProtocolTCP
+	case protocol.NetOutRequest_ALL:
+		protoc = api.ProtocolAll
+	default:
+		err := fmt.Errorf("invalid protocol: %d", request.GetProtocol())
+		s.writeError(w, err, hLog)
+		return
+	}
+
 	network := request.GetNetwork()
 	port := request.GetPort()
+	portRange := request.GetPortRange()
+
+	if !validPortRange(portRange) {
+		err := fmt.Errorf("invalid port range: %q", portRange)
+		s.writeError(w, err, hLog)
+		return
+	}
 
 	container, err := s.backend.Lookup(handle)
 	if err != nil {
@@ -738,11 +772,13 @@ func (s *GardenServer) handleNetOut(w http.ResponseWriter, r *http.Request) {
 	defer s.bomberman.Unpause(container.Handle())
 
 	hLog.Debug("allowing-out", lager.Data{
-		"network": network,
-		"port":    port,
+		"network":   network,
+		"port":      port,
+		"portRange": portRange,
+		"protocol":  protoc,
 	})
 
-	err = container.NetOut(network, port)
+	err = container.NetOut(network, port, portRange, protoc)
 	if err != nil {
 		s.writeError(w, err, hLog)
 		return
@@ -1230,6 +1266,18 @@ func (s *GardenServer) streamInput(decoder *json.Decoder, in *io.PipeWriter, pro
 				if err != nil {
 					return
 				}
+			}
+
+		case payload.Signal != nil:
+			switch payload.GetSignal() {
+			case protocol.ProcessPayload_kill:
+				process.Signal(api.SignalKill)
+			case protocol.ProcessPayload_terminate:
+				process.Signal(api.SignalTerminate)
+			default:
+				s.logger.Error("stream-input-unknown-process-payload-signal", nil, lager.Data{"payload": payload})
+				in.Close()
+				return
 			}
 
 		default:

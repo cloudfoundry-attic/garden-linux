@@ -3,9 +3,11 @@ package process_tracker
 import (
 	"bufio"
 	"fmt"
+	"os"
 	"os/exec"
 	"path"
 	"sync"
+	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden/api"
 	"github.com/cloudfoundry/gunk/command_runner"
@@ -31,12 +33,19 @@ type Process struct {
 	stdin  *faninWriter
 	stdout *fanoutWriter
 	stderr *fanoutWriter
+
+	signaller Signaller
+}
+
+type Signaller interface {
+	Signal(os.Signal) error
 }
 
 func NewProcess(
 	id uint32,
 	containerPath string,
 	runner command_runner.CommandRunner,
+	signaller Signaller,
 ) *Process {
 	return &Process{
 		id: id,
@@ -53,6 +62,8 @@ func NewProcess(
 		stdin:  &faninWriter{hasSink: make(chan struct{})},
 		stdout: &fanoutWriter{},
 		stderr: &fanoutWriter{},
+
+		signaller: signaller,
 	}
 }
 
@@ -73,6 +84,17 @@ func (p *Process) SetTTY(tty api.TTYSpec) error {
 	}
 
 	return nil
+}
+
+func (p *Process) Signal(s api.Signal) error {
+	switch s {
+	case api.SignalKill:
+		return p.signaller.Signal(os.Kill)
+	case api.SignalTerminate:
+		return p.signaller.Signal(syscall.SIGTERM)
+	default:
+		return fmt.Errorf("processtracker: signal: unknown signal: %d", s)
+	}
 }
 
 func (p *Process) Spawn(cmd *exec.Cmd, tty *api.TTYSpec) (ready, active chan error) {

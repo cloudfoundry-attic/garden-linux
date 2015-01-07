@@ -19,6 +19,7 @@ import (
 	"github.com/pivotal-golang/lager"
 
 	"github.com/cloudfoundry-incubator/garden-linux/fences"
+	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network"
 	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/iptables"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/bandwidth_manager"
@@ -135,18 +136,14 @@ func (p *LinuxContainerPool) Setup() error {
 }
 
 func (p *LinuxContainerPool) setupIPTables() error {
-	defaultChain := &iptables.Chain{Name: p.sysconfig.IPTables.Filter.DefaultChain, Runner: p.runner}
+	defaultChain := iptables.NewChainFactory(p.runner, p.logger).CreateChain(p.sysconfig.IPTables.Filter.DefaultChain)
+
 	for _, n := range p.allowNetworks {
 		if n == "" {
 			continue
 		}
 
-		err := defaultChain.Create(&iptables.Rule{
-			Destination: n,
-			Jump:        iptables.Return,
-		})
-
-		if err != nil {
+		if err := defaultChain.AppendRule("", n, iptables.Return); err != nil {
 			return fmt.Errorf("container_pool: setting up allow rules in iptables: %v", err)
 		}
 	}
@@ -156,12 +153,7 @@ func (p *LinuxContainerPool) setupIPTables() error {
 			continue
 		}
 
-		err := defaultChain.Create(&iptables.Rule{
-			Destination: n,
-			Jump:        iptables.Reject,
-		})
-
-		if err != nil {
+		if err := defaultChain.AppendRule("", n, iptables.Reject); err != nil {
 			return fmt.Errorf("container_pool: setting up deny rules in iptables: %v", err)
 		}
 	}
@@ -267,6 +259,7 @@ func (p *LinuxContainerPool) Create(spec api.ContainerSpec) (c linux_backend.Con
 		bandwidth_manager.New(containerPath, id, p.runner),
 		process_tracker.New(containerPath, p.runner),
 		mergeEnv(spec.Env, rootFSEnvVars),
+		network.NewFilterFactory(p.sysconfig.Tag, iptables.NewChainFactory(p.runner, pLog)).Create(id),
 	), nil
 }
 
@@ -326,8 +319,10 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 
 	bandwidthManager := bandwidth_manager.New(containerPath, id, p.runner)
 
+	containerLogger := p.logger.Session(id)
+
 	container := linux_backend.NewLinuxContainer(
-		p.logger.Session(id),
+		containerLogger,
 		id,
 		containerSnapshot.Handle,
 		containerPath,
@@ -346,6 +341,7 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 		bandwidthManager,
 		process_tracker.New(containerPath, p.runner),
 		containerSnapshot.EnvVars,
+		network.NewFilterFactory(p.sysconfig.Tag, iptables.NewChainFactory(p.runner, containerLogger)).Create(id),
 	)
 
 	err = container.Restore(containerSnapshot)

@@ -27,7 +27,7 @@ type Container interface {
 	CurrentMemoryLimits() (MemoryLimits, error)
 
 	NetIn(hostPort, containerPort uint32) (uint32, uint32, error)
-	NetOut(network string, port uint32) error
+	NetOut(network string, port uint32, portRange string, protocol Protocol) error
 
 	Run(ProcessSpec, ProcessIO) (Process, error)
 	Attach(uint32, ProcessIO) (Process, error)
@@ -36,6 +36,15 @@ type Container interface {
 	SetProperty(name string, value string) error
 	RemoveProperty(name string) error
 }
+
+type Protocol uint8
+
+const (
+	ProtocolTCP Protocol = 1 << iota
+	ProtocolUDP
+	ProtocolICMP
+	ProtocolAll Protocol = (1 << iota) - 1
+)
 
 type ProcessSpec struct {
 	Path string
@@ -69,7 +78,15 @@ type Process interface {
 	ID() uint32
 	Wait() (int, error)
 	SetTTY(TTYSpec) error
+	Signal(Signal) error
 }
+
+type Signal int
+
+const (
+	SignalTerminate Signal = iota
+	SignalKill
+)
 
 type PortMapping struct {
 	HostPort      uint32

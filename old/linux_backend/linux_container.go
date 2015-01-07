@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/process_tracker"
@@ -62,6 +63,8 @@ type LinuxContainer struct {
 
 	processTracker process_tracker.ProcessTracker
 
+	filter network.Filter
+
 	oomMutex    sync.RWMutex
 	oomNotifier *exec.Cmd
 
@@ -85,7 +88,30 @@ type LinuxContainer struct {
 
 	mtu uint32
 
-	envvars []string
+	envvars       []string
+	processIDPool *ProcessIDPool
+}
+
+type ProcessIDPool struct {
+	currentProcessID uint32
+	mu               sync.Mutex
+}
+
+func (p *ProcessIDPool) Next() uint32 {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.currentProcessID = p.currentProcessID + 1
+	return p.currentProcessID
+}
+
+func (p *ProcessIDPool) Restore(id uint32) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if id >= p.currentProcessID {
+		p.currentProcessID = id
+	}
 }
 
 type NetInSpec struct {
@@ -93,6 +119,7 @@ type NetInSpec struct {
 	ContainerPort uint32
 }
 
+// TODO: extend this for security groups https://www.pivotaltracker.com/story/show/82554270
 type NetOutSpec struct {
 	Network string
 	Port    uint32
@@ -125,6 +152,7 @@ func NewLinuxContainer(
 	bandwidthManager bandwidth_manager.BandwidthManager,
 	processTracker process_tracker.ProcessTracker,
 	envvars []string,
+	filter network.Filter,
 ) *LinuxContainer {
 	return &LinuxContainer{
 		logger: logger,
@@ -152,7 +180,10 @@ func NewLinuxContainer(
 
 		processTracker: processTracker,
 
-		envvars: envvars,
+		filter: filter,
+
+		envvars:       envvars,
+		processIDPool: &ProcessIDPool{},
 	}
 }
 
@@ -319,7 +350,17 @@ func (c *LinuxContainer) Restore(snapshot ContainerSnapshot) error {
 			"process": process,
 		})
 
-		c.processTracker.Restore(process.ID)
+		c.processIDPool.Restore(process.ID)
+
+		pidfile := path.Join(c.path, "processes", fmt.Sprintf("%d.pid", process.ID))
+
+		signaller := &NamespacedSignaller{
+			Runner:        c.runner,
+			ContainerPath: c.path,
+			PidFilePath:   pidfile,
+		}
+
+		c.processTracker.Restore(process.ID, signaller)
 	}
 
 	net := exec.Command(path.Join(c.path, "net.sh"), "setup")
@@ -339,7 +380,7 @@ func (c *LinuxContainer) Restore(snapshot ContainerSnapshot) error {
 	}
 
 	for _, out := range snapshot.NetOuts {
-		err = c.NetOut(out.Network, out.Port)
+		err = c.NetOut(out.Network, out.Port, "", api.ProtocolTCP)
 		if err != nil {
 			cLog.Error("failed-to-reenforce-allowed-traffic", err)
 			return err
@@ -739,13 +780,24 @@ func (c *LinuxContainer) Run(spec api.ProcessSpec, processIO api.ProcessIO) (api
 		args = append(args, "--dir", spec.Dir)
 	}
 
+	processID := c.processIDPool.Next()
+
+	pidfile := path.Join(c.path, "processes", fmt.Sprintf("%d.pid", processID))
+	args = append(args, "--pidfile", pidfile)
+
+	signaller := &NamespacedSignaller{
+		Runner:        c.runner,
+		ContainerPath: c.path,
+		PidFilePath:   pidfile,
+	}
+
 	args = append(args, spec.Path)
 
 	wsh := exec.Command(wshPath, append(args, spec.Args...)...)
 
 	setRLimitsEnv(wsh, spec.Limits)
 
-	return c.processTracker.Run(wsh, processIO, spec.TTY)
+	return c.processTracker.Run(processID, wsh, processIO, spec.TTY, signaller)
 }
 
 func (c *LinuxContainer) Attach(processID uint32, processIO api.ProcessIO) (api.Process, error) {
@@ -788,28 +840,8 @@ func (c *LinuxContainer) NetIn(hostPort uint32, containerPort uint32) (uint32, u
 	return hostPort, containerPort, nil
 }
 
-func (c *LinuxContainer) NetOut(network string, port uint32) error {
-	net := exec.Command(path.Join(c.path, "net.sh"), "out")
-
-	if port != 0 {
-		net.Env = []string{
-			"NETWORK=" + network,
-			fmt.Sprintf("PORT=%d", port),
-			"PATH=" + os.Getenv("PATH"),
-		}
-	} else {
-		if network == "" {
-			return fmt.Errorf("network and/or port must be provided")
-		}
-
-		net.Env = []string{
-			"NETWORK=" + network,
-			"PORT=",
-			"PATH=" + os.Getenv("PATH"),
-		}
-	}
-
-	err := c.runner.Run(net)
+func (c *LinuxContainer) NetOut(network string, port uint32, portRange string, protocol api.Protocol) error {
+	err := c.filter.NetOut(network, port, portRange, protocol)
 	if err != nil {
 		return err
 	}
