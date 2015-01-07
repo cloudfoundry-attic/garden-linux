@@ -190,6 +190,19 @@ var _ = Describe("Net In/Out", func() {
 						ByRejectingICMP()
 					})
 				})
+
+				Context("when all ICMP traffic is allowed", func() {
+					BeforeEach(func() {
+						containerNetwork = fmt.Sprintf("10.1%d.3.0/24", GinkgoParallelNode())
+					})
+
+					It("allows ICMP and blocks TCP", func() {
+						err := container.NetOut(externalIP.String(), 0, "", api.ProtocolICMP)
+						Ω(err).ShouldNot(HaveOccurred())
+						ByAllowingICMP()
+						ByRejectingTCP()
+					})
+				})
 			})
 		})
 

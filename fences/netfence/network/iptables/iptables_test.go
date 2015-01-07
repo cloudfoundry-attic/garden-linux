@@ -199,6 +199,17 @@ var _ = Describe("Iptables", func() {
 				})
 			})
 
+			Context("when icmp protcol is specified", func() {
+				It("passes icmp protcol to iptables", func() {
+					subject.PrependFilterRule(api.ProtocolICMP, "1.2.3.4/24", 0, "")
+
+					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+						Path: "/sbin/iptables",
+						Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "icmp", "--destination", "1.2.3.4/24", "--jump", "RETURN"},
+					}))
+				})
+			})
+
 			Context("when destination is omitted", func() {
 				It("does not pass destination to iptables", func() {
 					subject.PrependFilterRule(api.ProtocolAll, "", 8080, "")

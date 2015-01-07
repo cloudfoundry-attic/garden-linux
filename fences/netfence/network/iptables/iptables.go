@@ -85,8 +85,9 @@ func (ch *chain) PrependFilterRule(protocol api.Protocol, dest string, destPort 
 	parms := []string{"-w", "-I", ch.name, "1"}
 
 	protocols := map[api.Protocol]string{
-		api.ProtocolAll: "all",
-		api.ProtocolTCP: "tcp",
+		api.ProtocolAll:  "all",
+		api.ProtocolTCP:  "tcp",
+		api.ProtocolICMP: "icmp",
 	}
 	protocolString, ok := protocols[protocol]
 
