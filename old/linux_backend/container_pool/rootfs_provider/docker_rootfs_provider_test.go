@@ -12,10 +12,26 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+type FakeVolumeCreator struct {
+	Created     []RootAndVolume
+	CreateError error
+}
+
+type RootAndVolume struct {
+	RootPath string
+	Volume   string
+}
+
+func (f *FakeVolumeCreator) Create(path, v string) error {
+	f.Created = append(f.Created, RootAndVolume{path, v})
+	return f.CreateError
+}
+
 var _ = Describe("DockerRootFSProvider", func() {
 	var (
 		fakeRepositoryFetcher *fake_repository_fetcher.FakeRepositoryFetcher
 		fakeGraphDriver       *fake_graph_driver.FakeGraphDriver
+		fakeVolumeCreator     *FakeVolumeCreator
 
 		provider RootFSProvider
 
@@ -25,8 +41,9 @@ var _ = Describe("DockerRootFSProvider", func() {
 	BeforeEach(func() {
 		fakeRepositoryFetcher = fake_repository_fetcher.New()
 		fakeGraphDriver = fake_graph_driver.New()
+		fakeVolumeCreator = &FakeVolumeCreator{}
 
-		provider = NewDocker(fakeRepositoryFetcher, fakeGraphDriver)
+		provider = NewDocker(fakeRepositoryFetcher, fakeGraphDriver, fakeVolumeCreator)
 
 		logger = lagertest.NewTestLogger("test")
 	})
@@ -55,6 +72,29 @@ var _ = Describe("DockerRootFSProvider", func() {
 
 			Ω(mountpoint).Should(Equal("/some/graph/driver/mount/point"))
 			Ω(envvars).Should(Equal([]string{"env1", "env1Value", "env2", "env2Value"}))
+		})
+
+		Context("when the image has associated VOLUMEs", func() {
+			It("creates empty directories for all volumes", func() {
+				fakeRepositoryFetcher.FetchResult = "some-image-id"
+				fakeGraphDriver.GetResult = "/some/graph/driver/mount/point"
+
+				_, _, err := provider.ProvideRootFS(logger, "some-id", parseURL("docker:///some-repository-name"))
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Ω(fakeVolumeCreator.Created).Should(Equal([]RootAndVolume{{fakeGraphDriver.GetResult, "/foo"}, {fakeGraphDriver.GetResult, "/bar"}}))
+			})
+
+			Context("when creating a volume fails", func() {
+				It("returns an error", func() {
+					fakeRepositoryFetcher.FetchResult = "some-image-id"
+					fakeGraphDriver.GetResult = "/some/graph/driver/mount/point"
+					fakeVolumeCreator.CreateError = errors.New("o nooo")
+
+					_, _, err := provider.ProvideRootFS(logger, "some-id", parseURL("docker:///some-repository-name"))
+					Ω(err).Should(HaveOccurred())
+				})
+			})
 		})
 
 		Context("when the url is missing a path", func() {

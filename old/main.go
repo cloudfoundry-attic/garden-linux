@@ -219,7 +219,7 @@ func Main(builders *fences.BuilderRegistry) {
 
 	rootFSProviders := map[string]rootfs_provider.RootFSProvider{
 		"":       rootfs_provider.NewOverlay(*binPath, *overlaysPath, *rootFSPath, runner),
-		"docker": rootfs_provider.NewDocker(repoFetcher, graphDriver),
+		"docker": rootfs_provider.NewDocker(repoFetcher, graphDriver, rootfs_provider.SimpleVolumeCreator{}),
 	}
 
 	pool := container_pool.New(

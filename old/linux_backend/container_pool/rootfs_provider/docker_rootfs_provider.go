@@ -11,8 +11,9 @@ import (
 )
 
 type dockerRootFSProvider struct {
-	repoFetcher repository_fetcher.RepositoryFetcher
-	graphDriver graphdriver.Driver
+	repoFetcher   repository_fetcher.RepositoryFetcher
+	graphDriver   graphdriver.Driver
+	volumeCreator VolumeCreator
 
 	fallback RootFSProvider
 }
@@ -22,10 +23,12 @@ var ErrInvalidDockerURL = errors.New("invalid docker url; must provide path")
 func NewDocker(
 	repoFetcher repository_fetcher.RepositoryFetcher,
 	graphDriver graphdriver.Driver,
+	volumeCreator VolumeCreator,
 ) RootFSProvider {
 	return &dockerRootFSProvider{
-		repoFetcher: repoFetcher,
-		graphDriver: graphDriver,
+		repoFetcher:   repoFetcher,
+		graphDriver:   graphDriver,
+		volumeCreator: volumeCreator,
 	}
 }
 
@@ -41,7 +44,7 @@ func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id stri
 		tag = url.Fragment
 	}
 
-	imageID, envvars, err := provider.repoFetcher.Fetch(logger, repoName, tag)
+	imageID, envvars, volumes, err := provider.repoFetcher.Fetch(logger, repoName, tag)
 	if err != nil {
 		return "", nil, err
 	}
@@ -51,12 +54,18 @@ func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id stri
 		return "", nil, err
 	}
 
-	rootID, err := provider.graphDriver.Get(id, "")
+	rootPath, err := provider.graphDriver.Get(id, "")
 	if err != nil {
 		return "", nil, err
 	}
 
-	return rootID, envvars, nil
+	for _, v := range volumes {
+		if err = provider.volumeCreator.Create(rootPath, v); err != nil {
+			return "", nil, err
+		}
+	}
+
+	return rootPath, envvars, nil
 }
 
 func (provider *dockerRootFSProvider) CleanupRootFS(logger lager.Logger, id string) error {

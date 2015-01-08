@@ -107,6 +107,31 @@ var _ = Describe("Creating a container", func() {
 		Eventually(stdout).Should(gbytes.Say(fmt.Sprintf("%s\n", container.Handle())))
 	})
 
+	Context("Using a docker image", func() {
+		Context("when there is a VOLUME associated with the docker image", func() {
+			BeforeEach(func() {
+				// dockerfile contains `VOLUME /foo`, see diego-dockerfiles/with-volume
+				rootfs = "docker:///cloudfoundry/with-volume"
+			})
+
+			stdout := gbytes.NewBuffer()
+			It("creates the volume directory, if it does not already exist", func() {
+				process, err := container.Run(api.ProcessSpec{
+					Path: "ls",
+					Args: []string{"-l", "/"},
+				}, api.ProcessIO{
+					Stdout: io.MultiWriter(GinkgoWriter, stdout),
+					Stderr: GinkgoWriter,
+				})
+
+				Ω(err).ShouldNot(HaveOccurred())
+
+				process.Wait()
+				Ω(stdout).Should(gbytes.Say("foo"))
+			})
+		})
+	})
+
 	Context("and running a process", func() {
 		It("runs as the vcap user by default", func() {
 			stdout := gbytes.NewBuffer()
