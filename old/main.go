@@ -256,11 +256,6 @@ func Main(builders *fences.BuilderRegistry) {
 		logger.Fatal("failed-to-start-server", err)
 	}
 
-	logger.Info("started", lager.Data{
-		"network": *listenNetwork,
-		"addr":    *listenAddr,
-	})
-
 	signals := make(chan os.Signal, 1)
 
 	go func() {
@@ -270,6 +265,11 @@ func Main(builders *fences.BuilderRegistry) {
 	}()
 
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
+
+	logger.Info("started", lager.Data{
+		"network": *listenNetwork,
+		"addr":    *listenAddr,
+	})
 
 	select {}
 }
