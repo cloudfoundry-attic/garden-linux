@@ -88,7 +88,30 @@ type LinuxContainer struct {
 
 	mtu uint32
 
-	envvars []string
+	envvars       []string
+	processIDPool *ProcessIDPool
+}
+
+type ProcessIDPool struct {
+	currentProcessID uint32
+	mu               sync.Mutex
+}
+
+func (p *ProcessIDPool) Next() uint32 {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	p.currentProcessID = p.currentProcessID + 1
+	return p.currentProcessID
+}
+
+func (p *ProcessIDPool) Restore(id uint32) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if id >= p.currentProcessID {
+		p.currentProcessID = id
+	}
 }
 
 type NetInSpec struct {
@@ -159,7 +182,8 @@ func NewLinuxContainer(
 
 		filter: filter,
 
-		envvars: envvars,
+		envvars:       envvars,
+		processIDPool: &ProcessIDPool{},
 	}
 }
 
@@ -326,7 +350,17 @@ func (c *LinuxContainer) Restore(snapshot ContainerSnapshot) error {
 			"process": process,
 		})
 
-		c.processTracker.Restore(process.ID)
+		c.processIDPool.Restore(process.ID)
+
+		pidfile := path.Join(c.path, "processes", fmt.Sprintf("%d.pid", process.ID))
+
+		signaller := &NamespacedSignaller{
+			Runner:        c.runner,
+			ContainerPath: c.path,
+			PidFilePath:   pidfile,
+		}
+
+		c.processTracker.Restore(process.ID, signaller)
 	}
 
 	net := exec.Command(path.Join(c.path, "net.sh"), "setup")
@@ -746,13 +780,24 @@ func (c *LinuxContainer) Run(spec api.ProcessSpec, processIO api.ProcessIO) (api
 		args = append(args, "--dir", spec.Dir)
 	}
 
+	processID := c.processIDPool.Next()
+
+	pidfile := path.Join(c.path, "processes", fmt.Sprintf("%d.pid", processID))
+	args = append(args, "--pidfile", pidfile)
+
+	signaller := &NamespacedSignaller{
+		Runner:        c.runner,
+		ContainerPath: c.path,
+		PidFilePath:   pidfile,
+	}
+
 	args = append(args, spec.Path)
 
 	wsh := exec.Command(wshPath, append(args, spec.Args...)...)
 
 	setRLimitsEnv(wsh, spec.Limits)
 
-	return c.processTracker.Run(wsh, processIO, spec.TTY)
+	return c.processTracker.Run(processID, wsh, processIO, spec.TTY, signaller)
 }
 
 func (c *LinuxContainer) Attach(processID uint32, processIO api.ProcessIO) (api.Process, error) {

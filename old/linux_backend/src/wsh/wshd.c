@@ -364,28 +364,31 @@ error:
 
 int child_handle_interactive(int fd, wshd_t *w, msg_request_t *req) {
   int i, j;
-  int p[2][2];
-  int p_[2];
+  int num_descriptors = 3;
+  int p[num_descriptors][2];
+  int p_[num_descriptors];
   int rv;
   msg_response_t res;
 
   msg_response_init(&res);
 
   /* Initialize so that the error handler can do its job */
-  for (i = 0; i < 2; i++) {
+  for (i = 0; i < num_descriptors; i++) {
     p[i][0] = -1;
     p[i][1] = -1;
     p_[i] = -1;
   }
 
-  rv = pipe(p[1]);
-  if (rv == -1) {
-    perror("pipe");
-    abort();
-  }
+  for (i = 1; i < num_descriptors; i++) {
+    rv = pipe(p[i]);
+    if (rv == -1) {
+      perror("pipe");
+      abort();
+    }
 
-  fcntl_mix_cloexec(p[1][0]);
-  fcntl_mix_cloexec(p[1][1]);
+    fcntl_mix_cloexec(p[i][0]);
+    fcntl_mix_cloexec(p[i][1]);
+  }
 
   rv = openpty(&p[0][0], &p[0][1], NULL);
   if (rv < 0) {
@@ -399,8 +402,9 @@ int child_handle_interactive(int fd, wshd_t *w, msg_request_t *req) {
   /* Descriptors to send to client */
   p_[0] = p[0][0];
   p_[1] = p[1][0];
+  p_[2] = p[2][0];
 
-  rv = un_send_fds(fd, (char *)&res, sizeof(res), p_, 2);
+  rv = un_send_fds(fd, (char *)&res, sizeof(res), p_, num_descriptors);
   if (rv == -1) {
     goto err;
   }
@@ -408,10 +412,12 @@ int child_handle_interactive(int fd, wshd_t *w, msg_request_t *req) {
   rv = child_fork(req, p[0][1], p[0][1], p[0][1]);
   assert(rv > 0);
 
+  write(p[2][1], &rv, sizeof(rv));
+
   child_pid_to_fd_add(w, rv, p[1][1]);
 
 err:
-  for (i = 0; i < 2; i++) {
+  for (i = 0; i < 3; i++) {
     for (j = 0; j < 2; j++) {
       if (p[i][j] > -1) {
         close(p[i][j]);
@@ -430,21 +436,22 @@ err:
 
 int child_handle_noninteractive(int fd, wshd_t *w, msg_request_t *req) {
   int i, j;
-  int p[4][2];
-  int p_[4];
+  int num_descriptors = 5;
+  int p[num_descriptors][2];
+  int p_[num_descriptors];
   int rv;
   msg_response_t res;
 
   msg_response_init(&res);
 
   /* Initialize so that the error handler can do its job */
-  for (i = 0; i < 4; i++) {
+  for (i = 0; i < num_descriptors; i++) {
     p[i][0] = -1;
     p[i][1] = -1;
     p_[i] = -1;
   }
 
-  for (i = 0; i < 4; i++) {
+  for (i = 0; i < num_descriptors; i++) {
     rv = pipe(p[i]);
     if (rv == -1) {
       perror("pipe");
@@ -460,8 +467,9 @@ int child_handle_noninteractive(int fd, wshd_t *w, msg_request_t *req) {
   p_[1] = p[1][0];
   p_[2] = p[2][0];
   p_[3] = p[3][0];
+  p_[4] = p[4][0];
 
-  rv = un_send_fds(fd, (char *)&res, sizeof(res), p_, 4);
+  rv = un_send_fds(fd, (char *)&res, sizeof(res), p_, num_descriptors);
   if (rv == -1) {
     goto err;
   }
@@ -469,10 +477,12 @@ int child_handle_noninteractive(int fd, wshd_t *w, msg_request_t *req) {
   rv = child_fork(req, p[0][0], p[1][1], p[2][1]);
   assert(rv > 0);
 
+  write(p[4][1], &rv, sizeof(rv));
+
   child_pid_to_fd_add(w, rv, p[3][1]);
 
 err:
-  for (i = 0; i < 4; i++) {
+  for (i = 0; i < 5; i++) {
     for (j = 0; j < 2; j++) {
       if (p[i][j] > -1) {
         close(p[i][j]);
