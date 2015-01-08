@@ -131,8 +131,8 @@ var _ = Describe("Running processes", func() {
 	Context("with a tty", func() {
 		It("forwards TTY signals to the process", func() {
 			cmd := exec.Command("/bin/bash", "-c", `
-				stty size
 				trap "stty size; exit 123" SIGWINCH
+				stty size
 				read
 			`)
 
