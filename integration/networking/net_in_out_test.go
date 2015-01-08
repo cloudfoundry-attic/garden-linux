@@ -241,6 +241,7 @@ var _ = Describe("Net In/Out", func() {
 		const tcpPort = 8080
 		const udpPort = 8081
 		const tcpPortRange = "8080:8090"
+		const udpPortRange = "8081:8091"
 
 		targetIP := func(c api.Container) string {
 			info, err := c.Info()
@@ -388,7 +389,7 @@ var _ = Describe("Net In/Out", func() {
 					})
 				})
 
-				Context("after net_out allows tcp traffic to that IP and port", func() {
+				Context("after net_out allows all traffic to that IP and port", func() {
 					Context("when no port is specified", func() {
 						It("allows both tcp and icmp to that address", func() {
 							container.NetOut(otherContainerNetwork.String(), 0, "", api.ProtocolAll)
@@ -399,7 +400,7 @@ var _ = Describe("Net In/Out", func() {
 					})
 
 					Context("when a port is specified", func() {
-						It("allows only tcp connections to that port", func() {
+						It("allows tcp connections to that port", func() {
 							container.NetOut(otherContainerNetwork.String(), 12345, "", api.ProtocolTCP) // wrong port
 							ByRejectingTCP()
 							container.NetOut(otherContainerNetwork.String(), tcpPort, "", api.ProtocolTCP)
@@ -407,25 +408,47 @@ var _ = Describe("Net In/Out", func() {
 							ByRejectingICMP()
 							ByAllowingTCP()
 						})
+
+						It("allows udp connections to that port", func() {
+							container.NetOut(otherContainerNetwork.String(), 12345, "", api.ProtocolUDP) // wrong port
+							ByRejectingUDP()
+							container.NetOut(otherContainerNetwork.String(), udpPort, "", api.ProtocolUDP)
+							ByRejectingICMP()
+							ByRejectingTCP()
+							ByAllowingUDP()
+						})
 					})
 
 					Context("when a port range is specified", func() {
-						It("allows only tcp connections a port in that range", func() {
+						It("allows tcp connections a port in that range", func() {
 							container.NetOut(otherContainerNetwork.String(), 0, tcpPortRange, api.ProtocolTCP)
 							ByRejectingUDP()
 							ByRejectingICMP()
 							ByAllowingTCP()
 						})
+
+						It("allows udp connections a port in that range", func() {
+							container.NetOut(otherContainerNetwork.String(), 0, tcpPortRange, api.ProtocolUDP)
+							ByRejectingTCP()
+							ByRejectingICMP()
+							ByAllowingUDP()
+						})
 					})
 				})
 
-				Describe("allowing individual protocols", func() {
-					Context("when all TCP traffic is allowed", func() {
-						It("allows TCP and blocks ICMP", func() {
-							container.NetOut(otherContainerNetwork.String(), 0, "", api.ProtocolTCP)
-							ByAllowingTCP()
-							ByRejectingICMP()
-						})
+				Describe("when no port or port is specified", func() {
+					It("allows all TCP and blocks other protocols", func() {
+						container.NetOut(otherContainerNetwork.String(), 0, "", api.ProtocolTCP)
+						ByAllowingTCP()
+						ByRejectingICMP()
+						ByRejectingUDP()
+					})
+
+					It("allows UDP and blocks other protocols", func() {
+						container.NetOut(otherContainerNetwork.String(), 0, "", api.ProtocolUDP)
+						ByRejectingTCP()
+						ByRejectingICMP()
+						ByAllowingUDP()
 					})
 				})
 			})

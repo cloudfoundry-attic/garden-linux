@@ -88,16 +88,28 @@ var _ = Describe("Filter", func() {
 			Ω(destPortRange).Should(Equal("80:81"))
 		})
 
+		It("should mutate iptables correctly when udp is specified for the protocol", func() {
+			err := filter.NetOut("", 0, "80:81", api.ProtocolUDP)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(fakeChain.PrependFilterRuleCallCount()).Should(Equal(1))
+			protocol, dest, destPort, destPortRange := fakeChain.PrependFilterRuleArgsForCall(0)
+			Ω(protocol).Should(Equal(api.ProtocolUDP))
+			Ω(dest).Should(Equal(""))
+			Ω(destPort).Should(Equal(uint32(0)))
+			Ω(destPortRange).Should(Equal("80:81"))
+		})
+
 		It("return an error if port is specified and protocol is all", func() {
 			err := filter.NetOut("1.2.3.4/24", 8080, "", api.ProtocolAll)
 			Ω(err).Should(HaveOccurred())
-			Ω(err).Should(MatchError("invalid rule: a port (range) can only be specified with protocol TCP"))
+			Ω(err).Should(MatchError("invalid rule: a port (range) can only be specified with protocol TCP or UDP"))
 		})
 
 		It("return an error if port range is specified and protocol is all", func() {
 			err := filter.NetOut("1.2.3.4/24", 0, "80:81", api.ProtocolAll)
 			Ω(err).Should(HaveOccurred())
-			Ω(err).Should(MatchError("invalid rule: a port (range) can only be specified with protocol TCP"))
+			Ω(err).Should(MatchError("invalid rule: a port (range) can only be specified with protocol TCP or UDP"))
 		})
 
 		It("return an error if network, port, and port range are omitted", func() {
@@ -112,5 +124,4 @@ var _ = Describe("Filter", func() {
 			Ω(err).Should(MatchError("invalid rule: port and port range cannot both be specified"))
 		})
 	})
-
 })

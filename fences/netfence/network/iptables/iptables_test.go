@@ -170,7 +170,7 @@ var _ = Describe("Iptables", func() {
 		Describe("PrependFilterRule", func() {
 			Context("when all parameters are specified", func() {
 				It("runs iptables to prepend the rule with the correct parameters when port is specified", func() {
-					subject.PrependFilterRule(api.ProtocolAll, "1.2.3.4/24", 8080, "")
+					Ω(subject.PrependFilterRule(api.ProtocolAll, "1.2.3.4/24", 8080, "")).Should(Succeed())
 
 					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
 						Path: "/sbin/iptables",
@@ -179,7 +179,7 @@ var _ = Describe("Iptables", func() {
 				})
 
 				It("runs iptables to prepend the rule with the correct parameters when port range is specified", func() {
-					subject.PrependFilterRule(api.ProtocolAll, "1.2.3.4/24", 0, "80:81")
+					Ω(subject.PrependFilterRule(api.ProtocolAll, "1.2.3.4/24", 0, "80:81")).Should(Succeed())
 
 					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
 						Path: "/sbin/iptables",
@@ -190,7 +190,7 @@ var _ = Describe("Iptables", func() {
 
 			Context("when tcp protcol is specified", func() {
 				It("passes tcp protcol to iptables", func() {
-					subject.PrependFilterRule(api.ProtocolTCP, "1.2.3.4/24", 8080, "")
+					Ω(subject.PrependFilterRule(api.ProtocolTCP, "1.2.3.4/24", 8080, "")).Should(Succeed())
 
 					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
 						Path: "/sbin/iptables",
@@ -199,9 +199,20 @@ var _ = Describe("Iptables", func() {
 				})
 			})
 
+			Context("when udp protcol is specified", func() {
+				It("passes udp protcol to iptables", func() {
+					Ω(subject.PrependFilterRule(api.ProtocolUDP, "1.2.3.4/24", 8080, "")).Should(Succeed())
+
+					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+						Path: "/sbin/iptables",
+						Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "udp", "--destination", "1.2.3.4/24", "--destination-port", "8080", "--jump", "RETURN"},
+					}))
+				})
+			})
+
 			Context("when icmp protcol is specified", func() {
 				It("passes icmp protcol to iptables", func() {
-					subject.PrependFilterRule(api.ProtocolICMP, "1.2.3.4/24", 0, "")
+					Ω(subject.PrependFilterRule(api.ProtocolICMP, "1.2.3.4/24", 0, "")).Should(Succeed())
 
 					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
 						Path: "/sbin/iptables",
@@ -212,7 +223,7 @@ var _ = Describe("Iptables", func() {
 
 			Context("when destination is omitted", func() {
 				It("does not pass destination to iptables", func() {
-					subject.PrependFilterRule(api.ProtocolAll, "", 8080, "")
+					Ω(subject.PrependFilterRule(api.ProtocolAll, "", 8080, "")).Should(Succeed())
 
 					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
 						Path: "/sbin/iptables",
@@ -223,7 +234,7 @@ var _ = Describe("Iptables", func() {
 
 			Context("when port is omitted", func() {
 				It("does not pass port to iptables", func() {
-					subject.PrependFilterRule(api.ProtocolAll, "1.2.3.4/24", 0, "")
+					Ω(subject.PrependFilterRule(api.ProtocolAll, "1.2.3.4/24", 0, "")).Should(Succeed())
 
 					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
 						Path: "/sbin/iptables",
@@ -234,7 +245,7 @@ var _ = Describe("Iptables", func() {
 
 			Context("when an IP range is specified", func() {
 				It("runs iptables to prepend the rule with the correct parameters", func() {
-					subject.PrependFilterRule(api.ProtocolAll, "1.2.3.4-1.2.3.6", 8080, "")
+					Ω(subject.PrependFilterRule(api.ProtocolAll, "1.2.3.4-1.2.3.6", 8080, "")).Should(Succeed())
 
 					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
 						Path: "/sbin/iptables",
