@@ -84,14 +84,6 @@ func canCreateAndUseFuseFileSystem(container api.Container, privilegedProcess bo
 
 	process, err = container.Run(api.ProcessSpec{
 		Privileged: privilegedProcess,
-		Path:       "ls",
-		Args:       []string{"-lA", "/dev/fuse", "/bin/fusermount", "/usr/bin/hellofs"},
-	}, api.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
-	Ω(err).ShouldNot(HaveOccurred())
-	Ω(process.Wait()).Should(Equal(0), "Failed to ls various files.")
-
-	process, err = container.Run(api.ProcessSpec{
-		Privileged: privilegedProcess,
 		Path:       "/usr/bin/hellofs",
 		Args:       []string{mountpoint},
 	}, api.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
