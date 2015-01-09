@@ -1,0 +1,28 @@
+// Returns the physical capacity of the server's machine.
+//
+// ### Request
+//
+// Empty.
+//
+// ### Response
+//
+// * `memory_in_bytes`: Memory limit of the machine in bytes.
+// * `disk_in_bytes`: Disk limit of the machine in bytes.
+//
+// ### Errors
+//
+// None.
+//
+// ### Definition
+//
+
+package garden;
+
+message CapacityRequest {
+}
+
+message CapacityResponse {
+  required uint64 memory_in_bytes = 1;
+  required uint64 disk_in_bytes = 2;
+  required uint64 max_containers = 3;
+}

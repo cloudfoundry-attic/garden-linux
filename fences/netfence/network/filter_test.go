@@ -1,9 +1,9 @@
 package network_test
 
 import (
+	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network"
 	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/iptables/fakes"
-	"github.com/cloudfoundry-incubator/garden/api"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -44,7 +44,7 @@ var _ = Describe("Filter", func() {
 			Ω(fakeChainFactory.CreateChainArgsForCall(0)).Should(Equal("w-tag-instance-id"))
 		})
 
-		ItMutatesIPTables := func(network string, port uint32, portRange string, protocol api.Protocol, icmpType, icmpCode int32) {
+		ItMutatesIPTables := func(network string, port uint32, portRange string, protocol garden.Protocol, icmpType, icmpCode int32) {
 			It("should mutate IP tables", func() {
 				err := filter.NetOut(network, port, portRange, protocol, icmpType, icmpCode)
 				Ω(err).ShouldNot(HaveOccurred())
@@ -60,7 +60,7 @@ var _ = Describe("Filter", func() {
 			})
 		}
 
-		ItAllowsPortOrPortRange := func(protocol api.Protocol) {
+		ItAllowsPortOrPortRange := func(protocol garden.Protocol) {
 			Context("and no network is specified", func() {
 				Context("and neither port nor port range are specified", func() {
 					It("should return an error", func() {
@@ -107,7 +107,7 @@ var _ = Describe("Filter", func() {
 			})
 		}
 
-		ItDoesNotAllowPortOrPortRange := func(protocol api.Protocol) {
+		ItDoesNotAllowPortOrPortRange := func(protocol garden.Protocol) {
 			Context("when no port or port range are specified", func() {
 				ItMutatesIPTables("1.2.3.4/24", 0, "", protocol, -1, -1)
 			})
@@ -127,7 +127,7 @@ var _ = Describe("Filter", func() {
 			})
 		}
 
-		ItDoesNotAllowIcmpCodeOrType := func(protocol api.Protocol) {
+		ItDoesNotAllowIcmpCodeOrType := func(protocol garden.Protocol) {
 			Context("and an ICMP type is specified", func() {
 				It("should return an error", func() {
 					err := filter.NetOut("", 80, "", protocol, -1, 8)
@@ -144,29 +144,29 @@ var _ = Describe("Filter", func() {
 		}
 
 		Context("when the protocol is TCP", func() {
-			ItAllowsPortOrPortRange(api.ProtocolTCP)
-			ItDoesNotAllowIcmpCodeOrType(api.ProtocolTCP)
+			ItAllowsPortOrPortRange(garden.ProtocolTCP)
+			ItDoesNotAllowIcmpCodeOrType(garden.ProtocolTCP)
 		})
 
 		Context("when the protocol is UDP", func() {
-			ItAllowsPortOrPortRange(api.ProtocolUDP)
-			ItDoesNotAllowIcmpCodeOrType(api.ProtocolUDP)
+			ItAllowsPortOrPortRange(garden.ProtocolUDP)
+			ItDoesNotAllowIcmpCodeOrType(garden.ProtocolUDP)
 		})
 
 		Context("when the protocol is ALL", func() {
-			ItDoesNotAllowPortOrPortRange(api.ProtocolAll)
-			ItDoesNotAllowIcmpCodeOrType(api.ProtocolAll)
+			ItDoesNotAllowPortOrPortRange(garden.ProtocolAll)
+			ItDoesNotAllowIcmpCodeOrType(garden.ProtocolAll)
 		})
 
 		Context("when the protocol is ICMP", func() {
-			ItDoesNotAllowPortOrPortRange(api.ProtocolICMP)
+			ItDoesNotAllowPortOrPortRange(garden.ProtocolICMP)
 
 			Context("and icmp type is specified", func() {
-				ItMutatesIPTables("1.2.3.4/24", 0, "", api.ProtocolICMP, 7, -1)
+				ItMutatesIPTables("1.2.3.4/24", 0, "", garden.ProtocolICMP, 7, -1)
 			})
 
 			Context("and icmp code is specified", func() {
-				ItMutatesIPTables("1.2.3.4/24", 0, "", api.ProtocolICMP, -1, 8)
+				ItMutatesIPTables("1.2.3.4/24", 0, "", garden.ProtocolICMP, -1, 8)
 			})
 		})
 	})

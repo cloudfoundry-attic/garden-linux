@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"syscall"
 
+	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/integration/runner"
-	"github.com/cloudfoundry-incubator/garden/api"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
@@ -29,10 +29,10 @@ var netdogBin string
 var gardenRunner *runner.Runner
 var gardenProcess ifrit.Process
 
-var client api.Client
+var client garden.Client
 var externalIP net.IP
 
-func startGarden(argv ...string) api.Client {
+func startGarden(argv ...string) garden.Client {
 	gardenAddr := fmt.Sprintf("/tmp/garden_%d.sock", GinkgoParallelNode())
 
 	{ // Check this test suite is in the correct directory
@@ -113,14 +113,14 @@ func TestNetworking(t *testing.T) {
 }
 
 // networking test utility functions
-func containerIfName(container api.Container) string {
+func containerIfName(container garden.Container) string {
 	return ifNamePrefix(container) + "-1"
 }
 
-func hostIfName(container api.Container) string {
+func hostIfName(container garden.Container) string {
 	return ifNamePrefix(container) + "-0"
 }
 
-func ifNamePrefix(container api.Container) string {
+func ifNamePrefix(container garden.Container) string {
 	return "w" + strconv.Itoa(GinkgoParallelNode()) + container.Handle()
 }

@@ -6,22 +6,22 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/cloudfoundry-incubator/garden/api"
+	"github.com/cloudfoundry-incubator/garden"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("A container", func() {
 	var (
-		container          api.Container
+		container          garden.Container
 		containerCreateErr error
 
 		// container create parms
 		privilegedContainer bool
-		srcPath             string              // bm: source
-		dstPath             string              // bm: destination
-		bindMountMode       api.BindMountMode   // bm: RO or RW
-		bindMountOrigin     api.BindMountOrigin // bm: Container or Host
+		srcPath             string                 // bm: source
+		dstPath             string                 // bm: destination
+		bindMountMode       garden.BindMountMode   // bm: RO or RW
+		bindMountOrigin     garden.BindMountOrigin // bm: Container or Host
 
 		// pre-existing file for permissions testing
 		testFileName string
@@ -33,16 +33,16 @@ var _ = Describe("A container", func() {
 		containerCreateErr = nil
 		srcPath = ""
 		dstPath = ""
-		bindMountMode = api.BindMountModeRO
-		bindMountOrigin = api.BindMountOriginHost
+		bindMountMode = garden.BindMountModeRO
+		bindMountOrigin = garden.BindMountOriginHost
 		testFileName = ""
 	})
 
 	JustBeforeEach(func() {
 		container, containerCreateErr = gardenClient.Create(
-			api.ContainerSpec{
+			garden.ContainerSpec{
 				Privileged: privilegedContainer,
-				BindMounts: []api.BindMount{api.BindMount{
+				BindMounts: []garden.BindMount{garden.BindMount{
 					SrcPath: srcPath,
 					DstPath: dstPath,
 					Mode:    bindMountMode,
@@ -73,7 +73,7 @@ var _ = Describe("A container", func() {
 	Context("with a host origin bind-mount", func() {
 		BeforeEach(func() {
 			srcPath, testFileName = createTestHostDirAndTestFile()
-			bindMountOrigin = api.BindMountOriginHost
+			bindMountOrigin = garden.BindMountOriginHost
 		})
 
 		AfterEach(func() {
@@ -83,7 +83,7 @@ var _ = Describe("A container", func() {
 
 		Context("which is read-only", func() {
 			BeforeEach(func() {
-				bindMountMode = api.BindMountModeRO
+				bindMountMode = garden.BindMountModeRO
 				dstPath = "/home/vcap/readonly"
 			})
 
@@ -122,7 +122,7 @@ var _ = Describe("A container", func() {
 
 		Context("which is read-write", func() {
 			BeforeEach(func() {
-				bindMountMode = api.BindMountModeRW
+				bindMountMode = garden.BindMountModeRW
 				dstPath = "/home/vcap/readwrite"
 			})
 
@@ -163,7 +163,7 @@ var _ = Describe("A container", func() {
 	Context("with a container origin bind-mount", func() {
 		BeforeEach(func() {
 			srcPath = "/home/vcap"
-			bindMountOrigin = api.BindMountOriginContainer
+			bindMountOrigin = garden.BindMountOriginContainer
 		})
 
 		JustBeforeEach(func() {
@@ -172,7 +172,7 @@ var _ = Describe("A container", func() {
 
 		Context("which is read-only", func() {
 			BeforeEach(func() {
-				bindMountMode = api.BindMountModeRO
+				bindMountMode = garden.BindMountModeRO
 				dstPath = "/home/vcap/readonly"
 			})
 
@@ -212,7 +212,7 @@ var _ = Describe("A container", func() {
 
 		Context("which is read-write", func() {
 			BeforeEach(func() {
-				bindMountMode = api.BindMountModeRW
+				bindMountMode = garden.BindMountModeRW
 				dstPath = "/home/vcap/readwrite"
 			})
 
@@ -267,42 +267,42 @@ func createTestHostDirAndTestFile() (string, string) {
 	return tstHostDir, fileName
 }
 
-func createContainerTestFileIn(container api.Container, dir string) string {
+func createContainerTestFileIn(container garden.Container, dir string) string {
 	fileName := "bind-mount-test-file"
 	filePath := filepath.Join(dir, fileName)
 
-	process, err := container.Run(api.ProcessSpec{
+	process, err := container.Run(garden.ProcessSpec{
 		Path:       "touch",
 		Args:       []string{filePath},
 		Privileged: true,
-	}, api.ProcessIO{nil, os.Stdout, os.Stderr})
+	}, garden.ProcessIO{nil, os.Stdout, os.Stderr})
 	Ω(err).ShouldNot(HaveOccurred())
 	Ω(process.Wait()).Should(Equal(0))
 
-	process, err = container.Run(api.ProcessSpec{
+	process, err = container.Run(garden.ProcessSpec{
 		Path:       "chmod",
 		Args:       []string{"0777", filePath},
 		Privileged: true,
-	}, api.ProcessIO{nil, os.Stdout, os.Stderr})
+	}, garden.ProcessIO{nil, os.Stdout, os.Stderr})
 	Ω(err).ShouldNot(HaveOccurred())
 	Ω(process.Wait()).Should(Equal(0))
 
 	return fileName
 }
 
-func checkFileAccess(container api.Container, bindMountMode api.BindMountMode, bindMountOrigin api.BindMountOrigin, dstPath string, fileName string, privCtr, privReq bool) {
-	readOnly := (api.BindMountModeRO == bindMountMode)
-	ctrOrigin := (api.BindMountOriginContainer == bindMountOrigin)
+func checkFileAccess(container garden.Container, bindMountMode garden.BindMountMode, bindMountOrigin garden.BindMountOrigin, dstPath string, fileName string, privCtr, privReq bool) {
+	readOnly := (garden.BindMountModeRO == bindMountMode)
+	ctrOrigin := (garden.BindMountOriginContainer == bindMountOrigin)
 	realRoot := (privReq && privCtr)
 
 	// can we read a file?
 	filePath := filepath.Join(dstPath, fileName)
 
-	process, err := container.Run(api.ProcessSpec{
+	process, err := container.Run(garden.ProcessSpec{
 		Path:       "cat",
 		Args:       []string{filePath},
 		Privileged: privReq,
-	}, api.ProcessIO{})
+	}, garden.ProcessIO{})
 	Ω(err).ShouldNot(HaveOccurred())
 
 	Ω(process.Wait()).Should(Equal(0))
@@ -310,11 +310,11 @@ func checkFileAccess(container api.Container, bindMountMode api.BindMountMode, b
 	// try to write a new file
 	filePath = filepath.Join(dstPath, "checkFileAccess-file")
 
-	process, err = container.Run(api.ProcessSpec{
+	process, err = container.Run(garden.ProcessSpec{
 		Path:       "touch",
 		Args:       []string{filePath},
 		Privileged: privReq,
-	}, api.ProcessIO{})
+	}, garden.ProcessIO{})
 	Ω(err).ShouldNot(HaveOccurred())
 
 	if readOnly || (!realRoot && !ctrOrigin) {
@@ -326,11 +326,11 @@ func checkFileAccess(container api.Container, bindMountMode api.BindMountMode, b
 	// try to delete an existing file
 	filePath = filepath.Join(dstPath, fileName)
 
-	process, err = container.Run(api.ProcessSpec{
+	process, err = container.Run(garden.ProcessSpec{
 		Path:       "rm",
 		Args:       []string{filePath},
 		Privileged: privReq,
-	}, api.ProcessIO{})
+	}, garden.ProcessIO{})
 	Ω(err).ShouldNot(HaveOccurred())
 	if readOnly || (!realRoot && !ctrOrigin) {
 		Ω(process.Wait()).ShouldNot(Equal(0))

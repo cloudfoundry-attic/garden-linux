@@ -1,21 +1,21 @@
 package lifecycle_test
 
 import (
-	"github.com/cloudfoundry-incubator/garden/api"
+	"github.com/cloudfoundry-incubator/garden"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("A container with properties", func() {
-	var container api.Container
+	var container garden.Container
 
 	BeforeEach(func() {
 		client = startGarden()
 
 		var err error
 
-		container, err = client.Create(api.ContainerSpec{
-			Properties: api.Properties{
+		container, err = client.Create(garden.ContainerSpec{
+			Properties: garden.Properties{
 				"foo": "bar",
 				"a":   "b",
 			},
@@ -55,7 +55,7 @@ var _ = Describe("A container with properties", func() {
 			info, err := container.Info()
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Ω(info.Properties).Should(Equal(api.Properties{
+			Ω(info.Properties).Should(Equal(garden.Properties{
 				"foo": "baz",
 			}))
 		})
@@ -65,8 +65,8 @@ var _ = Describe("A container with properties", func() {
 		var undesiredHandles []string
 
 		BeforeEach(func() {
-			undesiredContainer, err := client.Create(api.ContainerSpec{
-				Properties: api.Properties{
+			undesiredContainer, err := client.Create(garden.ContainerSpec{
+				Properties: garden.Properties{
 					"foo": "baz",
 					"a":   "b",
 				},
@@ -76,8 +76,8 @@ var _ = Describe("A container with properties", func() {
 
 			undesiredHandles = append(undesiredHandles, undesiredContainer.Handle())
 
-			undesiredContainer, err = client.Create(api.ContainerSpec{
-				Properties: api.Properties{
+			undesiredContainer, err = client.Create(garden.ContainerSpec{
+				Properties: garden.Properties{
 					"baz": "bar",
 					"a":   "b",
 				},
@@ -96,13 +96,13 @@ var _ = Describe("A container with properties", func() {
 		})
 
 		It("can filter by property", func() {
-			containers, err := client.Containers(api.Properties{"foo": "bar"})
+			containers, err := client.Containers(garden.Properties{"foo": "bar"})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(containers).Should(HaveLen(1))
 			Ω(containers[0].Handle()).Should(Equal(container.Handle()))
 
-			containers, err = client.Containers(api.Properties{"matthew": "mcconaughey"})
+			containers, err = client.Containers(garden.Properties{"matthew": "mcconaughey"})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(containers).Should(BeEmpty())

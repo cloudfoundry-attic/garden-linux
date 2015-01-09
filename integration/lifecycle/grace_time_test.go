@@ -1,29 +1,29 @@
 package lifecycle_test
 
 import (
-	"github.com/cloudfoundry-incubator/garden/api"
+	"github.com/cloudfoundry-incubator/garden"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("A container with a grace time", func() {
-	var container api.Container
+	var container garden.Container
 
 	BeforeEach(func() {
 		client = startGarden("--containerGraceTime", "3s")
 
 		var err error
 
-		container, err = client.Create(api.ContainerSpec{})
+		container, err = client.Create(garden.ContainerSpec{})
 		Ω(err).ShouldNot(HaveOccurred())
 	})
 
 	Context("when a request takes longer than the grace time", func() {
 		It("is not destroyed after the request is over", func() {
-			process, err := container.Run(api.ProcessSpec{
+			process, err := container.Run(garden.ProcessSpec{
 				Path: "sleep",
 				Args: []string{"5"},
-			}, api.ProcessIO{})
+			}, garden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(process.Wait()).Should(Equal(0))

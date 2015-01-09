@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/cloudfoundry-incubator/garden/api"
+	"github.com/cloudfoundry-incubator/garden"
 )
 
 type ContainerSnapshot struct {
@@ -25,16 +25,16 @@ type ContainerSnapshot struct {
 	NetIns  []NetInSpec
 	NetOuts []NetOutSpec
 
-	Properties api.Properties
+	Properties garden.Properties
 
 	EnvVars []string
 }
 
 type LimitsSnapshot struct {
-	Memory    *api.MemoryLimits
-	Disk      *api.DiskLimits
-	Bandwidth *api.BandwidthLimits
-	CPU       *api.CPULimits
+	Memory    *garden.MemoryLimits
+	Disk      *garden.DiskLimits
+	Bandwidth *garden.BandwidthLimits
+	CPU       *garden.CPULimits
 }
 
 type ResourcesSnapshot struct {

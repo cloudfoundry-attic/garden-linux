@@ -14,13 +14,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/process_tracker"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/quota_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/logging"
-	"github.com/cloudfoundry-incubator/garden/api"
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/pivotal-golang/lager"
 )
@@ -40,7 +40,7 @@ type LinuxContainer struct {
 	handle string
 	path   string
 
-	properties      api.Properties
+	properties      garden.Properties
 	propertiesMutex sync.RWMutex
 
 	graceTime time.Duration
@@ -68,16 +68,16 @@ type LinuxContainer struct {
 	oomMutex    sync.RWMutex
 	oomNotifier *exec.Cmd
 
-	currentBandwidthLimits *api.BandwidthLimits
+	currentBandwidthLimits *garden.BandwidthLimits
 	bandwidthMutex         sync.RWMutex
 
-	currentDiskLimits *api.DiskLimits
+	currentDiskLimits *garden.DiskLimits
 	diskMutex         sync.RWMutex
 
-	currentMemoryLimits *api.MemoryLimits
+	currentMemoryLimits *garden.MemoryLimits
 	memoryMutex         sync.RWMutex
 
-	currentCPULimits *api.CPULimits
+	currentCPULimits *garden.CPULimits
 	cpuMutex         sync.RWMutex
 
 	netIns      []NetInSpec
@@ -142,7 +142,7 @@ const (
 func NewLinuxContainer(
 	logger lager.Logger,
 	id, handle, path string,
-	properties api.Properties,
+	properties garden.Properties,
 	graceTime time.Duration,
 	resources *Resources,
 	portPool PortPool,
@@ -199,7 +199,7 @@ func (c *LinuxContainer) GraceTime() time.Duration {
 	return c.graceTime
 }
 
-func (c *LinuxContainer) Properties() api.Properties {
+func (c *LinuxContainer) Properties() garden.Properties {
 	return c.properties
 }
 
@@ -380,7 +380,7 @@ func (c *LinuxContainer) Restore(snapshot ContainerSnapshot) error {
 	}
 
 	for _, out := range snapshot.NetOuts {
-		err = c.NetOut(out.Network, out.Port, "", api.ProtocolTCP, -1, -1)
+		err = c.NetOut(out.Network, out.Port, "", garden.ProtocolTCP, -1, -1)
 		if err != nil {
 			cLog.Error("failed-to-reenforce-allowed-traffic", err)
 			return err
@@ -484,40 +484,40 @@ func (c *LinuxContainer) RemoveProperty(key string) error {
 	return nil
 }
 
-func (c *LinuxContainer) Info() (api.ContainerInfo, error) {
+func (c *LinuxContainer) Info() (garden.ContainerInfo, error) {
 	cLog := c.logger.Session("info")
 
 	memoryStat, err := c.cgroupsManager.Get("memory", "memory.stat")
 	if err != nil {
-		return api.ContainerInfo{}, err
+		return garden.ContainerInfo{}, err
 	}
 
 	cpuUsage, err := c.cgroupsManager.Get("cpuacct", "cpuacct.usage")
 	if err != nil {
-		return api.ContainerInfo{}, err
+		return garden.ContainerInfo{}, err
 	}
 
 	cpuStat, err := c.cgroupsManager.Get("cpuacct", "cpuacct.stat")
 	if err != nil {
-		return api.ContainerInfo{}, err
+		return garden.ContainerInfo{}, err
 	}
 
 	diskStat, err := c.quotaManager.GetUsage(cLog, c.resources.UserUID)
 	if err != nil {
-		return api.ContainerInfo{}, err
+		return garden.ContainerInfo{}, err
 	}
 
 	bandwidthStat, err := c.bandwidthManager.GetLimits(cLog)
 	if err != nil {
-		return api.ContainerInfo{}, err
+		return garden.ContainerInfo{}, err
 	}
 
-	mappedPorts := []api.PortMapping{}
+	mappedPorts := []garden.PortMapping{}
 
 	c.netInsMutex.RLock()
 
 	for _, spec := range c.netIns {
-		mappedPorts = append(mappedPorts, api.PortMapping{
+		mappedPorts = append(mappedPorts, garden.PortMapping{
 			HostPort:      spec.HostPort,
 			ContainerPort: spec.ContainerPort,
 		})
@@ -530,7 +530,7 @@ func (c *LinuxContainer) Info() (api.ContainerInfo, error) {
 		processIDs = append(processIDs, process.ID())
 	}
 
-	info := api.ContainerInfo{
+	info := garden.ContainerInfo{
 		State:         string(c.State()),
 		Events:        c.Events(),
 		Properties:    c.Properties(),
@@ -631,7 +631,7 @@ func (c *LinuxContainer) StreamOut(srcPath string) (io.ReadCloser, error) {
 	return tarRead, nil
 }
 
-func (c *LinuxContainer) LimitBandwidth(limits api.BandwidthLimits) error {
+func (c *LinuxContainer) LimitBandwidth(limits garden.BandwidthLimits) error {
 	cLog := c.logger.Session("limit-bandwidth")
 
 	err := c.bandwidthManager.SetLimits(cLog, limits)
@@ -647,18 +647,18 @@ func (c *LinuxContainer) LimitBandwidth(limits api.BandwidthLimits) error {
 	return nil
 }
 
-func (c *LinuxContainer) CurrentBandwidthLimits() (api.BandwidthLimits, error) {
+func (c *LinuxContainer) CurrentBandwidthLimits() (garden.BandwidthLimits, error) {
 	c.bandwidthMutex.RLock()
 	defer c.bandwidthMutex.RUnlock()
 
 	if c.currentBandwidthLimits == nil {
-		return api.BandwidthLimits{}, nil
+		return garden.BandwidthLimits{}, nil
 	}
 
 	return *c.currentBandwidthLimits, nil
 }
 
-func (c *LinuxContainer) LimitDisk(limits api.DiskLimits) error {
+func (c *LinuxContainer) LimitDisk(limits garden.DiskLimits) error {
 	cLog := c.logger.Session("limit-disk")
 
 	err := c.quotaManager.SetLimits(cLog, c.resources.UserUID, limits)
@@ -674,12 +674,12 @@ func (c *LinuxContainer) LimitDisk(limits api.DiskLimits) error {
 	return nil
 }
 
-func (c *LinuxContainer) CurrentDiskLimits() (api.DiskLimits, error) {
+func (c *LinuxContainer) CurrentDiskLimits() (garden.DiskLimits, error) {
 	cLog := c.logger.Session("current-disk-limits")
 	return c.quotaManager.GetLimits(cLog, c.resources.UserUID)
 }
 
-func (c *LinuxContainer) LimitMemory(limits api.MemoryLimits) error {
+func (c *LinuxContainer) LimitMemory(limits garden.MemoryLimits) error {
 	err := c.startOomNotifier()
 	if err != nil {
 		return err
@@ -709,21 +709,21 @@ func (c *LinuxContainer) LimitMemory(limits api.MemoryLimits) error {
 	return nil
 }
 
-func (c *LinuxContainer) CurrentMemoryLimits() (api.MemoryLimits, error) {
+func (c *LinuxContainer) CurrentMemoryLimits() (garden.MemoryLimits, error) {
 	limitInBytes, err := c.cgroupsManager.Get("memory", "memory.limit_in_bytes")
 	if err != nil {
-		return api.MemoryLimits{}, err
+		return garden.MemoryLimits{}, err
 	}
 
 	numericLimit, err := strconv.ParseUint(limitInBytes, 10, 0)
 	if err != nil {
-		return api.MemoryLimits{}, err
+		return garden.MemoryLimits{}, err
 	}
 
-	return api.MemoryLimits{uint64(numericLimit)}, nil
+	return garden.MemoryLimits{uint64(numericLimit)}, nil
 }
 
-func (c *LinuxContainer) LimitCPU(limits api.CPULimits) error {
+func (c *LinuxContainer) LimitCPU(limits garden.CPULimits) error {
 	limit := fmt.Sprintf("%d", limits.LimitInShares)
 
 	err := c.cgroupsManager.Set("cpu", "cpu.shares", limit)
@@ -739,21 +739,21 @@ func (c *LinuxContainer) LimitCPU(limits api.CPULimits) error {
 	return nil
 }
 
-func (c *LinuxContainer) CurrentCPULimits() (api.CPULimits, error) {
+func (c *LinuxContainer) CurrentCPULimits() (garden.CPULimits, error) {
 	actualLimitInShares, err := c.cgroupsManager.Get("cpu", "cpu.shares")
 	if err != nil {
-		return api.CPULimits{}, err
+		return garden.CPULimits{}, err
 	}
 
 	numericLimit, err := strconv.ParseUint(actualLimitInShares, 10, 0)
 	if err != nil {
-		return api.CPULimits{}, err
+		return garden.CPULimits{}, err
 	}
 
-	return api.CPULimits{uint64(numericLimit)}, nil
+	return garden.CPULimits{uint64(numericLimit)}, nil
 }
 
-func (c *LinuxContainer) Run(spec api.ProcessSpec, processIO api.ProcessIO) (api.Process, error) {
+func (c *LinuxContainer) Run(spec garden.ProcessSpec, processIO garden.ProcessIO) (garden.Process, error) {
 	wshPath := path.Join(c.path, "bin", "wsh")
 	sockPath := path.Join(c.path, "run", "wshd.sock")
 
@@ -800,7 +800,7 @@ func (c *LinuxContainer) Run(spec api.ProcessSpec, processIO api.ProcessIO) (api
 	return c.processTracker.Run(processID, wsh, processIO, spec.TTY, signaller)
 }
 
-func (c *LinuxContainer) Attach(processID uint32, processIO api.ProcessIO) (api.Process, error) {
+func (c *LinuxContainer) Attach(processID uint32, processIO garden.ProcessIO) (garden.Process, error) {
 	return c.processTracker.Attach(processID, processIO)
 }
 
@@ -840,7 +840,7 @@ func (c *LinuxContainer) NetIn(hostPort uint32, containerPort uint32) (uint32, u
 	return hostPort, containerPort, nil
 }
 
-func (c *LinuxContainer) NetOut(network string, port uint32, portRange string, protocol api.Protocol, icmpType int32, icmpCode int32) error {
+func (c *LinuxContainer) NetOut(network string, port uint32, portRange string, protocol garden.Protocol, icmpType int32, icmpCode int32) error {
 	err := c.filter.NetOut(network, port, portRange, protocol, icmpType, icmpCode)
 	if err != nil {
 		return err
@@ -913,7 +913,7 @@ func (c *LinuxContainer) watchForOom(oom *exec.Cmd) {
 	// TODO: handle case where oom notifier itself failed? kill container?
 }
 
-func parseMemoryStat(contents string) (stat api.ContainerMemoryStat) {
+func parseMemoryStat(contents string) (stat garden.ContainerMemoryStat) {
 	scanner := bufio.NewScanner(strings.NewReader(contents))
 
 	scanner.Split(bufio.ScanWords)
@@ -993,7 +993,7 @@ func parseMemoryStat(contents string) (stat api.ContainerMemoryStat) {
 	return
 }
 
-func parseCPUStat(usage, statContents string) (stat api.ContainerCPUStat) {
+func parseCPUStat(usage, statContents string) (stat garden.ContainerCPUStat) {
 	cpuUsage, err := strconv.ParseUint(strings.Trim(usage, "\n"), 10, 0)
 	if err != nil {
 		return
@@ -1028,7 +1028,7 @@ func parseCPUStat(usage, statContents string) (stat api.ContainerCPUStat) {
 	return
 }
 
-func setRLimitsEnv(cmd *exec.Cmd, rlimits api.ResourceLimits) {
+func setRLimitsEnv(cmd *exec.Cmd, rlimits garden.ResourceLimits) {
 	if rlimits.As != nil {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("RLIMIT_AS=%d", *rlimits.As))
 	}

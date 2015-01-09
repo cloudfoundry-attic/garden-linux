@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/subnets"
 	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
-	"github.com/cloudfoundry-incubator/garden/api"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/pivotal-golang/lager"
@@ -300,20 +300,20 @@ var _ = Describe("Fence", func() {
 		Describe("Info", func() {
 			It("stores network info of a /30 subnet in the container api object", func() {
 				allocation := allocate("1.2.0.0/30", "9.8.7.6")
-				var api api.ContainerInfo
-				allocation.Info(&api)
+				var garden garden.ContainerInfo
+				allocation.Info(&garden)
 
-				Ω(api.HostIP).Should(Equal("1.2.0.2"))
-				Ω(api.ContainerIP).Should(Equal("9.8.7.6"))
+				Ω(garden.HostIP).Should(Equal("1.2.0.2"))
+				Ω(garden.ContainerIP).Should(Equal("9.8.7.6"))
 			})
 
 			It("stores network info of a /28 subnet with a specified IP in the container api object", func() {
 				allocation := allocate("1.2.0.5/28", "9.8.7.6")
-				var api api.ContainerInfo
-				allocation.Info(&api)
+				var garden garden.ContainerInfo
+				allocation.Info(&garden)
 
-				Ω(api.HostIP).Should(Equal("1.2.0.14"))
-				Ω(api.ContainerIP).Should(Equal("9.8.7.6"))
+				Ω(garden.HostIP).Should(Equal("1.2.0.14"))
+				Ω(garden.ContainerIP).Should(Equal("9.8.7.6"))
 			})
 		})
 

@@ -8,8 +8,8 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/pivotal-golang/lager/lagertest"
 
+	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/quota_manager"
-	"github.com/cloudfoundry-incubator/garden/api"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
 )
@@ -26,7 +26,7 @@ var _ = Describe("Linux Quota manager", func() {
 	})
 
 	Describe("setting quotas", func() {
-		limits := api.DiskLimits{
+		limits := garden.DiskLimits{
 			BlockSoft: 1,
 			BlockHard: 2,
 
@@ -52,7 +52,7 @@ var _ = Describe("Linux Quota manager", func() {
 		})
 
 		Context("when bytes are given", func() {
-			limits := api.DiskLimits{
+			limits := garden.DiskLimits{
 				InodeSoft: 11,
 				InodeHard: 12,
 

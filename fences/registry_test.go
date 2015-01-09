@@ -5,9 +5,9 @@ import (
 	"errors"
 	"flag"
 
+	"github.com/cloudfoundry-incubator/garden"
 	. "github.com/cloudfoundry-incubator/garden-linux/fences"
 	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
-	"github.com/cloudfoundry-incubator/garden/api"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -293,7 +293,7 @@ func (a *FakeAllocation) Dismantle() error {
 	return nil
 }
 
-func (a *FakeAllocation) Info(i *api.ContainerInfo) {
+func (a *FakeAllocation) Info(i *garden.ContainerInfo) {
 }
 
 func (a *FakeAllocation) MarshalJSON() ([]byte, error) {

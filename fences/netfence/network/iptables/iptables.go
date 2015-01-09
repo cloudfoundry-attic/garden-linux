@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cloudfoundry-incubator/garden/api"
+	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/pivotal-golang/lager"
 )
@@ -36,7 +36,7 @@ type Chain interface {
 	AppendNatRule(source string, destination string, jump Action, to net.IP) error
 	DeleteNatRule(source string, destination string, jump Action, to net.IP) error
 
-	PrependFilterRule(protocol api.Protocol, dest string, destPort uint32, destPortRange string, destIcmpType, destIcmpCode int32) error
+	PrependFilterRule(protocol garden.Protocol, dest string, destPort uint32, destPortRange string, destIcmpType, destIcmpCode int32) error
 }
 
 type chain struct {
@@ -81,14 +81,14 @@ func (ch *chain) DeleteNatRule(source string, destination string, jump Action, t
 	})
 }
 
-func (ch *chain) PrependFilterRule(protocol api.Protocol, dest string, destPort uint32, destPortRange string, destIcmpType, destIcmpCode int32) error {
+func (ch *chain) PrependFilterRule(protocol garden.Protocol, dest string, destPort uint32, destPortRange string, destIcmpType, destIcmpCode int32) error {
 	params := []string{"-w", "-I", ch.name, "1"}
 
-	protocols := map[api.Protocol]string{
-		api.ProtocolAll:  "all",
-		api.ProtocolTCP:  "tcp",
-		api.ProtocolICMP: "icmp",
-		api.ProtocolUDP:  "udp",
+	protocols := map[garden.Protocol]string{
+		garden.ProtocolAll:  "all",
+		garden.ProtocolTCP:  "tcp",
+		garden.ProtocolICMP: "icmp",
+		garden.ProtocolUDP:  "udp",
 	}
 	protocolString, ok := protocols[protocol]
 

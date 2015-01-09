@@ -1,0 +1,31 @@
+// Get a property of a container.
+//
+// ### Request
+//
+// All parameters are optional.
+//
+// * `handle`: The container from which to get the property.
+// * `key`: The name of the property to retrieve.
+//
+// ### Response
+//
+// * `value`: The value of the property.
+//
+// ### Errors
+//
+// * When the `handle` does not refer to a container.
+// * When the property does not exist on the container.
+//
+// ### Definition
+//
+
+package garden;
+
+message GetPropertyRequest {
+  optional string handle = 1;
+  optional string key = 2;
+}
+
+message GetPropertyResponse {
+  required string value = 1;
+}

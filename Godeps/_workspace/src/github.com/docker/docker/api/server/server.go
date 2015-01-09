@@ -77,7 +77,7 @@ func checkForJson(r *http.Request) error {
 	}
 
 	// Otherwise it better be json
-	if api.MatchesContentType(ct, "application/json") {
+	if garden.MatchesContentType(ct, "application/json") {
 		return nil
 	}
 	return fmt.Errorf("Content-Type specified (%s) must be 'application/json'", ct)
@@ -387,7 +387,7 @@ func getContainersJSON(eng *engine.Engine, version version.Version, w http.Respo
 		for _, out := range outs.Data {
 			ports := engine.NewTable("", 0)
 			ports.ReadListFrom([]byte(out.Get("Ports")))
-			out.Set("Ports", api.DisplayablePorts(ports))
+			out.Set("Ports", garden.DisplayablePorts(ports))
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if _, err = outs.WriteListTo(w); err != nil {
@@ -1207,14 +1207,14 @@ func makeHttpHandler(eng *engine.Engine, logging bool, localMethod string, local
 		}
 		version := version.Version(mux.Vars(r)["version"])
 		if version == "" {
-			version = api.APIVERSION
+			version = garden.APIVERSION
 		}
 		if enableCors {
 			writeCorsHeaders(w, r)
 		}
 
-		if version.GreaterThan(api.APIVERSION) {
-			http.Error(w, fmt.Errorf("client and server don't have same version (client : %s, server: %s)", version, api.APIVERSION).Error(), http.StatusNotFound)
+		if version.GreaterThan(garden.APIVERSION) {
+			http.Error(w, fmt.Errorf("client and server don't have same version (client : %s, server: %s)", version, garden.APIVERSION).Error(), http.StatusNotFound)
 			return
 		}
 

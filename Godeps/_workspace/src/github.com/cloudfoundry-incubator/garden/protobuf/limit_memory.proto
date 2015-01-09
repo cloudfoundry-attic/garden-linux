@@ -1,0 +1,34 @@
+// Limits the memory usage for a container.
+//
+// The limit applies to all process in the container. When the limit is
+// exceeded, the container will be automatically stopped.
+//
+// If no limit is given, the current value is returned, and no change is made.
+//
+// ### Request
+//
+// * `handle`: Container handle.
+// * `limit_in_bytes`: New memory usage limit in bytes.
+//
+// ### Response
+//
+// * `limit_in_bytes`: Memory usage limit in bytes.
+//
+// ### Errors
+//
+// > When the kernel does not support setting `memory.memsw.limit_in_bytes`.
+//
+// ### Definition
+//
+
+package garden;
+
+message LimitMemoryRequest {
+  required string handle = 1;
+
+  optional uint64 limit_in_bytes = 2;
+}
+
+message LimitMemoryResponse {
+  optional uint64 limit_in_bytes = 1;
+}

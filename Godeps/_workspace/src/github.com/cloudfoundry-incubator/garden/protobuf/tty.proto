@@ -1,0 +1,13 @@
+// Configuration for a container's attached tty.
+//
+
+package garden;
+
+message TTY {
+  message WindowSize {
+    required uint32 columns = 1;
+    required uint32 rows = 2;
+  }
+
+  optional WindowSize window_size = 1;
+}

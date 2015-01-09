@@ -1,0 +1,28 @@
+// Streams data into a file in a container.
+//
+// ### Request
+//
+// * `handle`: Container handle.
+// * `src_size`: Number of bytes that will be written
+// * `dst_path`: Path in the container to copy to.
+//
+// ### Response
+//
+// Empty.
+//
+// ### Errors
+//
+// > **TODO**
+//
+// ### Definition
+//
+
+package garden;
+
+message StreamInRequest {
+  required string handle = 1;
+  required string dst_path = 2;
+}
+
+message StreamInResponse {
+}

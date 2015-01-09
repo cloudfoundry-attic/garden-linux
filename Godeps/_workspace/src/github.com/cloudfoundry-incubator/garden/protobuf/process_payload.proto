@@ -1,0 +1,34 @@
+// The Payload streamed from a running process
+//
+// ### Response
+//
+// * `process_id`: The process id for the given data
+// * `source`: The stream source - one of stdin, stdout and stderr
+// * `data`: The data payload for the given stream source
+// * `exit_status`: Exit status of the process -- only present if the process has exited
+//
+
+package garden;
+
+import "tty.proto";
+
+message ProcessPayload {
+  enum Source {
+    stdin = 0;
+    stdout = 1;
+    stderr = 2;
+  }
+
+  enum Signal {
+    terminate = 0;
+    kill = 1;
+  }
+
+  required uint32 process_id = 1;
+  optional Source source = 2;
+  optional string data = 3;
+  optional uint32 exit_status = 4;
+  optional string error = 5;
+  optional TTY tty = 6;
+  optional Signal signal = 7;
+}

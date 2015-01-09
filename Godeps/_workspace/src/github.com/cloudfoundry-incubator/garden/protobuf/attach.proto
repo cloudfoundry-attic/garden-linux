@@ -1,0 +1,26 @@
+// Attach to a process and start streaming its output
+//
+//
+// ### Request
+//
+// * `handle`: Container handle.
+// * `process_id`: Process ID.
+//
+// ### Response
+//
+// A series of ProcessPayloads are sent as the output is streamed back to the client.
+//
+// ### Errors
+//
+// * When `handle` does not refer to a container.
+// * When `process_id` does not refer to a running process.
+//
+// ### Definition
+//
+
+package garden;
+
+message AttachRequest {
+  required string handle = 1;
+  required uint32 process_id = 2;
+}

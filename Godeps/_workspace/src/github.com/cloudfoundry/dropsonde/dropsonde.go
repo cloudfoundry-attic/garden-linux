@@ -38,7 +38,7 @@ const (
 	originDelimiter      = "/"
 )
 
-func init(){
+func init() {
 	autowiredEmitter = &NullEventEmitter{}
 }
 

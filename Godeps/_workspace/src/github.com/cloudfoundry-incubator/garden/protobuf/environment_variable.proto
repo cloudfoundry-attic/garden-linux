@@ -1,0 +1,13 @@
+// This structure is neither a request nor a response.
+//
+// It is used in `Run` for specifying environment variables
+//
+// ### Definition
+//
+
+package garden;
+
+message EnvironmentVariable {
+  required string Key = 1;
+  required string Value = 2;
+}

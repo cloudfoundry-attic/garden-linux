@@ -5,8 +5,8 @@ import (
 	"errors"
 	"flag"
 
+	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
-	"github.com/cloudfoundry-incubator/garden/api"
 )
 
 var ErrNoFencesRegistered = errors.New("no fences have been registered")
@@ -34,7 +34,7 @@ type Fence interface {
 	json.Marshaler
 	ConfigureProcess(*[]string) error
 	Dismantle() error
-	Info(*api.ContainerInfo)
+	Info(*garden.ContainerInfo)
 	String() string
 }
 

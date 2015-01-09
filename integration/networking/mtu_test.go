@@ -3,21 +3,21 @@ package networking_test
 import (
 	"os/exec"
 
-	"github.com/cloudfoundry-incubator/garden/api"
+	"github.com/cloudfoundry-incubator/garden"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
 )
 
 var _ = Describe("MTU size", func() {
-	var container api.Container
+	var container garden.Container
 
 	BeforeEach(func() {
 		client = startGarden("-mtu=6789")
 
 		var err error
 
-		container, err = client.Create(api.ContainerSpec{})
+		container, err = client.Create(garden.ContainerSpec{})
 		Ω(err).ShouldNot(HaveOccurred())
 	})
 
@@ -31,10 +31,10 @@ var _ = Describe("MTU size", func() {
 			stdout := gbytes.NewBuffer()
 			stderr := gbytes.NewBuffer()
 
-			process, err := container.Run(api.ProcessSpec{
+			process, err := container.Run(garden.ProcessSpec{
 				Path: "/sbin/ifconfig",
 				Args: []string{containerIfName(container)},
-			}, api.ProcessIO{
+			}, garden.ProcessIO{
 				Stdout: stdout,
 				Stderr: stderr,
 			})

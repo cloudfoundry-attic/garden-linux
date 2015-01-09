@@ -1,0 +1,24 @@
+// Pings the server.
+//
+// ### Request
+//
+// Empty.
+//
+// ### Response
+//
+// Empty.
+//
+// ### Errors
+//
+// None.
+//
+// ### Definition
+//
+
+package garden;
+
+message PingRequest {
+}
+
+message PingResponse {
+}

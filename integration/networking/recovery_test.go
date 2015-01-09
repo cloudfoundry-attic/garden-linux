@@ -7,7 +7,7 @@ import (
 	"path"
 	"syscall"
 
-	"github.com/cloudfoundry-incubator/garden/api"
+	"github.com/cloudfoundry-incubator/garden"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -15,7 +15,7 @@ import (
 var _ = Describe("Networking recovery", func() {
 	Context("with two containers in the same subnet", func() {
 		var (
-			ctr1           api.Container
+			ctr1           garden.Container
 			ctr2Path       string
 			bridgeEvidence string
 		)
@@ -24,9 +24,9 @@ var _ = Describe("Networking recovery", func() {
 
 			containerNetwork := fmt.Sprintf("10.%d.0.0/24", GinkgoParallelNode())
 			var err error
-			ctr1, err = client.Create(api.ContainerSpec{Network: containerNetwork})
+			ctr1, err = client.Create(garden.ContainerSpec{Network: containerNetwork})
 			Ω(err).ShouldNot(HaveOccurred())
-			ctr2, err := client.Create(api.ContainerSpec{Network: containerNetwork})
+			ctr2, err := client.Create(garden.ContainerSpec{Network: containerNetwork})
 			Ω(err).ShouldNot(HaveOccurred())
 			info2, err := ctr2.Info()
 			Ω(err).ShouldNot(HaveOccurred())
@@ -94,10 +94,10 @@ var _ = Describe("Networking recovery", func() {
 			})
 
 			It("a container can still reach external networks", func() {
-				sender, err := ctr1.Run(api.ProcessSpec{
+				sender, err := ctr1.Run(garden.ProcessSpec{
 					Path: "sh",
 					Args: []string{"-c", "nc -w4 8.8.8.8 53"},
-				}, api.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
+				}, garden.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
 				Ω(err).ShouldNot(HaveOccurred())
 
 				Ω(sender.Wait()).Should(Equal(0))

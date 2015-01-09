@@ -19,6 +19,7 @@ import (
 	"github.com/onsi/gomega/gbytes"
 	"github.com/pivotal-golang/lager/lagertest"
 
+	"github.com/cloudfoundry-incubator/garden"
 	networkFakes "github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/fakes"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/bandwidth_manager/fake_bandwidth_manager"
@@ -27,8 +28,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/process_tracker"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/process_tracker/fake_process_tracker"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/quota_manager/fake_quota_manager"
-	"github.com/cloudfoundry-incubator/garden/api"
-	wfakes "github.com/cloudfoundry-incubator/garden/api/fakes"
+	wfakes "github.com/cloudfoundry-incubator/garden/fakes"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
 )
@@ -100,11 +100,11 @@ var _ = Describe("Linux containers", func() {
 	})
 
 	Describe("Snapshotting", func() {
-		memoryLimits := api.MemoryLimits{
+		memoryLimits := garden.MemoryLimits{
 			LimitInBytes: 1,
 		}
 
-		diskLimits := api.DiskLimits{
+		diskLimits := garden.DiskLimits{
 			BlockSoft: 3,
 			BlockHard: 4,
 
@@ -115,12 +115,12 @@ var _ = Describe("Linux containers", func() {
 			ByteHard: 24,
 		}
 
-		bandwidthLimits := api.BandwidthLimits{
+		bandwidthLimits := garden.BandwidthLimits{
 			RateInBytesPerSecond:      1,
 			BurstRateInBytesPerSecond: 2,
 		}
 
-		cpuLimits := api.CPULimits{
+		cpuLimits := garden.CPULimits{
 			LimitInShares: 1,
 		}
 
@@ -136,10 +136,10 @@ var _ = Describe("Linux containers", func() {
 			_, _, err = container.NetIn(3, 4)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			err = container.NetOut("network-a", 1, "", api.ProtocolTCP, -1, -1)
+			err = container.NetOut("network-a", 1, "", garden.ProtocolTCP, -1, -1)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			err = container.NetOut("network-b", 2, "", api.ProtocolTCP, -1, -1)
+			err = container.NetOut("network-b", 2, "", garden.ProtocolTCP, -1, -1)
 			Ω(err).ShouldNot(HaveOccurred())
 
 			p1 := new(wfakes.FakeProcess)
@@ -151,7 +151,7 @@ var _ = Describe("Linux containers", func() {
 			p3 := new(wfakes.FakeProcess)
 			p3.IDReturns(3)
 
-			fakeProcessTracker.ActiveProcessesReturns([]api.Process{p1, p2, p3})
+			fakeProcessTracker.ActiveProcessesReturns([]garden.Process{p1, p2, p3})
 		})
 
 		It("writes a JSON ContainerSnapshot", func() {
@@ -226,7 +226,7 @@ var _ = Describe("Linux containers", func() {
 				},
 			))
 
-			Ω(snapshot.Properties).Should(Equal(api.Properties(map[string]string{
+			Ω(snapshot.Properties).Should(Equal(garden.Properties(map[string]string{
 				"property-name": "property-value",
 			})))
 
@@ -361,9 +361,9 @@ var _ = Describe("Linux containers", func() {
 			})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			_, err = container.Run(api.ProcessSpec{
+			_, err = container.Run(garden.ProcessSpec{
 				Path: "/some/script",
-			}, api.ProcessIO{})
+			}, garden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			nextId, _, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
@@ -450,7 +450,7 @@ var _ = Describe("Linux containers", func() {
 			Ω(network).Should(Equal("somehost.example.com"))
 			Ω(port).Should(Equal(uint32(80)))
 			Ω(portRange).Should(Equal(""))
-			Ω(protocol).Should(Equal(api.ProtocolTCP))
+			Ω(protocol).Should(Equal(garden.ProtocolTCP))
 		})
 
 		for _, cmd := range []string{"setup", "in"} {
@@ -522,7 +522,7 @@ var _ = Describe("Linux containers", func() {
 				Events: []string{},
 
 				Limits: linux_backend.LimitsSnapshot{
-					Memory: &api.MemoryLimits{
+					Memory: &garden.MemoryLimits{
 						LimitInBytes: 1024,
 					},
 				},
@@ -576,7 +576,7 @@ var _ = Describe("Linux containers", func() {
 					Events: []string{},
 
 					Limits: linux_backend.LimitsSnapshot{
-						Memory: &api.MemoryLimits{
+						Memory: &garden.MemoryLimits{
 							LimitInBytes: 1024,
 						},
 					},
@@ -711,7 +711,7 @@ var _ = Describe("Linux containers", func() {
 
 		Context("when the container has an oom notifier running", func() {
 			JustBeforeEach(func() {
-				err := container.LimitMemory(api.MemoryLimits{
+				err := container.LimitMemory(garden.MemoryLimits{
 					LimitInBytes: 42,
 				})
 
@@ -733,7 +733,7 @@ var _ = Describe("Linux containers", func() {
 	Describe("Cleaning up", func() {
 		Context("when the container has an oom notifier running", func() {
 			JustBeforeEach(func() {
-				err := container.LimitMemory(api.MemoryLimits{
+				err := container.LimitMemory(garden.MemoryLimits{
 					LimitInBytes: 42,
 				})
 
@@ -898,10 +898,10 @@ var _ = Describe("Linux containers", func() {
 
 	Describe("Running", func() {
 		It("runs the /bin/bash via wsh with the given script as the input, and rlimits in env", func() {
-			_, err := container.Run(api.ProcessSpec{
+			_, err := container.Run(garden.ProcessSpec{
 				Path: "/some/script",
 				Args: []string{"arg1", "arg2"},
-				Limits: api.ResourceLimits{
+				Limits: garden.ResourceLimits{
 					As:         uint64ptr(1),
 					Core:       uint64ptr(2),
 					Cpu:        uint64ptr(3),
@@ -918,7 +918,7 @@ var _ = Describe("Linux containers", func() {
 					Sigpending: uint64ptr(14),
 					Stack:      uint64ptr(15),
 				},
-			}, api.ProcessIO{})
+			}, garden.ProcessIO{})
 
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -957,9 +957,9 @@ var _ = Describe("Linux containers", func() {
 		})
 
 		It("runs wsh with the --pidfile parameter and configures the Process with this pidfile", func() {
-			_, err := container.Run(api.ProcessSpec{
+			_, err := container.Run(garden.ProcessSpec{
 				Path: "/some/script",
-			}, api.ProcessIO{})
+			}, garden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
@@ -975,9 +975,9 @@ var _ = Describe("Linux containers", func() {
 		})
 
 		It("configures a signaller with the same pid as the pidfile parameter", func() {
-			_, err := container.Run(api.ProcessSpec{
+			_, err := container.Run(garden.ProcessSpec{
 				Path: "/some/script",
-			}, api.ProcessIO{})
+			}, garden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			_, _, _, _, signaller := fakeProcessTracker.RunArgsForCall(0)
@@ -989,14 +989,14 @@ var _ = Describe("Linux containers", func() {
 		})
 
 		It("uses unique process IDs for each process", func() {
-			_, err := container.Run(api.ProcessSpec{
+			_, err := container.Run(garden.ProcessSpec{
 				Path: "/some/script",
-			}, api.ProcessIO{})
+			}, garden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			_, err = container.Run(api.ProcessSpec{
+			_, err = container.Run(garden.ProcessSpec{
 				Path: "/some/script",
-			}, api.ProcessIO{})
+			}, garden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			id1, _, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
@@ -1006,10 +1006,10 @@ var _ = Describe("Linux containers", func() {
 		})
 
 		It("runs the script with environment variables", func() {
-			_, err := container.Run(api.ProcessSpec{
+			_, err := container.Run(garden.ProcessSpec{
 				Path: "/some/script",
 				Env:  []string{"ESCAPED=kurt \"russell\"", "UNESCAPED=isaac\nhayes"},
-			}, api.ProcessIO{})
+			}, garden.ProcessIO{})
 
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -1028,10 +1028,10 @@ var _ = Describe("Linux containers", func() {
 		})
 
 		It("runs the script with the working dir set if present", func() {
-			_, err := container.Run(api.ProcessSpec{
+			_, err := container.Run(garden.ProcessSpec{
 				Path: "/some/script",
 				Dir:  "/some/dir",
-			}, api.ProcessIO{})
+			}, garden.ProcessIO{})
 
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -1049,17 +1049,17 @@ var _ = Describe("Linux containers", func() {
 		})
 
 		It("runs the script with a TTY if present", func() {
-			ttySpec := &api.TTYSpec{
-				WindowSize: &api.WindowSize{
+			ttySpec := &garden.TTYSpec{
+				WindowSize: &garden.WindowSize{
 					Columns: 123,
 					Rows:    456,
 				},
 			}
 
-			_, err := container.Run(api.ProcessSpec{
+			_, err := container.Run(garden.ProcessSpec{
 				Path: "/some/script",
 				TTY:  ttySpec,
-			}, api.ProcessIO{})
+			}, garden.ProcessIO{})
 
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -1069,7 +1069,7 @@ var _ = Describe("Linux containers", func() {
 
 		Describe("streaming", func() {
 			JustBeforeEach(func() {
-				fakeProcessTracker.RunStub = func(processID uint32, cmd *exec.Cmd, io api.ProcessIO, tty *api.TTYSpec, _ process_tracker.Signaller) (api.Process, error) {
+				fakeProcessTracker.RunStub = func(processID uint32, cmd *exec.Cmd, io garden.ProcessIO, tty *garden.TTYSpec, _ process_tracker.Signaller) (garden.Process, error) {
 					writing := new(sync.WaitGroup)
 					writing.Add(1)
 
@@ -1101,9 +1101,9 @@ var _ = Describe("Linux containers", func() {
 				stdout := gbytes.NewBuffer()
 				stderr := gbytes.NewBuffer()
 
-				process, err := container.Run(api.ProcessSpec{
+				process, err := container.Run(garden.ProcessSpec{
 					Path: "/some/script",
-				}, api.ProcessIO{
+				}, garden.ProcessIO{
 					Stdout: stdout,
 					Stderr: stderr,
 				})
@@ -1119,9 +1119,9 @@ var _ = Describe("Linux containers", func() {
 		})
 
 		It("only sets the given rlimits", func() {
-			_, err := container.Run(api.ProcessSpec{
+			_, err := container.Run(garden.ProcessSpec{
 				Path: "/some/script",
-				Limits: api.ResourceLimits{
+				Limits: garden.ResourceLimits{
 					As:      uint64ptr(1),
 					Cpu:     uint64ptr(3),
 					Fsize:   uint64ptr(5),
@@ -1131,7 +1131,7 @@ var _ = Describe("Linux containers", func() {
 					Rtprio:  uint64ptr(13),
 					Stack:   uint64ptr(15),
 				},
-			}, api.ProcessIO{})
+			}, garden.ProcessIO{})
 
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -1163,10 +1163,10 @@ var _ = Describe("Linux containers", func() {
 		Context("with 'privileged' true", func() {
 			Context("when the user flag is empty", func() {
 				It("runs with --user root", func() {
-					_, err := container.Run(api.ProcessSpec{
+					_, err := container.Run(garden.ProcessSpec{
 						Path:       "/some/script",
 						Privileged: true,
-					}, api.ProcessIO{})
+					}, garden.ProcessIO{})
 
 					Ω(err).ToNot(HaveOccurred())
 
@@ -1187,11 +1187,11 @@ var _ = Describe("Linux containers", func() {
 
 			Context("when the user flag is specified", func() {
 				It("runs with --user set to the specified user", func() {
-					_, err := container.Run(api.ProcessSpec{
+					_, err := container.Run(garden.ProcessSpec{
 						Path:       "/some/script",
 						Privileged: true,
 						User:       "potato",
-					}, api.ProcessIO{})
+					}, garden.ProcessIO{})
 
 					Ω(err).ToNot(HaveOccurred())
 
@@ -1214,10 +1214,10 @@ var _ = Describe("Linux containers", func() {
 		Context("with 'privileged' false", func() {
 			Context("when the user flag is empty", func() {
 				It("runs with --user vcap", func() {
-					_, err := container.Run(api.ProcessSpec{
+					_, err := container.Run(garden.ProcessSpec{
 						Path:       "/some/script",
 						Privileged: false,
-					}, api.ProcessIO{})
+					}, garden.ProcessIO{})
 
 					Ω(err).ToNot(HaveOccurred())
 
@@ -1238,11 +1238,11 @@ var _ = Describe("Linux containers", func() {
 
 			Context("when the user flag is specified", func() {
 				It("runs with --user set to the specified user", func() {
-					_, err := container.Run(api.ProcessSpec{
+					_, err := container.Run(garden.ProcessSpec{
 						Path:       "/some/script",
 						Privileged: true,
 						User:       "potato",
-					}, api.ProcessIO{})
+					}, garden.ProcessIO{})
 
 					Ω(err).ToNot(HaveOccurred())
 
@@ -1270,10 +1270,10 @@ var _ = Describe("Linux containers", func() {
 			})
 
 			It("returns the error", func() {
-				_, err := container.Run(api.ProcessSpec{
+				_, err := container.Run(garden.ProcessSpec{
 					Path:       "/some/script",
 					Privileged: true,
-				}, api.ProcessIO{})
+				}, garden.ProcessIO{})
 				Ω(err).Should(Equal(disaster))
 			})
 		})
@@ -1282,7 +1282,7 @@ var _ = Describe("Linux containers", func() {
 	Describe("Attaching", func() {
 		Context("to a started process", func() {
 			JustBeforeEach(func() {
-				fakeProcessTracker.AttachStub = func(id uint32, io api.ProcessIO) (api.Process, error) {
+				fakeProcessTracker.AttachStub = func(id uint32, io garden.ProcessIO) (garden.Process, error) {
 					writing := new(sync.WaitGroup)
 					writing.Add(1)
 
@@ -1314,7 +1314,7 @@ var _ = Describe("Linux containers", func() {
 				stdout := gbytes.NewBuffer()
 				stderr := gbytes.NewBuffer()
 
-				process, err := container.Attach(1, api.ProcessIO{
+				process, err := container.Attach(1, garden.ProcessIO{
 					Stdout: stdout,
 					Stderr: stderr,
 				})
@@ -1340,14 +1340,14 @@ var _ = Describe("Linux containers", func() {
 			})
 
 			It("returns the error", func() {
-				_, err := container.Attach(42, api.ProcessIO{})
+				_, err := container.Attach(42, garden.ProcessIO{})
 				Ω(err).Should(Equal(disaster))
 			})
 		})
 	})
 
 	Describe("Limiting bandwidth", func() {
-		limits := api.BandwidthLimits{
+		limits := garden.BandwidthLimits{
 			RateInBytesPerSecond:      128,
 			BurstRateInBytesPerSecond: 256,
 		}
@@ -1374,7 +1374,7 @@ var _ = Describe("Linux containers", func() {
 	})
 
 	Describe("Getting the current bandwidth limit", func() {
-		limits := api.BandwidthLimits{
+		limits := garden.BandwidthLimits{
 			RateInBytesPerSecond:      128,
 			BurstRateInBytesPerSecond: 256,
 		}
@@ -1416,7 +1416,7 @@ var _ = Describe("Linux containers", func() {
 
 	Describe("Limiting memory", func() {
 		It("starts the oom notifier", func() {
-			limits := api.MemoryLimits{
+			limits := garden.MemoryLimits{
 				LimitInBytes: 102400,
 			}
 
@@ -1433,7 +1433,7 @@ var _ = Describe("Linux containers", func() {
 		})
 
 		It("sets memory.limit_in_bytes and then memory.memsw.limit_in_bytes", func() {
-			limits := api.MemoryLimits{
+			limits := garden.MemoryLimits{
 				LimitInBytes: 102400,
 			}
 
@@ -1473,7 +1473,7 @@ var _ = Describe("Linux containers", func() {
 					return nil
 				})
 
-				limits := api.MemoryLimits{
+				limits := garden.MemoryLimits{
 					LimitInBytes: 102400,
 				}
 
@@ -1497,7 +1497,7 @@ var _ = Describe("Linux containers", func() {
 			})
 
 			It("stops the container", func() {
-				limits := api.MemoryLimits{
+				limits := garden.MemoryLimits{
 					LimitInBytes: 102400,
 				}
 
@@ -1512,7 +1512,7 @@ var _ = Describe("Linux containers", func() {
 			})
 
 			It("registers an 'out of memory' event", func() {
-				limits := api.MemoryLimits{
+				limits := garden.MemoryLimits{
 					LimitInBytes: 102400,
 				}
 
@@ -1535,7 +1535,7 @@ var _ = Describe("Linux containers", func() {
 			})
 
 			It("does not fail", func() {
-				err := container.LimitMemory(api.MemoryLimits{
+				err := container.LimitMemory(garden.MemoryLimits{
 					LimitInBytes: 102400,
 				})
 
@@ -1565,7 +1565,7 @@ var _ = Describe("Linux containers", func() {
 					return "123", nil
 				})
 
-				err := container.LimitMemory(api.MemoryLimits{
+				err := container.LimitMemory(garden.MemoryLimits{
 					LimitInBytes: 102400,
 				})
 
@@ -1591,7 +1591,7 @@ var _ = Describe("Linux containers", func() {
 			})
 
 			It("returns the error and no limits", func() {
-				err := container.LimitMemory(api.MemoryLimits{
+				err := container.LimitMemory(garden.MemoryLimits{
 					LimitInBytes: 102400,
 				})
 
@@ -1611,7 +1611,7 @@ var _ = Describe("Linux containers", func() {
 			})
 
 			It("returns the error", func() {
-				err := container.LimitMemory(api.MemoryLimits{
+				err := container.LimitMemory(garden.MemoryLimits{
 					LimitInBytes: 102400,
 				})
 
@@ -1650,7 +1650,7 @@ var _ = Describe("Linux containers", func() {
 
 	Describe("Limiting CPU", func() {
 		It("sets cpu.shares", func() {
-			limits := api.CPULimits{
+			limits := garden.CPULimits{
 				LimitInShares: 512,
 			}
 
@@ -1679,7 +1679,7 @@ var _ = Describe("Linux containers", func() {
 			})
 
 			It("returns the error", func() {
-				err := container.LimitCPU(api.CPULimits{
+				err := container.LimitCPU(garden.CPULimits{
 					LimitInShares: 512,
 				})
 
@@ -1717,7 +1717,7 @@ var _ = Describe("Linux containers", func() {
 	})
 
 	Describe("Limiting disk", func() {
-		limits := api.DiskLimits{
+		limits := garden.DiskLimits{
 			BlockSoft: 3,
 			BlockHard: 4,
 
@@ -1729,7 +1729,7 @@ var _ = Describe("Linux containers", func() {
 		}
 
 		It("sets the quota via the quota manager with the uid and limits", func() {
-			resultingLimits := api.DiskLimits{
+			resultingLimits := garden.DiskLimits{
 				BlockHard: 1234567,
 			}
 
@@ -1760,7 +1760,7 @@ var _ = Describe("Linux containers", func() {
 
 	Describe("Getting the current disk limits", func() {
 		It("returns the disk limits", func() {
-			limits := api.DiskLimits{
+			limits := garden.DiskLimits{
 				BlockHard: 1234567,
 			}
 
@@ -1903,7 +1903,7 @@ var _ = Describe("Linux containers", func() {
 
 	Describe("Net out", func() {
 		It("delegates to the filter", func() {
-			err := container.NetOut("1.2.3.4/22", 567, "80:81", api.ProtocolTCP, 8, 7)
+			err := container.NetOut("1.2.3.4/22", 567, "80:81", garden.ProtocolTCP, 8, 7)
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(fakeFilter.NetOutCallCount()).Should(Equal(1))
@@ -1911,7 +1911,7 @@ var _ = Describe("Linux containers", func() {
 			Ω(network).Should(Equal("1.2.3.4/22"))
 			Ω(port).Should(Equal(uint32(567)))
 			Ω(portRange).Should(Equal("80:81"))
-			Ω(protocol).Should(Equal(api.ProtocolTCP))
+			Ω(protocol).Should(Equal(garden.ProtocolTCP))
 			Ω(icmpType).Should(Equal(int32(8)))
 			Ω(icmpCode).Should(Equal(int32(7)))
 		})
@@ -1924,7 +1924,7 @@ var _ = Describe("Linux containers", func() {
 			})
 
 			It("returns the error", func() {
-				err := container.NetOut("1.2.3.4/22", 567, "", api.ProtocolTCP, -1, -1)
+				err := container.NetOut("1.2.3.4/22", 567, "", garden.ProtocolTCP, -1, -1)
 				Ω(err).Should(Equal(disaster))
 			})
 		})
@@ -2008,7 +2008,7 @@ var _ = Describe("Linux containers", func() {
 
 			info, err := container.Info()
 			Ω(err).ShouldNot(HaveOccurred())
-			Ω(info.MappedPorts).Should(Equal([]api.PortMapping{
+			Ω(info.MappedPorts).Should(Equal([]garden.PortMapping{
 				{HostPort: 1234, ContainerPort: 5678},
 				{HostPort: 1235, ContainerPort: 5679},
 			}))
@@ -2026,7 +2026,7 @@ var _ = Describe("Linux containers", func() {
 				p3 := new(wfakes.FakeProcess)
 				p3.IDReturns(3)
 
-				fakeProcessTracker.ActiveProcessesReturns([]api.Process{p1, p2, p3})
+				fakeProcessTracker.ActiveProcessesReturns([]garden.Process{p1, p2, p3})
 			})
 
 			It("returns their process IDs", func() {
@@ -2074,7 +2074,7 @@ total_unevictable 28
 			It("is returned in the response", func() {
 				info, err := container.Info()
 				Ω(err).ShouldNot(HaveOccurred())
-				Ω(info.MemoryStat).Should(Equal(api.ContainerMemoryStat{
+				Ω(info.MemoryStat).Should(Equal(garden.ContainerMemoryStat{
 					Cache:                   1,
 					Rss:                     2,
 					MappedFile:              3,
@@ -2140,7 +2140,7 @@ system 2
 			It("is returned in the response", func() {
 				info, err := container.Info()
 				Ω(err).ShouldNot(HaveOccurred())
-				Ω(info.CPUStat).Should(Equal(api.ContainerCPUStat{
+				Ω(info.CPUStat).Should(Equal(garden.ContainerCPUStat{
 					Usage:  42,
 					User:   1,
 					System: 2,
@@ -2181,7 +2181,7 @@ system 2
 
 		Describe("disk usage info", func() {
 			It("is returned in the response", func() {
-				fakeQuotaManager.GetUsageResult = api.ContainerDiskStat{
+				fakeQuotaManager.GetUsageResult = garden.ContainerDiskStat{
 					BytesUsed:  1,
 					InodesUsed: 2,
 				}
@@ -2189,7 +2189,7 @@ system 2
 				info, err := container.Info()
 				Ω(err).ShouldNot(HaveOccurred())
 
-				Ω(info.DiskStat).Should(Equal(api.ContainerDiskStat{
+				Ω(info.DiskStat).Should(Equal(garden.ContainerDiskStat{
 					BytesUsed:  1,
 					InodesUsed: 2,
 				}))
@@ -2212,7 +2212,7 @@ system 2
 
 		Describe("bandwidth info", func() {
 			It("is returned in the response", func() {
-				fakeBandwidthManager.GetLimitsResult = api.ContainerBandwidthStat{
+				fakeBandwidthManager.GetLimitsResult = garden.ContainerBandwidthStat{
 					InRate:   1,
 					InBurst:  2,
 					OutRate:  3,
@@ -2222,7 +2222,7 @@ system 2
 				info, err := container.Info()
 				Ω(err).ShouldNot(HaveOccurred())
 
-				Ω(info.BandwidthStat).Should(Equal(api.ContainerBandwidthStat{
+				Ω(info.BandwidthStat).Should(Equal(garden.ContainerBandwidthStat{
 					InRate:   1,
 					InBurst:  2,
 					OutRate:  3,
@@ -2269,7 +2269,7 @@ func (f *fakeNetworkResources) Dismantle() error {
 	return nil
 }
 
-func (f *fakeNetworkResources) Info(i *api.ContainerInfo) {
+func (f *fakeNetworkResources) Info(i *garden.ContainerInfo) {
 	i.HostIP = "fakeHostIp"
 	i.ContainerIP = "fakeContainerIp"
 }

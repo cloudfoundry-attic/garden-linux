@@ -1,0 +1,51 @@
+// Run a script inside a container.
+//
+// This request is equivalent to atomically spawning a process and immediately
+// attaching to it.
+//
+// ### Request
+//
+// The specified script is interpreted by `/bin/bash` inside the container. 
+// The 'privileged' flag remains for backwards compatibility, but the 'user' flag is preferred.
+//
+// The root user will be mapped to a non-root UID in the host unless the container (not this process) was created with 'privileged' true.
+//
+// * `handle`: Container handle.
+// * `path`: Path to command to execute.
+// * `args`: Arguments to pass to command.
+// * `privileged`: Whether to run the script as root or not. Can be overriden by 'user', if specified.
+// * 'user': The name of a user in the container to run the process as. If not specified defaults to 'root' for privileged processes, and 'vcap' for unprivileged processes.
+// * `rlimits`: Resource limits (see `ResourceLimits`).
+// * `env`: Environment Variables (see `EnvironmentVariable`).
+// * `dir`: Working directory (default: home directory).
+// * `tty`: Execute with a TTY for stdio.
+//
+// ### Response
+//
+// A series of ProcessPayloads are sent as the output is streamed back to the client.
+//
+// ### Errors
+//
+// * When `handle` does not refer to a container.
+//
+// ### Definition
+//
+
+package garden;
+
+import "resource_limits.proto";
+import "environment_variable.proto";
+import "tty.proto";
+
+message RunRequest {
+  required string handle = 1;
+
+  required string path = 2;
+  optional bool privileged = 3 [default = false];
+  optional string user = 9;
+  optional ResourceLimits rlimits = 4;
+  repeated EnvironmentVariable env = 5;
+  repeated string args = 6;
+  optional string dir = 7;
+  optional TTY tty = 8;
+}

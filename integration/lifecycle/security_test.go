@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cloudfoundry-incubator/garden/api"
+	"github.com/cloudfoundry-incubator/garden"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -16,23 +16,23 @@ var _ = Describe("Security", func() {
 	Describe("Isolating PIDs", func() {
 		It("isolates processes so that only process from inside the container are visible", func() {
 			client = startGarden()
-			container, err := client.Create(api.ContainerSpec{})
+			container, err := client.Create(garden.ContainerSpec{})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			_, err = container.Run(api.ProcessSpec{
+			_, err = container.Run(garden.ProcessSpec{
 				Path: "sleep",
 				Args: []string{"989898"},
-			}, api.ProcessIO{
+			}, garden.ProcessIO{
 				Stdout: GinkgoWriter,
 				Stderr: GinkgoWriter,
 			})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			psout := gbytes.NewBuffer()
-			_, err = container.Run(api.ProcessSpec{
+			_, err = container.Run(garden.ProcessSpec{
 				Path: "sh",
 				Args: []string{"-c", "ps -a | tail -n +2 | wc -l"},
-			}, api.ProcessIO{
+			}, garden.ProcessIO{
 				Stdout: psout,
 				Stderr: GinkgoWriter,
 			})
@@ -44,16 +44,16 @@ var _ = Describe("Security", func() {
 
 	Describe("Denying access to network ranges", func() {
 		var (
-			blockedListener   api.Container
+			blockedListener   garden.Container
 			blockedListenerIP string = fmt.Sprintf("11.0.%d.1", GinkgoParallelNode())
 
-			unblockedListener   api.Container
+			unblockedListener   garden.Container
 			unblockedListenerIP string = fmt.Sprintf("11.1.%d.1", GinkgoParallelNode())
 
-			allowedListener   api.Container
+			allowedListener   garden.Container
 			allowedListenerIP string = fmt.Sprintf("11.2.%d.1", GinkgoParallelNode())
 
-			sender api.Container
+			sender garden.Container
 		)
 
 		BeforeEach(func() {
@@ -68,22 +68,22 @@ var _ = Describe("Security", func() {
 			var err error
 
 			// create a listener to which we deny network access
-			blockedListener, err = client.Create(api.ContainerSpec{Network: blockedListenerIP + "/30"})
+			blockedListener, err = client.Create(garden.ContainerSpec{Network: blockedListenerIP + "/30"})
 			Ω(err).ShouldNot(HaveOccurred())
 			blockedListenerIP = containerIP(blockedListener)
 
 			// create a listener to which we do not deny access
-			unblockedListener, err = client.Create(api.ContainerSpec{Network: unblockedListenerIP + "/30"})
+			unblockedListener, err = client.Create(garden.ContainerSpec{Network: unblockedListenerIP + "/30"})
 			Ω(err).ShouldNot(HaveOccurred())
 			unblockedListenerIP = containerIP(unblockedListener)
 
 			// create a listener to which we exclicitly allow access
-			allowedListener, err = client.Create(api.ContainerSpec{Network: allowedListenerIP + "/30"})
+			allowedListener, err = client.Create(garden.ContainerSpec{Network: allowedListenerIP + "/30"})
 			Ω(err).ShouldNot(HaveOccurred())
 			allowedListenerIP = containerIP(allowedListener)
 
 			// create a container with the new deny network configuration
-			sender, err = client.Create(api.ContainerSpec{})
+			sender, err = client.Create(garden.ContainerSpec{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 		})
@@ -102,11 +102,11 @@ var _ = Describe("Security", func() {
 			Ω(err).ShouldNot(HaveOccurred())
 		})
 
-		runInContainer := func(container api.Container, script string) api.Process {
-			process, err := container.Run(api.ProcessSpec{
+		runInContainer := func(container garden.Container, script string) garden.Process {
+			process, err := container.Run(garden.ProcessSpec{
 				Path: "sh",
 				Args: []string{"-c", script},
-			}, api.ProcessIO{
+			}, garden.ProcessIO{
 				Stdout: GinkgoWriter,
 				Stderr: GinkgoWriter,
 			})

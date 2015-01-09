@@ -10,11 +10,11 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
 
-	"github.com/cloudfoundry-incubator/garden/api"
+	"github.com/cloudfoundry-incubator/garden"
 )
 
 var _ = Describe("Through a restart", func() {
-	var container api.Container
+	var container garden.Container
 	var gardenArgs []string
 
 	BeforeEach(func() {
@@ -26,7 +26,7 @@ var _ = Describe("Through a restart", func() {
 
 		var err error
 
-		container, err = client.Create(api.ContainerSpec{})
+		container, err = client.Create(garden.ContainerSpec{})
 		Ω(err).ShouldNot(HaveOccurred())
 	})
 
@@ -46,10 +46,10 @@ var _ = Describe("Through a restart", func() {
 
 	Describe("a started process", func() {
 		It("continues to stream", func() {
-			process, err := container.Run(api.ProcessSpec{
+			process, err := container.Run(garden.ProcessSpec{
 				Path: "sh",
 				Args: []string{"-c", "while true; do echo hi; sleep 0.5; done"},
-			}, api.ProcessIO{})
+			}, garden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			restartGarden()
@@ -58,7 +58,7 @@ var _ = Describe("Through a restart", func() {
 			Ω(err).Should(HaveOccurred())
 
 			stdout := gbytes.NewBuffer()
-			_, err = container.Attach(process.ID(), api.ProcessIO{
+			_, err = container.Attach(process.ID(), garden.ProcessIO{
 				Stdout: stdout,
 			})
 			Ω(err).ShouldNot(HaveOccurred())
@@ -71,10 +71,10 @@ var _ = Describe("Through a restart", func() {
 
 			stdout := gbytes.NewBuffer()
 
-			process, err := container.Run(api.ProcessSpec{
+			process, err := container.Run(garden.ProcessSpec{
 				Path: "sh",
 				Args: []string{"-c", "cat <&0"},
-			}, api.ProcessIO{
+			}, garden.ProcessIO{
 				Stdin:  r,
 				Stdout: stdout,
 			})
@@ -93,7 +93,7 @@ var _ = Describe("Through a restart", func() {
 			err = w.Close()
 			Ω(err).ShouldNot(HaveOccurred())
 
-			process, err = container.Attach(process.ID(), api.ProcessIO{
+			process, err = container.Attach(process.ID(), garden.ProcessIO{
 				Stdin:  bytes.NewBufferString("world"),
 				Stdout: stdout,
 			})
@@ -106,7 +106,7 @@ var _ = Describe("Through a restart", func() {
 		It("can still have its tty window resized", func() {
 			stdout := gbytes.NewBuffer()
 
-			process, err := container.Run(api.ProcessSpec{
+			process, err := container.Run(garden.ProcessSpec{
 				Path: "sh",
 				Args: []string{
 					"-c",
@@ -129,13 +129,13 @@ var _ = Describe("Through a restart", func() {
 						done
 					`,
 				},
-				TTY: &api.TTYSpec{
-					WindowSize: &api.WindowSize{
+				TTY: &garden.TTYSpec{
+					WindowSize: &garden.WindowSize{
 						Columns: 80,
 						Rows:    24,
 					},
 				},
-			}, api.ProcessIO{
+			}, garden.ProcessIO{
 				Stdout: stdout,
 			})
 			Ω(err).ShouldNot(HaveOccurred())
@@ -149,14 +149,14 @@ var _ = Describe("Through a restart", func() {
 
 			inR, inW := io.Pipe()
 
-			process, err = container.Attach(process.ID(), api.ProcessIO{
+			process, err = container.Attach(process.ID(), garden.ProcessIO{
 				Stdin:  inR,
 				Stdout: stdout,
 			})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			err = process.SetTTY(api.TTYSpec{
-				WindowSize: &api.WindowSize{
+			err = process.SetTTY(garden.TTYSpec{
+				WindowSize: &garden.WindowSize{
 					Columns: 123,
 					Rows:    456,
 				},
@@ -172,25 +172,25 @@ var _ = Describe("Through a restart", func() {
 		})
 
 		It("does not have its job ID repeated", func() {
-			process1, err := container.Run(api.ProcessSpec{
+			process1, err := container.Run(garden.ProcessSpec{
 				Path: "sh",
 				Args: []string{"-c", "while true; do echo hi; sleep 0.5; done"},
-			}, api.ProcessIO{})
+			}, garden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			restartGarden()
 
-			process2, err := container.Run(api.ProcessSpec{
+			process2, err := container.Run(garden.ProcessSpec{
 				Path: "sh",
 				Args: []string{"-c", "while true; do echo hi; sleep 0.5; done"},
-			}, api.ProcessIO{})
+			}, garden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(process1.ID()).ShouldNot(Equal(process2.ID()))
 		})
 
 		It("can still be signalled", func() {
-			process, err := container.Run(api.ProcessSpec{
+			process, err := container.Run(garden.ProcessSpec{
 				Path: "sh",
 				Args: []string{"-c", `
 				  trap 'echo termed; exit 42' SIGTERM
@@ -200,19 +200,19 @@ var _ = Describe("Through a restart", func() {
 					  sleep 1
 					done
 				`},
-			}, api.ProcessIO{})
+			}, garden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			restartGarden()
 
 			stdout := gbytes.NewBuffer()
-			attached, err := container.Attach(process.ID(), api.ProcessIO{
+			attached, err := container.Attach(process.ID(), garden.ProcessIO{
 				Stdout: io.MultiWriter(GinkgoWriter, stdout),
 				Stderr: GinkgoWriter,
 			})
 
 			Eventually(stdout).Should(gbytes.Say("waiting"))
-			Ω(attached.Signal(api.SignalTerminate)).Should(Succeed())
+			Ω(attached.Signal(garden.SignalTerminate)).Should(Succeed())
 			Eventually(stdout, "2s").Should(gbytes.Say("termed"))
 			Ω(attached.Wait()).Should(Equal(42))
 		})
@@ -221,9 +221,9 @@ var _ = Describe("Through a restart", func() {
 			stdinR, stdinW := io.Pipe()
 			stdout := gbytes.NewBuffer()
 
-			process, err := container.Run(api.ProcessSpec{
+			process, err := container.Run(garden.ProcessSpec{
 				Path: "cat",
-			}, api.ProcessIO{
+			}, garden.ProcessIO{
 				Stdin:  stdinR,
 				Stdout: stdout,
 			})
@@ -237,7 +237,7 @@ var _ = Describe("Through a restart", func() {
 			stdinR, stdinW = io.Pipe()
 			stdout = gbytes.NewBuffer()
 
-			_, err = container.Attach(process.ID(), api.ProcessIO{
+			_, err = container.Attach(process.ID(), garden.ProcessIO{
 				Stdin:  stdinR,
 				Stdout: stdout,
 			})
@@ -250,15 +250,15 @@ var _ = Describe("Through a restart", func() {
 
 	Describe("a memory limit", func() {
 		It("is still enforced", func() {
-			err := container.LimitMemory(api.MemoryLimits{4 * 1024 * 1024})
+			err := container.LimitMemory(garden.MemoryLimits{4 * 1024 * 1024})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			restartGarden()
 
-			process, err := container.Run(api.ProcessSpec{
+			process, err := container.Run(garden.ProcessSpec{
 				Path: "sh",
 				Args: []string{"-c", "echo $(yes | head -c 67108864); echo goodbye; exit 42"},
-			}, api.ProcessIO{})
+			}, garden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			// cgroups OOM killer seems to leave no trace of the process;
@@ -271,10 +271,10 @@ var _ = Describe("Through a restart", func() {
 
 	Describe("a container's active job", func() {
 		It("is still tracked", func() {
-			process, err := container.Run(api.ProcessSpec{
+			process, err := container.Run(garden.ProcessSpec{
 				Path: "sh",
 				Args: []string{"-c", "while true; do echo hi; sleep 0.5; done"},
-			}, api.ProcessIO{})
+			}, garden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			restartGarden()
@@ -288,14 +288,14 @@ var _ = Describe("Through a restart", func() {
 
 	Describe("a container's list of events", func() {
 		It("is still reported", func() {
-			err := container.LimitMemory(api.MemoryLimits{4 * 1024 * 1024})
+			err := container.LimitMemory(garden.MemoryLimits{4 * 1024 * 1024})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			// trigger 'out of memory' event
-			process, err := container.Run(api.ProcessSpec{
+			process, err := container.Run(garden.ProcessSpec{
 				Path: "sh",
 				Args: []string{"-c", "echo $(yes | head -c 67108864); echo goodbye; exit 42"},
-			}, api.ProcessIO{})
+			}, garden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(process.Wait()).ShouldNot(Equal(42), "process did not get OOM killed")
@@ -318,8 +318,8 @@ var _ = Describe("Through a restart", func() {
 
 	Describe("a container's properties", func() {
 		It("are retained", func() {
-			containerWithProperties, err := client.Create(api.ContainerSpec{
-				Properties: api.Properties{
+			containerWithProperties, err := client.Create(garden.ContainerSpec{
+				Properties: garden.Properties{
 					"foo": "bar",
 				},
 			})
@@ -372,7 +372,7 @@ var _ = Describe("Through a restart", func() {
 
 			restartGarden()
 
-			newContainer, err := client.Create(api.ContainerSpec{})
+			newContainer, err := client.Create(garden.ContainerSpec{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			infoB, err := newContainer.Info()
@@ -390,7 +390,7 @@ var _ = Describe("Through a restart", func() {
 
 			restartGarden()
 
-			containerB, err := client.Create(api.ContainerSpec{})
+			containerB, err := client.Create(garden.ContainerSpec{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			netInBHost, netInBContainer, err := containerB.NetIn(0, 0)
@@ -406,10 +406,10 @@ var _ = Describe("Through a restart", func() {
 			idA := gbytes.NewBuffer()
 			idB := gbytes.NewBuffer()
 
-			processA, err := container.Run(api.ProcessSpec{
+			processA, err := container.Run(garden.ProcessSpec{
 				Path: "id",
 				Args: []string{"-u"},
-			}, api.ProcessIO{
+			}, garden.ProcessIO{
 				Stdout: idA,
 			})
 			Ω(err).ShouldNot(HaveOccurred())
@@ -418,13 +418,13 @@ var _ = Describe("Through a restart", func() {
 
 			restartGarden()
 
-			otherContainer, err := client.Create(api.ContainerSpec{})
+			otherContainer, err := client.Create(garden.ContainerSpec{})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			processB, err := otherContainer.Run(api.ProcessSpec{
+			processB, err := otherContainer.Run(garden.ProcessSpec{
 				Path: "id",
 				Args: []string{"-u"},
-			}, api.ProcessIO{Stdout: idB})
+			}, garden.ProcessIO{Stdout: idB})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(processB.Wait()).Should(Equal(0))

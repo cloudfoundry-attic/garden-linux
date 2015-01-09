@@ -412,7 +412,7 @@ func (cli *DockerCli) CmdVersion(args ...string) error {
 	if dockerversion.VERSION != "" {
 		fmt.Fprintf(cli.out, "Client version: %s\n", dockerversion.VERSION)
 	}
-	fmt.Fprintf(cli.out, "Client API version: %s\n", api.APIVERSION)
+	fmt.Fprintf(cli.out, "Client API version: %s\n", garden.APIVERSION)
 	fmt.Fprintf(cli.out, "Go version (client): %s\n", runtime.Version())
 	if dockerversion.GITCOMMIT != "" {
 		fmt.Fprintf(cli.out, "Git commit (client): %s\n", dockerversion.GITCOMMIT)
@@ -1664,7 +1664,7 @@ func (cli *DockerCli) CmdPs(args ...string) error {
 
 		fmt.Fprintf(w, "%s\t%s\t%s\t%s ago\t%s\t%s\t%s\t", outID, out.Get("Image"), outCommand,
 			units.HumanDuration(time.Now().UTC().Sub(time.Unix(out.GetInt64("Created"), 0))),
-			out.Get("Status"), api.DisplayablePorts(ports), strings.Join(outNames, ","))
+			out.Get("Status"), garden.DisplayablePorts(ports), strings.Join(outNames, ","))
 
 		if *size {
 			if out.GetInt("SizeRootFs") > 0 {

@@ -59,7 +59,7 @@ func (cli *DockerCli) call(method, path string, data interface{}, passAuthInfo b
 	if err != nil {
 		return nil, -1, err
 	}
-	req, err := http.NewRequest(method, fmt.Sprintf("/v%s%s", api.APIVERSION, path), params)
+	req, err := http.NewRequest(method, fmt.Sprintf("/v%s%s", garden.APIVERSION, path), params)
 	if err != nil {
 		return nil, -1, err
 	}
@@ -127,7 +127,7 @@ func (cli *DockerCli) streamHelper(method, path string, setRawTerminal bool, in 
 		in = bytes.NewReader([]byte{})
 	}
 
-	req, err := http.NewRequest(method, fmt.Sprintf("/v%s%s", api.APIVERSION, path), in)
+	req, err := http.NewRequest(method, fmt.Sprintf("/v%s%s", garden.APIVERSION, path), in)
 	if err != nil {
 		return err
 	}
@@ -163,7 +163,7 @@ func (cli *DockerCli) streamHelper(method, path string, setRawTerminal bool, in 
 		return fmt.Errorf("Error: %s", bytes.TrimSpace(body))
 	}
 
-	if api.MatchesContentType(resp.Header.Get("Content-Type"), "application/json") {
+	if garden.MatchesContentType(resp.Header.Get("Content-Type"), "application/json") {
 		return utils.DisplayJSONMessagesStream(resp.Body, stdout, cli.outFd, cli.isTerminalOut)
 	}
 	if stdout != nil || stderr != nil {

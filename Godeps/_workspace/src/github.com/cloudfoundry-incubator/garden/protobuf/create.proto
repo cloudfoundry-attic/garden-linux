@@ -1,0 +1,85 @@
+// Creates a new container.
+//
+// ### Request
+//
+// All parameters are optional.
+//
+// * `bind_mounts`: defined in https://github.com/cloudfoundry-incubator/garden/blob/master/doc/garden-api.md
+//
+// * `grace_time`: Can be used to specify how long a container can go
+// unreferenced by any client connection. After this time, the container will
+// automatically be destroyed. If not specified, the container will be
+// subject to the globally configured grace time.
+//
+// * `handle`: If specified, its value must be used to refer to the
+// container in future requests. If it is not specified,
+// garden uses its internal container ID as the container handle.
+//
+// * `properties`: A sequence of string key/value pairs providing arbitrary
+// data about the container. The keys are assumed to be unique but this is not
+// enforced via the protocol.
+// 
+// * 'privileged': If specified and true the root user in the container will be
+// mapped to the root user in the host. Otherwise, the root user in the container
+// is mapped to a non-root user in the host.
+//
+// > **TODO**: `network` (defined in https://github.com/cloudfoundry-incubator/garden/blob/master/doc/garden-api.md) and `rootfs`
+//
+// ### Response
+//
+// The `handle` field contains the handle that must be used to refer to the
+// container in future request. It is the same as the `handle` field in the
+// request, if it was passed.
+//
+// ### Errors
+//
+// * When the `handle`, if specified, is already taken.
+// * When one of the `bind_mount` paths does not exist.
+// * When resource allocations fail (subnet, user ID, etc).
+//
+// ### Definition
+//
+
+package garden;
+
+import "environment_variable.proto";
+import "property.proto";
+
+message CreateRequest {
+  message BindMount {
+    enum Mode {
+      RO = 0;
+      RW = 1;
+    }
+
+    enum Origin {
+      Host = 0;
+      Container = 1;
+    }
+
+    required string src_path = 1;
+    required string dst_path = 2;
+    required Mode mode = 3;
+    optional Origin origin = 4;
+  }
+
+  repeated BindMount bind_mounts = 1;
+
+  optional uint32 grace_time = 2;
+
+  optional string handle = 3;
+
+  optional string network = 4;
+
+  optional string rootfs = 5;
+
+  repeated Property properties = 6;
+
+  repeated EnvironmentVariable env = 7;
+
+  optional bool privileged = 8;
+}
+
+message CreateResponse {
+  required string handle = 1;
+}

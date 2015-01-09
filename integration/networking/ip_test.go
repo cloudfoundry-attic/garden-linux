@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cloudfoundry-incubator/garden/api"
+	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry/gunk/localip"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -17,8 +17,8 @@ import (
 
 var _ = Describe("IP settings", func() {
 	var (
-		container1 api.Container
-		container2 api.Container
+		container1 garden.Container
+		container2 garden.Container
 
 		containerNetwork1 string
 		containerNetwork2 string
@@ -37,11 +37,11 @@ var _ = Describe("IP settings", func() {
 		client = startGarden()
 
 		var err error
-		container1, err = client.Create(api.ContainerSpec{Network: containerNetwork1})
+		container1, err = client.Create(garden.ContainerSpec{Network: containerNetwork1})
 		Ω(err).ShouldNot(HaveOccurred())
 
 		if len(containerNetwork2) > 0 {
-			container2, err = client.Create(api.ContainerSpec{Network: containerNetwork2})
+			container2, err = client.Create(garden.ContainerSpec{Network: containerNetwork2})
 			Ω(err).ShouldNot(HaveOccurred())
 		}
 
@@ -70,10 +70,10 @@ var _ = Describe("IP settings", func() {
 				stdout := gbytes.NewBuffer()
 				stderr := gbytes.NewBuffer()
 
-				process, err := container1.Run(api.ProcessSpec{
+				process, err := container1.Run(garden.ProcessSpec{
 					Path: "/sbin/ifconfig",
 					Args: []string{containerInterface},
-				}, api.ProcessIO{
+				}, garden.ProcessIO{
 					Stdout: stdout,
 					Stderr: stderr,
 				})
@@ -97,10 +97,10 @@ var _ = Describe("IP settings", func() {
 				stdout := gbytes.NewBuffer()
 				stderr := gbytes.NewBuffer()
 
-				process, err := container1.Run(api.ProcessSpec{
+				process, err := container1.Run(garden.ProcessSpec{
 					Path: "/sbin/ifconfig",
 					Args: []string{containerIfName(container1)},
-				}, api.ProcessIO{
+				}, garden.ProcessIO{
 					Stdout: stdout,
 					Stderr: stderr,
 				})
@@ -129,10 +129,10 @@ var _ = Describe("IP settings", func() {
 		})
 
 		It("can reach external networks", func() {
-			sender, err := container1.Run(api.ProcessSpec{
+			sender, err := container1.Run(garden.ProcessSpec{
 				Path: "sh",
 				Args: []string{"-c", fmt.Sprintf("nc -w4 %s 80", externalIP)},
-			}, api.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
+			}, garden.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(sender.Wait()).Should(Equal(0))
@@ -149,16 +149,16 @@ var _ = Describe("IP settings", func() {
 			info1, err := container1.Info()
 			Ω(err).ShouldNot(HaveOccurred())
 
-			listener, err := container1.Run(api.ProcessSpec{
+			listener, err := container1.Run(garden.ProcessSpec{
 				Path: "sh",
 				Args: []string{"-c", "echo hi | nc -l -p 8080"},
-			}, api.ProcessIO{})
+			}, garden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			sender, err := container2.Run(api.ProcessSpec{
+			sender, err := container2.Run(garden.ProcessSpec{
 				Path: "sh",
 				Args: []string{"-c", fmt.Sprintf("echo hello | nc -w1 %s 8080", info1.ContainerIP)},
-			}, api.ProcessIO{})
+			}, garden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(sender.Wait()).Should(Equal(0))
@@ -175,10 +175,10 @@ var _ = Describe("IP settings", func() {
 		})
 
 		It("can reach external networks", func() {
-			sender, err := container2.Run(api.ProcessSpec{
+			sender, err := container2.Run(garden.ProcessSpec{
 				Path: "sh",
 				Args: []string{"-c", fmt.Sprintf("nc -w4 %s 80", externalIP)},
-			}, api.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
+			}, garden.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(sender.Wait()).Should(Equal(0))
@@ -192,10 +192,10 @@ var _ = Describe("IP settings", func() {
 
 			Context("the second container", func() {
 				It("can still reach external networks", func() {
-					sender, err := container2.Run(api.ProcessSpec{
+					sender, err := container2.Run(garden.ProcessSpec{
 						Path: "sh",
 						Args: []string{"-c", fmt.Sprintf("nc -w4 %s 80", externalIP)},
-					}, api.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
+					}, garden.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
 					Ω(err).ShouldNot(HaveOccurred())
 
 					Ω(sender.Wait()).Should(Equal(0))
@@ -213,12 +213,12 @@ var _ = Describe("IP settings", func() {
 
 			Context("a newly created container in the same subnet", func() {
 				var (
-					container3 api.Container
+					container3 garden.Container
 				)
 
 				JustBeforeEach(func() {
 					var err error
-					container3, err = client.Create(api.ContainerSpec{Network: containerNetwork1})
+					container3, err = client.Create(garden.ContainerSpec{Network: containerNetwork1})
 					Ω(err).ShouldNot(HaveOccurred())
 				})
 
@@ -228,10 +228,10 @@ var _ = Describe("IP settings", func() {
 				})
 
 				It("can reach external networks", func() {
-					sender, err := container3.Run(api.ProcessSpec{
+					sender, err := container3.Run(garden.ProcessSpec{
 						Path: "sh",
 						Args: []string{"-c", fmt.Sprintf("nc -w4 %s 80", externalIP)},
-					}, api.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
+					}, garden.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
 					Ω(err).ShouldNot(HaveOccurred())
 
 					Ω(sender.Wait()).Should(Equal(0))
@@ -241,16 +241,16 @@ var _ = Describe("IP settings", func() {
 					info2, err := container2.Info()
 					Ω(err).ShouldNot(HaveOccurred())
 
-					listener, err := container2.Run(api.ProcessSpec{
+					listener, err := container2.Run(garden.ProcessSpec{
 						Path: "sh",
 						Args: []string{"-c", "echo hi | nc -l -p 8080"},
-					}, api.ProcessIO{})
+					}, garden.ProcessIO{})
 					Ω(err).ShouldNot(HaveOccurred())
 
-					sender, err := container3.Run(api.ProcessSpec{
+					sender, err := container3.Run(garden.ProcessSpec{
 						Path: "sh",
 						Args: []string{"-c", fmt.Sprintf("echo hello | nc -w1 %s 8080", info2.ContainerIP)},
-					}, api.ProcessIO{})
+					}, garden.ProcessIO{})
 					Ω(err).ShouldNot(HaveOccurred())
 
 					Ω(sender.Wait()).Should(Equal(0))
@@ -292,10 +292,10 @@ var _ = Describe("IP settings", func() {
 
 			go (&http.Server{Handler: mux}).Serve(listener)
 
-			process, err := container1.Run(api.ProcessSpec{
+			process, err := container1.Run(garden.ProcessSpec{
 				Path: "sh",
 				Args: []string{"-c", fmt.Sprintf("(echo 'GET /test HTTP/1.1'; echo 'Host: foo.com'; echo) | nc %s %s", info1.HostIP, strings.Split(listener.Addr().String(), ":")[1])},
-			}, api.ProcessIO{
+			}, garden.ProcessIO{
 				Stdout: stdout,
 				Stderr: stderr,
 			})

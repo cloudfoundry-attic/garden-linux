@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cloudfoundry-incubator/garden/api"
+	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/pivotal-golang/lager"
 
@@ -214,7 +214,7 @@ func (p *LinuxContainerPool) pruneEntry(id string) {
 	pLog.Info("end of prune")
 }
 
-func (p *LinuxContainerPool) Create(spec api.ContainerSpec) (c linux_backend.Container, err error) {
+func (p *LinuxContainerPool) Create(spec garden.ContainerSpec) (c linux_backend.Container, err error) {
 	id := <-p.containerIDs
 	containerPath := path.Join(p.depotPath, id)
 	pLog := p.logger.Session(id)
@@ -393,19 +393,19 @@ func (p *LinuxContainerPool) generateContainerIDs() string {
 
 func (p *LinuxContainerPool) writeBindMounts(containerPath string,
 	rootfsPath string,
-	bindMounts []api.BindMount) error {
+	bindMounts []garden.BindMount) error {
 	hook := path.Join(containerPath, "lib", "hook-parent-before-clone.sh")
 
 	for _, bm := range bindMounts {
 		dstMount := path.Join(rootfsPath, bm.DstPath)
 		srcPath := bm.SrcPath
 
-		if bm.Origin == api.BindMountOriginContainer {
+		if bm.Origin == garden.BindMountOriginContainer {
 			srcPath = path.Join(rootfsPath, srcPath)
 		}
 
 		mode := "ro"
-		if bm.Mode == api.BindMountModeRW {
+		if bm.Mode == garden.BindMountModeRW {
 			mode = "rw"
 		}
 
@@ -448,7 +448,7 @@ func (p *LinuxContainerPool) saveRootFSProvider(id string, provider string) erro
 	return ioutil.WriteFile(providerFile, []byte(provider), 0644)
 }
 
-func (p *LinuxContainerPool) acquirePoolResources(spec api.ContainerSpec, id string) (*linux_backend.Resources, error) {
+func (p *LinuxContainerPool) acquirePoolResources(spec garden.ContainerSpec, id string) (*linux_backend.Resources, error) {
 	var err error
 	resources := linux_backend.NewResources(0, 1, nil, nil)
 
@@ -503,7 +503,7 @@ func (p *LinuxContainerPool) releasePoolResources(resources *linux_backend.Resou
 	}
 }
 
-func (p *LinuxContainerPool) acquireSystemResources(id, containerPath, rootFSPath string, resources *linux_backend.Resources, bindMounts []api.BindMount, pLog lager.Logger) ([]string, error) {
+func (p *LinuxContainerPool) acquireSystemResources(id, containerPath, rootFSPath string, resources *linux_backend.Resources, bindMounts []garden.BindMount, pLog lager.Logger) ([]string, error) {
 	rootfsURL, err := url.Parse(rootFSPath)
 	if err != nil {
 		pLog.Error("parse-rootfs-path-failed", err, lager.Data{

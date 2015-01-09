@@ -8,7 +8,7 @@ import (
 	"syscall"
 	"testing"
 
-	"github.com/cloudfoundry-incubator/garden/api"
+	"github.com/cloudfoundry-incubator/garden"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
@@ -26,9 +26,9 @@ var gardenBin string
 var gardenRunner *runner.Runner
 var gardenProcess ifrit.Process
 
-var client api.Client
+var client garden.Client
 
-func startGarden(argv ...string) api.Client {
+func startGarden(argv ...string) garden.Client {
 	gardenAddr := fmt.Sprintf("/tmp/garden_%d.sock", GinkgoParallelNode())
 
 	{ // Check this test suite is in the correct directory
@@ -89,7 +89,7 @@ func TestLifecycle(t *testing.T) {
 	RunSpecs(t, "Lifecycle Suite")
 }
 
-func containerIP(ctr api.Container) string {
+func containerIP(ctr garden.Container) string {
 	info, err := ctr.Info()
 	Ω(err).ShouldNot(HaveOccurred())
 	return info.ContainerIP

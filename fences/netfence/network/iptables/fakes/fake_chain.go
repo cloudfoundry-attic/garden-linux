@@ -5,8 +5,8 @@ import (
 	"net"
 	"sync"
 
+	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/iptables"
-	"github.com/cloudfoundry-incubator/garden/api"
 )
 
 type FakeChain struct {
@@ -52,10 +52,10 @@ type FakeChain struct {
 	deleteNatRuleReturns struct {
 		result1 error
 	}
-	PrependFilterRuleStub        func(protocol api.Protocol, dest string, destPort uint32, destPortRange string, destIcmpType, destIcmpCode int32) error
+	PrependFilterRuleStub        func(protocol garden.Protocol, dest string, destPort uint32, destPortRange string, destIcmpType, destIcmpCode int32) error
 	prependFilterRuleMutex       sync.RWMutex
 	prependFilterRuleArgsForCall []struct {
-		protocol      api.Protocol
+		protocol      garden.Protocol
 		dest          string
 		destPort      uint32
 		destPortRange string
@@ -205,10 +205,10 @@ func (fake *FakeChain) DeleteNatRuleReturns(result1 error) {
 	}{result1}
 }
 
-func (fake *FakeChain) PrependFilterRule(protocol api.Protocol, dest string, destPort uint32, destPortRange string, destIcmpType int32, destIcmpCode int32) error {
+func (fake *FakeChain) PrependFilterRule(protocol garden.Protocol, dest string, destPort uint32, destPortRange string, destIcmpType int32, destIcmpCode int32) error {
 	fake.prependFilterRuleMutex.Lock()
 	fake.prependFilterRuleArgsForCall = append(fake.prependFilterRuleArgsForCall, struct {
-		protocol      api.Protocol
+		protocol      garden.Protocol
 		dest          string
 		destPort      uint32
 		destPortRange string
@@ -229,7 +229,7 @@ func (fake *FakeChain) PrependFilterRuleCallCount() int {
 	return len(fake.prependFilterRuleArgsForCall)
 }
 
-func (fake *FakeChain) PrependFilterRuleArgsForCall(i int) (api.Protocol, string, uint32, string, int32, int32) {
+func (fake *FakeChain) PrependFilterRuleArgsForCall(i int) (garden.Protocol, string, uint32, string, int32, int32) {
 	fake.prependFilterRuleMutex.RLock()
 	defer fake.prependFilterRuleMutex.RUnlock()
 	return fake.prependFilterRuleArgsForCall[i].protocol, fake.prependFilterRuleArgsForCall[i].dest, fake.prependFilterRuleArgsForCall[i].destPort, fake.prependFilterRuleArgsForCall[i].destPortRange, fake.prependFilterRuleArgsForCall[i].destIcmpType, fake.prependFilterRuleArgsForCall[i].destIcmpCode

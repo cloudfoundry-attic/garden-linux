@@ -13,8 +13,8 @@ import (
 	"github.com/onsi/gomega/gexec"
 	"github.com/tedsuo/ifrit"
 
+	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/integration/runner"
-	"github.com/cloudfoundry-incubator/garden/api"
 )
 
 var binPath = "../../old/linux_backend/bin" // relative to test suite directory
@@ -26,9 +26,9 @@ var gardenBin string
 var gardenRunner *runner.Runner
 var gardenProcess ifrit.Process
 
-var client api.Client
+var client garden.Client
 
-func startGarden(argv ...string) api.Client {
+func startGarden(argv ...string) garden.Client {
 	gardenAddr := fmt.Sprintf("/tmp/garden_%d.sock", GinkgoParallelNode())
 
 	{ // Check this test suite is in the correct directory

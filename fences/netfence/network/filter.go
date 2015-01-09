@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/iptables"
-	"github.com/cloudfoundry-incubator/garden/api"
 )
 
 type FilterFactory interface {
@@ -13,7 +13,7 @@ type FilterFactory interface {
 }
 
 type Filter interface {
-	NetOut(network string, port uint32, portRange string, protocol api.Protocol, icmpType int32, icmpCode int32) error
+	NetOut(network string, port uint32, portRange string, protocol garden.Protocol, icmpType int32, icmpCode int32) error
 }
 
 type filterFactory struct {
@@ -35,8 +35,8 @@ func (ff *filterFactory) Create(id string) Filter {
 	return &filter{instanceChain: ff.chainFactory.CreateChain(ff.instancePrefix + id)}
 }
 
-func (fltr *filter) NetOut(network string, port uint32, portRange string, protocol api.Protocol, icmpType int32, icmpCode int32) error {
-	if protocol != api.ProtocolICMP && (icmpType != -1 || icmpCode != -1) {
+func (fltr *filter) NetOut(network string, port uint32, portRange string, protocol garden.Protocol, icmpType int32, icmpCode int32) error {
+	if protocol != garden.ProtocolICMP && (icmpType != -1 || icmpCode != -1) {
 		return errors.New("invalid rule: icmp code or icmp type can only be specified with protocol ICMP")
 	}
 	if network == "" && port == 0 && portRange == "" {
@@ -51,6 +51,6 @@ func (fltr *filter) NetOut(network string, port uint32, portRange string, protoc
 	return fltr.instanceChain.PrependFilterRule(protocol, network, port, portRange, icmpType, icmpCode)
 }
 
-func (fltr *filter) protocolAllowsPortFiltering(protocol api.Protocol) bool {
-	return protocol == api.ProtocolTCP || protocol == api.ProtocolUDP
+func (fltr *filter) protocolAllowsPortFiltering(protocol garden.Protocol) bool {
+	return protocol == garden.ProtocolTCP || protocol == garden.ProtocolUDP
 }

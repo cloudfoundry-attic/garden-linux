@@ -29,7 +29,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/uid_pool/fake_uid_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
 
-	"github.com/cloudfoundry-incubator/garden/api"
+	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
 )
@@ -243,17 +243,17 @@ var _ = Describe("Container pool", func() {
 		}
 
 		It("returns containers with unique IDs", func() {
-			container1, err := pool.Create(api.ContainerSpec{})
+			container1, err := pool.Create(garden.ContainerSpec{})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			container2, err := pool.Create(api.ContainerSpec{})
+			container2, err := pool.Create(garden.ContainerSpec{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(container1.ID()).ShouldNot(Equal(container2.ID()))
 		})
 
 		It("creates containers with the correct grace time", func() {
-			container, err := pool.Create(api.ContainerSpec{
+			container, err := pool.Create(garden.ContainerSpec{
 				GraceTime: 1 * time.Second,
 			})
 			Ω(err).ShouldNot(HaveOccurred())
@@ -262,11 +262,11 @@ var _ = Describe("Container pool", func() {
 		})
 
 		It("creates containers with the correct properties", func() {
-			properties := api.Properties(map[string]string{
+			properties := garden.Properties(map[string]string{
 				"foo": "bar",
 			})
 
-			container, err := pool.Create(api.ContainerSpec{
+			container, err := pool.Create(garden.ContainerSpec{
 				Properties: properties,
 			})
 			Ω(err).ShouldNot(HaveOccurred())
@@ -276,7 +276,7 @@ var _ = Describe("Container pool", func() {
 
 		Context("when the privileged flag is specified and true", func() {
 			It("executes create.sh with a root_uid of 0", func() {
-				container, err := pool.Create(api.ContainerSpec{Privileged: true})
+				container, err := pool.Create(garden.ContainerSpec{Privileged: true})
 				Ω(err).ShouldNot(HaveOccurred())
 
 				Ω(fakeRunner).Should(HaveExecutedSerially(
@@ -298,7 +298,7 @@ var _ = Describe("Container pool", func() {
 
 		Context("when no Network parameter is specified", func() {
 			It("executes create.sh with the correct args and environment", func() {
-				container, err := pool.Create(api.ContainerSpec{})
+				container, err := pool.Create(garden.ContainerSpec{})
 				Ω(err).ShouldNot(HaveOccurred())
 
 				Ω(fakeRunner).Should(HaveExecutedSerially(
@@ -320,7 +320,7 @@ var _ = Describe("Container pool", func() {
 
 		Context("when the Network parameter is specified", func() {
 			It("executes create.sh with the correct args and environment", func() {
-				container, err := pool.Create(api.ContainerSpec{
+				container, err := pool.Create(garden.ContainerSpec{
 					Network: "1.3.0.0/30",
 				})
 				Ω(err).ShouldNot(HaveOccurred())
@@ -342,7 +342,7 @@ var _ = Describe("Container pool", func() {
 			})
 
 			It("allocates the requested Network", func() {
-				_, err := pool.Create(api.ContainerSpec{
+				_, err := pool.Create(garden.ContainerSpec{
 					Network: "1.3.0.0/30",
 				})
 
@@ -356,7 +356,7 @@ var _ = Describe("Container pool", func() {
 
 				BeforeEach(func() {
 					fakeFences.AllocateError = allocateError
-					_, err = pool.Create(api.ContainerSpec{
+					_, err = pool.Create(garden.ContainerSpec{
 						Network: "1.2.0.0/30",
 					})
 				})
@@ -378,7 +378,7 @@ var _ = Describe("Container pool", func() {
 		})
 
 		It("saves the determined rootfs provider to the depot", func() {
-			container, err := pool.Create(api.ContainerSpec{})
+			container, err := pool.Create(garden.ContainerSpec{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			body, err := ioutil.ReadFile(path.Join(depotPath, container.ID(), "rootfs-provider"))
@@ -389,7 +389,7 @@ var _ = Describe("Container pool", func() {
 
 		Context("when a rootfs is specified", func() {
 			It("is used to provide a rootfs", func() {
-				container, err := pool.Create(api.ContainerSpec{
+				container, err := pool.Create(garden.ContainerSpec{
 					RootFSPath: "fake:///path/to/custom-rootfs",
 				})
 				Ω(err).ShouldNot(HaveOccurred())
@@ -406,7 +406,7 @@ var _ = Describe("Container pool", func() {
 			It("passes the provided rootfs as $rootfs_path to create.sh", func() {
 				fakeRootFSProvider.ProvideRootFSReturns("/var/some/mount/point", nil, nil)
 
-				container, err := pool.Create(api.ContainerSpec{
+				container, err := pool.Create(garden.ContainerSpec{
 					RootFSPath: "fake:///path/to/custom-rootfs",
 				})
 				Ω(err).ShouldNot(HaveOccurred())
@@ -428,7 +428,7 @@ var _ = Describe("Container pool", func() {
 			})
 
 			It("saves the determined rootfs provider to the depot", func() {
-				container, err := pool.Create(api.ContainerSpec{
+				container, err := pool.Create(garden.ContainerSpec{
 					RootFSPath: "fake:///path/to/custom-rootfs",
 				})
 				Ω(err).ShouldNot(HaveOccurred())
@@ -445,7 +445,7 @@ var _ = Describe("Container pool", func() {
 					"var3=rootfs-value-3",
 				}, nil)
 
-				container, err := pool.Create(api.ContainerSpec{
+				container, err := pool.Create(garden.ContainerSpec{
 					RootFSPath: "fake:///path/to/custom-rootfs",
 					Env: []string{
 						"var1=spec-value1",
@@ -466,7 +466,7 @@ var _ = Describe("Container pool", func() {
 				var err error
 
 				BeforeEach(func() {
-					_, err = pool.Create(api.ContainerSpec{
+					_, err = pool.Create(garden.ContainerSpec{
 						RootFSPath: "::::::",
 					})
 				})
@@ -483,7 +483,7 @@ var _ = Describe("Container pool", func() {
 				var err error
 
 				BeforeEach(func() {
-					_, err = pool.Create(api.ContainerSpec{
+					_, err = pool.Create(garden.ContainerSpec{
 						RootFSPath: "unknown:///path/to/custom-rootfs",
 					})
 				})
@@ -503,7 +503,7 @@ var _ = Describe("Container pool", func() {
 				BeforeEach(func() {
 					fakeRootFSProvider.ProvideRootFSReturns("", nil, providerErr)
 
-					_, err = pool.Create(api.ContainerSpec{
+					_, err = pool.Create(garden.ContainerSpec{
 						RootFSPath: "fake:///path/to/custom-rootfs",
 					})
 				})
@@ -527,23 +527,23 @@ var _ = Describe("Container pool", func() {
 
 		Context("when bind mounts are specified", func() {
 			It("appends mount commands to hook-parent-before-clone.sh", func() {
-				container, err := pool.Create(api.ContainerSpec{
-					BindMounts: []api.BindMount{
+				container, err := pool.Create(garden.ContainerSpec{
+					BindMounts: []garden.BindMount{
 						{
 							SrcPath: "/src/path-ro",
 							DstPath: "/dst/path-ro",
-							Mode:    api.BindMountModeRO,
+							Mode:    garden.BindMountModeRO,
 						},
 						{
 							SrcPath: "/src/path-rw",
 							DstPath: "/dst/path-rw",
-							Mode:    api.BindMountModeRW,
+							Mode:    garden.BindMountModeRW,
 						},
 						{
 							SrcPath: "/src/path-rw",
 							DstPath: "/dst/path-rw",
-							Mode:    api.BindMountModeRW,
-							Origin:  api.BindMountOriginContainer,
+							Mode:    garden.BindMountModeRW,
+							Origin:  garden.BindMountOriginContainer,
 						},
 					},
 				})
@@ -654,17 +654,17 @@ var _ = Describe("Container pool", func() {
 						return disaster
 					})
 
-					_, err = pool.Create(api.ContainerSpec{
-						BindMounts: []api.BindMount{
+					_, err = pool.Create(garden.ContainerSpec{
+						BindMounts: []garden.BindMount{
 							{
 								SrcPath: "/src/path-ro",
 								DstPath: "/dst/path-ro",
-								Mode:    api.BindMountModeRO,
+								Mode:    garden.BindMountModeRO,
 							},
 							{
 								SrcPath: "/src/path-rw",
 								DstPath: "/dst/path-rw",
-								Mode:    api.BindMountModeRW,
+								Mode:    garden.BindMountModeRW,
 							},
 						},
 					})
@@ -689,7 +689,7 @@ var _ = Describe("Container pool", func() {
 			})
 
 			It("returns the error", func() {
-				_, err := pool.Create(api.ContainerSpec{})
+				_, err := pool.Create(garden.ContainerSpec{})
 				Ω(err).Should(Equal(nastyError))
 			})
 		})
@@ -702,7 +702,7 @@ var _ = Describe("Container pool", func() {
 			})
 
 			It("returns the error", func() {
-				_, err := pool.Create(api.ContainerSpec{})
+				_, err := pool.Create(garden.ContainerSpec{})
 				Ω(err).Should(Equal(nastyError))
 			})
 		})
@@ -719,11 +719,11 @@ var _ = Describe("Container pool", func() {
 					},
 				)
 
-				pool.Create(api.ContainerSpec{})
+				pool.Create(garden.ContainerSpec{})
 			})
 
 			It("returns the error and releases the uid and network", func() {
-				_, err := pool.Create(api.ContainerSpec{})
+				_, err := pool.Create(garden.ContainerSpec{})
 				Ω(err).Should(Equal(nastyError))
 
 				Ω(fakeUIDPool.Released).Should(ContainElement(uint32(10000)))
@@ -756,7 +756,7 @@ var _ = Describe("Container pool", func() {
 					},
 				)
 
-				_, err = pool.Create(api.ContainerSpec{})
+				_, err = pool.Create(garden.ContainerSpec{})
 			})
 
 			It("returns an error", func() {
@@ -819,7 +819,7 @@ var _ = Describe("Container pool", func() {
 			Ω(container.ID()).Should(Equal("some-restored-id"))
 			Ω(container.Handle()).Should(Equal("some-restored-handle"))
 			Ω(container.GraceTime()).Should(Equal(1 * time.Second))
-			Ω(container.Properties()).Should(Equal(api.Properties(map[string]string{
+			Ω(container.Properties()).Should(Equal(garden.Properties(map[string]string{
 				"foo": "bar",
 			})))
 
@@ -1092,7 +1092,7 @@ var _ = Describe("Container pool", func() {
 		var createdContainer *linux_backend.LinuxContainer
 
 		BeforeEach(func() {
-			container, err := pool.Create(api.ContainerSpec{})
+			container, err := pool.Create(garden.ContainerSpec{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			createdContainer = container.(*linux_backend.LinuxContainer)

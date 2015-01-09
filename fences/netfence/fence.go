@@ -7,10 +7,10 @@ import (
 	"net"
 	"strings"
 
+	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/fences"
 	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/subnets"
 	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
-	"github.com/cloudfoundry-incubator/garden/api"
 	"github.com/pivotal-golang/lager"
 )
 
@@ -160,7 +160,7 @@ func (a *Fence) Dismantle() error {
 	return nil
 }
 
-func (a *Fence) Info(i *api.ContainerInfo) {
+func (a *Fence) Info(i *garden.ContainerInfo) {
 	i.HostIP = subnets.GatewayIP(a.IPNet).String()
 	i.ContainerIP = a.containerIP.String()
 	i.ExternalIP = a.fenceBldr.externalIP.String()

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/fences"
 	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
-	"github.com/cloudfoundry-incubator/garden/api"
 )
 
 type FakeFences struct {
@@ -80,7 +80,7 @@ func (f *FakeAllocation) Dismantle() error {
 	return nil
 }
 
-func (f *FakeAllocation) Info(i *api.ContainerInfo) {
+func (f *FakeAllocation) Info(i *garden.ContainerInfo) {
 }
 
 func (f *FakeAllocation) ConfigureProcess(env *[]string) error {

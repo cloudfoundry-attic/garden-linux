@@ -1,23 +1,23 @@
 package fake_bandwidth_manager
 
 import (
-	"github.com/cloudfoundry-incubator/garden/api"
+	"github.com/cloudfoundry-incubator/garden"
 	"github.com/pivotal-golang/lager"
 )
 
 type FakeBandwidthManager struct {
 	SetLimitsError error
-	EnforcedLimits []api.BandwidthLimits
+	EnforcedLimits []garden.BandwidthLimits
 
 	GetLimitsError  error
-	GetLimitsResult api.ContainerBandwidthStat
+	GetLimitsResult garden.ContainerBandwidthStat
 }
 
 func New() *FakeBandwidthManager {
 	return &FakeBandwidthManager{}
 }
 
-func (m *FakeBandwidthManager) SetLimits(logger lager.Logger, limits api.BandwidthLimits) error {
+func (m *FakeBandwidthManager) SetLimits(logger lager.Logger, limits garden.BandwidthLimits) error {
 	if m.SetLimitsError != nil {
 		return m.SetLimitsError
 	}
@@ -27,9 +27,9 @@ func (m *FakeBandwidthManager) SetLimits(logger lager.Logger, limits api.Bandwid
 	return nil
 }
 
-func (m *FakeBandwidthManager) GetLimits(logger lager.Logger) (api.ContainerBandwidthStat, error) {
+func (m *FakeBandwidthManager) GetLimits(logger lager.Logger) (garden.ContainerBandwidthStat, error) {
 	if m.GetLimitsError != nil {
-		return api.ContainerBandwidthStat{}, m.GetLimitsError
+		return garden.ContainerBandwidthStat{}, m.GetLimitsError
 	}
 
 	return m.GetLimitsResult, nil

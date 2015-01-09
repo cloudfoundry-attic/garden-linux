@@ -1,0 +1,30 @@
+// This structure is neither a request nor a response.
+//
+// It is a structure that is shared between `Spawn` and `Run` requests.
+//
+// Please refer to the manual page of [`getrlimit(2)`][getrlimit] for a description of the individual fields.
+//
+// [getrlimit]: http://www.kernel.org/doc/man-pages/online/pages/man2/getrlimit.2.html
+//
+// ### Definition
+//
+
+package garden;
+
+message ResourceLimits {
+  optional uint64 as         =  1;
+  optional uint64 core       =  2;
+  optional uint64 cpu        =  3;
+  optional uint64 data       =  4;
+  optional uint64 fsize      =  5;
+  optional uint64 locks      =  6;
+  optional uint64 memlock    =  7;
+  optional uint64 msgqueue   =  8;
+  optional uint64 nice       =  9;
+  optional uint64 nofile     = 10;
+  optional uint64 nproc      = 11;
+  optional uint64 rss        = 12;
+  optional uint64 rtprio     = 13;
+  optional uint64 sigpending = 14;
+  optional uint64 stack      = 15;
+}

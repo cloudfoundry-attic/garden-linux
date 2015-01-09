@@ -3,7 +3,7 @@ package fake_quota_manager
 import (
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden/api"
+	"github.com/cloudfoundry-incubator/garden"
 	"github.com/pivotal-golang/lager"
 )
 
@@ -12,12 +12,12 @@ type FakeQuotaManager struct {
 	GetLimitsError error
 	GetUsageError  error
 
-	GetLimitsResult api.DiskLimits
-	GetUsageResult  api.ContainerDiskStat
+	GetLimitsResult garden.DiskLimits
+	GetUsageResult  garden.ContainerDiskStat
 
 	MountPointResult string
 
-	Limited map[uint32]api.DiskLimits
+	Limited map[uint32]garden.DiskLimits
 
 	enabled bool
 
@@ -26,13 +26,13 @@ type FakeQuotaManager struct {
 
 func New() *FakeQuotaManager {
 	return &FakeQuotaManager{
-		Limited: make(map[uint32]api.DiskLimits),
+		Limited: make(map[uint32]garden.DiskLimits),
 
 		enabled: true,
 	}
 }
 
-func (m *FakeQuotaManager) SetLimits(logger lager.Logger, uid uint32, limits api.DiskLimits) error {
+func (m *FakeQuotaManager) SetLimits(logger lager.Logger, uid uint32, limits garden.DiskLimits) error {
 	if m.SetLimitsError != nil {
 		return m.SetLimitsError
 	}
@@ -45,9 +45,9 @@ func (m *FakeQuotaManager) SetLimits(logger lager.Logger, uid uint32, limits api
 	return nil
 }
 
-func (m *FakeQuotaManager) GetLimits(logger lager.Logger, uid uint32) (api.DiskLimits, error) {
+func (m *FakeQuotaManager) GetLimits(logger lager.Logger, uid uint32) (garden.DiskLimits, error) {
 	if m.GetLimitsError != nil {
-		return api.DiskLimits{}, m.GetLimitsError
+		return garden.DiskLimits{}, m.GetLimitsError
 	}
 
 	m.RLock()
@@ -56,9 +56,9 @@ func (m *FakeQuotaManager) GetLimits(logger lager.Logger, uid uint32) (api.DiskL
 	return m.GetLimitsResult, nil
 }
 
-func (m *FakeQuotaManager) GetUsage(logger lager.Logger, uid uint32) (api.ContainerDiskStat, error) {
+func (m *FakeQuotaManager) GetUsage(logger lager.Logger, uid uint32) (garden.ContainerDiskStat, error) {
 	if m.GetUsageError != nil {
-		return api.ContainerDiskStat{}, m.GetUsageError
+		return garden.ContainerDiskStat{}, m.GetUsageError
 	}
 
 	m.RLock()

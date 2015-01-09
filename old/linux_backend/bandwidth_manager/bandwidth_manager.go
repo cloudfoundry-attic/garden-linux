@@ -8,8 +8,8 @@ import (
 	"regexp"
 	"strconv"
 
+	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/old/logging"
-	"github.com/cloudfoundry-incubator/garden/api"
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/pivotal-golang/lager"
 )
@@ -18,8 +18,8 @@ var IN_RATE_PATTERN = regexp.MustCompile(`qdisc tbf [0-9a-f]+: root refcnt \d+ r
 var OUT_RATE_PATTERN = regexp.MustCompile(`police 0x[0-9a-f]+ rate (\d+)([KMG]?)bit burst (\d+)([KMG]?)b`)
 
 type BandwidthManager interface {
-	SetLimits(lager.Logger, api.BandwidthLimits) error
-	GetLimits(lager.Logger) (api.ContainerBandwidthStat, error)
+	SetLimits(lager.Logger, garden.BandwidthLimits) error
+	GetLimits(lager.Logger) (garden.ContainerBandwidthStat, error)
 }
 
 type ContainerBandwidthManager struct {
@@ -40,7 +40,7 @@ func New(containerPath, containerID string, runner command_runner.CommandRunner)
 
 func (m *ContainerBandwidthManager) SetLimits(
 	logger lager.Logger,
-	limits api.BandwidthLimits,
+	limits garden.BandwidthLimits,
 ) error {
 	runner := logging.Runner{
 		CommandRunner: m.runner,
@@ -56,8 +56,8 @@ func (m *ContainerBandwidthManager) SetLimits(
 	return runner.Run(setRate)
 }
 
-func (m *ContainerBandwidthManager) GetLimits(logger lager.Logger) (api.ContainerBandwidthStat, error) {
-	limits := api.ContainerBandwidthStat{}
+func (m *ContainerBandwidthManager) GetLimits(logger lager.Logger) (garden.ContainerBandwidthStat, error) {
+	limits := garden.ContainerBandwidthStat{}
 
 	runner := logging.Runner{
 		CommandRunner: m.runner,

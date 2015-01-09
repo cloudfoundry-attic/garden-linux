@@ -1,0 +1,29 @@
+// Remove a property from a container.
+//
+// ### Request
+//
+// All parameters are optional.
+//
+// * `handle`: The container from which to remove the property.
+// * `key`: The name of the property to remove.
+//
+// ### Response
+//
+// Empty.
+//
+// ### Errors
+//
+// * When the `handle` does not refer to a container.
+//
+// ### Definition
+//
+
+package garden;
+
+message RemovePropertyRequest {
+  optional string handle = 1;
+  optional string key = 2;
+}
+
+message RemovePropertyResponse {
+}

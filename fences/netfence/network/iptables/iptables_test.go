@@ -5,8 +5,8 @@ import (
 	"net"
 	"os/exec"
 
+	"github.com/cloudfoundry-incubator/garden"
 	. "github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/iptables"
-	"github.com/cloudfoundry-incubator/garden/api"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
 	"github.com/pivotal-golang/lager/lagertest"
@@ -170,7 +170,7 @@ var _ = Describe("Iptables", func() {
 		Describe("PrependFilterRule", func() {
 			Context("when all parameters are specified", func() {
 				It("runs iptables to prepend the rule with the correct parameters when port is specified", func() {
-					Ω(subject.PrependFilterRule(api.ProtocolAll, "1.2.3.4/24", 8080, "", -1, -1)).Should(Succeed())
+					Ω(subject.PrependFilterRule(garden.ProtocolAll, "1.2.3.4/24", 8080, "", -1, -1)).Should(Succeed())
 
 					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
 						Path: "/sbin/iptables",
@@ -179,7 +179,7 @@ var _ = Describe("Iptables", func() {
 				})
 
 				It("runs iptables to prepend the rule with the correct parameters when port range is specified", func() {
-					Ω(subject.PrependFilterRule(api.ProtocolAll, "1.2.3.4/24", 0, "80:81", -1, -1)).Should(Succeed())
+					Ω(subject.PrependFilterRule(garden.ProtocolAll, "1.2.3.4/24", 0, "80:81", -1, -1)).Should(Succeed())
 
 					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
 						Path: "/sbin/iptables",
@@ -190,7 +190,7 @@ var _ = Describe("Iptables", func() {
 
 			Context("when tcp protcol is specified", func() {
 				It("passes tcp protcol to iptables", func() {
-					Ω(subject.PrependFilterRule(api.ProtocolTCP, "1.2.3.4/24", 8080, "", -1, -1)).Should(Succeed())
+					Ω(subject.PrependFilterRule(garden.ProtocolTCP, "1.2.3.4/24", 8080, "", -1, -1)).Should(Succeed())
 
 					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
 						Path: "/sbin/iptables",
@@ -201,7 +201,7 @@ var _ = Describe("Iptables", func() {
 
 			Context("when udp protcol is specified", func() {
 				It("passes udp protcol to iptables", func() {
-					Ω(subject.PrependFilterRule(api.ProtocolUDP, "1.2.3.4/24", 8080, "", -1, -1)).Should(Succeed())
+					Ω(subject.PrependFilterRule(garden.ProtocolUDP, "1.2.3.4/24", 8080, "", -1, -1)).Should(Succeed())
 
 					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
 						Path: "/sbin/iptables",
@@ -212,7 +212,7 @@ var _ = Describe("Iptables", func() {
 
 			Context("when icmp protcol is specified", func() {
 				It("passes icmp protcol to iptables when no type or code is specified", func() {
-					Ω(subject.PrependFilterRule(api.ProtocolICMP, "1.2.3.4/24", 0, "", -1, -1)).Should(Succeed())
+					Ω(subject.PrependFilterRule(garden.ProtocolICMP, "1.2.3.4/24", 0, "", -1, -1)).Should(Succeed())
 
 					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
 						Path: "/sbin/iptables",
@@ -221,7 +221,7 @@ var _ = Describe("Iptables", func() {
 				})
 
 				It("passes icmp protcol to iptables with icmp type if specified", func() {
-					Ω(subject.PrependFilterRule(api.ProtocolICMP, "1.2.3.4/24", 0, "", 8, -1)).Should(Succeed())
+					Ω(subject.PrependFilterRule(garden.ProtocolICMP, "1.2.3.4/24", 0, "", 8, -1)).Should(Succeed())
 
 					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
 						Path: "/sbin/iptables",
@@ -230,7 +230,7 @@ var _ = Describe("Iptables", func() {
 				})
 
 				It("passes icmp protcol to iptables with icmp type and code if both are specified", func() {
-					Ω(subject.PrependFilterRule(api.ProtocolICMP, "1.2.3.4/24", 0, "", 8, 7)).Should(Succeed())
+					Ω(subject.PrependFilterRule(garden.ProtocolICMP, "1.2.3.4/24", 0, "", 8, 7)).Should(Succeed())
 
 					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
 						Path: "/sbin/iptables",
@@ -241,7 +241,7 @@ var _ = Describe("Iptables", func() {
 
 			Context("when destination is omitted", func() {
 				It("does not pass destination to iptables", func() {
-					Ω(subject.PrependFilterRule(api.ProtocolAll, "", 8080, "", -1, -1)).Should(Succeed())
+					Ω(subject.PrependFilterRule(garden.ProtocolAll, "", 8080, "", -1, -1)).Should(Succeed())
 
 					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
 						Path: "/sbin/iptables",
@@ -252,7 +252,7 @@ var _ = Describe("Iptables", func() {
 
 			Context("when port is omitted", func() {
 				It("does not pass port to iptables", func() {
-					Ω(subject.PrependFilterRule(api.ProtocolAll, "1.2.3.4/24", 0, "", -1, -1)).Should(Succeed())
+					Ω(subject.PrependFilterRule(garden.ProtocolAll, "1.2.3.4/24", 0, "", -1, -1)).Should(Succeed())
 
 					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
 						Path: "/sbin/iptables",
@@ -263,7 +263,7 @@ var _ = Describe("Iptables", func() {
 
 			Context("when an IP range is specified", func() {
 				It("runs iptables to prepend the rule with the correct parameters", func() {
-					Ω(subject.PrependFilterRule(api.ProtocolAll, "1.2.3.4-1.2.3.6", 8080, "", -1, -1)).Should(Succeed())
+					Ω(subject.PrependFilterRule(garden.ProtocolAll, "1.2.3.4-1.2.3.6", 8080, "", -1, -1)).Should(Succeed())
 
 					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
 						Path: "/sbin/iptables",
@@ -274,7 +274,7 @@ var _ = Describe("Iptables", func() {
 
 			Context("when an invaild protocol is specified", func() {
 				It("returns an error", func() {
-					err := subject.PrependFilterRule(api.Protocol(52), "1.2.3.4/24", 8080, "", -1, -1)
+					err := subject.PrependFilterRule(garden.Protocol(52), "1.2.3.4/24", 8080, "", -1, -1)
 					Ω(err).Should(HaveOccurred())
 					Ω(err).Should(MatchError("invalid protocol: 52"))
 				})
@@ -282,7 +282,7 @@ var _ = Describe("Iptables", func() {
 
 			Context("when port and port range are specified", func() {
 				It("returns an error", func() {
-					err := subject.PrependFilterRule(api.ProtocolTCP, "1.2.3.4/24", 8080, "80:81", -1, -1)
+					err := subject.PrependFilterRule(garden.ProtocolTCP, "1.2.3.4/24", 8080, "80:81", -1, -1)
 					Ω(err).Should(HaveOccurred())
 					Ω(err).Should(MatchError("port 8080 and port range 80:81 cannot both be specified"))
 				})
@@ -298,7 +298,7 @@ var _ = Describe("Iptables", func() {
 						},
 					)
 
-					Ω(subject.PrependFilterRule(api.ProtocolAll, "1.3.4.5/6", 0, "", -1, -1)).ShouldNot(Succeed())
+					Ω(subject.PrependFilterRule(garden.ProtocolAll, "1.3.4.5/6", 0, "", -1, -1)).ShouldNot(Succeed())
 				})
 			})
 		})

@@ -1,0 +1,36 @@
+// nodoc
+
+package garden;
+
+message Message {
+  enum Type {
+    Error = 1;
+
+    Create  = 11;
+    Stop    = 12;
+    Destroy = 13;
+    Info    = 14;
+
+    NetIn  = 31;
+    NetOut = 32;
+
+    LimitMemory    = 51;
+    LimitDisk      = 52;
+    LimitBandwidth = 53;
+    LimitCpu       = 54;
+
+    Run            = 71;
+    Attach         = 72;
+    ProcessPayload = 73;
+
+    Ping = 91;
+    List = 92;
+    Capacity = 94;
+
+    StreamIn  = 95;
+    StreamOut = 96;
+  }
+
+  required Type type = 1;
+  required bytes payload = 2;
+}

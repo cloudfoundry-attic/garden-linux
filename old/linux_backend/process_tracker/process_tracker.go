@@ -5,15 +5,15 @@ import (
 	"os/exec"
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden/api"
+	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry/gunk/command_runner"
 )
 
 type ProcessTracker interface {
-	Run(uint32, *exec.Cmd, api.ProcessIO, *api.TTYSpec, Signaller) (api.Process, error)
-	Attach(uint32, api.ProcessIO) (api.Process, error)
+	Run(uint32, *exec.Cmd, garden.ProcessIO, *garden.TTYSpec, Signaller) (garden.Process, error)
+	Attach(uint32, garden.ProcessIO) (garden.Process, error)
 	Restore(processID uint32, signaller Signaller)
-	ActiveProcesses() []api.Process
+	ActiveProcesses() []garden.Process
 }
 
 type processTracker struct {
@@ -42,7 +42,7 @@ func New(containerPath string, runner command_runner.CommandRunner) ProcessTrack
 	}
 }
 
-func (t *processTracker) Run(processID uint32, cmd *exec.Cmd, processIO api.ProcessIO, tty *api.TTYSpec, signaller Signaller) (api.Process, error) {
+func (t *processTracker) Run(processID uint32, cmd *exec.Cmd, processIO garden.ProcessIO, tty *garden.TTYSpec, signaller Signaller) (garden.Process, error) {
 	t.processesMutex.Lock()
 
 	process := NewProcess(processID, t.containerPath, t.runner, signaller)
@@ -70,7 +70,7 @@ func (t *processTracker) Run(processID uint32, cmd *exec.Cmd, processIO api.Proc
 	return process, nil
 }
 
-func (t *processTracker) Attach(processID uint32, processIO api.ProcessIO) (api.Process, error) {
+func (t *processTracker) Attach(processID uint32, processIO garden.ProcessIO) (garden.Process, error) {
 	t.processesMutex.RLock()
 	process, ok := t.processes[processID]
 	t.processesMutex.RUnlock()
@@ -98,11 +98,11 @@ func (t *processTracker) Restore(processID uint32, signaller Signaller) {
 	t.processesMutex.Unlock()
 }
 
-func (t *processTracker) ActiveProcesses() []api.Process {
+func (t *processTracker) ActiveProcesses() []garden.Process {
 	t.processesMutex.RLock()
 	defer t.processesMutex.RUnlock()
 
-	processes := make([]api.Process, len(t.processes))
+	processes := make([]garden.Process, len(t.processes))
 
 	i := 0
 	for _, process := range t.processes {

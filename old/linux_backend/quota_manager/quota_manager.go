@@ -7,16 +7,16 @@ import (
 	"os/exec"
 	"path"
 
+	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/old/logging"
-	"github.com/cloudfoundry-incubator/garden/api"
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/pivotal-golang/lager"
 )
 
 type QuotaManager interface {
-	SetLimits(logger lager.Logger, uid uint32, limits api.DiskLimits) error
-	GetLimits(logger lager.Logger, uid uint32) (api.DiskLimits, error)
-	GetUsage(logger lager.Logger, uid uint32) (api.ContainerDiskStat, error)
+	SetLimits(logger lager.Logger, uid uint32, limits garden.DiskLimits) error
+	GetLimits(logger lager.Logger, uid uint32) (garden.DiskLimits, error)
+	GetUsage(logger lager.Logger, uid uint32) (garden.ContainerDiskStat, error)
 
 	MountPoint() string
 	Disable()
@@ -49,7 +49,7 @@ func (m *LinuxQuotaManager) Disable() {
 	m.enabled = false
 }
 
-func (m *LinuxQuotaManager) SetLimits(logger lager.Logger, uid uint32, limits api.DiskLimits) error {
+func (m *LinuxQuotaManager) SetLimits(logger lager.Logger, uid uint32, limits garden.DiskLimits) error {
 	if !m.enabled {
 		return nil
 	}
@@ -81,14 +81,14 @@ func (m *LinuxQuotaManager) SetLimits(logger lager.Logger, uid uint32, limits ap
 	)
 }
 
-func (m *LinuxQuotaManager) GetLimits(logger lager.Logger, uid uint32) (api.DiskLimits, error) {
+func (m *LinuxQuotaManager) GetLimits(logger lager.Logger, uid uint32) (garden.DiskLimits, error) {
 	if !m.enabled {
-		return api.DiskLimits{}, nil
+		return garden.DiskLimits{}, nil
 	}
 
 	repquota := exec.Command(path.Join(m.binPath, "repquota"), m.mountPoint, fmt.Sprintf("%d", uid))
 
-	limits := api.DiskLimits{}
+	limits := garden.DiskLimits{}
 
 	repR, repW, err := os.Pipe()
 	if err != nil {
@@ -130,14 +130,14 @@ func (m *LinuxQuotaManager) GetLimits(logger lager.Logger, uid uint32) (api.Disk
 	return limits, err
 }
 
-func (m *LinuxQuotaManager) GetUsage(logger lager.Logger, uid uint32) (api.ContainerDiskStat, error) {
+func (m *LinuxQuotaManager) GetUsage(logger lager.Logger, uid uint32) (garden.ContainerDiskStat, error) {
 	if !m.enabled {
-		return api.ContainerDiskStat{}, nil
+		return garden.ContainerDiskStat{}, nil
 	}
 
 	repquota := exec.Command(path.Join(m.binPath, "repquota"), m.mountPoint, fmt.Sprintf("%d", uid))
 
-	usage := api.ContainerDiskStat{}
+	usage := garden.ContainerDiskStat{}
 
 	out := new(bytes.Buffer)
 
