@@ -82,12 +82,13 @@ func (ch *chain) DeleteNatRule(source string, destination string, jump Action, t
 }
 
 func (ch *chain) PrependFilterRule(protocol api.Protocol, dest string, destPort uint32, destPortRange string) error {
-	parms := []string{"-w", "-I", ch.name, "1"}
+	params := []string{"-w", "-I", ch.name, "1"}
 
 	protocols := map[api.Protocol]string{
 		api.ProtocolAll:  "all",
 		api.ProtocolTCP:  "tcp",
 		api.ProtocolICMP: "icmp",
+		api.ProtocolUDP:  "udp",
 	}
 	protocolString, ok := protocols[protocol]
 
@@ -95,13 +96,13 @@ func (ch *chain) PrependFilterRule(protocol api.Protocol, dest string, destPort 
 		return fmt.Errorf("invalid protocol: %d", protocol)
 	}
 
-	parms = append(parms, "--protocol", protocolString)
+	params = append(params, "--protocol", protocolString)
 
 	if dest != "" {
 		if strings.Contains(dest, "-") {
-			parms = append(parms, "-m", "iprange", "--dst-range", dest)
+			params = append(params, "-m", "iprange", "--dst-range", dest)
 		} else {
-			parms = append(parms, "--destination", dest)
+			params = append(params, "--destination", dest)
 		}
 	}
 
@@ -109,15 +110,15 @@ func (ch *chain) PrependFilterRule(protocol api.Protocol, dest string, destPort 
 		if destPortRange != "" {
 			return fmt.Errorf("port %d and port range %s cannot both be specified", destPort, destPortRange)
 		}
-		parms = append(parms, "--destination-port", strconv.Itoa(int(destPort)))
+		params = append(params, "--destination-port", strconv.Itoa(int(destPort)))
 	} else if destPortRange != "" {
-		parms = append(parms, "--destination-port", destPortRange)
+		params = append(params, "--destination-port", destPortRange)
 	}
 
-	parms = append(parms, "--jump", "RETURN")
+	params = append(params, "--jump", "RETURN")
 
-	ch.logger.Debug("prepend-filter-rule", lager.Data{"parms": parms})
-	return ch.runner.Run(exec.Command("/sbin/iptables", parms...))
+	ch.logger.Debug("prepend-filter-rule", lager.Data{"parms": params})
+	return ch.runner.Run(exec.Command("/sbin/iptables", params...))
 }
 
 type rule struct {

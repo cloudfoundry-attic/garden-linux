@@ -39,11 +39,15 @@ func (fltr *filter) NetOut(network string, port uint32, portRange string, protoc
 	if network == "" && port == 0 && portRange == "" {
 		return errors.New("invalid rule: either network or port (range) must be specified")
 	}
-	if (port != 0 || portRange != "") && protocol != api.ProtocolTCP {
-		return errors.New("invalid rule: a port (range) can only be specified with protocol TCP")
+	if (port != 0 || portRange != "") && !fltr.protocolAllowsPortFiltering(protocol) {
+		return errors.New("invalid rule: a port (range) can only be specified with protocol TCP or UDP")
 	}
 	if port != 0 && portRange != "" {
 		return errors.New("invalid rule: port and port range cannot both be specified")
 	}
 	return fltr.instanceChain.PrependFilterRule(protocol, network, port, portRange)
+}
+
+func (fltr *filter) protocolAllowsPortFiltering(protocol api.Protocol) bool {
+	return protocol == api.ProtocolTCP || protocol == api.ProtocolUDP
 }
