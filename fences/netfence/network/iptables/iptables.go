@@ -36,7 +36,7 @@ type Chain interface {
 	AppendNatRule(source string, destination string, jump Action, to net.IP) error
 	DeleteNatRule(source string, destination string, jump Action, to net.IP) error
 
-	PrependFilterRule(protocol api.Protocol, dest string, destPort uint32, destPortRange string) error
+	PrependFilterRule(protocol api.Protocol, dest string, destPort uint32, destPortRange string, destIcmpType, destIcmpCode int32) error
 }
 
 type chain struct {
@@ -81,7 +81,7 @@ func (ch *chain) DeleteNatRule(source string, destination string, jump Action, t
 	})
 }
 
-func (ch *chain) PrependFilterRule(protocol api.Protocol, dest string, destPort uint32, destPortRange string) error {
+func (ch *chain) PrependFilterRule(protocol api.Protocol, dest string, destPort uint32, destPortRange string, destIcmpType, destIcmpCode int32) error {
 	params := []string{"-w", "-I", ch.name, "1"}
 
 	protocols := map[api.Protocol]string{
@@ -113,6 +113,15 @@ func (ch *chain) PrependFilterRule(protocol api.Protocol, dest string, destPort 
 		params = append(params, "--destination-port", strconv.Itoa(int(destPort)))
 	} else if destPortRange != "" {
 		params = append(params, "--destination-port", destPortRange)
+	}
+
+	if destIcmpType != -1 {
+		icmpType := fmt.Sprintf("%d", destIcmpType)
+		if destIcmpCode != -1 {
+			icmpType = fmt.Sprintf("%d/%d", destIcmpType, destIcmpCode)
+		}
+
+		params = append(params, "--icmp-type", icmpType)
 	}
 
 	params = append(params, "--jump", "RETURN")

@@ -44,84 +44,130 @@ var _ = Describe("Filter", func() {
 			Ω(fakeChainFactory.CreateChainArgsForCall(0)).Should(Equal("w-tag-instance-id"))
 		})
 
-		It("should mutate iptables correctly when port is specified", func() {
-			err := filter.NetOut("1.2.3.4/24", 8080, "", api.ProtocolTCP)
-			Ω(err).ShouldNot(HaveOccurred())
-			Ω(fakeChain.PrependFilterRuleCallCount()).Should(Equal(1))
-			protocol, dest, destPort, destPortRange := fakeChain.PrependFilterRuleArgsForCall(0)
-			Ω(protocol).Should(Equal(api.ProtocolTCP))
-			Ω(dest).Should(Equal("1.2.3.4/24"))
-			Ω(destPort).Should(Equal(uint32(8080)))
-			Ω(destPortRange).Should(Equal(""))
+		ItMutatesIPTables := func(network string, port uint32, portRange string, protocol api.Protocol, icmpType, icmpCode int32) {
+			It("should mutate IP tables", func() {
+				err := filter.NetOut(network, port, portRange, protocol, icmpType, icmpCode)
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Ω(fakeChain.PrependFilterRuleCallCount()).Should(Equal(1))
+				destProtocol, dest, destPort, destPortRange, destIcmpType, destIcmpCode := fakeChain.PrependFilterRuleArgsForCall(0)
+				Ω(destProtocol).Should(Equal(protocol))
+				Ω(dest).Should(Equal(network))
+				Ω(destPort).Should(Equal(port))
+				Ω(destPortRange).Should(Equal(portRange))
+				Ω(destIcmpType).Should(Equal(icmpType))
+				Ω(destIcmpCode).Should(Equal(icmpCode))
+			})
+		}
+
+		ItAllowsPortOrPortRange := func(protocol api.Protocol) {
+			Context("and no network is specified", func() {
+				Context("and neither port nor port range are specified", func() {
+					It("should return an error", func() {
+						err := filter.NetOut("", 0, "", protocol, -1, -1)
+						Ω(err).Should(MatchError("invalid rule: either network or port (range) must be specified"))
+					})
+				})
+
+				Context("and a port is specified", func() {
+					ItMutatesIPTables("", 80, "", protocol, -1, -1)
+				})
+
+				Context("and a port range is specified", func() {
+					ItMutatesIPTables("", 0, "8080:8081", protocol, -1, -1)
+				})
+			})
+
+			Context("and a network is specified", func() {
+				Context("and a port range is specified", func() {
+					Context("and no port is specified", func() {
+						ItMutatesIPTables("1.2.3.4/24", 0, "8080:8081", protocol, -1, -1)
+					})
+
+					Context("and a port is specified", func() {
+						It("should return an error", func() {
+							err := filter.NetOut("1.2.3.4/24", 78, "8080:8081", protocol, -1, -1)
+							Ω(err).Should(MatchError("invalid rule: port and port range cannot both be specified"))
+						})
+					})
+				})
+
+				Context("and a port specified", func() {
+					Context("and no port range is specified", func() {
+						ItMutatesIPTables("1.2.3.4/24", 70, "", protocol, -1, -1)
+					})
+
+					Context("and a port range is specified", func() {
+						It("should return an error", func() {
+							err := filter.NetOut("1.2.3.4/24", 78, "8080:8081", protocol, -1, -1)
+							Ω(err).Should(MatchError("invalid rule: port and port range cannot both be specified"))
+						})
+					})
+				})
+			})
+		}
+
+		ItDoesNotAllowPortOrPortRange := func(protocol api.Protocol) {
+			Context("when no port or port range are specified", func() {
+				ItMutatesIPTables("1.2.3.4/24", 0, "", protocol, -1, -1)
+			})
+
+			Context("when port is specified", func() {
+				It("should return an error", func() {
+					err := filter.NetOut("1.2.3.4/24", 78, "", protocol, -1, -1)
+					Ω(err).Should(MatchError("invalid rule: a port (range) can only be specified with protocol TCP or UDP"))
+				})
+			})
+
+			Context("when port range is specified", func() {
+				It("should return an error", func() {
+					err := filter.NetOut("1.2.3.4/24", 0, "80:81", protocol, -1, -1)
+					Ω(err).Should(MatchError("invalid rule: a port (range) can only be specified with protocol TCP or UDP"))
+				})
+			})
+		}
+
+		ItDoesNotAllowIcmpCodeOrType := func(protocol api.Protocol) {
+			Context("and an ICMP type is specified", func() {
+				It("should return an error", func() {
+					err := filter.NetOut("", 80, "", protocol, -1, 8)
+					Ω(err).Should(MatchError("invalid rule: icmp code or icmp type can only be specified with protocol ICMP"))
+				})
+			})
+
+			Context("and an ICMP code is specified", func() {
+				It("should return an error", func() {
+					err := filter.NetOut("", 80, "", protocol, 8, -1)
+					Ω(err).Should(MatchError("invalid rule: icmp code or icmp type can only be specified with protocol ICMP"))
+				})
+			})
+		}
+
+		Context("when the protocol is TCP", func() {
+			ItAllowsPortOrPortRange(api.ProtocolTCP)
+			ItDoesNotAllowIcmpCodeOrType(api.ProtocolTCP)
 		})
 
-		It("should mutate iptables correctly when port is specified but no network", func() {
-			err := filter.NetOut("", 8080, "", api.ProtocolTCP)
-			Ω(err).ShouldNot(HaveOccurred())
-			Ω(fakeChain.PrependFilterRuleCallCount()).Should(Equal(1))
-			protocol, dest, destPort, destPortRange := fakeChain.PrependFilterRuleArgsForCall(0)
-			Ω(protocol).Should(Equal(api.ProtocolTCP))
-			Ω(dest).Should(Equal(""))
-			Ω(destPort).Should(Equal(uint32(8080)))
-			Ω(destPortRange).Should(Equal(""))
+		Context("when the protocol is UDP", func() {
+			ItAllowsPortOrPortRange(api.ProtocolUDP)
+			ItDoesNotAllowIcmpCodeOrType(api.ProtocolUDP)
 		})
 
-		It("should mutate iptables correctly when port range is specified", func() {
-			err := filter.NetOut("1.2.3.4/24", 0, "80:81", api.ProtocolTCP)
-			Ω(err).ShouldNot(HaveOccurred())
-			Ω(fakeChain.PrependFilterRuleCallCount()).Should(Equal(1))
-			protocol, dest, destPort, destPortRange := fakeChain.PrependFilterRuleArgsForCall(0)
-			Ω(protocol).Should(Equal(api.ProtocolTCP))
-			Ω(dest).Should(Equal("1.2.3.4/24"))
-			Ω(destPort).Should(Equal(uint32(0)))
-			Ω(destPortRange).Should(Equal("80:81"))
+		Context("when the protocol is ALL", func() {
+			ItDoesNotAllowPortOrPortRange(api.ProtocolAll)
+			ItDoesNotAllowIcmpCodeOrType(api.ProtocolAll)
 		})
 
-		It("should mutate iptables correctly when port range is specified but no network", func() {
-			err := filter.NetOut("", 0, "80:81", api.ProtocolTCP)
-			Ω(err).ShouldNot(HaveOccurred())
-			Ω(fakeChain.PrependFilterRuleCallCount()).Should(Equal(1))
-			protocol, dest, destPort, destPortRange := fakeChain.PrependFilterRuleArgsForCall(0)
-			Ω(protocol).Should(Equal(api.ProtocolTCP))
-			Ω(dest).Should(Equal(""))
-			Ω(destPort).Should(Equal(uint32(0)))
-			Ω(destPortRange).Should(Equal("80:81"))
-		})
+		Context("when the protocol is ICMP", func() {
+			ItDoesNotAllowPortOrPortRange(api.ProtocolICMP)
 
-		It("should mutate iptables correctly when udp is specified for the protocol", func() {
-			err := filter.NetOut("", 0, "80:81", api.ProtocolUDP)
-			Ω(err).ShouldNot(HaveOccurred())
+			Context("and icmp type is specified", func() {
+				ItMutatesIPTables("1.2.3.4/24", 0, "", api.ProtocolICMP, 7, -1)
+			})
 
-			Ω(fakeChain.PrependFilterRuleCallCount()).Should(Equal(1))
-			protocol, dest, destPort, destPortRange := fakeChain.PrependFilterRuleArgsForCall(0)
-			Ω(protocol).Should(Equal(api.ProtocolUDP))
-			Ω(dest).Should(Equal(""))
-			Ω(destPort).Should(Equal(uint32(0)))
-			Ω(destPortRange).Should(Equal("80:81"))
-		})
-
-		It("return an error if port is specified and protocol is all", func() {
-			err := filter.NetOut("1.2.3.4/24", 8080, "", api.ProtocolAll)
-			Ω(err).Should(HaveOccurred())
-			Ω(err).Should(MatchError("invalid rule: a port (range) can only be specified with protocol TCP or UDP"))
-		})
-
-		It("return an error if port range is specified and protocol is all", func() {
-			err := filter.NetOut("1.2.3.4/24", 0, "80:81", api.ProtocolAll)
-			Ω(err).Should(HaveOccurred())
-			Ω(err).Should(MatchError("invalid rule: a port (range) can only be specified with protocol TCP or UDP"))
-		})
-
-		It("return an error if network, port, and port range are omitted", func() {
-			err := filter.NetOut("", 0, "", api.ProtocolAll)
-			Ω(err).Should(HaveOccurred())
-			Ω(err).Should(MatchError("invalid rule: either network or port (range) must be specified"))
-		})
-
-		It("return an error if port and port range are specified", func() {
-			err := filter.NetOut("", 80, "80:80", api.ProtocolTCP)
-			Ω(err).Should(HaveOccurred())
-			Ω(err).Should(MatchError("invalid rule: port and port range cannot both be specified"))
+			Context("and icmp code is specified", func() {
+				ItMutatesIPTables("1.2.3.4/24", 0, "", api.ProtocolICMP, -1, 8)
+			})
 		})
 	})
 })

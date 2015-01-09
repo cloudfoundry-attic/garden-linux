@@ -13,7 +13,7 @@ type FilterFactory interface {
 }
 
 type Filter interface {
-	NetOut(network string, port uint32, portRange string, protocol api.Protocol) error
+	NetOut(network string, port uint32, portRange string, protocol api.Protocol, icmpType int32, icmpCode int32) error
 }
 
 type filterFactory struct {
@@ -35,7 +35,10 @@ func (ff *filterFactory) Create(id string) Filter {
 	return &filter{instanceChain: ff.chainFactory.CreateChain(ff.instancePrefix + id)}
 }
 
-func (fltr *filter) NetOut(network string, port uint32, portRange string, protocol api.Protocol) error {
+func (fltr *filter) NetOut(network string, port uint32, portRange string, protocol api.Protocol, icmpType int32, icmpCode int32) error {
+	if protocol != api.ProtocolICMP && (icmpType != -1 || icmpCode != -1) {
+		return errors.New("invalid rule: icmp code or icmp type can only be specified with protocol ICMP")
+	}
 	if network == "" && port == 0 && portRange == "" {
 		return errors.New("invalid rule: either network or port (range) must be specified")
 	}
@@ -45,7 +48,7 @@ func (fltr *filter) NetOut(network string, port uint32, portRange string, protoc
 	if port != 0 && portRange != "" {
 		return errors.New("invalid rule: port and port range cannot both be specified")
 	}
-	return fltr.instanceChain.PrependFilterRule(protocol, network, port, portRange)
+	return fltr.instanceChain.PrependFilterRule(protocol, network, port, portRange, icmpType, icmpCode)
 }
 
 func (fltr *filter) protocolAllowsPortFiltering(protocol api.Protocol) bool {
