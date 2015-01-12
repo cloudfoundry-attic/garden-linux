@@ -12,6 +12,7 @@
 #include <sys/ipc.h>
 #include <sys/mount.h>
 #include <sys/param.h>
+#include <sys/resource.h>
 #include <sys/shm.h>
 #include <sys/signalfd.h>
 #include <sys/socket.h>
@@ -863,6 +864,77 @@ void parent_setenv_pid(wshd_t *w, int pid) {
   assert(rv == 0);
 }
 
+/* Returns the maximum allowed number of open files. */
+long int max_nr_open() {
+  char file_data[32];
+  size_t bytes_read;
+  FILE *f;
+  long int nr;
+
+  if ((f = fopen("/proc/sys/fs/nr_open", "r")) == NULL) {
+    perror("Failed to open /proc/sys/fs/nr_open");
+    abort();
+  }
+
+  bytes_read = fread(file_data, 1, sizeof(file_data), f);
+  if (ferror(f) || bytes_read == 0) {
+    perror("Failed to read /proc/sys/fs/nr_open");
+    abort();
+  }
+
+  if (fclose(f)) {
+    perror("Failed to close /proc/sys/fs/nr_open");
+    abort();
+  }
+
+  errno = 0;
+  nr = strtol(file_data, NULL, 10);
+  if (errno) {
+    perror("Contents of /proc/sys/fs/nr_open could not be converted to a long int");
+    abort();
+  }
+  return nr;
+}
+
+/* Sets a hard resource limit to specified value. */
+void set_hard_rlimit(char * resource_name, int resource, rlim_t hard_limit) {
+  char err_text[1024];
+  struct rlimit lim = {0, 0};
+  if (getrlimit(resource, &lim)) {
+    strcpy(err_text, "getrlimit failed to return ");
+    strcat(err_text, resource_name);
+    perror(err_text);
+    abort();
+  }
+
+  lim.rlim_max = hard_limit;
+  if (setrlimit(resource, &lim)) {
+    strcpy(err_text, "setrlimit failed to set ");
+    strcat(err_text, resource_name);
+    perror(err_text);
+    abort();
+  }
+}
+
+/* Sets hard resource limits to their maximum permitted values. */
+void set_hard_rlimits() {
+  set_hard_rlimit("RLIMIT_AS", RLIMIT_AS, RLIM_INFINITY);
+  set_hard_rlimit("RLIMIT_CORE", RLIMIT_CORE, RLIM_INFINITY);
+  set_hard_rlimit("RLIMIT_CPU", RLIMIT_CPU, RLIM_INFINITY);
+  set_hard_rlimit("RLIMIT_DATA", RLIMIT_DATA, RLIM_INFINITY);
+  set_hard_rlimit("RLIMIT_FSIZE", RLIMIT_FSIZE, RLIM_INFINITY);
+  set_hard_rlimit("RLIMIT_LOCKS", RLIMIT_LOCKS, RLIM_INFINITY);
+  set_hard_rlimit("RLIMIT_MEMLOCK", RLIMIT_MEMLOCK, RLIM_INFINITY);
+  set_hard_rlimit("RLIMIT_MSGQUEUE", RLIMIT_MSGQUEUE, RLIM_INFINITY);
+  set_hard_rlimit("RLIMIT_NICE", RLIMIT_NICE, RLIM_INFINITY);
+  set_hard_rlimit("RLIMIT_NOFILE", RLIMIT_NOFILE, max_nr_open());
+  set_hard_rlimit("RLIMIT_NPROC", RLIMIT_NPROC, RLIM_INFINITY);
+  set_hard_rlimit("RLIMIT_RSS", RLIMIT_RSS, RLIM_INFINITY);
+  set_hard_rlimit("RLIMIT_RTPRIO", RLIMIT_RTPRIO, RLIM_INFINITY);
+  set_hard_rlimit("RLIMIT_SIGPENDING", RLIMIT_SIGPENDING, RLIM_INFINITY);
+  set_hard_rlimit("RLIMIT_STACK", RLIMIT_STACK, RLIM_INFINITY);
+}
+
 int parent_run(wshd_t *w) {
   char path[MAXPATHLEN];
   int rv;
@@ -889,6 +961,11 @@ int parent_run(wshd_t *w) {
 
   rv = run(w->lib_path, "hook-parent-before-clone.sh");
   assert(rv == 0);
+
+  /* Set hard resource limits to their maximum values so that soft and
+     hard resource limits can be set to arbitrary values even in an
+     unprivileged container. */
+  set_hard_rlimits();
 
   pid = child_start(w);
   assert(pid > 0);

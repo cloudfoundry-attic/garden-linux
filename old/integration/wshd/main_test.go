@@ -37,11 +37,18 @@ var _ = Describe("Running wshd", func() {
 	var runDir string
 	var mntDir string
 
+	var userNs string
+
+	var beforeWshd func()
+
 	BeforeEach(func() {
 		var err error
 
 		containerPath, err = ioutil.TempDir(os.TempDir(), "wshd-test-container")
 		Ω(err).ShouldNot(HaveOccurred())
+
+		userNs = "disabled"
+		beforeWshd = func() {}
 
 		binDir = path.Join(containerPath, "bin")
 		libDir = path.Join(containerPath, "lib")
@@ -158,12 +165,16 @@ setup_fs
 	})
 
 	JustBeforeEach(func() {
+
+		beforeWshd()
+
 		wshdCommand := exec.Command(
 			wshd,
 			"--run", runDir,
 			"--lib", libDir,
 			"--root", mntDir,
 			"--title", "test wshd",
+			"--userns", userNs,
 		)
 
 		socketPath = path.Join(runDir, "wshd.sock")
@@ -524,6 +535,601 @@ setup_fs
 			Eventually(shSession).Should(Exit(0))
 		})
 	})
+
+	Context("setting rlimits", func() {
+		shouldSetRlimit := func(env []string, limitQueryCmd, expectedValue string) {
+			ulimit := exec.Command(wsh, "--socket", socketPath, "--user", "root", "/bin/sh", "-c", limitQueryCmd)
+			ulimit.Env = env
+
+			ulimitSession, err := Start(ulimit, GinkgoWriter, GinkgoWriter)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Eventually(ulimitSession).Should(Say(expectedValue))
+			Eventually(ulimitSession).Should(Exit(0))
+		}
+
+		var (
+			rlimitResource               int
+			limit                        string
+			limitValue                   uint64
+			reducedLimitValue            uint64
+			overrideEnv                  []string
+			limitQueryCmd                string
+			expectedDefaultQueryResponse string
+			expectedQueryResponse        string
+
+			rlimit *syscall.Rlimit
+		)
+
+		JustBeforeEach(func() {
+			overrideEnv = []string{fmt.Sprintf("RLIMIT_%s=%d", limit, limitValue)}
+		})
+
+		BeforeEach(func() {
+			beforeWshd = func() {
+				rlimit = getAndReduceRlimit(rlimitResource, reducedLimitValue)
+			}
+		})
+
+		AfterEach(func() {
+			Ω(syscall.Setrlimit(rlimitResource, rlimit)).Should(Succeed())
+		})
+
+		Describe("AS", func() {
+			BeforeEach(func() {
+				rlimitResource = RLIMIT_AS
+				limit = "AS"
+				limitValue = 2147483648 * 2
+				reducedLimitValue = 2147483648
+
+				limitQueryCmd = "ulimit -v"
+				expectedDefaultQueryResponse = "unlimited"
+				expectedQueryResponse = "4194304"
+			})
+
+			Context("when user namespacing is disabled", func() {
+				BeforeEach(func() {
+					userNs = "disabled"
+				})
+				It("defaults the rlimit when the environment variable is not set", func() {
+					shouldSetRlimit([]string{}, limitQueryCmd, expectedDefaultQueryResponse)
+				})
+				It("overrides the rlimit when the environment variable is set", func() {
+					shouldSetRlimit(overrideEnv, limitQueryCmd, expectedQueryResponse)
+				})
+			})
+
+			Context("when user namespacing is enabled", func() {
+				BeforeEach(func() {
+					userNs = "enabled"
+				})
+				It("defaults the rlimit when the environment variable is not set", func() {
+					shouldSetRlimit([]string{}, limitQueryCmd, expectedDefaultQueryResponse)
+				})
+				It("overrides the rlimit when the environment variable is set", func() {
+					shouldSetRlimit(overrideEnv, limitQueryCmd, expectedQueryResponse)
+				})
+			})
+		})
+
+		Describe("CORE", func() {
+			BeforeEach(func() {
+				rlimitResource = RLIMIT_CORE
+				limit = "CORE"
+				limitValue = 4096
+				reducedLimitValue = 2048
+
+				limitQueryCmd = "ulimit -c"
+				expectedDefaultQueryResponse = "0"
+				expectedQueryResponse = "8"
+			})
+
+			Context("when user namespacing is disabled", func() {
+				BeforeEach(func() {
+					userNs = "disabled"
+				})
+				It("defaults the rlimit when the environment variable is not set", func() {
+					shouldSetRlimit([]string{}, limitQueryCmd, expectedDefaultQueryResponse)
+				})
+				It("overrides the rlimit when the environment variable is set", func() {
+					shouldSetRlimit(overrideEnv, limitQueryCmd, expectedQueryResponse)
+				})
+			})
+
+			Context("when user namespacing is enabled", func() {
+				BeforeEach(func() {
+					userNs = "enabled"
+				})
+				It("defaults the rlimit when the environment variable is not set", func() {
+					shouldSetRlimit([]string{}, limitQueryCmd, expectedDefaultQueryResponse)
+				})
+				It("overrides the rlimit when the environment variable is set", func() {
+					shouldSetRlimit(overrideEnv, limitQueryCmd, expectedQueryResponse)
+				})
+			})
+		})
+
+		Describe("CPU", func() {
+			BeforeEach(func() {
+				rlimitResource = RLIMIT_CPU
+				limit = "CPU"
+				limitValue = 3600
+				reducedLimitValue = 1800
+
+				limitQueryCmd = "ulimit -t"
+				expectedDefaultQueryResponse = "unlimited"
+				expectedQueryResponse = "3600"
+			})
+
+			Context("when user namespacing is disabled", func() {
+				BeforeEach(func() {
+					userNs = "disabled"
+				})
+				It("defaults the rlimit when the environment variable is not set", func() {
+					shouldSetRlimit([]string{}, limitQueryCmd, expectedDefaultQueryResponse)
+				})
+				It("overrides the rlimit when the environment variable is set", func() {
+					shouldSetRlimit(overrideEnv, limitQueryCmd, expectedQueryResponse)
+				})
+			})
+
+			Context("when user namespacing is enabled", func() {
+				BeforeEach(func() {
+					userNs = "enabled"
+				})
+				It("defaults the rlimit when the environment variable is not set", func() {
+					shouldSetRlimit([]string{}, limitQueryCmd, expectedDefaultQueryResponse)
+				})
+				It("overrides the rlimit when the environment variable is set", func() {
+					shouldSetRlimit(overrideEnv, limitQueryCmd, expectedQueryResponse)
+				})
+			})
+		})
+
+		Describe("DATA", func() {
+			BeforeEach(func() {
+				rlimitResource = RLIMIT_DATA
+				limit = "DATA"
+				limitValue = 1024 * 1024
+				reducedLimitValue = 1024 * 512
+
+				limitQueryCmd = "ulimit -d"
+				expectedDefaultQueryResponse = "unlimited"
+				expectedQueryResponse = "1024"
+			})
+
+			Context("when user namespacing is disabled", func() {
+				BeforeEach(func() {
+					userNs = "disabled"
+				})
+				It("defaults the rlimit when the environment variable is not set", func() {
+					shouldSetRlimit([]string{}, limitQueryCmd, expectedDefaultQueryResponse)
+				})
+				It("overrides the rlimit when the environment variable is set", func() {
+					shouldSetRlimit(overrideEnv, limitQueryCmd, expectedQueryResponse)
+				})
+			})
+
+			Context("when user namespacing is enabled", func() {
+				BeforeEach(func() {
+					userNs = "enabled"
+				})
+				It("defaults the rlimit when the environment variable is not set", func() {
+					shouldSetRlimit([]string{}, limitQueryCmd, expectedDefaultQueryResponse)
+				})
+				It("overrides the rlimit when the environment variable is set", func() {
+					shouldSetRlimit(overrideEnv, limitQueryCmd, expectedQueryResponse)
+				})
+			})
+		})
+
+		Describe("FSIZE", func() {
+			BeforeEach(func() {
+				rlimitResource = RLIMIT_FSIZE
+				limit = "FSIZE"
+				limitValue = 4096 * 1024
+				reducedLimitValue = 2048 * 1024
+
+				limitQueryCmd = "ulimit -f"
+				expectedDefaultQueryResponse = "unlimited"
+				expectedQueryResponse = "8192"
+			})
+
+			Context("when user namespacing is disabled", func() {
+				BeforeEach(func() {
+					userNs = "disabled"
+				})
+				It("defaults the rlimit when the environment variable is not set", func() {
+					shouldSetRlimit([]string{}, limitQueryCmd, expectedDefaultQueryResponse)
+				})
+				It("overrides the rlimit when the environment variable is set", func() {
+					shouldSetRlimit(overrideEnv, limitQueryCmd, expectedQueryResponse)
+				})
+			})
+
+			Context("when user namespacing is enabled", func() {
+				BeforeEach(func() {
+					userNs = "enabled"
+				})
+				It("defaults the rlimit when the environment variable is not set", func() {
+					shouldSetRlimit([]string{}, limitQueryCmd, expectedDefaultQueryResponse)
+				})
+				It("overrides the rlimit when the environment variable is set", func() {
+					shouldSetRlimit(overrideEnv, limitQueryCmd, expectedQueryResponse)
+				})
+			})
+		})
+
+		Describe("LOCKS", func() {
+			BeforeEach(func() {
+				rlimitResource = RLIMIT_LOCKS
+				limit = "LOCKS"
+				limitValue = 1024
+				reducedLimitValue = 512
+
+				limitQueryCmd = "ulimit -w"
+				expectedDefaultQueryResponse = "unlimited"
+				expectedQueryResponse = "1024"
+			})
+
+			Context("when user namespacing is disabled", func() {
+				BeforeEach(func() {
+					userNs = "disabled"
+				})
+				It("defaults the rlimit when the environment variable is not set", func() {
+					shouldSetRlimit([]string{}, limitQueryCmd, expectedDefaultQueryResponse)
+				})
+				It("overrides the rlimit when the environment variable is set", func() {
+					shouldSetRlimit(overrideEnv, limitQueryCmd, expectedQueryResponse)
+				})
+			})
+
+			Context("when user namespacing is enabled", func() {
+				BeforeEach(func() {
+					userNs = "enabled"
+				})
+				It("defaults the rlimit when the environment variable is not set", func() {
+					shouldSetRlimit([]string{}, limitQueryCmd, expectedDefaultQueryResponse)
+				})
+				It("overrides the rlimit when the environment variable is set", func() {
+					shouldSetRlimit(overrideEnv, limitQueryCmd, expectedQueryResponse)
+				})
+			})
+		})
+
+		Describe("MEMLOCK", func() {
+			BeforeEach(func() {
+				rlimitResource = RLIMIT_MEMLOCK
+				limit = "MEMLOCK"
+				limitValue = 1024 * 32
+				reducedLimitValue = 1024 * 16
+
+				limitQueryCmd = "ulimit -l"
+				expectedDefaultQueryResponse = "64"
+				expectedQueryResponse = "32"
+			})
+
+			Context("when user namespacing is disabled", func() {
+				BeforeEach(func() {
+					userNs = "disabled"
+				})
+				It("defaults the rlimit when the environment variable is not set", func() {
+					shouldSetRlimit([]string{}, limitQueryCmd, expectedDefaultQueryResponse)
+				})
+				It("overrides the rlimit when the environment variable is set", func() {
+					shouldSetRlimit(overrideEnv, limitQueryCmd, expectedQueryResponse)
+				})
+			})
+
+			Context("when user namespacing is enabled", func() {
+				BeforeEach(func() {
+					userNs = "enabled"
+				})
+				It("defaults the rlimit when the environment variable is not set", func() {
+					shouldSetRlimit([]string{}, limitQueryCmd, expectedDefaultQueryResponse)
+				})
+				It("overrides the rlimit when the environment variable is set", func() {
+					shouldSetRlimit(overrideEnv, limitQueryCmd, expectedQueryResponse)
+				})
+			})
+		})
+
+		Describe("MSGQUEUE", func() {
+			BeforeEach(func() {
+				rlimitResource = RLIMIT_MSGQUEUE
+				limit = "MSGQUEUE"
+				limitValue = 1024 * 100
+				reducedLimitValue = 1024 * 50
+
+				limitQueryCmd = "echo RLIMIT_MSGQUEUE not queryable"
+				expectedDefaultQueryResponse = "RLIMIT_MSGQUEUE not queryable"
+				expectedQueryResponse = "RLIMIT_MSGQUEUE not queryable"
+			})
+
+			Context("when user namespacing is disabled", func() {
+				BeforeEach(func() {
+					userNs = "disabled"
+				})
+				It("defaults the rlimit when the environment variable is not set", func() {
+					shouldSetRlimit([]string{}, limitQueryCmd, expectedDefaultQueryResponse)
+				})
+				It("overrides the rlimit when the environment variable is set", func() {
+					shouldSetRlimit(overrideEnv, limitQueryCmd, expectedQueryResponse)
+				})
+			})
+
+			Context("when user namespacing is enabled", func() {
+				BeforeEach(func() {
+					userNs = "enabled"
+				})
+				It("defaults the rlimit when the environment variable is not set", func() {
+					shouldSetRlimit([]string{}, limitQueryCmd, expectedDefaultQueryResponse)
+				})
+				It("overrides the rlimit when the environment variable is set", func() {
+					shouldSetRlimit(overrideEnv, limitQueryCmd, expectedQueryResponse)
+				})
+			})
+		})
+
+		Describe("NICE", func() {
+			BeforeEach(func() {
+				rlimitResource = RLIMIT_NICE
+				limit = "NICE"
+				limitValue = 100
+				reducedLimitValue = 50
+
+				limitQueryCmd = "ulimit -e"
+				expectedDefaultQueryResponse = "0"
+				expectedQueryResponse = "100"
+			})
+
+			Context("when user namespacing is disabled", func() {
+				BeforeEach(func() {
+					userNs = "disabled"
+				})
+				It("defaults the rlimit when the environment variable is not set", func() {
+					shouldSetRlimit([]string{}, limitQueryCmd, expectedDefaultQueryResponse)
+				})
+				It("overrides the rlimit when the environment variable is set", func() {
+					shouldSetRlimit(overrideEnv, limitQueryCmd, expectedQueryResponse)
+				})
+			})
+
+			Context("when user namespacing is enabled", func() {
+				BeforeEach(func() {
+					userNs = "enabled"
+				})
+				It("defaults the rlimit when the environment variable is not set", func() {
+					shouldSetRlimit([]string{}, limitQueryCmd, expectedDefaultQueryResponse)
+				})
+				It("overrides the rlimit when the environment variable is set", func() {
+					shouldSetRlimit(overrideEnv, limitQueryCmd, expectedQueryResponse)
+				})
+			})
+		})
+
+		Describe("NOFILE", func() {
+			BeforeEach(func() {
+				rlimitResource = RLIMIT_NOFILE
+				limit = "NOFILE"
+				limitValue = 4096
+				reducedLimitValue = 2048
+
+				limitQueryCmd = "ulimit -n"
+				expectedDefaultQueryResponse = "1024"
+				expectedQueryResponse = "4096"
+			})
+
+			Context("when user namespacing is disabled", func() {
+				BeforeEach(func() {
+					userNs = "disabled"
+				})
+				It("defaults the rlimit when the environment variable is not set", func() {
+					shouldSetRlimit([]string{}, limitQueryCmd, expectedDefaultQueryResponse)
+				})
+				It("overrides the rlimit when the environment variable is set", func() {
+					shouldSetRlimit(overrideEnv, limitQueryCmd, expectedQueryResponse)
+				})
+			})
+
+			Context("when user namespacing is enabled", func() {
+				BeforeEach(func() {
+					userNs = "enabled"
+				})
+				It("defaults the rlimit when the environment variable is not set", func() {
+					shouldSetRlimit([]string{}, limitQueryCmd, expectedDefaultQueryResponse)
+				})
+				It("overrides the rlimit when the environment variable is set", func() {
+					shouldSetRlimit(overrideEnv, limitQueryCmd, expectedQueryResponse)
+				})
+			})
+		})
+
+		Describe("NPROC", func() {
+			BeforeEach(func() {
+				rlimitResource = RLIMIT_NPROC
+				limit = "NPROC"
+				limitValue = 4096
+				reducedLimitValue = 2048
+
+				limitQueryCmd = "ulimit -p"
+				expectedDefaultQueryResponse = "1024"
+				expectedQueryResponse = "4096"
+			})
+
+			Context("when user namespacing is disabled", func() {
+				BeforeEach(func() {
+					userNs = "disabled"
+				})
+				It("defaults the rlimit when the environment variable is not set", func() {
+					shouldSetRlimit([]string{}, limitQueryCmd, expectedDefaultQueryResponse)
+				})
+				It("overrides the rlimit when the environment variable is set", func() {
+					shouldSetRlimit(overrideEnv, limitQueryCmd, expectedQueryResponse)
+				})
+			})
+
+			Context("when user namespacing is enabled", func() {
+				BeforeEach(func() {
+					userNs = "enabled"
+				})
+				It("defaults the rlimit when the environment variable is not set", func() {
+					shouldSetRlimit([]string{}, limitQueryCmd, expectedDefaultQueryResponse)
+				})
+				It("overrides the rlimit when the environment variable is set", func() {
+					shouldSetRlimit(overrideEnv, limitQueryCmd, expectedQueryResponse)
+				})
+			})
+		})
+
+		Describe("RSS", func() {
+			BeforeEach(func() {
+				rlimitResource = RLIMIT_RSS
+				limit = "RSS"
+				limitValue = 4096 * 1024
+				reducedLimitValue = 2048 * 1024
+
+				limitQueryCmd = "ulimit -m"
+				expectedDefaultQueryResponse = "unlimited"
+				expectedQueryResponse = "4096"
+			})
+
+			Context("when user namespacing is disabled", func() {
+				BeforeEach(func() {
+					userNs = "disabled"
+				})
+				It("defaults the rlimit when the environment variable is not set", func() {
+					shouldSetRlimit([]string{}, limitQueryCmd, expectedDefaultQueryResponse)
+				})
+				It("overrides the rlimit when the environment variable is set", func() {
+					shouldSetRlimit(overrideEnv, limitQueryCmd, expectedQueryResponse)
+				})
+			})
+
+			Context("when user namespacing is enabled", func() {
+				BeforeEach(func() {
+					userNs = "enabled"
+				})
+				It("defaults the rlimit when the environment variable is not set", func() {
+					shouldSetRlimit([]string{}, limitQueryCmd, expectedDefaultQueryResponse)
+				})
+				It("overrides the rlimit when the environment variable is set", func() {
+					shouldSetRlimit(overrideEnv, limitQueryCmd, expectedQueryResponse)
+				})
+			})
+		})
+
+		Describe("RTPRIO", func() {
+			BeforeEach(func() {
+				rlimitResource = RLIMIT_RTPRIO
+				limit = "RTPRIO"
+				limitValue = 100
+				reducedLimitValue = 50
+
+				limitQueryCmd = "ulimit -r"
+				expectedDefaultQueryResponse = "0"
+				expectedQueryResponse = "100"
+			})
+
+			Context("when user namespacing is disabled", func() {
+				BeforeEach(func() {
+					userNs = "disabled"
+				})
+				It("defaults the rlimit when the environment variable is not set", func() {
+					shouldSetRlimit([]string{}, limitQueryCmd, expectedDefaultQueryResponse)
+				})
+				It("overrides the rlimit when the environment variable is set", func() {
+					shouldSetRlimit(overrideEnv, limitQueryCmd, expectedQueryResponse)
+				})
+			})
+
+			Context("when user namespacing is enabled", func() {
+				BeforeEach(func() {
+					userNs = "enabled"
+				})
+				It("defaults the rlimit when the environment variable is not set", func() {
+					shouldSetRlimit([]string{}, limitQueryCmd, expectedDefaultQueryResponse)
+				})
+				It("overrides the rlimit when the environment variable is set", func() {
+					shouldSetRlimit(overrideEnv, limitQueryCmd, expectedQueryResponse)
+				})
+			})
+		})
+
+		Describe("SIGPENDING", func() {
+			BeforeEach(func() {
+				rlimitResource = RLIMIT_SIGPENDING
+				limit = "SIGPENDING"
+				limitValue = 1024 * 4
+				reducedLimitValue = 1024 * 2
+
+				limitQueryCmd = "echo RLIMIT_SIGPENDING not queryable"
+				expectedDefaultQueryResponse = "RLIMIT_SIGPENDING not queryable"
+				expectedQueryResponse = "RLIMIT_SIGPENDING not queryable"
+			})
+
+			Context("when user namespacing is disabled", func() {
+				BeforeEach(func() {
+					userNs = "disabled"
+				})
+				It("defaults the rlimit when the environment variable is not set", func() {
+					shouldSetRlimit([]string{}, limitQueryCmd, expectedDefaultQueryResponse)
+				})
+				It("overrides the rlimit when the environment variable is set", func() {
+					shouldSetRlimit(overrideEnv, limitQueryCmd, expectedQueryResponse)
+				})
+			})
+
+			Context("when user namespacing is enabled", func() {
+				BeforeEach(func() {
+					userNs = "enabled"
+				})
+				It("defaults the rlimit when the environment variable is not set", func() {
+					shouldSetRlimit([]string{}, limitQueryCmd, expectedDefaultQueryResponse)
+				})
+				It("overrides the rlimit when the environment variable is set", func() {
+					shouldSetRlimit(overrideEnv, limitQueryCmd, expectedQueryResponse)
+				})
+			})
+		})
+
+		Describe("STACK", func() {
+			BeforeEach(func() {
+				rlimitResource = RLIMIT_STACK
+				limit = "STACK"
+				limitValue = 4 * 1024 * 1024
+				reducedLimitValue = 2 * 1024 * 1024
+
+				limitQueryCmd = "ulimit -s"
+				expectedDefaultQueryResponse = "8192"
+				expectedQueryResponse = "4096"
+			})
+
+			Context("when user namespacing is disabled", func() {
+				BeforeEach(func() {
+					userNs = "disabled"
+				})
+				It("defaults the rlimit when the environment variable is not set", func() {
+					shouldSetRlimit([]string{}, limitQueryCmd, expectedDefaultQueryResponse)
+				})
+				It("overrides the rlimit when the environment variable is set", func() {
+					shouldSetRlimit(overrideEnv, limitQueryCmd, expectedQueryResponse)
+				})
+			})
+
+			Context("when user namespacing is enabled", func() {
+				BeforeEach(func() {
+					userNs = "enabled"
+				})
+				It("defaults the rlimit when the environment variable is not set", func() {
+					shouldSetRlimit([]string{}, limitQueryCmd, expectedDefaultQueryResponse)
+				})
+				It("overrides the rlimit when the environment variable is set", func() {
+					shouldSetRlimit(overrideEnv, limitQueryCmd, expectedQueryResponse)
+				})
+			})
+		})
+	})
 })
 
 func copyFile(src, dst string) error {
@@ -557,4 +1163,12 @@ func ErrorDialingUnix(socketPath string) func() error {
 
 		return err
 	}
+}
+
+func getAndReduceRlimit(rlimitResource int, limitVal uint64) *syscall.Rlimit {
+	var curLimit syscall.Rlimit
+	Ω(syscall.Getrlimit(rlimitResource, &curLimit)).Should(Succeed())
+
+	Ω(syscall.Setrlimit(rlimitResource, &syscall.Rlimit{Cur: limitVal, Max: limitVal})).Should(Succeed())
+	return &curLimit
 }
