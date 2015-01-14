@@ -47,14 +47,6 @@ type LinuxBackend struct {
 	containersMutex *sync.RWMutex
 }
 
-type UnknownHandleError struct {
-	Handle string
-}
-
-func (e UnknownHandleError) Error() string {
-	return "unknown handle: " + e.Handle
-}
-
 type HandleExistsError struct {
 	Handle string
 }
@@ -171,7 +163,7 @@ func (b *LinuxBackend) Destroy(handle string) error {
 	b.containersMutex.RUnlock()
 
 	if !found {
-		return UnknownHandleError{handle}
+		return garden.ContainerNotFoundError{handle}
 	}
 
 	err := b.containerPool.Destroy(container)
@@ -205,7 +197,7 @@ func (b *LinuxBackend) Lookup(handle string) (garden.Container, error) {
 
 	container, found := b.containers[handle]
 	if !found {
-		return nil, UnknownHandleError{handle}
+		return nil, garden.ContainerNotFoundError{handle}
 	}
 
 	return container, nil

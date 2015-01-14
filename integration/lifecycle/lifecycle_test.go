@@ -35,8 +35,9 @@ var _ = Describe("Creating a container", func() {
 	})
 
 	AfterEach(func() {
-		err := client.Destroy(container.Handle())
-		Ω(err).ShouldNot(HaveOccurred())
+		if container != nil {
+			Ω(client.Destroy(container.Handle())).Should(Succeed())
+		}
 	})
 
 	BeforeEach(func() {
@@ -794,6 +795,14 @@ var _ = Describe("Creating a container", func() {
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(info.State).Should(Equal("stopped"))
+		})
+	})
+
+	Context("after destroying the container", func() {
+		It("should return api.ContainerNotFoundError when deleting the container again", func() {
+			Ω(client.Destroy(container.Handle())).Should(Succeed())
+			Ω(client.Destroy(container.Handle())).Should(MatchError(garden.ContainerNotFoundError{container.Handle()}))
+			container = nil
 		})
 	})
 })

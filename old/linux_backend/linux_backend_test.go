@@ -439,14 +439,14 @@ var _ = Describe("Destroy", func() {
 
 		_, err = linuxBackend.Lookup(container.Handle())
 		Ω(err).Should(HaveOccurred())
-		Ω(err).Should(Equal(linux_backend.UnknownHandleError{container.Handle()}))
+		Ω(err).Should(Equal(garden.ContainerNotFoundError{container.Handle()}))
 	})
 
 	Context("when the container does not exist", func() {
-		It("returns UnknownHandleError", func() {
+		It("returns ContainerNotFoundError", func() {
 			err := linuxBackend.Destroy("bogus-handle")
 			Ω(err).Should(HaveOccurred())
-			Ω(err).Should(Equal(linux_backend.UnknownHandleError{"bogus-handle"}))
+			Ω(err).Should(Equal(garden.ContainerNotFoundError{"bogus-handle"}))
 		})
 	})
 
@@ -495,12 +495,12 @@ var _ = Describe("Lookup", func() {
 	})
 
 	Context("when the handle is not found", func() {
-		It("returns UnknownHandleError", func() {
+		It("returns ContainerNotFoundError", func() {
 			foundContainer, err := linuxBackend.Lookup("bogus-handle")
 			Ω(err).Should(HaveOccurred())
 			Ω(foundContainer).Should(BeNil())
 
-			Ω(err).Should(Equal(linux_backend.UnknownHandleError{"bogus-handle"}))
+			Ω(err).Should(Equal(garden.ContainerNotFoundError{"bogus-handle"}))
 		})
 	})
 })
