@@ -448,6 +448,32 @@ setup_fs
 			Eventually(session).Should(Say("VAR2=VALUE2\n"))
 		})
 
+		It("searches a sanitized path not including sbin for the executable", func() {
+			ls := exec.Command(wsh,
+				"--socket", socketPath,
+				"--user", "vcap",
+				"--env", "PATH=nada",
+				"ls",
+			)
+
+			session, err := Start(ls, GinkgoWriter, GinkgoWriter)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Eventually(session).Should(Exit(0))
+
+			onlyInSbin := exec.Command(wsh,
+				"--socket", socketPath,
+				"--user", "vcap",
+				"--env", "PATH=nada",
+				"ifconfig",
+			)
+
+			session, err = Start(onlyInSbin, GinkgoWriter, GinkgoWriter)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Eventually(session).Should(Exit(255))
+		})
+
 		It("saves the child's pid in a pidfile and cleans the pidfile up after the process exits", func() {
 			tmp, err := ioutil.TempDir("", "wshdchildpid")
 			Ω(err).ShouldNot(HaveOccurred())
@@ -505,6 +531,20 @@ setup_fs
 			Eventually(shSession).Should(Say("PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\n"))
 			Eventually(shSession).Should(Say("USER=root\n"))
 			Eventually(shSession).Should(Exit(0))
+		})
+
+		It("searches a sanitized path for the executable containing sbin directories", func() {
+			onlyInSbin := exec.Command(wsh,
+				"--socket", socketPath,
+				"--user", "root",
+				"--env", "PATH=nada",
+				"ifconfig",
+			)
+
+			session, err := Start(onlyInSbin, GinkgoWriter, GinkgoWriter)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Eventually(session).Should(Exit(0))
 		})
 
 		It("executes in their home directory", func() {

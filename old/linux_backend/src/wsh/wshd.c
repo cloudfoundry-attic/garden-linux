@@ -260,9 +260,13 @@ char **child_setup_environment(struct passwd *pw, char **extra_env_vars) {
   envp = env__add(envp, "USER", pw->pw_name);
 
   if (pw->pw_uid == 0) {
-    envp = env__add(envp, "PATH", "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin");
+    const char *sanitizedRootPath = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
+    envp = env__add(envp, "PATH", sanitizedRootPath);
+    setenv("PATH", sanitizedRootPath, 1);
   } else {
-    envp = env__add(envp, "PATH", "/usr/local/bin:/usr/bin:/bin");
+    const char *sanitizedUserPath = "/usr/local/bin:/usr/bin:/bin";
+    envp = env__add(envp, "PATH", sanitizedUserPath);
+    setenv("PATH", sanitizedUserPath, 1);
   }
 
   return envp;
