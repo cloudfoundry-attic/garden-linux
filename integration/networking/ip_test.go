@@ -24,6 +24,8 @@ var _ = Describe("IP settings", func() {
 		containerNetwork2 string
 
 		containerInterface string
+
+		gardenParms []string
 	)
 
 	BeforeEach(func() {
@@ -31,10 +33,12 @@ var _ = Describe("IP settings", func() {
 		container2 = nil
 		containerNetwork1 = ""
 		containerNetwork2 = ""
+
+		gardenParms = []string{}
 	})
 
 	JustBeforeEach(func() {
-		client = startGarden()
+		client = startGarden(gardenParms...)
 
 		var err error
 		container1, err = client.Create(garden.ContainerSpec{Network: containerNetwork1})
@@ -270,42 +274,36 @@ var _ = Describe("IP settings", func() {
 	})
 
 	Describe("host's network", func() {
-		BeforeEach(func() {
-			containerNetwork1 = fmt.Sprintf("10.%d.0.8/30", GinkgoParallelNode())
+		Context("when host access is explicitly allowed", func() {
+			BeforeEach(func() {
+				containerNetwork1 = fmt.Sprintf("10.%d.0.8/30", GinkgoParallelNode())
+				gardenParms = []string{"-allowHostAccess=true"}
+			})
+
+			It("is reachable from inside the container", func() {
+				checkHostAccess(container1, true)
+			})
 		})
 
-		It("is reachable from inside the container", func() {
-			info1, ierr := container1.Info()
-			Ω(ierr).ShouldNot(HaveOccurred())
-
-			stdout := gbytes.NewBuffer()
-			stderr := gbytes.NewBuffer()
-
-			listener, err := net.Listen("tcp", fmt.Sprintf("%s:0", info1.HostIP))
-			Ω(err).ShouldNot(HaveOccurred())
-			defer listener.Close()
-
-			mux := http.NewServeMux()
-			mux.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
-				fmt.Fprintf(w, "Hello")
+		Context("when host access is explicitly disallowed", func() {
+			BeforeEach(func() {
+				containerNetwork1 = fmt.Sprintf("10.%d.0.8/30", GinkgoParallelNode())
+				gardenParms = []string{"-allowHostAccess=false"}
 			})
 
-			go (&http.Server{Handler: mux}).Serve(listener)
-
-			process, err := container1.Run(garden.ProcessSpec{
-				Path: "sh",
-				Args: []string{"-c", fmt.Sprintf("(echo 'GET /test HTTP/1.1'; echo 'Host: foo.com'; echo) | nc %s %s", info1.HostIP, strings.Split(listener.Addr().String(), ":")[1])},
-			}, garden.ProcessIO{
-				Stdout: stdout,
-				Stderr: stderr,
+			It("is not reachable from inside the container", func() {
+				checkHostAccess(container1, false)
 			})
-			Ω(err).ShouldNot(HaveOccurred())
+		})
 
-			rc, err := process.Wait()
-			Ω(err).ShouldNot(HaveOccurred())
-			Ω(rc).Should(Equal(0))
+		Context("when host access is implicitly disallowed", func() {
+			BeforeEach(func() {
+				containerNetwork1 = fmt.Sprintf("10.%d.0.8/30", GinkgoParallelNode())
+			})
 
-			Ω(stdout.Contents()).Should(ContainSubstring("Hello"))
+			It("is not reachable from inside the container", func() {
+				checkHostAccess(container1, false)
+			})
 		})
 	})
 
@@ -321,3 +319,41 @@ var _ = Describe("IP settings", func() {
 		})
 	})
 })
+
+func checkHostAccess(container garden.Container, permitted bool) {
+	info1, ierr := container.Info()
+	Ω(ierr).ShouldNot(HaveOccurred())
+
+	stdout := gbytes.NewBuffer()
+	stderr := gbytes.NewBuffer()
+
+	listener, err := net.Listen("tcp", fmt.Sprintf("%s:0", info1.HostIP))
+	Ω(err).ShouldNot(HaveOccurred())
+	defer listener.Close()
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
+		fmt.Fprintf(w, "Hello")
+	})
+
+	go (&http.Server{Handler: mux}).Serve(listener)
+
+	process, err := container.Run(garden.ProcessSpec{
+		Path: "sh",
+		Args: []string{"-c", fmt.Sprintf("(echo 'GET /test HTTP/1.1'; echo 'Host: foo.com'; echo) | nc %s %s", info1.HostIP, strings.Split(listener.Addr().String(), ":")[1])},
+	}, garden.ProcessIO{
+		Stdout: stdout,
+		Stderr: stderr,
+	})
+	Ω(err).ShouldNot(HaveOccurred())
+
+	rc, err := process.Wait()
+	Ω(err).ShouldNot(HaveOccurred())
+
+	if permitted {
+		Ω(rc).Should(Equal(0))
+		Ω(stdout.Contents()).Should(ContainSubstring("Hello"))
+	} else {
+		Ω(rc).Should(Equal(1))
+	}
+}

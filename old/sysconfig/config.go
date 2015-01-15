@@ -1,6 +1,9 @@
 package sysconfig
 
-import "fmt"
+import (
+	"fmt"
+	"strconv"
+)
 
 type Config struct {
 	CgroupPath             string
@@ -15,10 +18,11 @@ type IPTablesConfig struct {
 }
 
 type IPTablesFilterConfig struct {
-	InputChain     string
-	ForwardChain   string
-	DefaultChain   string
-	InstancePrefix string
+	AllowHostAccess bool
+	InputChain      string
+	ForwardChain    string
+	DefaultChain    string
+	InstancePrefix  string
 }
 
 type IPTablesNATConfig struct {
@@ -27,7 +31,7 @@ type IPTablesNATConfig struct {
 	InstancePrefix   string
 }
 
-func NewConfig(tag string) Config {
+func NewConfig(tag string, allowHostAccess bool) Config {
 	return Config{
 		NetworkInterfacePrefix: fmt.Sprintf("w%s", tag),
 		Tag: tag,
@@ -36,10 +40,11 @@ func NewConfig(tag string) Config {
 
 		IPTables: IPTablesConfig{
 			Filter: IPTablesFilterConfig{
-				InputChain:     fmt.Sprintf("w-%s-input", tag),
-				ForwardChain:   fmt.Sprintf("w-%s-forward", tag),
-				DefaultChain:   fmt.Sprintf("w-%s-default", tag),
-				InstancePrefix: fmt.Sprintf("w-%s-instance-", tag),
+				AllowHostAccess: allowHostAccess,
+				InputChain:      fmt.Sprintf("w-%s-input", tag),
+				ForwardChain:    fmt.Sprintf("w-%s-forward", tag),
+				DefaultChain:    fmt.Sprintf("w-%s-default", tag),
+				InstancePrefix:  fmt.Sprintf("w-%s-instance-", tag),
 			},
 			NAT: IPTablesNATConfig{
 				PreroutingChain:  fmt.Sprintf("w-%s-prerouting", tag),
@@ -57,6 +62,7 @@ func (config Config) Environ() []string {
 		"GARDEN_NETWORK_INTERFACE_PREFIX=" + config.NetworkInterfacePrefix,
 		"GARDEN_TAG=" + config.Tag,
 
+		"GARDEN_IPTABLES_ALLOW_HOST_ACCESS=" + strconv.FormatBool(config.IPTables.Filter.AllowHostAccess),
 		"GARDEN_IPTABLES_FILTER_INPUT_CHAIN=" + config.IPTables.Filter.InputChain,
 
 		"GARDEN_IPTABLES_FILTER_FORWARD_CHAIN=" + config.IPTables.Filter.ForwardChain,

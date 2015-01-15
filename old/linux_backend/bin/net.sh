@@ -84,7 +84,12 @@ function setup_filter() {
   # Put connection tracking rule in filter input chain
   # to accept packets related to previously established connections
   iptables -w -I ${filter_input_chain} -m conntrack --ctstate ESTABLISHED,RELATED --jump ACCEPT
-  iptables -w -A ${filter_input_chain} --jump REJECT --reject-with icmp-host-prohibited
+
+  if [ "${GARDEN_IPTABLES_ALLOW_HOST_ACCESS}" != "true" ]; then
+    iptables -w -A ${filter_input_chain} --jump REJECT --reject-with icmp-host-prohibited
+  else
+    iptables -w -A ${filter_input_chain} --jump ACCEPT
+  fi
 
   # Forward input traffic via ${filter_input_chain}
   iptables -w -A INPUT -i ${GARDEN_NETWORK_INTERFACE_PREFIX}+ --jump ${filter_input_chain}

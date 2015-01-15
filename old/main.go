@@ -154,6 +154,12 @@ var dropsondeDestination = flag.String(
 	"Destination for dropsonde-emitted metrics.",
 )
 
+var allowHostAccess = flag.Bool(
+	"allowHostAccess",
+	false,
+	"allow network access to host",
+)
+
 func Main(builders *fences.BuilderRegistry) {
 
 	cf_debug_server.Run()
@@ -181,7 +187,7 @@ func Main(builders *fences.BuilderRegistry) {
 	// TODO: use /proc/sys/net/ipv4/ip_local_port_range by default (end + 1)
 	portPool := port_pool.New(uint32(*portPoolStart), uint32(*portPoolSize))
 
-	config := sysconfig.NewConfig(*tag)
+	config := sysconfig.NewConfig(*tag, *allowHostAccess)
 
 	runner := sysconfig.NewRunner(config, linux_command_runner.New())
 
