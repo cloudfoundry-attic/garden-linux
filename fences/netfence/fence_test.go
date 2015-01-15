@@ -29,7 +29,7 @@ var _ = Describe("Fence", func() {
 	var (
 		fakeSubnetPool   *fakeSubnets
 		fence            *fenceBuilder
-		syscfg           sysconfig.Config  = sysconfig.NewConfig("")
+		syscfg           sysconfig.Config  = sysconfig.NewConfig("", false)
 		sysconfig        *sysconfig.Config = &syscfg
 		fakeDeconfigurer *FakeDeconfigurer
 	)

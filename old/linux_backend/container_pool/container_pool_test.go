@@ -69,7 +69,7 @@ var _ = Describe("Container pool", func() {
 		depotPath, err = ioutil.TempDir("", "depot-path")
 		Ω(err).ShouldNot(HaveOccurred())
 
-		config = sysconfig.NewConfig("0")
+		config = sysconfig.NewConfig("0", false)
 		pool = container_pool.New(
 			lagertest.NewTestLogger("test"),
 			"/root/path",

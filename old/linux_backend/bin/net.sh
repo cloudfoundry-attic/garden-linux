@@ -78,12 +78,18 @@ function teardown_filter() {
 function setup_filter() {
   teardown_filter
 
+  # Determine interface device to the outside
+  default_interface=$(ip route show | grep default | cut -d' ' -f5 | head -1)
+
   # Create, or empty existing, filter input chain
   iptables -w -N ${filter_input_chain} 2> /dev/null || iptables -w -F ${filter_input_chain}
 
+  # Accept inbound packets if default interface is matched by filter prefix
+  iptables -w -I ${filter_input_chain} -i $default_interface --jump ACCEPT
+
   # Put connection tracking rule in filter input chain
   # to accept packets related to previously established connections
-  iptables -w -I ${filter_input_chain} -m conntrack --ctstate ESTABLISHED,RELATED --jump ACCEPT
+  iptables -w -A ${filter_input_chain} -m conntrack --ctstate ESTABLISHED,RELATED --jump ACCEPT
 
   if [ "${GARDEN_IPTABLES_ALLOW_HOST_ACCESS}" != "true" ]; then
     iptables -w -A ${filter_input_chain} --jump REJECT --reject-with icmp-host-prohibited
@@ -108,7 +114,6 @@ function setup_filter() {
   iptables -w -A FORWARD -i ${GARDEN_NETWORK_INTERFACE_PREFIX}+ --jump ${filter_forward_chain}
 
   # Forward inbound traffic immediately
-  default_interface=$(ip route show | grep default | cut -d' ' -f5 | head -1)
   iptables -w -I ${filter_forward_chain} -i $default_interface --jump ACCEPT
 }
 
