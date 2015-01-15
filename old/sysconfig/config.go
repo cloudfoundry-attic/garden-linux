@@ -15,6 +15,7 @@ type IPTablesConfig struct {
 }
 
 type IPTablesFilterConfig struct {
+	InputChain     string
 	ForwardChain   string
 	DefaultChain   string
 	InstancePrefix string
@@ -35,6 +36,7 @@ func NewConfig(tag string) Config {
 
 		IPTables: IPTablesConfig{
 			Filter: IPTablesFilterConfig{
+				InputChain:     fmt.Sprintf("w-%s-input", tag),
 				ForwardChain:   fmt.Sprintf("w-%s-forward", tag),
 				DefaultChain:   fmt.Sprintf("w-%s-default", tag),
 				InstancePrefix: fmt.Sprintf("w-%s-instance-", tag),
@@ -54,6 +56,8 @@ func (config Config) Environ() []string {
 
 		"GARDEN_NETWORK_INTERFACE_PREFIX=" + config.NetworkInterfacePrefix,
 		"GARDEN_TAG=" + config.Tag,
+
+		"GARDEN_IPTABLES_FILTER_INPUT_CHAIN=" + config.IPTables.Filter.InputChain,
 
 		"GARDEN_IPTABLES_FILTER_FORWARD_CHAIN=" + config.IPTables.Filter.ForwardChain,
 		"GARDEN_IPTABLES_FILTER_DEFAULT_CHAIN=" + config.IPTables.Filter.DefaultChain,

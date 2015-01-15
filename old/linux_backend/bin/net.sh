@@ -5,6 +5,7 @@ set -o nounset
 set -o errexit
 shopt -s nullglob
 
+filter_input_chain="${GARDEN_IPTABLES_FILTER_INPUT_CHAIN}"
 filter_forward_chain="${GARDEN_IPTABLES_FILTER_FORWARD_CHAIN}"
 filter_default_chain="${GARDEN_IPTABLES_FILTER_DEFAULT_CHAIN}"
 filter_instance_prefix="${GARDEN_IPTABLES_FILTER_INSTANCE_PREFIX}"
@@ -62,10 +63,31 @@ function teardown_filter() {
 
   iptables -w -F ${filter_forward_chain} 2> /dev/null || true
   iptables -w -F ${filter_default_chain} 2> /dev/null || true
+
+  # Remove jump to filter input chain from INPUT
+  iptables -w -S INPUT 2> /dev/null |
+    grep " -j ${filter_input_chain}" |
+    sed -e "s/-A/-D/" -e "s/\s\+\$//" |
+    xargs --no-run-if-empty --max-lines=1 iptables -w
+
+  # Empty and delete filter input chain
+  iptables -w -F ${filter_input_chain} 2> /dev/null || true
+  iptables -w -X ${filter_input_chain} 2> /dev/null || true
 }
 
 function setup_filter() {
   teardown_filter
+
+  # Create, or empty existing, filter input chain
+  iptables -w -N ${filter_input_chain} 2> /dev/null || iptables -w -F ${filter_input_chain}
+
+  # Put connection tracking rule in filter input chain
+  # to accept packets related to previously established connections
+  iptables -w -I ${filter_input_chain} -m conntrack --ctstate ESTABLISHED,RELATED --jump ACCEPT
+  iptables -w -A ${filter_input_chain} --jump REJECT --reject-with icmp-host-prohibited
+
+  # Forward input traffic via ${filter_input_chain}
+  iptables -w -A INPUT -i ${GARDEN_NETWORK_INTERFACE_PREFIX}+ --jump ${filter_input_chain}
 
   # Create or flush forward chain
   iptables -w -N ${filter_forward_chain} 2> /dev/null || iptables -w -F ${filter_forward_chain}
