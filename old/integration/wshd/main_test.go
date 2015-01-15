@@ -589,16 +589,15 @@ setup_fs
 		}
 
 		var (
-			rlimitResource               int
-			limit                        string
-			limitValue                   uint64
-			reducedLimitValue            uint64
-			overrideEnv                  []string
-			limitQueryCmd                string
-			expectedDefaultQueryResponse string
-			expectedQueryResponse        string
+			rlimitResource               int      // the resource being limited, e.g. RLIMIT_CORE
+			limit                        string   // the string suffix of the resource being limited, e.g. "CORE"
+			limitValue                   uint64   // a (non-default) limit for the resource, e.g. 4096
+			overrideEnv                  []string // environment specifying a (non-default) limit to wshd, e.g. ["RLIMIT_CORE=4096"]
+			limitQueryCmd                string   // a command used to query a limit inside a container, e.g. "ulimit -c"
+			expectedDefaultQueryResponse string   // the expected query response for the default limit, e.g. "0"
+			expectedQueryResponse        string   // the expected query response for the non-default limit, e.g. "8"
 
-			rlimit *syscall.Rlimit
+			originalRlimit *syscall.Rlimit
 		)
 
 		JustBeforeEach(func() {
@@ -606,13 +605,15 @@ setup_fs
 		})
 
 		BeforeEach(func() {
+			// Ensure the resource limit being tested is set to a low value.
+			// beforeWshd is called just before wshd is launched.
 			beforeWshd = func() {
-				rlimit = getAndReduceRlimit(rlimitResource, reducedLimitValue)
+				originalRlimit = getAndReduceRlimit(rlimitResource, limitValue/2)
 			}
 		})
 
 		AfterEach(func() {
-			Ω(syscall.Setrlimit(rlimitResource, rlimit)).Should(Succeed())
+			Ω(syscall.Setrlimit(rlimitResource, originalRlimit)).Should(Succeed())
 		})
 
 		Describe("AS", func() {
@@ -620,7 +621,6 @@ setup_fs
 				rlimitResource = RLIMIT_AS
 				limit = "AS"
 				limitValue = 2147483648 * 2
-				reducedLimitValue = 2147483648
 
 				limitQueryCmd = "ulimit -v"
 				expectedDefaultQueryResponse = "unlimited"
@@ -657,7 +657,6 @@ setup_fs
 				rlimitResource = RLIMIT_CORE
 				limit = "CORE"
 				limitValue = 4096
-				reducedLimitValue = 2048
 
 				limitQueryCmd = "ulimit -c"
 				expectedDefaultQueryResponse = "0"
@@ -694,7 +693,6 @@ setup_fs
 				rlimitResource = RLIMIT_CPU
 				limit = "CPU"
 				limitValue = 3600
-				reducedLimitValue = 1800
 
 				limitQueryCmd = "ulimit -t"
 				expectedDefaultQueryResponse = "unlimited"
@@ -731,7 +729,6 @@ setup_fs
 				rlimitResource = RLIMIT_DATA
 				limit = "DATA"
 				limitValue = 1024 * 1024
-				reducedLimitValue = 1024 * 512
 
 				limitQueryCmd = "ulimit -d"
 				expectedDefaultQueryResponse = "unlimited"
@@ -768,7 +765,6 @@ setup_fs
 				rlimitResource = RLIMIT_FSIZE
 				limit = "FSIZE"
 				limitValue = 4096 * 1024
-				reducedLimitValue = 2048 * 1024
 
 				limitQueryCmd = "ulimit -f"
 				expectedDefaultQueryResponse = "unlimited"
@@ -805,7 +801,6 @@ setup_fs
 				rlimitResource = RLIMIT_LOCKS
 				limit = "LOCKS"
 				limitValue = 1024
-				reducedLimitValue = 512
 
 				limitQueryCmd = "ulimit -w"
 				expectedDefaultQueryResponse = "unlimited"
@@ -842,7 +837,6 @@ setup_fs
 				rlimitResource = RLIMIT_MEMLOCK
 				limit = "MEMLOCK"
 				limitValue = 1024 * 32
-				reducedLimitValue = 1024 * 16
 
 				limitQueryCmd = "ulimit -l"
 				expectedDefaultQueryResponse = "64"
@@ -879,7 +873,6 @@ setup_fs
 				rlimitResource = RLIMIT_MSGQUEUE
 				limit = "MSGQUEUE"
 				limitValue = 1024 * 100
-				reducedLimitValue = 1024 * 50
 
 				limitQueryCmd = "echo RLIMIT_MSGQUEUE not queryable"
 				expectedDefaultQueryResponse = "RLIMIT_MSGQUEUE not queryable"
@@ -916,7 +909,6 @@ setup_fs
 				rlimitResource = RLIMIT_NICE
 				limit = "NICE"
 				limitValue = 100
-				reducedLimitValue = 50
 
 				limitQueryCmd = "ulimit -e"
 				expectedDefaultQueryResponse = "0"
@@ -953,7 +945,6 @@ setup_fs
 				rlimitResource = RLIMIT_NOFILE
 				limit = "NOFILE"
 				limitValue = 4096
-				reducedLimitValue = 2048
 
 				limitQueryCmd = "ulimit -n"
 				expectedDefaultQueryResponse = "1024"
@@ -990,7 +981,6 @@ setup_fs
 				rlimitResource = RLIMIT_NPROC
 				limit = "NPROC"
 				limitValue = 4096
-				reducedLimitValue = 2048
 
 				limitQueryCmd = "ulimit -p"
 				expectedDefaultQueryResponse = "1024"
@@ -1027,7 +1017,6 @@ setup_fs
 				rlimitResource = RLIMIT_RSS
 				limit = "RSS"
 				limitValue = 4096 * 1024
-				reducedLimitValue = 2048 * 1024
 
 				limitQueryCmd = "ulimit -m"
 				expectedDefaultQueryResponse = "unlimited"
@@ -1064,7 +1053,6 @@ setup_fs
 				rlimitResource = RLIMIT_RTPRIO
 				limit = "RTPRIO"
 				limitValue = 100
-				reducedLimitValue = 50
 
 				limitQueryCmd = "ulimit -r"
 				expectedDefaultQueryResponse = "0"
@@ -1101,7 +1089,6 @@ setup_fs
 				rlimitResource = RLIMIT_SIGPENDING
 				limit = "SIGPENDING"
 				limitValue = 1024 * 4
-				reducedLimitValue = 1024 * 2
 
 				limitQueryCmd = "echo RLIMIT_SIGPENDING not queryable"
 				expectedDefaultQueryResponse = "RLIMIT_SIGPENDING not queryable"
@@ -1138,7 +1125,6 @@ setup_fs
 				rlimitResource = RLIMIT_STACK
 				limit = "STACK"
 				limitValue = 4 * 1024 * 1024
-				reducedLimitValue = 2 * 1024 * 1024
 
 				limitQueryCmd = "ulimit -s"
 				expectedDefaultQueryResponse = "8192"
