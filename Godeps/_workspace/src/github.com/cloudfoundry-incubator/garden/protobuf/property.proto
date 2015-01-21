@@ -1,10 +1,3 @@
-// This structure is neither a request nor a response.
-//
-// It is used in `Create` for specifying, and `List` for filtering.
-//
-// ### Definition
-//
-
 package garden;
 
 message Property {

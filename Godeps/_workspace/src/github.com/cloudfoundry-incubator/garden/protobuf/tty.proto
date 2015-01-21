@@ -1,6 +1,3 @@
-// Configuration for a container's attached tty.
-//
-
 package garden;
 
 message TTY {

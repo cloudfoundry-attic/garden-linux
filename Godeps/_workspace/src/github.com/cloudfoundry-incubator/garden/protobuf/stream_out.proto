@@ -1,25 +1,3 @@
-// Streams files out of a container.
-//
-// By default, the files on the host will be owned by root.
-// If the `owner` field in the request is specified (in the form of `USER:GROUP`),
-// the resulting files and directories will be owned by this user and group.
-//
-// ### Request
-//
-// * `handle`: Container handle.
-// * `src_path`: Path in the container to copy from.
-//
-// ### Response
-//
-// Empty.
-//
-// ### Errors
-//
-// > **TODO**
-//
-// ### Definition
-//
-
 package garden;
 
 message StreamOutRequest {

@@ -1,13 +1,3 @@
-// The Payload streamed from a running process
-//
-// ### Response
-//
-// * `process_id`: The process id for the given data
-// * `source`: The stream source - one of stdin, stdout and stderr
-// * `data`: The data payload for the given stream source
-// * `exit_status`: Exit status of the process -- only present if the process has exited
-//
-
 package garden;
 
 import "tty.proto";

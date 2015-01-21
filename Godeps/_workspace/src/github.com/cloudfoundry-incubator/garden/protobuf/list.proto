@@ -1,20 +1,3 @@
-// Lists all containers.
-//
-// ### Request
-//
-// * `properties`: List of properties to filter by. Multiple properties are ANDed together.
-//
-// ### Response
-//
-// * `handles`: List of container handles.
-//
-// ### Errors
-//
-// None.
-//
-// ### Definition
-//
-
 package garden;
 
 import "property.proto";

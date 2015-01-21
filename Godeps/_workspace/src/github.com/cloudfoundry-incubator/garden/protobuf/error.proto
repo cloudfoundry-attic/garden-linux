@@ -1,15 +1,3 @@
-// This is only a response.
-// If an error occurs while executing a request, it is captured and returned as an `ErrorResponse`.
-//
-// ### Response
-//
-// * `message`: Error message.
-// * `data`: Unused.
-// * `backtrace`: Unused.
-//
-// ### Definition
-//
-
 package garden;
 
 message ErrorResponse {

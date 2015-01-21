@@ -1,34 +1,3 @@
-// Map a port on the host to a port in the container.
-//
-// If a host port is not given, a port will be acquired from the server's port
-// pool.
-//
-// If a container port is not given, the port will be the same as the
-// container port.
-//
-// The two resulting ports are returned in the response.
-//
-// ### Request
-//
-// * `handle`: Container handle.
-// * `host_port`: External port to be mapped.
-// * `container_port`: Port on the container's interface that traffic should
-// be forwarded to.
-//
-// ### Response
-//
-// * `host_port`: External port that was mapped.
-// * `container_port`: Port on the container's interface that traffic will be
-// forwarded to.
-//
-// ### Errors
-//
-// * When `handle` does not refer to a container.
-// * When no port can be acquired from the server's port pool.
-//
-// ### Definition
-//
-
 package garden;
 
 message NetInRequest {

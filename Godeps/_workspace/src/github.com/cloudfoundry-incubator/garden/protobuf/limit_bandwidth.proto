@@ -1,20 +1,3 @@
-// Limits the network bandwidth for a container.
-//
-// ### Request
-//
-// > **TODO**
-//
-// ### Response
-//
-// > **TODO**
-//
-// ### Errors
-//
-// > **TODO**
-//
-// ### Definition
-//
-
 package garden;
 
 message LimitBandwidthRequest {

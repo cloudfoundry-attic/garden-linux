@@ -1,25 +1,4 @@
-// Set a property on a container.
-//
-// ### Request
-//
-// All parameters are optional.
-//
-// * `handle`: The container on which to set the property.
-// * `key`: The name of the property to set.
-// * `value`: The value of the property to set.
-//
-// ### Response
-//
-// Empty.
-//
-// ### Errors
-//
-// * When the `handle` does not refer to a container.
-//
-// ### Definition
-//
-
-package garden;
+/package garden;
 
 message SetPropertyRequest {
   optional string handle = 1;
