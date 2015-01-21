@@ -380,7 +380,7 @@ func (c *LinuxContainer) Restore(snapshot ContainerSnapshot) error {
 	}
 
 	for _, out := range snapshot.NetOuts {
-		err = c.NetOut(out.Network, out.Port, "", garden.ProtocolTCP, -1, -1)
+		err = c.NetOut(out.Network, out.Port, "", garden.ProtocolTCP, -1, -1, false)
 		if err != nil {
 			cLog.Error("failed-to-reenforce-allowed-traffic", err)
 			return err
@@ -411,7 +411,7 @@ func (c *LinuxContainer) Start() error {
 	err := cRunner.Run(start)
 	if err != nil {
 		cLog.Error("failed-to-start", err)
-		return err
+		return fmt.Errorf("container: start: %v", err)
 	}
 
 	c.setState(StateActive)
@@ -840,8 +840,8 @@ func (c *LinuxContainer) NetIn(hostPort uint32, containerPort uint32) (uint32, u
 	return hostPort, containerPort, nil
 }
 
-func (c *LinuxContainer) NetOut(network string, port uint32, portRange string, protocol garden.Protocol, icmpType int32, icmpCode int32) error {
-	err := c.filter.NetOut(network, port, portRange, protocol, icmpType, icmpCode)
+func (c *LinuxContainer) NetOut(network string, port uint32, portRange string, protocol garden.Protocol, icmpType int32, icmpCode int32, log bool) error {
+	err := c.filter.NetOut(network, port, portRange, protocol, icmpType, icmpCode, log)
 	if err != nil {
 		return err
 	}

@@ -12,37 +12,82 @@ import (
 	"github.com/pivotal-golang/lager"
 )
 
-type ChainFactory interface {
-	CreateChain(name string) Chain
+// NewGlobalChain creates a chain without an associated log chain.
+// The chain is not created by this package (currently it is created in net.sh).
+// It is an error to attempt to call Setup on this chain.
+func NewGlobalChain(name string, runner command_runner.CommandRunner, log lager.Logger) Chain {
+	return &chain{name: name, logChainName: "", runner: runner, logger: log}
 }
 
-func NewChainFactory(runner command_runner.CommandRunner, logger lager.Logger) ChainFactory {
-	return &chainFactory{runner, logger}
+// NewLoggingChain creates a chain with an associated log chain.
+// This allows NetOut calls with the 'log' parameter to succesfully log.
+func NewLoggingChain(name string, useKernelLogging bool, runner command_runner.CommandRunner, logger lager.Logger) Chain {
+	return &chain{name: name, logChainName: name + "-log", useKernelLogging: useKernelLogging, runner: runner, logger: logger}
 }
 
-type chainFactory struct {
-	runner command_runner.CommandRunner
-	logger lager.Logger
-}
-
-func (cf *chainFactory) CreateChain(name string) Chain {
-	return &chain{name: name, runner: cf.runner, logger: cf.logger}
-}
-
+//go:generate counterfeiter . Chain
 type Chain interface {
+	// Create the actual iptable chains in the underlying system
+	Setup() error
+
+	// Destroy the actual iptable chains in the underlying system
+	TearDown() error
+
 	AppendRule(source string, destination string, jump Action) error
 	DeleteRule(source string, destination string, jump Action) error
 
 	AppendNatRule(source string, destination string, jump Action, to net.IP) error
 	DeleteNatRule(source string, destination string, jump Action, to net.IP) error
 
-	PrependFilterRule(protocol garden.Protocol, dest string, destPort uint32, destPortRange string, destIcmpType, destIcmpCode int32) error
+	PrependFilterRule(protocol garden.Protocol, dest string, destPort uint32, destPortRange string, destIcmpType, destIcmpCode int32, log bool) error
 }
 
 type chain struct {
-	name   string
-	runner command_runner.CommandRunner
-	logger lager.Logger
+	name             string
+	logChainName     string
+	useKernelLogging bool
+	runner           command_runner.CommandRunner
+	logger           lager.Logger
+}
+
+func (ch *chain) Setup() error {
+	if ch.logChainName == "" {
+		// we still use net.sh to set up global non-logging chains
+		panic("cannot set up chains without associated log chains")
+	}
+
+	ch.TearDown()
+
+	if err := ch.runner.Run(exec.Command("/sbin/iptables", "-w", "-N", ch.logChainName)); err != nil {
+		return fmt.Errorf("iptables: log chain setup: %v", err)
+	}
+
+	logParams := []string{"--jump", "LOG", "--log-prefix", fmt.Sprintf("%s ", ch.name)}
+	if !ch.useKernelLogging {
+		logParams = []string{"--jump", "NFLOG", "--nflog-prefix", fmt.Sprintf("%s ", ch.name), "--nflog-group", "1"}
+	}
+
+	appendFlags := []string{"-w", "-A", ch.logChainName, "-m", "conntrack", "--ctstate", "NEW,UNTRACKED,INVALID", "--protocol", "tcp"}
+	if err := ch.runner.Run(exec.Command("/sbin/iptables", append(appendFlags, logParams...)...)); err != nil {
+		return fmt.Errorf("iptables: log chain setup: %v", err)
+	}
+
+	if err := ch.runner.Run(exec.Command("/sbin/iptables", "-w", "-A", ch.logChainName, "--jump", "RETURN")); err != nil {
+		return fmt.Errorf("iptables: log chain setup: %v", err)
+	}
+
+	return nil
+}
+
+func (ch *chain) TearDown() error {
+	if ch.logChainName == "" {
+		// we still use net.sh to tear down global non-logging chains
+		panic("cannot tear down chains without associated log chains")
+	}
+
+	ch.runner.Run(exec.Command("/sbin/iptables", "-w", "-F", ch.logChainName))
+	ch.runner.Run(exec.Command("/sbin/iptables", "-w", "-X", ch.logChainName))
+	return nil
 }
 
 func (ch *chain) AppendRule(source string, destination string, jump Action) error {
@@ -81,7 +126,7 @@ func (ch *chain) DeleteNatRule(source string, destination string, jump Action, t
 	})
 }
 
-func (ch *chain) PrependFilterRule(protocol garden.Protocol, dest string, destPort uint32, destPortRange string, destIcmpType, destIcmpCode int32) error {
+func (ch *chain) PrependFilterRule(protocol garden.Protocol, dest string, destPort uint32, destPortRange string, destIcmpType, destIcmpCode int32, log bool) error {
 	params := []string{"-w", "-I", ch.name, "1"}
 
 	protocols := map[garden.Protocol]string{
@@ -124,7 +169,11 @@ func (ch *chain) PrependFilterRule(protocol garden.Protocol, dest string, destPo
 		params = append(params, "--icmp-type", icmpType)
 	}
 
-	params = append(params, "--jump", "RETURN")
+	if log {
+		params = append(params, "--goto", ch.logChainName)
+	} else {
+		params = append(params, "--jump", "RETURN")
+	}
 
 	ch.logger.Debug("prepend-filter-rule", lager.Data{"parms": params})
 	return ch.runner.Run(exec.Command("/sbin/iptables", params...))

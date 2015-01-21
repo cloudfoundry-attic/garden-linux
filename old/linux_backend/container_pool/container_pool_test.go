@@ -19,8 +19,12 @@ import (
 	"github.com/pivotal-golang/lager/lagertest"
 
 	"github.com/cloudfoundry-incubator/garden-linux/fences/fake_fences"
+	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network"
+	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/fakes"
+	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/iptables"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool"
+	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/fake_container_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/fake_fence_persistor"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/rootfs_provider/fake_rootfs_provider"
@@ -44,6 +48,8 @@ var _ = Describe("Container pool", func() {
 	var fakePortPool *fake_port_pool.FakePortPool
 	var defaultFakeRootFSProvider *fake_rootfs_provider.FakeRootFSProvider
 	var fakeRootFSProvider *fake_rootfs_provider.FakeRootFSProvider
+	var fakeFilterProvider *fake_container_pool.FakeFilterProvider
+	var fakeFilter *fakes.FakeFilter
 	var pool *container_pool.LinuxContainerPool
 	var config sysconfig.Config
 
@@ -58,6 +64,12 @@ var _ = Describe("Container pool", func() {
 		fakeFencePersistor.RecoverResult, err = fakeFences.Build("", nil, "container id")
 		Ω(err).ShouldNot(HaveOccurred())
 
+		fakeFilter = new(fakes.FakeFilter)
+		fakeFilterProvider = new(fake_container_pool.FakeFilterProvider)
+		fakeFilterProvider.ProvideFilterStub = func(id string) network.Filter {
+			return fakeFilter
+		}
+
 		fakeRunner = fake_command_runner.New()
 		fakeQuotaManager = fake_quota_manager.New()
 		fakePortPool = fake_port_pool.New(1000)
@@ -70,8 +82,9 @@ var _ = Describe("Container pool", func() {
 		Ω(err).ShouldNot(HaveOccurred())
 
 		config = sysconfig.NewConfig("0", false)
+		logger := lagertest.NewTestLogger("test")
 		pool = container_pool.New(
-			lagertest.NewTestLogger("test"),
+			logger,
 			"/root/path",
 			depotPath,
 			config,
@@ -82,6 +95,8 @@ var _ = Describe("Container pool", func() {
 			fakeUIDPool,
 			fakeFences,
 			fakeFencePersistor,
+			fakeFilterProvider,
+			iptables.NewGlobalChain("global-default-chain", fakeRunner, logger),
 			fakePortPool,
 			[]string{"1.1.0.0/16", "", "2.2.0.0/16"}, // empty string to test that this is ignored
 			[]string{"1.1.1.1/32", "", "2.2.2.2/32"},
@@ -168,19 +183,19 @@ var _ = Describe("Container pool", func() {
 					},
 					fake_command_runner.CommandSpec{
 						Path: "/sbin/iptables",
-						Args: []string{"-w", "-A", config.IPTables.Filter.DefaultChain, "--destination", "1.1.1.1/32", "--jump", "RETURN"},
+						Args: []string{"-w", "-A", "global-default-chain", "--destination", "1.1.1.1/32", "--jump", "RETURN"},
 					},
 					fake_command_runner.CommandSpec{
 						Path: "/sbin/iptables",
-						Args: []string{"-w", "-A", config.IPTables.Filter.DefaultChain, "--destination", "2.2.2.2/32", "--jump", "RETURN"},
+						Args: []string{"-w", "-A", "global-default-chain", "--destination", "2.2.2.2/32", "--jump", "RETURN"},
 					},
 					fake_command_runner.CommandSpec{
 						Path: "/sbin/iptables",
-						Args: []string{"-w", "-A", config.IPTables.Filter.DefaultChain, "--destination", "1.1.0.0/16", "--jump", "REJECT"},
+						Args: []string{"-w", "-A", "global-default-chain", "--destination", "1.1.0.0/16", "--jump", "REJECT"},
 					},
 					fake_command_runner.CommandSpec{
 						Path: "/sbin/iptables",
-						Args: []string{"-w", "-A", config.IPTables.Filter.DefaultChain, "--destination", "2.2.0.0/16", "--jump", "REJECT"},
+						Args: []string{"-w", "-A", "global-default-chain", "--destination", "2.2.0.0/16", "--jump", "REJECT"},
 					},
 				))
 			})
@@ -272,6 +287,33 @@ var _ = Describe("Container pool", func() {
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(container.Properties()).Should(Equal(properties))
+		})
+
+		It("sets up iptable filters for the container", func() {
+			container, err := pool.Create(garden.ContainerSpec{})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(fakeFilterProvider.ProvideFilterCallCount()).Should(BeNumerically(">", 0))
+			Ω(fakeFilterProvider.ProvideFilterArgsForCall(0)).Should(Equal(container.Handle()))
+			Ω(fakeFilter.SetupCallCount()).Should(Equal(1))
+		})
+
+		Context("when setting up iptables fails", func() {
+			var err error
+			BeforeEach(func() {
+				fakeFilter.SetupReturns(errors.New("iptables says no"))
+				_, err = pool.Create(garden.ContainerSpec{})
+				Ω(err).Should(HaveOccurred())
+			})
+
+			It("returns a wrapped error", func() {
+				Ω(err).Should(MatchError("container_pool: set up filter: iptables says no"))
+			})
+
+			itReleasesTheUserIDs()
+			itReleasesTheIPBlock()
+			itCleansUpTheRootfs()
+			itDeletesTheContainerDirectory()
 		})
 
 		Context("when the privileged flag is specified and true", func() {
@@ -1125,6 +1167,15 @@ var _ = Describe("Container pool", func() {
 			Ω(fakeFences.Released).Should(ContainElement("1.2.0.0/30"))
 		})
 
+		It("tears down filter chains", func() {
+			err := pool.Destroy(createdContainer)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(fakeFilterProvider.ProvideFilterCallCount()).Should(BeNumerically(">", 0))
+			Ω(fakeFilterProvider.ProvideFilterArgsForCall(0)).Should(Equal(createdContainer.Handle()))
+			Ω(fakeFilter.TearDownCallCount()).Should(Equal(1))
+		})
+
 		Context("when the container has a rootfs provider defined", func() {
 			BeforeEach(func() {
 				err := os.MkdirAll(path.Join(depotPath, createdContainer.ID()), 0755)
@@ -1162,6 +1213,11 @@ var _ = Describe("Container pool", func() {
 					Ω(fakePortPool.Released).ShouldNot(ContainElement(uint32(456)))
 					Ω(fakeUIDPool.Released).ShouldNot(ContainElement(uint32(10000)))
 					Ω(fakeFences.Released).ShouldNot(ContainElement("1.2.0.0/30"))
+				})
+
+				It("does not tear down the filter", func() {
+					pool.Destroy(createdContainer)
+					Ω(fakeFilter.TearDownCallCount()).Should(Equal(0))
 				})
 			})
 		})
@@ -1203,6 +1259,11 @@ var _ = Describe("Container pool", func() {
 				Ω(fakeUIDPool.Released).Should(BeEmpty())
 
 				Ω(fakeFences.Released).Should(BeEmpty())
+			})
+
+			It("does not tear down the filter", func() {
+				pool.Destroy(createdContainer)
+				Ω(fakeFilter.TearDownCallCount()).Should(Equal(0))
 			})
 		})
 	})

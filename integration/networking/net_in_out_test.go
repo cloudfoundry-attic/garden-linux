@@ -9,12 +9,16 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/cloudfoundry-incubator/garden"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
 	"github.com/onsi/gomega/gbytes"
+	"github.com/onsi/gomega/gexec"
+
 	archiver "github.com/pivotal-golang/archiver/extractor/test_helper"
 )
 
@@ -40,6 +44,7 @@ var _ = Describe("Net In/Out", func() {
 				allowRange, // so that it can be overridden by allowNetworks below
 			}, ","),
 			"-allowNetworks", allowRange,
+			"-iptablesLogMethod", "nflog", // so that we can read logs when running in fly
 		)
 
 		var err error
@@ -150,7 +155,7 @@ var _ = Describe("Net In/Out", func() {
 
 			Context("after a net_out of another range", func() {
 				It("does not allow connections to that address", func() {
-					container.NetOut("1.2.3.4/30", 0, "", garden.ProtocolAll, -1, -1)
+					container.NetOut("1.2.3.4/30", 0, "", garden.ProtocolAll, -1, -1, false)
 					ByRejectingTCP()
 					ByRejectingICMP()
 				})
@@ -159,7 +164,7 @@ var _ = Describe("Net In/Out", func() {
 			Context("after net_out allows tcp traffic to that IP and port", func() {
 				Context("when no port is specified", func() {
 					It("allows both tcp and icmp to that address", func() {
-						err := container.NetOut(externalIP.String(), 0, "", garden.ProtocolAll, -1, -1)
+						err := container.NetOut(externalIP.String(), 0, "", garden.ProtocolAll, -1, -1, false)
 						Ω(err).ShouldNot(HaveOccurred())
 						ByAllowingTCP()
 						ByAllowingICMP()
@@ -169,7 +174,7 @@ var _ = Describe("Net In/Out", func() {
 
 			Context("after net_out allows tcp traffic to a range of IP addresses", func() {
 				It("allows tcp to an address in the range", func() {
-					err := container.NetOut(externalIP.String()+"-"+"255.255.255.254", 0, "", garden.ProtocolTCP, -1, -1)
+					err := container.NetOut(externalIP.String()+"-"+"255.255.255.254", 0, "", garden.ProtocolTCP, -1, -1, false)
 					Ω(err).ShouldNot(HaveOccurred())
 					ByAllowingTCP()
 				})
@@ -184,7 +189,7 @@ var _ = Describe("Net In/Out", func() {
 					})
 
 					It("allows TCP and blocks ICMP", func() {
-						err := container.NetOut(externalIP.String(), 0, "", garden.ProtocolTCP, -1, -1)
+						err := container.NetOut(externalIP.String(), 0, "", garden.ProtocolTCP, -1, -1, false)
 						Ω(err).ShouldNot(HaveOccurred())
 						ByAllowingTCP()
 						ByRejectingICMP()
@@ -197,7 +202,7 @@ var _ = Describe("Net In/Out", func() {
 					})
 
 					It("allows ICMP pings and blocks TCP", func() {
-						err := container.NetOut(externalIP.String(), 0, "", garden.ProtocolICMP, 13, 0)
+						err := container.NetOut(externalIP.String(), 0, "", garden.ProtocolICMP, 13, 0, false)
 						Ω(err).ShouldNot(HaveOccurred())
 						ByRejectingICMP()
 						ByRejectingTCP()
@@ -210,10 +215,10 @@ var _ = Describe("Net In/Out", func() {
 					})
 
 					It("allows ICMP pings and blocks TCP", func() {
-						err := container.NetOut(externalIP.String(), 0, "", garden.ProtocolICMP, 8, 4)
+						err := container.NetOut(externalIP.String(), 0, "", garden.ProtocolICMP, 8, 4, false)
 						ByRejectingICMP()
 						ByRejectingTCP()
-						err = container.NetOut(externalIP.String(), 0, "", garden.ProtocolICMP, 8, 0)
+						err = container.NetOut(externalIP.String(), 0, "", garden.ProtocolICMP, 8, 0, false)
 						Ω(err).ShouldNot(HaveOccurred())
 						ByAllowingICMP()
 						ByRejectingTCP()
@@ -226,7 +231,7 @@ var _ = Describe("Net In/Out", func() {
 					})
 
 					It("allows ICMP and blocks TCP", func() {
-						err := container.NetOut(externalIP.String(), 0, "", garden.ProtocolICMP, -1, -1)
+						err := container.NetOut(externalIP.String(), 0, "", garden.ProtocolICMP, -1, -1, false)
 						Ω(err).ShouldNot(HaveOccurred())
 						ByAllowingICMP()
 						ByRejectingTCP()
@@ -278,11 +283,16 @@ var _ = Describe("Net In/Out", func() {
 			return info.ContainerIP
 		}
 
-		ByAllowingTCP := func() {
+		ByAllowingTCP := func(data ...string) {
 			By("allowing tcp traffic to it", func() {
+				msg := "hello"
+				if len(data) > 0 {
+					msg = data[0]
+				}
+
 				process, _ := runInContainer(
 					container,
-					fmt.Sprintf("echo hello | nc -w 1 %s %d", targetIP(otherContainer), tcpPort),
+					fmt.Sprintf("echo "+msg+" | nc -w 1 %s %d", targetIP(otherContainer), tcpPort),
 				)
 
 				Ω(process.Wait()).Should(Equal(0))
@@ -411,7 +421,7 @@ var _ = Describe("Net In/Out", func() {
 
 				Context("after a net_out of another range", func() {
 					It("still does not allow connections to that address", func() {
-						container.NetOut("1.2.3.4/30", 0, "", garden.ProtocolAll, -1, -1)
+						container.NetOut("1.2.3.4/30", 0, "", garden.ProtocolAll, -1, -1, false)
 						ByRejectingICMP()
 						ByRejectingUDP()
 						ByRejectingTCP()
@@ -421,7 +431,7 @@ var _ = Describe("Net In/Out", func() {
 				Context("after net_out allows all traffic to that IP and port", func() {
 					Context("when no port is specified", func() {
 						It("allows both tcp and icmp to that address", func() {
-							container.NetOut(otherContainerNetwork.String(), 0, "", garden.ProtocolAll, -1, -1)
+							container.NetOut(otherContainerNetwork.String(), 0, "", garden.ProtocolAll, -1, -1, false)
 							ByAllowingICMP()
 							ByAllowingUDP()
 							ByAllowingTCP()
@@ -430,18 +440,20 @@ var _ = Describe("Net In/Out", func() {
 
 					Context("when a port is specified", func() {
 						It("allows tcp connections to that port", func() {
-							container.NetOut(otherContainerNetwork.String(), 12345, "", garden.ProtocolTCP, -1, -1) // wrong port
+							container.NetOut(otherContainerNetwork.String(), 12345, "", garden.ProtocolTCP, -1, -1, false) // wrong port
 							ByRejectingTCP()
-							container.NetOut(otherContainerNetwork.String(), tcpPort, "", garden.ProtocolTCP, -1, -1)
+
+							container.NetOut(otherContainerNetwork.String(), tcpPort, "", garden.ProtocolTCP, -1, -1, false)
 							ByRejectingUDP()
 							ByRejectingICMP()
 							ByAllowingTCP()
 						})
 
 						It("allows udp connections to that port", func() {
-							container.NetOut(otherContainerNetwork.String(), 12345, "", garden.ProtocolUDP, -1, -1) // wrong port
+							container.NetOut(otherContainerNetwork.String(), 12345, "", garden.ProtocolUDP, -1, -1, false) // wrong port
 							ByRejectingUDP()
-							container.NetOut(otherContainerNetwork.String(), udpPort, "", garden.ProtocolUDP, -1, -1)
+
+							container.NetOut(otherContainerNetwork.String(), udpPort, "", garden.ProtocolUDP, -1, -1, false)
 							ByRejectingICMP()
 							ByRejectingTCP()
 							ByAllowingUDP()
@@ -450,14 +462,14 @@ var _ = Describe("Net In/Out", func() {
 
 					Context("when a port range is specified", func() {
 						It("allows tcp connections a port in that range", func() {
-							container.NetOut(otherContainerNetwork.String(), 0, tcpPortRange, garden.ProtocolTCP, -1, -1)
+							container.NetOut(otherContainerNetwork.String(), 0, tcpPortRange, garden.ProtocolTCP, -1, -1, false)
 							ByRejectingUDP()
 							ByRejectingICMP()
 							ByAllowingTCP()
 						})
 
 						It("allows udp connections a port in that range", func() {
-							container.NetOut(otherContainerNetwork.String(), 0, tcpPortRange, garden.ProtocolUDP, -1, -1)
+							container.NetOut(otherContainerNetwork.String(), 0, tcpPortRange, garden.ProtocolUDP, -1, -1, false)
 							ByRejectingTCP()
 							ByRejectingICMP()
 							ByAllowingUDP()
@@ -467,17 +479,77 @@ var _ = Describe("Net In/Out", func() {
 
 				Describe("when no port or port is specified", func() {
 					It("allows all TCP and blocks other protocols", func() {
-						container.NetOut(otherContainerNetwork.String(), 0, "", garden.ProtocolTCP, -1, -1)
+						container.NetOut(otherContainerNetwork.String(), 0, "", garden.ProtocolTCP, -1, -1, false)
 						ByAllowingTCP()
 						ByRejectingICMP()
 						ByRejectingUDP()
 					})
 
 					It("allows UDP and blocks other protocols", func() {
-						container.NetOut(otherContainerNetwork.String(), 0, "", garden.ProtocolUDP, -1, -1)
+						container.NetOut(otherContainerNetwork.String(), 0, "", garden.ProtocolUDP, -1, -1, false)
 						ByRejectingTCP()
 						ByRejectingICMP()
 						ByAllowingUDP()
+					})
+				})
+
+				Describe("logging in TCP", func() {
+					It("writes log entries to syslog when TCP requests are made", func() {
+						tmpDir, err := ioutil.TempDir("", "iptables-log-test")
+						Ω(err).ShouldNot(HaveOccurred())
+						defer os.RemoveAll(tmpDir)
+
+						configFile := filepath.Join(tmpDir, "ulogd.conf")
+						logFile := filepath.Join(tmpDir, "ulogd.log")
+
+						Ω(ioutil.WriteFile(configFile, []byte(`
+[global]
+logfile="syslog"
+loglevel=1
+
+plugin="/usr/lib/x86_64-linux-gnu/ulogd/ulogd_inppkt_NFLOG.so"
+plugin="/usr/lib/x86_64-linux-gnu/ulogd/ulogd_output_LOGEMU.so"
+plugin="/usr/lib/x86_64-linux-gnu/ulogd/ulogd_raw2packet_BASE.so"
+plugin="/usr/lib/x86_64-linux-gnu/ulogd/ulogd_filter_IFINDEX.so"
+plugin="/usr/lib/x86_64-linux-gnu/ulogd/ulogd_filter_IP2STR.so"
+plugin="/usr/lib/x86_64-linux-gnu/ulogd/ulogd_filter_PRINTPKT.so"
+
+stack=log1:NFLOG,base1:BASE,ifi1:IFINDEX,ip2str1:IP2STR,print1:PRINTPKT,emu1:LOGEMU
+
+[log1]
+group=1
+
+[emu1]
+file=`+logFile+`
+sync=1
+`), 0755)).Should(Succeed())
+
+						pidFile := filepath.Join(tmpDir, "ulog.pid")
+						ulogd, err := gexec.Start(exec.Command("ulogd", "-p", pidFile, "-c", configFile), GinkgoWriter, GinkgoWriter)
+						Ω(err).ShouldNot(HaveOccurred())
+						defer ulogd.Kill()
+
+						Eventually(func() error { _, err := os.Stat(pidFile); return err }).ShouldNot(HaveOccurred(), "ulogd should write a pidfile")
+
+						err = container.NetOut(otherContainerNetwork.String(), 0, "", garden.ProtocolTCP, -1, -1, true)
+						Ω(err).ShouldNot(HaveOccurred())
+
+						// Use a large message to increase the probability that logging occurs.
+						// Note that there is a 4096 byte buffer on ulog kernel module.
+						ByAllowingTCP(strings.Repeat("a", 5000))
+
+						logs := func() string {
+							logs, err := ioutil.ReadFile(logFile)
+							Ω(err).ShouldNot(HaveOccurred())
+							return string(logs)
+						}
+
+						// the ulog kernel module can sometimes buffer messages for up to 15 seconds
+						Eventually(logs, "15s").Should(MatchRegexp("%s.+DST=%s", regexp.QuoteMeta(container.Handle()), regexp.QuoteMeta(targetIP(otherContainer))))
+
+						Consistently(func() []string {
+							return regexp.MustCompile(fmt.Sprintf("%s.+DST=%s", regexp.QuoteMeta(container.Handle()), regexp.QuoteMeta(targetIP(otherContainer)))).FindAllString(logs(), -1)
+						}, "1s").Should(HaveLen(1), "only the first packet should be logged")
 					})
 				})
 			})
@@ -547,7 +619,7 @@ func dumpIP() {
 	Ω(err).ShouldNot(HaveOccurred())
 	fmt.Println("IP status:\n", string(op))
 
-	cmd = exec.Command("iptables", "--list")
+	cmd = exec.Command("iptables", "--verbose", "--exact", "--numeric", "--list")
 	op, err = cmd.CombinedOutput()
 	Ω(err).ShouldNot(HaveOccurred())
 	fmt.Println("IP tables chains:\n", string(op))

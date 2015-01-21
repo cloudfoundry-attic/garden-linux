@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
+	"github.com/onsi/gomega/gexec"
 	archiver "github.com/pivotal-golang/archiver/extractor/test_helper"
 )
 
@@ -803,6 +805,17 @@ var _ = Describe("Creating a container", func() {
 			Ω(client.Destroy(container.Handle())).Should(Succeed())
 			Ω(client.Destroy(container.Handle())).Should(MatchError(garden.ContainerNotFoundError{container.Handle()}))
 			container = nil
+		})
+
+		It("should ensure any iptables rules which were created no longer exist", func() {
+			handle := container.Handle()
+			Ω(client.Destroy(handle)).Should(Succeed())
+			container = nil
+
+			iptables, err := gexec.Start(exec.Command("iptables", "-L"), GinkgoWriter, GinkgoWriter)
+			Ω(err).ShouldNot(HaveOccurred())
+			Eventually(iptables).Should(gexec.Exit())
+			Ω(iptables).ShouldNot(gbytes.Say(handle))
 		})
 	})
 })

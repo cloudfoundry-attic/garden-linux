@@ -16,289 +16,478 @@ import (
 )
 
 var _ = Describe("Iptables", func() {
-	var fakeRunner *fake_command_runner.FakeCommandRunner
-	var subject Chain
+	Describe("Chain", func() {
+		var fakeRunner *fake_command_runner.FakeCommandRunner
+		var subject Chain
+		var useKernelLogging bool
 
-	BeforeEach(func() {
-		fakeRunner = fake_command_runner.New()
-		subject = NewChainFactory(fakeRunner, lagertest.NewTestLogger("test")).CreateChain("foo-bar-baz")
-	})
-
-	Describe("AppendRule", func() {
-		It("runs iptables to create the rule with the correct parameters", func() {
-			subject.AppendRule("", "2.0.0.0/11", Return)
-
-			Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
-				Path: "/sbin/iptables",
-				Args: []string{"-w", "-A", "foo-bar-baz", "--destination", "2.0.0.0/11", "--jump", "RETURN"},
-			}))
+		JustBeforeEach(func() {
+			fakeRunner = fake_command_runner.New()
+			subject = NewLoggingChain("foo-bar-baz", useKernelLogging, fakeRunner, lagertest.NewTestLogger("test"))
 		})
-	})
 
-	Describe("AppendNatRule", func() {
-		Context("creating a rule", func() {
-			Context("when all parameters are specified", func() {
-				It("runs iptables to create the rule with the correct parameters", func() {
-					subject.AppendNatRule("1.3.5.0/28", "2.0.0.0/11", Return, net.ParseIP("1.2.3.4"))
-
-					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
-						Path: "/sbin/iptables",
-						Args: []string{"-w", "-t", "nat", "-A", "foo-bar-baz", "--source", "1.3.5.0/28", "--destination", "2.0.0.0/11", "--jump", "RETURN", "--to", "1.2.3.4"},
-					}))
-				})
-			})
-
-			Context("when Source is not specified", func() {
-				It("does not include the --source parameter in the command", func() {
-					subject.AppendNatRule("", "2.0.0.0/11", Return, net.ParseIP("1.2.3.4"))
-
-					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
-						Path: "/sbin/iptables",
-						Args: []string{"-w", "-t", "nat", "-A", "foo-bar-baz", "--destination", "2.0.0.0/11", "--jump", "RETURN", "--to", "1.2.3.4"},
-					}))
-				})
-			})
-
-			Context("when Destination is not specified", func() {
-				It("does not include the --destination parameter in the command", func() {
-					subject.AppendNatRule("1.3.5.0/28", "", Return, net.ParseIP("1.2.3.4"))
-
-					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
-						Path: "/sbin/iptables",
-						Args: []string{"-w", "-t", "nat", "-A", "foo-bar-baz", "--source", "1.3.5.0/28", "--jump", "RETURN", "--to", "1.2.3.4"},
-					}))
-				})
-			})
-
-			Context("when To is not specified", func() {
-				It("does not include the --to parameter in the command", func() {
-					subject.AppendNatRule("1.3.5.0/28", "2.0.0.0/11", Return, nil)
-
-					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
-						Path: "/sbin/iptables",
-						Args: []string{"-w", "-t", "nat", "-A", "foo-bar-baz", "--source", "1.3.5.0/28", "--destination", "2.0.0.0/11", "--jump", "RETURN"},
-					}))
-				})
-			})
-
-			Context("when the command returns an error", func() {
-				It("returns an error", func() {
-					someError := errors.New("badly laid iptable")
-					fakeRunner.WhenRunning(
-						fake_command_runner.CommandSpec{Path: "/sbin/iptables"},
-						func(cmd *exec.Cmd) error {
-							return someError
+		Describe("Setup", func() {
+			Context("when kernel logging is not enabled", func() {
+				It("creates the log chain using iptables", func() {
+					Ω(subject.Setup()).Should(Succeed())
+					Ω(fakeRunner).Should(HaveExecutedSerially(
+						fake_command_runner.CommandSpec{
+							Path: "/sbin/iptables",
+							Args: []string{"-w", "-F", "foo-bar-baz-log"},
 						},
-					)
-
-					Ω(subject.AppendRule("1.2.3.4/5", "", "")).ShouldNot(Succeed())
+						fake_command_runner.CommandSpec{
+							Path: "/sbin/iptables",
+							Args: []string{"-w", "-X", "foo-bar-baz-log"},
+						},
+						fake_command_runner.CommandSpec{
+							Path: "/sbin/iptables",
+							Args: []string{"-w", "-N", "foo-bar-baz-log"},
+						},
+						fake_command_runner.CommandSpec{
+							Path: "/sbin/iptables",
+							Args: []string{"-w", "-A", "foo-bar-baz-log", "-m", "conntrack", "--ctstate", "NEW,UNTRACKED,INVALID", "--protocol", "tcp", "--jump", "NFLOG", "--nflog-prefix", "foo-bar-baz ", "--nflog-group", "1"},
+						},
+						fake_command_runner.CommandSpec{
+							Path: "/sbin/iptables",
+							Args: []string{"-w", "-A", "foo-bar-baz-log", "--jump", "RETURN"},
+						}))
 				})
+			})
+
+			Context("when kernel logging is enabled", func() {
+				BeforeEach(func() {
+					useKernelLogging = true
+				})
+
+				It("creates the log chain using iptables", func() {
+					Ω(subject.Setup()).Should(Succeed())
+					Ω(fakeRunner).Should(HaveExecutedSerially(
+						fake_command_runner.CommandSpec{
+							Path: "/sbin/iptables",
+							Args: []string{"-w", "-F", "foo-bar-baz-log"},
+						},
+						fake_command_runner.CommandSpec{
+							Path: "/sbin/iptables",
+							Args: []string{"-w", "-X", "foo-bar-baz-log"},
+						},
+						fake_command_runner.CommandSpec{
+							Path: "/sbin/iptables",
+							Args: []string{"-w", "-N", "foo-bar-baz-log"},
+						},
+						fake_command_runner.CommandSpec{
+							Path: "/sbin/iptables",
+							Args: []string{"-w", "-A", "foo-bar-baz-log", "-m", "conntrack", "--ctstate", "NEW,UNTRACKED,INVALID", "--protocol", "tcp",
+								"--jump", "LOG", "--log-prefix", "foo-bar-baz "},
+						},
+						fake_command_runner.CommandSpec{
+							Path: "/sbin/iptables",
+							Args: []string{"-w", "-A", "foo-bar-baz-log", "--jump", "RETURN"},
+						}))
+				})
+			})
+
+			It("ignores failures to flush", func() {
+				someError := errors.New("y")
+				fakeRunner.WhenRunning(
+					fake_command_runner.CommandSpec{
+						Path: "/sbin/iptables",
+						Args: []string{"-w", "-F", "foo-bar-baz-log"},
+					},
+					func(cmd *exec.Cmd) error {
+						return someError
+					})
+
+				Ω(subject.Setup()).Should(Succeed())
+			})
+
+			It("ignores failures to delete", func() {
+				someError := errors.New("y")
+				fakeRunner.WhenRunning(
+					fake_command_runner.CommandSpec{
+						Path: "/sbin/iptables",
+						Args: []string{"-w", "-X", "foo-bar-baz-log"},
+					},
+					func(cmd *exec.Cmd) error {
+						return someError
+					})
+
+				Ω(subject.Setup()).Should(Succeed())
+			})
+
+			It("returns any error returned when the table is created", func() {
+				someError := errors.New("y")
+				fakeRunner.WhenRunning(
+					fake_command_runner.CommandSpec{
+						Path: "/sbin/iptables",
+						Args: []string{"-w", "-N", "foo-bar-baz-log"},
+					},
+					func(cmd *exec.Cmd) error {
+						return someError
+					})
+
+				Ω(subject.Setup()).Should(MatchError("iptables: log chain setup: y"))
+			})
+
+			It("returns any error returned when the logging rule is added", func() {
+				someError := errors.New("y")
+				fakeRunner.WhenRunning(
+					fake_command_runner.CommandSpec{
+						Path: "/sbin/iptables",
+						Args: []string{"-w", "-A", "foo-bar-baz-log", "-m", "conntrack", "--ctstate", "NEW,UNTRACKED,INVALID", "--protocol", "tcp", "--jump", "LOG", "--log-prefix", "foo-bar-baz "},
+					},
+					func(cmd *exec.Cmd) error {
+						return someError
+					})
+
+				Ω(subject.Setup()).Should(MatchError("iptables: log chain setup: y"))
+			})
+
+			It("returns any error returned when the RETURN rule is added", func() {
+				someError := errors.New("y")
+				fakeRunner.WhenRunning(
+					fake_command_runner.CommandSpec{
+						Path: "/sbin/iptables",
+						Args: []string{"-w", "-A", "foo-bar-baz-log", "--jump", "RETURN"},
+					},
+					func(cmd *exec.Cmd) error {
+						return someError
+					})
+
+				Ω(subject.Setup()).Should(MatchError("iptables: log chain setup: y"))
 			})
 		})
 
-		Describe("DeleteRule", func() {
-			It("runs iptables to delete the rule with the correct parameters", func() {
-				subject.DeleteRule("", "2.0.0.0/11", Return)
+		Describe("TearDown", func() {
+			It("should flush and delete the underlying iptables log chain", func() {
+				Ω(subject.TearDown()).Should(Succeed())
+				Ω(fakeRunner).Should(HaveExecutedSerially(
+					fake_command_runner.CommandSpec{
+						Path: "/sbin/iptables",
+						Args: []string{"-w", "-F", "foo-bar-baz-log"},
+					},
+					fake_command_runner.CommandSpec{
+						Path: "/sbin/iptables",
+						Args: []string{"-w", "-X", "foo-bar-baz-log"},
+					}))
+			})
+
+			It("ignores failures to flush", func() {
+				someError := errors.New("y")
+				fakeRunner.WhenRunning(
+					fake_command_runner.CommandSpec{
+						Path: "/sbin/iptables",
+						Args: []string{"-w", "-F", "foo-bar-baz-log"},
+					},
+					func(cmd *exec.Cmd) error {
+						return someError
+					})
+
+				Ω(subject.TearDown()).Should(Succeed())
+			})
+
+			It("ignores failures to delete", func() {
+				someError := errors.New("y")
+				fakeRunner.WhenRunning(
+					fake_command_runner.CommandSpec{
+						Path: "/sbin/iptables",
+						Args: []string{"-w", "-X", "foo-bar-baz-log"},
+					},
+					func(cmd *exec.Cmd) error {
+						return someError
+					})
+
+				Ω(subject.TearDown()).Should(Succeed())
+			})
+
+		})
+
+		Describe("AppendRule", func() {
+			It("runs iptables to create the rule with the correct parameters", func() {
+				subject.AppendRule("", "2.0.0.0/11", Return)
 
 				Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
 					Path: "/sbin/iptables",
-					Args: []string{"-w", "-D", "foo-bar-baz", "--destination", "2.0.0.0/11", "--jump", "RETURN"},
+					Args: []string{"-w", "-A", "foo-bar-baz", "--destination", "2.0.0.0/11", "--jump", "RETURN"},
 				}))
 			})
 		})
 
-		Context("DeleteNatRule", func() {
-			Context("when all parameters are specified", func() {
+		Describe("AppendNatRule", func() {
+			Context("creating a rule", func() {
+				Context("when all parameters are specified", func() {
+					It("runs iptables to create the rule with the correct parameters", func() {
+						subject.AppendNatRule("1.3.5.0/28", "2.0.0.0/11", Return, net.ParseIP("1.2.3.4"))
+
+						Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+							Path: "/sbin/iptables",
+							Args: []string{"-w", "-t", "nat", "-A", "foo-bar-baz", "--source", "1.3.5.0/28", "--destination", "2.0.0.0/11", "--jump", "RETURN", "--to", "1.2.3.4"},
+						}))
+					})
+				})
+
+				Context("when Source is not specified", func() {
+					It("does not include the --source parameter in the command", func() {
+						subject.AppendNatRule("", "2.0.0.0/11", Return, net.ParseIP("1.2.3.4"))
+
+						Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+							Path: "/sbin/iptables",
+							Args: []string{"-w", "-t", "nat", "-A", "foo-bar-baz", "--destination", "2.0.0.0/11", "--jump", "RETURN", "--to", "1.2.3.4"},
+						}))
+					})
+				})
+
+				Context("when Destination is not specified", func() {
+					It("does not include the --destination parameter in the command", func() {
+						subject.AppendNatRule("1.3.5.0/28", "", Return, net.ParseIP("1.2.3.4"))
+
+						Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+							Path: "/sbin/iptables",
+							Args: []string{"-w", "-t", "nat", "-A", "foo-bar-baz", "--source", "1.3.5.0/28", "--jump", "RETURN", "--to", "1.2.3.4"},
+						}))
+					})
+				})
+
+				Context("when To is not specified", func() {
+					It("does not include the --to parameter in the command", func() {
+						subject.AppendNatRule("1.3.5.0/28", "2.0.0.0/11", Return, nil)
+
+						Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+							Path: "/sbin/iptables",
+							Args: []string{"-w", "-t", "nat", "-A", "foo-bar-baz", "--source", "1.3.5.0/28", "--destination", "2.0.0.0/11", "--jump", "RETURN"},
+						}))
+					})
+				})
+
+				Context("when the command returns an error", func() {
+					It("returns an error", func() {
+						someError := errors.New("badly laid iptable")
+						fakeRunner.WhenRunning(
+							fake_command_runner.CommandSpec{Path: "/sbin/iptables"},
+							func(cmd *exec.Cmd) error {
+								return someError
+							},
+						)
+
+						Ω(subject.AppendRule("1.2.3.4/5", "", "")).ShouldNot(Succeed())
+					})
+				})
+			})
+
+			Describe("DeleteRule", func() {
 				It("runs iptables to delete the rule with the correct parameters", func() {
-					subject.DeleteNatRule("1.3.5.0/28", "2.0.0.0/11", Return, net.ParseIP("1.2.3.4"))
+					subject.DeleteRule("", "2.0.0.0/11", Return)
 
 					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
 						Path: "/sbin/iptables",
-						Args: []string{"-w", "-t", "nat", "-D", "foo-bar-baz", "--source", "1.3.5.0/28", "--destination", "2.0.0.0/11", "--jump", "RETURN", "--to", "1.2.3.4"},
+						Args: []string{"-w", "-D", "foo-bar-baz", "--destination", "2.0.0.0/11", "--jump", "RETURN"},
 					}))
 				})
 			})
 
-			Context("when Source is not specified", func() {
-				It("does not include the --source parameter in the command", func() {
-					subject.DeleteNatRule("", "2.0.0.0/11", Return, net.ParseIP("1.2.3.4"))
+			Context("DeleteNatRule", func() {
+				Context("when all parameters are specified", func() {
+					It("runs iptables to delete the rule with the correct parameters", func() {
+						subject.DeleteNatRule("1.3.5.0/28", "2.0.0.0/11", Return, net.ParseIP("1.2.3.4"))
 
-					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
-						Path: "/sbin/iptables",
-						Args: []string{"-w", "-t", "nat", "-D", "foo-bar-baz", "--destination", "2.0.0.0/11", "--jump", "RETURN", "--to", "1.2.3.4"},
-					}))
+						Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+							Path: "/sbin/iptables",
+							Args: []string{"-w", "-t", "nat", "-D", "foo-bar-baz", "--source", "1.3.5.0/28", "--destination", "2.0.0.0/11", "--jump", "RETURN", "--to", "1.2.3.4"},
+						}))
+					})
+				})
+
+				Context("when Source is not specified", func() {
+					It("does not include the --source parameter in the command", func() {
+						subject.DeleteNatRule("", "2.0.0.0/11", Return, net.ParseIP("1.2.3.4"))
+
+						Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+							Path: "/sbin/iptables",
+							Args: []string{"-w", "-t", "nat", "-D", "foo-bar-baz", "--destination", "2.0.0.0/11", "--jump", "RETURN", "--to", "1.2.3.4"},
+						}))
+					})
+				})
+
+				Context("when Destination is not specified", func() {
+					It("does not include the --destination parameter in the command", func() {
+						subject.DeleteNatRule("1.3.5.0/28", "", Return, net.ParseIP("1.2.3.4"))
+
+						Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+							Path: "/sbin/iptables",
+							Args: []string{"-w", "-t", "nat", "-D", "foo-bar-baz", "--source", "1.3.5.0/28", "--jump", "RETURN", "--to", "1.2.3.4"},
+						}))
+					})
+				})
+
+				Context("when To is not specified", func() {
+					It("does not include the --to parameter in the command", func() {
+						subject.DeleteNatRule("1.3.5.0/28", "2.0.0.0/11", Return, nil)
+
+						Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+							Path: "/sbin/iptables",
+							Args: []string{"-w", "-t", "nat", "-D", "foo-bar-baz", "--source", "1.3.5.0/28", "--destination", "2.0.0.0/11", "--jump", "RETURN"},
+						}))
+					})
+				})
+
+				Context("when the command returns an error", func() {
+					It("returns an error", func() {
+						someError := errors.New("badly laid iptable")
+						fakeRunner.WhenRunning(
+							fake_command_runner.CommandSpec{Path: "/sbin/iptables"},
+							func(cmd *exec.Cmd) error {
+								return someError
+							},
+						)
+
+						Ω(subject.DeleteNatRule("1.3.4.5/6", "", "", nil)).ShouldNot(Succeed())
+					})
 				})
 			})
 
-			Context("when Destination is not specified", func() {
-				It("does not include the --destination parameter in the command", func() {
-					subject.DeleteNatRule("1.3.5.0/28", "", Return, net.ParseIP("1.2.3.4"))
+			Describe("PrependFilterRule", func() {
+				Context("when all parameters are specified", func() {
+					It("runs iptables to prepend the rule with the correct parameters when port is specified", func() {
+						Ω(subject.PrependFilterRule(garden.ProtocolAll, "1.2.3.4/24", 8080, "", -1, -1, false)).Should(Succeed())
 
-					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
-						Path: "/sbin/iptables",
-						Args: []string{"-w", "-t", "nat", "-D", "foo-bar-baz", "--source", "1.3.5.0/28", "--jump", "RETURN", "--to", "1.2.3.4"},
-					}))
-				})
-			})
+						Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+							Path: "/sbin/iptables",
+							Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--destination", "1.2.3.4/24", "--destination-port", "8080", "--jump", "RETURN"},
+						}))
+					})
 
-			Context("when To is not specified", func() {
-				It("does not include the --to parameter in the command", func() {
-					subject.DeleteNatRule("1.3.5.0/28", "2.0.0.0/11", Return, nil)
+					It("runs iptables to prepend the rule with the correct parameters when port range is specified", func() {
+						Ω(subject.PrependFilterRule(garden.ProtocolAll, "1.2.3.4/24", 0, "80:81", -1, -1, false)).Should(Succeed())
 
-					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
-						Path: "/sbin/iptables",
-						Args: []string{"-w", "-t", "nat", "-D", "foo-bar-baz", "--source", "1.3.5.0/28", "--destination", "2.0.0.0/11", "--jump", "RETURN"},
-					}))
-				})
-			})
-
-			Context("when the command returns an error", func() {
-				It("returns an error", func() {
-					someError := errors.New("badly laid iptable")
-					fakeRunner.WhenRunning(
-						fake_command_runner.CommandSpec{Path: "/sbin/iptables"},
-						func(cmd *exec.Cmd) error {
-							return someError
-						},
-					)
-
-					Ω(subject.DeleteNatRule("1.3.4.5/6", "", "", nil)).ShouldNot(Succeed())
-				})
-			})
-		})
-
-		Describe("PrependFilterRule", func() {
-			Context("when all parameters are specified", func() {
-				It("runs iptables to prepend the rule with the correct parameters when port is specified", func() {
-					Ω(subject.PrependFilterRule(garden.ProtocolAll, "1.2.3.4/24", 8080, "", -1, -1)).Should(Succeed())
-
-					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
-						Path: "/sbin/iptables",
-						Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--destination", "1.2.3.4/24", "--destination-port", "8080", "--jump", "RETURN"},
-					}))
+						Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+							Path: "/sbin/iptables",
+							Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--destination", "1.2.3.4/24", "--destination-port", "80:81", "--jump", "RETURN"},
+						}))
+					})
 				})
 
-				It("runs iptables to prepend the rule with the correct parameters when port range is specified", func() {
-					Ω(subject.PrependFilterRule(garden.ProtocolAll, "1.2.3.4/24", 0, "80:81", -1, -1)).Should(Succeed())
+				Context("when tcp protcol is specified", func() {
+					It("passes tcp protcol to iptables", func() {
+						Ω(subject.PrependFilterRule(garden.ProtocolTCP, "1.2.3.4/24", 8080, "", -1, -1, false)).Should(Succeed())
 
-					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
-						Path: "/sbin/iptables",
-						Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--destination", "1.2.3.4/24", "--destination-port", "80:81", "--jump", "RETURN"},
-					}))
-				})
-			})
+						Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+							Path: "/sbin/iptables",
+							Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "tcp", "--destination", "1.2.3.4/24", "--destination-port", "8080", "--jump", "RETURN"},
+						}))
+					})
 
-			Context("when tcp protcol is specified", func() {
-				It("passes tcp protcol to iptables", func() {
-					Ω(subject.PrependFilterRule(garden.ProtocolTCP, "1.2.3.4/24", 8080, "", -1, -1)).Should(Succeed())
+					Context("when logging is requested", func() {
+						It("forwards requests through the log chain", func() {
+							Ω(subject.PrependFilterRule(garden.ProtocolTCP, "1.2.3.4/24", 8080, "", -1, -1, true)).Should(Succeed())
 
-					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
-						Path: "/sbin/iptables",
-						Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "tcp", "--destination", "1.2.3.4/24", "--destination-port", "8080", "--jump", "RETURN"},
-					}))
-				})
-			})
-
-			Context("when udp protcol is specified", func() {
-				It("passes udp protcol to iptables", func() {
-					Ω(subject.PrependFilterRule(garden.ProtocolUDP, "1.2.3.4/24", 8080, "", -1, -1)).Should(Succeed())
-
-					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
-						Path: "/sbin/iptables",
-						Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "udp", "--destination", "1.2.3.4/24", "--destination-port", "8080", "--jump", "RETURN"},
-					}))
-				})
-			})
-
-			Context("when icmp protcol is specified", func() {
-				It("passes icmp protcol to iptables when no type or code is specified", func() {
-					Ω(subject.PrependFilterRule(garden.ProtocolICMP, "1.2.3.4/24", 0, "", -1, -1)).Should(Succeed())
-
-					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
-						Path: "/sbin/iptables",
-						Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "icmp", "--destination", "1.2.3.4/24", "--jump", "RETURN"},
-					}))
+							Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+								Path: "/sbin/iptables",
+								Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "tcp", "--destination", "1.2.3.4/24", "--destination-port", "8080", "--goto", "foo-bar-baz-log"},
+							}))
+						})
+					})
 				})
 
-				It("passes icmp protcol to iptables with icmp type if specified", func() {
-					Ω(subject.PrependFilterRule(garden.ProtocolICMP, "1.2.3.4/24", 0, "", 8, -1)).Should(Succeed())
+				Context("when udp protcol is specified", func() {
+					It("passes udp protcol to iptables", func() {
+						Ω(subject.PrependFilterRule(garden.ProtocolUDP, "1.2.3.4/24", 8080, "", -1, -1, false)).Should(Succeed())
 
-					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
-						Path: "/sbin/iptables",
-						Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "icmp", "--destination", "1.2.3.4/24", "--icmp-type", "8", "--jump", "RETURN"},
-					}))
+						Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+							Path: "/sbin/iptables",
+							Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "udp", "--destination", "1.2.3.4/24", "--destination-port", "8080", "--jump", "RETURN"},
+						}))
+					})
 				})
 
-				It("passes icmp protcol to iptables with icmp type and code if both are specified", func() {
-					Ω(subject.PrependFilterRule(garden.ProtocolICMP, "1.2.3.4/24", 0, "", 8, 7)).Should(Succeed())
+				Context("when icmp protcol is specified", func() {
+					It("passes icmp protcol to iptables when no type or code is specified", func() {
+						Ω(subject.PrependFilterRule(garden.ProtocolICMP, "1.2.3.4/24", 0, "", -1, -1, false)).Should(Succeed())
 
-					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
-						Path: "/sbin/iptables",
-						Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "icmp", "--destination", "1.2.3.4/24", "--icmp-type", "8/7", "--jump", "RETURN"},
-					}))
+						Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+							Path: "/sbin/iptables",
+							Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "icmp", "--destination", "1.2.3.4/24", "--jump", "RETURN"},
+						}))
+					})
+
+					It("passes icmp protcol to iptables with icmp type if specified", func() {
+						Ω(subject.PrependFilterRule(garden.ProtocolICMP, "1.2.3.4/24", 0, "", 8, -1, false)).Should(Succeed())
+
+						Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+							Path: "/sbin/iptables",
+							Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "icmp", "--destination", "1.2.3.4/24", "--icmp-type", "8", "--jump", "RETURN"},
+						}))
+					})
+
+					It("passes icmp protcol to iptables with icmp type and code if both are specified", func() {
+						Ω(subject.PrependFilterRule(garden.ProtocolICMP, "1.2.3.4/24", 0, "", 8, 7, false)).Should(Succeed())
+
+						Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+							Path: "/sbin/iptables",
+							Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "icmp", "--destination", "1.2.3.4/24", "--icmp-type", "8/7", "--jump", "RETURN"},
+						}))
+					})
 				})
-			})
 
-			Context("when destination is omitted", func() {
-				It("does not pass destination to iptables", func() {
-					Ω(subject.PrependFilterRule(garden.ProtocolAll, "", 8080, "", -1, -1)).Should(Succeed())
+				Context("when destination is omitted", func() {
+					It("does not pass destination to iptables", func() {
+						Ω(subject.PrependFilterRule(garden.ProtocolAll, "", 8080, "", -1, -1, false)).Should(Succeed())
 
-					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
-						Path: "/sbin/iptables",
-						Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--destination-port", "8080", "--jump", "RETURN"},
-					}))
+						Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+							Path: "/sbin/iptables",
+							Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--destination-port", "8080", "--jump", "RETURN"},
+						}))
+					})
 				})
-			})
 
-			Context("when port is omitted", func() {
-				It("does not pass port to iptables", func() {
-					Ω(subject.PrependFilterRule(garden.ProtocolAll, "1.2.3.4/24", 0, "", -1, -1)).Should(Succeed())
+				Context("when port is omitted", func() {
+					It("does not pass port to iptables", func() {
+						Ω(subject.PrependFilterRule(garden.ProtocolAll, "1.2.3.4/24", 0, "", -1, -1, false)).Should(Succeed())
 
-					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
-						Path: "/sbin/iptables",
-						Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--destination", "1.2.3.4/24", "--jump", "RETURN"},
-					}))
+						Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+							Path: "/sbin/iptables",
+							Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--destination", "1.2.3.4/24", "--jump", "RETURN"},
+						}))
+					})
 				})
-			})
 
-			Context("when an IP range is specified", func() {
-				It("runs iptables to prepend the rule with the correct parameters", func() {
-					Ω(subject.PrependFilterRule(garden.ProtocolAll, "1.2.3.4-1.2.3.6", 8080, "", -1, -1)).Should(Succeed())
+				Context("when an IP range is specified", func() {
+					It("runs iptables to prepend the rule with the correct parameters", func() {
+						Ω(subject.PrependFilterRule(garden.ProtocolAll, "1.2.3.4-1.2.3.6", 8080, "", -1, -1, false)).Should(Succeed())
 
-					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
-						Path: "/sbin/iptables",
-						Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "-m", "iprange", "--dst-range", "1.2.3.4-1.2.3.6", "--destination-port", "8080", "--jump", "RETURN"},
-					}))
+						Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+							Path: "/sbin/iptables",
+							Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "-m", "iprange", "--dst-range", "1.2.3.4-1.2.3.6", "--destination-port", "8080", "--jump", "RETURN"},
+						}))
+					})
 				})
-			})
 
-			Context("when an invaild protocol is specified", func() {
-				It("returns an error", func() {
-					err := subject.PrependFilterRule(garden.Protocol(52), "1.2.3.4/24", 8080, "", -1, -1)
-					Ω(err).Should(HaveOccurred())
-					Ω(err).Should(MatchError("invalid protocol: 52"))
+				Context("when an invaild protocol is specified", func() {
+					It("returns an error", func() {
+						err := subject.PrependFilterRule(garden.Protocol(52), "1.2.3.4/24", 8080, "", -1, -1, false)
+						Ω(err).Should(HaveOccurred())
+						Ω(err).Should(MatchError("invalid protocol: 52"))
+					})
 				})
-			})
 
-			Context("when port and port range are specified", func() {
-				It("returns an error", func() {
-					err := subject.PrependFilterRule(garden.ProtocolTCP, "1.2.3.4/24", 8080, "80:81", -1, -1)
-					Ω(err).Should(HaveOccurred())
-					Ω(err).Should(MatchError("port 8080 and port range 80:81 cannot both be specified"))
+				Context("when port and port range are specified", func() {
+					It("returns an error", func() {
+						err := subject.PrependFilterRule(garden.ProtocolTCP, "1.2.3.4/24", 8080, "80:81", -1, -1, false)
+						Ω(err).Should(HaveOccurred())
+						Ω(err).Should(MatchError("port 8080 and port range 80:81 cannot both be specified"))
+					})
 				})
-			})
 
-			Context("when the command returns an error", func() {
-				It("returns an error", func() {
-					someError := errors.New("badly laid iptable")
-					fakeRunner.WhenRunning(
-						fake_command_runner.CommandSpec{Path: "/sbin/iptables"},
-						func(cmd *exec.Cmd) error {
-							return someError
-						},
-					)
+				Context("when the command returns an error", func() {
+					It("returns an error", func() {
+						someError := errors.New("badly laid iptable")
+						fakeRunner.WhenRunning(
+							fake_command_runner.CommandSpec{Path: "/sbin/iptables"},
+							func(cmd *exec.Cmd) error {
+								return someError
+							},
+						)
 
-					Ω(subject.PrependFilterRule(garden.ProtocolAll, "1.3.4.5/6", 0, "", -1, -1)).ShouldNot(Succeed())
+						Ω(subject.PrependFilterRule(garden.ProtocolAll, "1.3.4.5/6", 0, "", -1, -1, false)).ShouldNot(Succeed())
+					})
 				})
 			})
 		})

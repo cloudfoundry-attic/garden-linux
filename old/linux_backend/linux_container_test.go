@@ -136,10 +136,10 @@ var _ = Describe("Linux containers", func() {
 			_, _, err = container.NetIn(3, 4)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			err = container.NetOut("network-a", 1, "", garden.ProtocolTCP, -1, -1)
+			err = container.NetOut("network-a", 1, "", garden.ProtocolTCP, -1, -1, false)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			err = container.NetOut("network-b", 2, "", garden.ProtocolTCP, -1, -1)
+			err = container.NetOut("network-b", 2, "", garden.ProtocolTCP, -1, -1, false)
 			Ω(err).ShouldNot(HaveOccurred())
 
 			p1 := new(wfakes.FakeProcess)
@@ -446,11 +446,12 @@ var _ = Describe("Linux containers", func() {
 				},
 			))
 			Ω(fakeFilter.NetOutCallCount()).Should(Equal(2))
-			network, port, portRange, protocol, _, _ := fakeFilter.NetOutArgsForCall(0)
+			network, port, portRange, protocol, _, _, log := fakeFilter.NetOutArgsForCall(0)
 			Ω(network).Should(Equal("somehost.example.com"))
 			Ω(port).Should(Equal(uint32(80)))
 			Ω(portRange).Should(Equal(""))
 			Ω(protocol).Should(Equal(garden.ProtocolTCP))
+			Ω(log).Should(Equal(false))
 		})
 
 		for _, cmd := range []string{"setup", "in"} {
@@ -628,9 +629,9 @@ var _ = Describe("Linux containers", func() {
 				)
 			})
 
-			It("returns the error", func() {
+			It("returns a wrapped error", func() {
 				err := container.Start()
-				Ω(err).Should(Equal(nastyError))
+				Ω(err).Should(MatchError("container: start: oh no!"))
 			})
 
 			It("does not change the container's state", func() {
@@ -1903,17 +1904,35 @@ var _ = Describe("Linux containers", func() {
 
 	Describe("Net out", func() {
 		It("delegates to the filter", func() {
-			err := container.NetOut("1.2.3.4/22", 567, "80:81", garden.ProtocolTCP, 8, 7)
+			err := container.NetOut("1.2.3.4/22", 567, "80:81", garden.ProtocolTCP, 8, 7, false)
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(fakeFilter.NetOutCallCount()).Should(Equal(1))
-			network, port, portRange, protocol, icmpType, icmpCode := fakeFilter.NetOutArgsForCall(0)
+			network, port, portRange, protocol, icmpType, icmpCode, log := fakeFilter.NetOutArgsForCall(0)
 			Ω(network).Should(Equal("1.2.3.4/22"))
 			Ω(port).Should(Equal(uint32(567)))
 			Ω(portRange).Should(Equal("80:81"))
 			Ω(protocol).Should(Equal(garden.ProtocolTCP))
 			Ω(icmpType).Should(Equal(int32(8)))
 			Ω(icmpCode).Should(Equal(int32(7)))
+			Ω(log).Should(Equal(false))
+		})
+
+		Context("when we request logging for the rule", func() {
+			It("passes the logging request through to the filter", func() {
+				err := container.NetOut("1.2.3.4/22", 0, "80:81", garden.ProtocolTCP, 9, 2, true)
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Ω(fakeFilter.NetOutCallCount()).Should(Equal(1))
+				network, port, portRange, protocol, icmpType, icmpCode, log := fakeFilter.NetOutArgsForCall(0)
+				Ω(network).Should(Equal("1.2.3.4/22"))
+				Ω(port).Should(Equal(uint32(0)))
+				Ω(portRange).Should(Equal("80:81"))
+				Ω(protocol).Should(Equal(garden.ProtocolTCP))
+				Ω(icmpType).Should(Equal(int32(9)))
+				Ω(icmpCode).Should(Equal(int32(2)))
+				Ω(log).Should(Equal(true))
+			})
 		})
 
 		Context("when the filter fails", func() {
@@ -1924,7 +1943,7 @@ var _ = Describe("Linux containers", func() {
 			})
 
 			It("returns the error", func() {
-				err := container.NetOut("1.2.3.4/22", 567, "", garden.ProtocolTCP, -1, -1)
+				err := container.NetOut("1.2.3.4/22", 567, "", garden.ProtocolTCP, -1, -1, false)
 				Ω(err).Should(Equal(disaster))
 			})
 		})

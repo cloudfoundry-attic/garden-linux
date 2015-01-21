@@ -8,34 +8,34 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/iptables"
 )
 
-type FilterFactory interface {
-	Create(id string) Filter
-}
+//go:generate counterfeiter . Filter
 
 type Filter interface {
-	NetOut(network string, port uint32, portRange string, protocol garden.Protocol, icmpType int32, icmpCode int32) error
-}
-
-type filterFactory struct {
-	instancePrefix string
-	chainFactory   iptables.ChainFactory
+	Setup() error
+	TearDown()
+	NetOut(network string, port uint32, portRange string, protocol garden.Protocol, icmpType int32, icmpCode int32, log bool) error
 }
 
 type filter struct {
-	instanceChain iptables.Chain
+	chain iptables.Chain
 }
 
-func NewFilterFactory(tag string, chainFactory iptables.ChainFactory) FilterFactory {
-	return &filterFactory{instancePrefix: fmt.Sprintf("w-%s-instance-", tag),
-		chainFactory: chainFactory,
+func NewFilter(instanceChain iptables.Chain) Filter {
+	return &filter{instanceChain}
+}
+
+func (fltr *filter) Setup() error {
+	if err := fltr.chain.Setup(); err != nil {
+		return fmt.Errorf("network: log chain setup: %v", err)
 	}
+	return nil
 }
 
-func (ff *filterFactory) Create(id string) Filter {
-	return &filter{instanceChain: ff.chainFactory.CreateChain(ff.instancePrefix + id)}
+func (fltr *filter) TearDown() {
+	fltr.chain.TearDown()
 }
 
-func (fltr *filter) NetOut(network string, port uint32, portRange string, protocol garden.Protocol, icmpType int32, icmpCode int32) error {
+func (fltr *filter) NetOut(network string, port uint32, portRange string, protocol garden.Protocol, icmpType int32, icmpCode int32, log bool) error {
 	if protocol != garden.ProtocolICMP && (icmpType != -1 || icmpCode != -1) {
 		return errors.New("invalid rule: icmp code or icmp type can only be specified with protocol ICMP")
 	}
@@ -48,7 +48,7 @@ func (fltr *filter) NetOut(network string, port uint32, portRange string, protoc
 	if port != 0 && portRange != "" {
 		return errors.New("invalid rule: port and port range cannot both be specified")
 	}
-	return fltr.instanceChain.PrependFilterRule(protocol, network, port, portRange, icmpType, icmpCode)
+	return fltr.chain.PrependFilterRule(protocol, network, port, portRange, icmpType, icmpCode, log)
 }
 
 func (fltr *filter) protocolAllowsPortFiltering(protocol garden.Protocol) bool {

@@ -9,7 +9,16 @@ import (
 )
 
 type FakeFilter struct {
-	NetOutStub        func(network string, port uint32, portRange string, protocol garden.Protocol, icmpType int32, icmpCode int32) error
+	SetupStub        func() error
+	setupMutex       sync.RWMutex
+	setupArgsForCall []struct{}
+	setupReturns struct {
+		result1 error
+	}
+	TearDownStub        func()
+	tearDownMutex       sync.RWMutex
+	tearDownArgsForCall []struct{}
+	NetOutStub        func(network string, port uint32, portRange string, protocol garden.Protocol, icmpType int32, icmpCode int32, log bool) error
 	netOutMutex       sync.RWMutex
 	netOutArgsForCall []struct {
 		network   string
@@ -18,13 +27,53 @@ type FakeFilter struct {
 		protocol  garden.Protocol
 		icmpType  int32
 		icmpCode  int32
+		log       bool
 	}
 	netOutReturns struct {
 		result1 error
 	}
 }
 
-func (fake *FakeFilter) NetOut(network string, port uint32, portRange string, protocol garden.Protocol, icmpType int32, icmpCode int32) error {
+func (fake *FakeFilter) Setup() error {
+	fake.setupMutex.Lock()
+	fake.setupArgsForCall = append(fake.setupArgsForCall, struct{}{})
+	fake.setupMutex.Unlock()
+	if fake.SetupStub != nil {
+		return fake.SetupStub()
+	} else {
+		return fake.setupReturns.result1
+	}
+}
+
+func (fake *FakeFilter) SetupCallCount() int {
+	fake.setupMutex.RLock()
+	defer fake.setupMutex.RUnlock()
+	return len(fake.setupArgsForCall)
+}
+
+func (fake *FakeFilter) SetupReturns(result1 error) {
+	fake.SetupStub = nil
+	fake.setupReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeFilter) TearDown() {
+	fake.tearDownMutex.Lock()
+	fake.tearDownArgsForCall = append(fake.tearDownArgsForCall, struct{}{})
+	fake.tearDownMutex.Unlock()
+	if fake.TearDownStub != nil {
+		fake.TearDownStub()
+	}
+}
+
+func (fake *FakeFilter) TearDownCallCount() int {
+	fake.tearDownMutex.RLock()
+	defer fake.tearDownMutex.RUnlock()
+	return len(fake.tearDownArgsForCall)
+}
+
+func (fake *FakeFilter) NetOut(network string, port uint32, portRange string, protocol garden.Protocol, icmpType int32, icmpCode int32, log bool) error {
 	fake.netOutMutex.Lock()
 	fake.netOutArgsForCall = append(fake.netOutArgsForCall, struct {
 		network   string
@@ -33,10 +82,11 @@ func (fake *FakeFilter) NetOut(network string, port uint32, portRange string, pr
 		protocol  garden.Protocol
 		icmpType  int32
 		icmpCode  int32
-	}{network, port, portRange, protocol, icmpType, icmpCode})
+		log       bool
+	}{network, port, portRange, protocol, icmpType, icmpCode, log})
 	fake.netOutMutex.Unlock()
 	if fake.NetOutStub != nil {
-		return fake.NetOutStub(network, port, portRange, protocol, icmpType, icmpCode)
+		return fake.NetOutStub(network, port, portRange, protocol, icmpType, icmpCode, log)
 	} else {
 		return fake.netOutReturns.result1
 	}
@@ -48,10 +98,10 @@ func (fake *FakeFilter) NetOutCallCount() int {
 	return len(fake.netOutArgsForCall)
 }
 
-func (fake *FakeFilter) NetOutArgsForCall(i int) (string, uint32, string, garden.Protocol, int32, int32) {
+func (fake *FakeFilter) NetOutArgsForCall(i int) (string, uint32, string, garden.Protocol, int32, int32, bool) {
 	fake.netOutMutex.RLock()
 	defer fake.netOutMutex.RUnlock()
-	return fake.netOutArgsForCall[i].network, fake.netOutArgsForCall[i].port, fake.netOutArgsForCall[i].portRange, fake.netOutArgsForCall[i].protocol, fake.netOutArgsForCall[i].icmpType, fake.netOutArgsForCall[i].icmpCode
+	return fake.netOutArgsForCall[i].network, fake.netOutArgsForCall[i].port, fake.netOutArgsForCall[i].portRange, fake.netOutArgsForCall[i].protocol, fake.netOutArgsForCall[i].icmpType, fake.netOutArgsForCall[i].icmpCode, fake.netOutArgsForCall[i].log
 }
 
 func (fake *FakeFilter) NetOutReturns(result1 error) {

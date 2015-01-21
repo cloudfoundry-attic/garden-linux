@@ -10,6 +10,18 @@ import (
 )
 
 type FakeChain struct {
+	SetupStub        func() error
+	setupMutex       sync.RWMutex
+	setupArgsForCall []struct{}
+	setupReturns struct {
+		result1 error
+	}
+	TearDownStub        func() error
+	tearDownMutex       sync.RWMutex
+	tearDownArgsForCall []struct{}
+	tearDownReturns struct {
+		result1 error
+	}
 	AppendRuleStub        func(source string, destination string, jump iptables.Action) error
 	appendRuleMutex       sync.RWMutex
 	appendRuleArgsForCall []struct {
@@ -52,7 +64,7 @@ type FakeChain struct {
 	deleteNatRuleReturns struct {
 		result1 error
 	}
-	PrependFilterRuleStub        func(protocol garden.Protocol, dest string, destPort uint32, destPortRange string, destIcmpType, destIcmpCode int32) error
+	PrependFilterRuleStub        func(protocol garden.Protocol, dest string, destPort uint32, destPortRange string, destIcmpType, destIcmpCode int32, log bool) error
 	prependFilterRuleMutex       sync.RWMutex
 	prependFilterRuleArgsForCall []struct {
 		protocol      garden.Protocol
@@ -61,10 +73,59 @@ type FakeChain struct {
 		destPortRange string
 		destIcmpType  int32
 		destIcmpCode  int32
+		log           bool
 	}
 	prependFilterRuleReturns struct {
 		result1 error
 	}
+}
+
+func (fake *FakeChain) Setup() error {
+	fake.setupMutex.Lock()
+	fake.setupArgsForCall = append(fake.setupArgsForCall, struct{}{})
+	fake.setupMutex.Unlock()
+	if fake.SetupStub != nil {
+		return fake.SetupStub()
+	} else {
+		return fake.setupReturns.result1
+	}
+}
+
+func (fake *FakeChain) SetupCallCount() int {
+	fake.setupMutex.RLock()
+	defer fake.setupMutex.RUnlock()
+	return len(fake.setupArgsForCall)
+}
+
+func (fake *FakeChain) SetupReturns(result1 error) {
+	fake.SetupStub = nil
+	fake.setupReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeChain) TearDown() error {
+	fake.tearDownMutex.Lock()
+	fake.tearDownArgsForCall = append(fake.tearDownArgsForCall, struct{}{})
+	fake.tearDownMutex.Unlock()
+	if fake.TearDownStub != nil {
+		return fake.TearDownStub()
+	} else {
+		return fake.tearDownReturns.result1
+	}
+}
+
+func (fake *FakeChain) TearDownCallCount() int {
+	fake.tearDownMutex.RLock()
+	defer fake.tearDownMutex.RUnlock()
+	return len(fake.tearDownArgsForCall)
+}
+
+func (fake *FakeChain) TearDownReturns(result1 error) {
+	fake.TearDownStub = nil
+	fake.tearDownReturns = struct {
+		result1 error
+	}{result1}
 }
 
 func (fake *FakeChain) AppendRule(source string, destination string, jump iptables.Action) error {
@@ -205,7 +266,7 @@ func (fake *FakeChain) DeleteNatRuleReturns(result1 error) {
 	}{result1}
 }
 
-func (fake *FakeChain) PrependFilterRule(protocol garden.Protocol, dest string, destPort uint32, destPortRange string, destIcmpType int32, destIcmpCode int32) error {
+func (fake *FakeChain) PrependFilterRule(protocol garden.Protocol, dest string, destPort uint32, destPortRange string, destIcmpType int32, destIcmpCode int32, log bool) error {
 	fake.prependFilterRuleMutex.Lock()
 	fake.prependFilterRuleArgsForCall = append(fake.prependFilterRuleArgsForCall, struct {
 		protocol      garden.Protocol
@@ -214,10 +275,11 @@ func (fake *FakeChain) PrependFilterRule(protocol garden.Protocol, dest string, 
 		destPortRange string
 		destIcmpType  int32
 		destIcmpCode  int32
-	}{protocol, dest, destPort, destPortRange, destIcmpType, destIcmpCode})
+		log           bool
+	}{protocol, dest, destPort, destPortRange, destIcmpType, destIcmpCode, log})
 	fake.prependFilterRuleMutex.Unlock()
 	if fake.PrependFilterRuleStub != nil {
-		return fake.PrependFilterRuleStub(protocol, dest, destPort, destPortRange, destIcmpType, destIcmpCode)
+		return fake.PrependFilterRuleStub(protocol, dest, destPort, destPortRange, destIcmpType, destIcmpCode, log)
 	} else {
 		return fake.prependFilterRuleReturns.result1
 	}
@@ -229,10 +291,10 @@ func (fake *FakeChain) PrependFilterRuleCallCount() int {
 	return len(fake.prependFilterRuleArgsForCall)
 }
 
-func (fake *FakeChain) PrependFilterRuleArgsForCall(i int) (garden.Protocol, string, uint32, string, int32, int32) {
+func (fake *FakeChain) PrependFilterRuleArgsForCall(i int) (garden.Protocol, string, uint32, string, int32, int32, bool) {
 	fake.prependFilterRuleMutex.RLock()
 	defer fake.prependFilterRuleMutex.RUnlock()
-	return fake.prependFilterRuleArgsForCall[i].protocol, fake.prependFilterRuleArgsForCall[i].dest, fake.prependFilterRuleArgsForCall[i].destPort, fake.prependFilterRuleArgsForCall[i].destPortRange, fake.prependFilterRuleArgsForCall[i].destIcmpType, fake.prependFilterRuleArgsForCall[i].destIcmpCode
+	return fake.prependFilterRuleArgsForCall[i].protocol, fake.prependFilterRuleArgsForCall[i].dest, fake.prependFilterRuleArgsForCall[i].destPort, fake.prependFilterRuleArgsForCall[i].destPortRange, fake.prependFilterRuleArgsForCall[i].destIcmpType, fake.prependFilterRuleArgsForCall[i].destIcmpCode, fake.prependFilterRuleArgsForCall[i].log
 }
 
 func (fake *FakeChain) PrependFilterRuleReturns(result1 error) {

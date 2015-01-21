@@ -41,6 +41,11 @@ type FenceBuilder interface {
 	Capacity() int
 }
 
+//go:generate counterfeiter -o fake_container_pool/FakeFilterProvider.go . FilterProvider
+type FilterProvider interface {
+	ProvideFilter(containerId string) network.Filter
+}
+
 type LinuxContainerPool struct {
 	logger lager.Logger
 
@@ -59,6 +64,9 @@ type LinuxContainerPool struct {
 	fencePersistor FencePersistor
 	portPool       linux_backend.PortPool
 
+	filterProvider FilterProvider
+	defaultChain   iptables.Chain
+
 	runner command_runner.CommandRunner
 
 	quotaManager quota_manager.QuotaManager
@@ -74,6 +82,8 @@ func New(
 	uidPool uid_pool.UIDPool,
 	builders FenceBuilder,
 	fencePersistor FencePersistor,
+	filterProvider FilterProvider,
+	defaultChain iptables.Chain,
 	portPool linux_backend.PortPool,
 	denyNetworks, allowNetworks []string,
 	runner command_runner.CommandRunner,
@@ -95,7 +105,11 @@ func New(
 		uidPool:        uidPool,
 		builders:       builders,
 		fencePersistor: fencePersistor,
-		portPool:       portPool,
+
+		filterProvider: filterProvider,
+		defaultChain:   defaultChain,
+
+		portPool: portPool,
 
 		runner: runner,
 
@@ -136,14 +150,12 @@ func (p *LinuxContainerPool) Setup() error {
 }
 
 func (p *LinuxContainerPool) setupIPTables() error {
-	defaultChain := iptables.NewChainFactory(p.runner, p.logger).CreateChain(p.sysconfig.IPTables.Filter.DefaultChain)
-
 	for _, n := range p.allowNetworks {
 		if n == "" {
 			continue
 		}
 
-		if err := defaultChain.AppendRule("", n, iptables.Return); err != nil {
+		if err := p.defaultChain.AppendRule("", n, iptables.Return); err != nil {
 			return fmt.Errorf("container_pool: setting up allow rules in iptables: %v", err)
 		}
 	}
@@ -153,7 +165,7 @@ func (p *LinuxContainerPool) setupIPTables() error {
 			continue
 		}
 
-		if err := defaultChain.AppendRule("", n, iptables.Reject); err != nil {
+		if err := p.defaultChain.AppendRule("", n, iptables.Reject); err != nil {
 			return fmt.Errorf("container_pool: setting up deny rules in iptables: %v", err)
 		}
 	}
@@ -259,7 +271,7 @@ func (p *LinuxContainerPool) Create(spec garden.ContainerSpec) (c linux_backend.
 		bandwidth_manager.New(containerPath, id, p.runner),
 		process_tracker.New(containerPath, p.runner),
 		mergeEnv(spec.Env, rootFSEnvVars),
-		network.NewFilterFactory(p.sysconfig.Tag, iptables.NewChainFactory(p.runner, pLog)).Create(id),
+		p.filterProvider.ProvideFilter(id),
 	), nil
 }
 
@@ -341,7 +353,7 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 		bandwidthManager,
 		process_tracker.New(containerPath, p.runner),
 		containerSnapshot.EnvVars,
-		network.NewFilterFactory(p.sysconfig.Tag, iptables.NewChainFactory(p.runner, containerLogger)).Create(id),
+		p.filterProvider.ProvideFilter(id),
 	)
 
 	err = container.Restore(containerSnapshot)
@@ -570,6 +582,11 @@ func (p *LinuxContainerPool) acquireSystemResources(id, containerPath, rootFSPat
 		return nil, err
 	}
 
+	if err = p.filterProvider.ProvideFilter(id).Setup(); err != nil {
+		p.logger.Error("set-up-filter-failed", err)
+		return nil, fmt.Errorf("container_pool: set up filter: %v", err)
+	}
+
 	return rootFSEnvVars, nil
 }
 
@@ -603,7 +620,12 @@ func (p *LinuxContainerPool) releaseSystemResources(logger lager.Logger, id stri
 		return err
 	}
 
-	return provider.CleanupRootFS(logger, id)
+	if err = provider.CleanupRootFS(logger, id); err != nil {
+		return err
+	}
+
+	p.filterProvider.ProvideFilter(id).TearDown()
+	return nil
 }
 
 func getHandle(handle, id string) string {
