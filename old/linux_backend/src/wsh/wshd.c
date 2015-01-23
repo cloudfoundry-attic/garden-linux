@@ -246,6 +246,29 @@ char **env__add(char **envp, const char *key, const char *value) {
   return envp;
 }
 
+int env__has(char **envp, const char* key) {
+  size_t envplen = 0;
+
+  if (envp != NULL) {
+    while(envp[envplen++] != NULL);
+
+    int i;
+    for (i = 0; i < envplen; i++) {
+      char* eq = strchr(envp[i], '=');
+        if (eq != NULL) {
+          size_t keyLen = eq - envp[i];
+          if (strlen(key) == keyLen) {
+            if (memcmp(key, envp[i], keyLen) == 0) {
+              return 1;
+            }
+          }
+        }
+    }
+  }
+
+  return 0;
+}
+
 char **child_setup_environment(struct passwd *pw, char **extra_env_vars) {
   int rv;
   char **envp = extra_env_vars;

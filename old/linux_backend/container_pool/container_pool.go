@@ -30,6 +30,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/uid_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/old/logging"
 	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
+	"github.com/cloudfoundry-incubator/garden-linux/process"
 )
 
 var ErrUnknownRootFSProvider = errors.New("unknown rootfs provider")
@@ -256,6 +257,16 @@ func (p *LinuxContainerPool) Create(spec garden.ContainerSpec) (c linux_backend.
 
 	pLog.Info("created")
 
+	ctrEnv, err := process.NewEnv(rootFSEnvVars)
+	if err != nil {
+		return nil, err
+	}
+
+	specEnv, err := process.NewEnv(spec.Env)
+	if err != nil {
+		return nil, err
+	}
+
 	return linux_backend.NewLinuxContainer(
 		pLog,
 		id,
@@ -270,7 +281,7 @@ func (p *LinuxContainerPool) Create(spec garden.ContainerSpec) (c linux_backend.
 		p.quotaManager,
 		bandwidth_manager.New(containerPath, id, p.runner),
 		process_tracker.New(containerPath, p.runner),
-		mergeEnv(spec.Env, rootFSEnvVars),
+		ctrEnv.Merge(specEnv),
 		p.filterProvider.ProvideFilter(id),
 	), nil
 }
@@ -333,6 +344,11 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 
 	containerLogger := p.logger.Session(id)
 
+	containerEnv, err := process.NewEnv(containerSnapshot.EnvVars)
+	if err != nil {
+		return nil, err
+	}
+
 	container := linux_backend.NewLinuxContainer(
 		containerLogger,
 		id,
@@ -352,7 +368,7 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 		p.quotaManager,
 		bandwidthManager,
 		process_tracker.New(containerPath, p.runner),
-		containerSnapshot.EnvVars,
+		containerEnv,
 		p.filterProvider.ProvideFilter(id),
 	)
 
@@ -633,13 +649,6 @@ func getHandle(handle, id string) string {
 		return handle
 	}
 	return id
-}
-
-func mergeEnv(env1, env2 []string) []string {
-	for _, entry := range env2 {
-		env1 = append(env1, entry)
-	}
-	return env1
 }
 
 func cleanup(err *error, undo func()) {

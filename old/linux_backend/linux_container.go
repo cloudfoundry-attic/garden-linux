@@ -21,6 +21,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/process_tracker"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/quota_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/logging"
+	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/pivotal-golang/lager"
 )
@@ -88,7 +89,8 @@ type LinuxContainer struct {
 
 	mtu uint32
 
-	envvars       []string
+	env process.Env
+
 	processIDPool *ProcessIDPool
 }
 
@@ -151,7 +153,7 @@ func NewLinuxContainer(
 	quotaManager quota_manager.QuotaManager,
 	bandwidthManager bandwidth_manager.BandwidthManager,
 	processTracker process_tracker.ProcessTracker,
-	envvars []string,
+	env process.Env,
 	filter network.Filter,
 ) *LinuxContainer {
 	return &LinuxContainer{
@@ -182,7 +184,7 @@ func NewLinuxContainer(
 
 		filter: filter,
 
-		envvars:       envvars,
+		env:           env,
 		processIDPool: &ProcessIDPool{},
 	}
 }
@@ -288,7 +290,7 @@ func (c *LinuxContainer) Snapshot(out io.Writer) error {
 
 		Properties: c.Properties(),
 
-		EnvVars: c.envvars,
+		EnvVars: c.env.Array(),
 	}
 
 	var err error
@@ -331,7 +333,14 @@ func (c *LinuxContainer) Restore(snapshot ContainerSnapshot) error {
 
 	c.setState(State(snapshot.State))
 
-	c.envvars = snapshot.EnvVars
+	snapshotEnv, err := process.NewEnv(snapshot.EnvVars)
+	if err != nil {
+		cLog.Error("restoring-env", err, lager.Data{
+			"env": snapshot.EnvVars,
+		})
+		return err
+	}
+	c.env = snapshotEnv
 
 	for _, ev := range snapshot.Events {
 		c.registerEvent(ev)
@@ -365,7 +374,7 @@ func (c *LinuxContainer) Restore(snapshot ContainerSnapshot) error {
 
 	net := exec.Command(path.Join(c.path, "net.sh"), "setup")
 
-	err := cRunner.Run(net)
+	err = cRunner.Run(net)
 	if err != nil {
 		cLog.Error("failed-to-reenforce-network-rules", err)
 		return err
@@ -768,11 +777,12 @@ func (c *LinuxContainer) Run(spec garden.ProcessSpec, processIO garden.ProcessIO
 
 	args := []string{"--socket", sockPath, "--user", user}
 
-	envVars := []string{}
-	envVars = append(append(envVars, c.envvars...), spec.Env...)
-	envVars = c.dedup(envVars)
+	specEnv, err := process.NewEnv(spec.Env)
+	if err != nil {
+		return nil, err
+	}
 
-	for _, envVar := range envVars {
+	for _, envVar := range c.env.Merge(specEnv).Array() {
 		args = append(args, "--env", envVar)
 	}
 
@@ -855,7 +865,7 @@ func (c *LinuxContainer) NetOut(network string, port uint32, portRange string, p
 }
 
 func (c *LinuxContainer) CurrentEnvVars() []string {
-	return c.envvars
+	return c.env.Array()
 }
 
 func (c *LinuxContainer) setState(state State) {
@@ -1088,19 +1098,4 @@ func setRLimitsEnv(cmd *exec.Cmd, rlimits garden.ResourceLimits) {
 	if rlimits.Stack != nil {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("RLIMIT_STACK=%d", *rlimits.Stack))
 	}
-}
-
-func (c *LinuxContainer) dedup(envVars []string) []string {
-	seenArgs := map[string]string{}
-	result := []string{}
-	for i := len(envVars) - 1; i >= 0; i-- {
-		envVar := envVars[i]
-		keyValue := strings.SplitN(envVar, "=", 2)
-		_, containsKey := seenArgs[keyValue[0]]
-		if len(keyValue) == 2 && !containsKey {
-			result = append([]string{envVar}, result...)
-			seenArgs[keyValue[0]] = envVar
-		}
-	}
-	return (result)
 }

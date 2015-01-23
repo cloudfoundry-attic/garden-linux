@@ -133,6 +133,46 @@ var _ = Describe("Creating a container", func() {
 				Ω(stdout).Should(gbytes.Say("foo"))
 			})
 		})
+
+		FContext("when the docker image specifies $HOME and $PATH", func() {
+			BeforeEach(func() {
+				// dockerfile contains `ENV /usr/local/bin:/usr/bin:/bin:/from-ENV`,
+				// see diego-dockerfiles/with-volume
+				rootfs = "docker:///cloudfoundry/with-volume"
+			})
+
+			It("$HOME is taken from the docker image", func() {
+				stdout := gbytes.NewBuffer()
+				process, err := container.Run(garden.ProcessSpec{
+					Path: "/bin/sh",
+					Args: []string{"-c", "echo $HOME"},
+				}, garden.ProcessIO{
+					Stdout: io.MultiWriter(GinkgoWriter, stdout),
+					Stderr: GinkgoWriter,
+				})
+
+				Ω(err).ShouldNot(HaveOccurred())
+
+				process.Wait()
+				Ω(stdout).Should(gbytes.Say("/home-from-ENV"))
+			})
+
+			PIt("$PATH is taken from the docker image", func() {
+				stdout := gbytes.NewBuffer()
+				process, err := container.Run(garden.ProcessSpec{
+					Path: "/bin/sh",
+					Args: []string{"-c", "echo $PATH"},
+				}, garden.ProcessIO{
+					Stdout: io.MultiWriter(GinkgoWriter, stdout),
+					Stderr: GinkgoWriter,
+				})
+
+				Ω(err).ShouldNot(HaveOccurred())
+
+				process.Wait()
+				Ω(stdout).Should(gbytes.Say("/usr/local/bin:/usr/bin:/bin:/from-ENV"))
+			})
+		})
 	})
 
 	Context("and running a process", func() {

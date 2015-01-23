@@ -28,6 +28,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/process_tracker"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/process_tracker/fake_process_tracker"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/quota_manager/fake_quota_manager"
+	"github.com/cloudfoundry-incubator/garden-linux/process"
 	wfakes "github.com/cloudfoundry-incubator/garden/fakes"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
@@ -94,7 +95,7 @@ var _ = Describe("Linux containers", func() {
 			fakeQuotaManager,
 			fakeBandwidthManager,
 			fakeProcessTracker,
-			[]string{"env1=env1Value", "env2=env2Value"},
+			process.Env{"env1": "env1Value", "env2": "env2Value"},
 			fakeFilter,
 		)
 	})
@@ -1019,10 +1020,30 @@ var _ = Describe("Linux containers", func() {
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
 				"--user", "vcap",
-				"--env", "env1=env1Value",
-				"--env", "env2=env2Value",
 				"--env", `ESCAPED=kurt "russell"`,
 				"--env", "UNESCAPED=isaac\nhayes",
+				"--env", "env1=env1Value",
+				"--env", "env2=env2Value",
+				"--pidfile", containerDir + "/processes/1.pid",
+				"/some/script",
+			}))
+		})
+
+		It("runs the script with the environment variables from the run taking precedence over the container environment variables", func() {
+			_, err := container.Run(garden.ProcessSpec{
+				Path: "/some/script",
+				Env:  []string{"env1=overridden"},
+			}, garden.ProcessIO{})
+
+			Ω(err).ShouldNot(HaveOccurred())
+
+			_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
+			Ω(ranCmd.Args).Should(Equal([]string{
+				containerDir + "/bin/wsh",
+				"--socket", containerDir + "/run/wshd.sock",
+				"--user", "vcap",
+				"--env", "env1=overridden",
+				"--env", "env2=env2Value",
 				"--pidfile", containerDir + "/processes/1.pid",
 				"/some/script",
 			}))

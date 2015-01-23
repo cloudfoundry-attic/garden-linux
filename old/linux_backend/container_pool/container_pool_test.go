@@ -496,11 +496,10 @@ var _ = Describe("Container pool", func() {
 				})
 
 				Ω(err).ShouldNot(HaveOccurred())
-				Ω(container.(*linux_backend.LinuxContainer).CurrentEnvVars()).Should(Equal([]string{
+				Ω(container.(*linux_backend.LinuxContainer).CurrentEnvVars()).Should(ConsistOf([]string{
+					"var3=rootfs-value-3",
 					"var1=spec-value1",
 					"var2=spec-value2",
-					"var2=rootfs-value-2",
-					"var3=rootfs-value-3",
 				}))
 			})
 
