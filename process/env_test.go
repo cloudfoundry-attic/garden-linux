@@ -109,21 +109,21 @@ var _ = Describe("Environment", func() {
 			It("returns an error when the array contains an element with an empty key", func() {
 				env, err := process.NewEnv([]string{"=value"})
 
-				Ω(err).Should(MatchError("malformed environment: empty key"))
+				Ω(err).Should(MatchError(`malformed environment: empty key: "=value"`))
 				Ω(env).Should(BeNil())
 			})
 
 			It("returns an error when the array contains an element with too many equals signs", func() {
 				env, err := process.NewEnv([]string{"key=value="})
 
-				Ω(err).Should(MatchError("malformed environment: invalid format (not key=value)"))
+				Ω(err).Should(MatchError(`malformed environment: invalid format (not key=value): "key=value="`))
 				Ω(env).Should(BeNil())
 			})
 
 			It("returns an error when the array contains an element without an equals sign", func() {
 				env, err := process.NewEnv([]string{"x"})
 
-				Ω(err).Should(MatchError("malformed environment: invalid format (not key=value)"))
+				Ω(err).Should(MatchError(`malformed environment: invalid format (not key=value): "x"`))
 				Ω(env).Should(BeNil())
 			})
 		})

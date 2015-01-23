@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/docker/docker/image"
 	"github.com/docker/docker/pkg/archive"
 	"github.com/docker/docker/registry"
@@ -14,7 +15,7 @@ import (
 )
 
 type RepositoryFetcher interface {
-	Fetch(logger lager.Logger, repoName string, tag string) (imageID string, envvars []string, volumes []string, err error)
+	Fetch(logger lager.Logger, repoName string, tag string) (imageID string, envvars process.Env, volumes []string, err error)
 }
 
 // apes docker's *registry.Registry
@@ -46,10 +47,10 @@ type dockerImage struct {
 	layers []*dockerLayer
 }
 
-func (d dockerImage) Env() []string {
-	var envs []string
+func (d dockerImage) Env() process.Env {
+	envs := process.Env{}
 	for _, l := range d.layers {
-		envs = append(envs, l.env...)
+		envs = envs.Merge(l.env)
 	}
 
 	return envs
@@ -65,7 +66,7 @@ func (d dockerImage) Vols() []string {
 }
 
 type dockerLayer struct {
-	env  []string
+	env  process.Env
 	vols []string
 }
 
@@ -78,7 +79,7 @@ func New(registry Registry, graph Graph) RepositoryFetcher {
 	}
 }
 
-func (fetcher *DockerRepositoryFetcher) Fetch(logger lager.Logger, repoName string, tag string) (string, []string, []string, error) {
+func (fetcher *DockerRepositoryFetcher) Fetch(logger lager.Logger, repoName string, tag string) (string, process.Env, []string, error) {
 	fLog := logger.Session("fetch", lager.Data{
 		"repo": repoName,
 		"tag":  tag,
@@ -118,7 +119,7 @@ func (fetcher *DockerRepositoryFetcher) Fetch(logger lager.Logger, repoName stri
 				"volumes":  image.Vols(),
 			})
 
-			return imgID, filterEnv(image.Env(), logger), image.Vols(), nil
+			return imgID, image.Env(), image.Vols(), nil
 		}
 	}
 
@@ -156,7 +157,7 @@ func (fetcher *DockerRepositoryFetcher) fetchLayer(logger lager.Logger, endpoint
 			"layer": layerID,
 		})
 
-		return &dockerLayer{imgEnv(img), imgVolumes(img)}, nil
+		return &dockerLayer{imgEnv(img, logger), imgVolumes(img)}, nil
 	}
 
 	imgJSON, imgSize, err := fetcher.registry.GetRemoteImageJSON(layerID, endpoint, token)
@@ -193,7 +194,7 @@ func (fetcher *DockerRepositoryFetcher) fetchLayer(logger lager.Logger, endpoint
 		"vols":  imgVolumes(img),
 	})
 
-	return &dockerLayer{imgEnv(img), imgVolumes(img)}, nil
+	return &dockerLayer{imgEnv(img, logger), imgVolumes(img)}, nil
 }
 
 func (fetcher *DockerRepositoryFetcher) fetching(layerID string) bool {
@@ -218,14 +219,12 @@ func (fetcher *DockerRepositoryFetcher) doneFetching(layerID string) {
 	fetcher.fetchingMutex.Unlock()
 }
 
-func imgEnv(img *image.Image) []string {
-	var env []string
-
-	if img.Config != nil {
-		env = img.Config.Env
+func imgEnv(img *image.Image, logger lager.Logger) process.Env {
+	if img.Config == nil {
+		return process.Env{}
 	}
 
-	return env
+	return filterEnv(img.Config.Env, logger)
 }
 
 func imgVolumes(img *image.Image) []string {
@@ -240,11 +239,7 @@ func imgVolumes(img *image.Image) []string {
 	return volumes
 }
 
-// multiple layers may specify environment variables; they are collected with
-// the deepest layer first, so the first occurrence of the variable should win
-func filterEnv(env []string, logger lager.Logger) []string {
-	seen := map[string]bool{}
-
+func filterEnv(env []string, logger lager.Logger) process.Env {
 	var filtered []string
 	for _, e := range env {
 		segs := strings.SplitN(e, "=", 2)
@@ -253,14 +248,12 @@ func filterEnv(env []string, logger lager.Logger) []string {
 			logger.Info("Unrecognised environment variable", lager.Data{"e": e})
 			continue
 		}
-
-		if seen[segs[0]] {
-			continue
-		}
-
 		filtered = append(filtered, e)
-		seen[segs[0]] = true
 	}
 
-	return filtered
+	filteredWithNoDups, err := process.NewEnv(filtered)
+	if err != nil {
+		logger.Error("Invalid environment", err)
+	}
+	return filteredWithNoDups
 }

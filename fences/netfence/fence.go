@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/fences"
 	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/subnets"
 	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
+	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/pivotal-golang/lager"
 )
 
@@ -41,7 +43,7 @@ type FlatFence struct {
 // address is statically allocated. In all cases, if an IP cannot be allocated which
 // meets the requirements, an error is returned.
 //
-// The given allocation is stored in the returned fence.
+// The given fence builder is stored in the returned fence.
 func (f *fenceBuilder) Build(spec string, sysconfig *sysconfig.Config, containerID string) (fences.Fence, error) {
 	var ipSelector subnets.IPSelector = subnets.DynamicIPSelector
 	var subnetSelector subnets.SubnetSelector = subnets.DynamicSubnetSelector
@@ -171,17 +173,17 @@ func (a *Fence) MarshalJSON() ([]byte, error) {
 	return json.Marshal(ff)
 }
 
-func (a *Fence) ConfigureProcess(env *[]string) error {
+func (a *Fence) ConfigureProcess(env process.Env) error {
 	suff, _ := a.IPNet.Mask.Size()
 
-	*env = append(*env, fmt.Sprintf("network_host_ip=%s", subnets.GatewayIP(a.IPNet)),
-		fmt.Sprintf("network_container_ip=%s", a.containerIP),
-		fmt.Sprintf("network_cidr_suffix=%d", suff),
-		fmt.Sprintf("container_iface_mtu=%d", a.fenceBldr.mtu),
-		fmt.Sprintf("subnet_shareable=%v", a.subnetShareable),
-		fmt.Sprintf("network_cidr=%s", a.IPNet.String()),
-		fmt.Sprintf("external_ip=%s", a.fenceBldr.externalIP.String()),
-		fmt.Sprintf("network_ip_hex=%s", hexIP(a.IPNet.IP))) // suitable for short bridge interface names
+	env["network_host_ip"] = subnets.GatewayIP(a.IPNet).String()
+	env["network_container_ip"] = a.containerIP.String()
+	env["network_cidr_suffix"] = strconv.Itoa(suff)
+	env["container_iface_mtu"] = strconv.FormatUint(uint64(a.fenceBldr.mtu), 10)
+	env["subnet_shareable"] = strconv.FormatBool(a.subnetShareable)
+	env["network_cidr"] = a.IPNet.String()
+	env["external_ip"] = a.fenceBldr.externalIP.String()
+	env["network_ip_hex"] = hexIP(a.IPNet.IP) // suitable for short bridge interface names
 
 	return nil
 }

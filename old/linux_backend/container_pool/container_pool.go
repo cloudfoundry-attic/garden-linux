@@ -250,23 +250,22 @@ func (p *LinuxContainerPool) Create(spec garden.ContainerSpec) (c linux_backend.
 		return nil, err
 	}
 
-	rootFSEnvVars, err := p.acquireSystemResources(id, containerPath, spec.RootFSPath, resources, spec.BindMounts, pLog)
+	rootFSEnv, err := p.acquireSystemResources(id, containerPath, spec.RootFSPath, resources, spec.BindMounts, pLog)
 	if err != nil {
 		return nil, err
 	}
 
 	pLog.Info("created")
 
-	ctrEnv, err := process.NewEnv(rootFSEnvVars)
-	if err != nil {
-		return nil, err
-	}
-
 	specEnv, err := process.NewEnv(spec.Env)
 	if err != nil {
 		return nil, err
 	}
 
+	pLog.Debug("calculate-environment", lager.Data{
+		"rootfs-env": rootFSEnv,
+		"create-env": specEnv,
+	})
 	return linux_backend.NewLinuxContainer(
 		pLog,
 		id,
@@ -281,7 +280,7 @@ func (p *LinuxContainerPool) Create(spec garden.ContainerSpec) (c linux_backend.
 		p.quotaManager,
 		bandwidth_manager.New(containerPath, id, p.runner),
 		process_tracker.New(containerPath, p.runner),
-		ctrEnv.Merge(specEnv),
+		rootFSEnv.Merge(specEnv),
 		p.filterProvider.ProvideFilter(id),
 	), nil
 }
@@ -531,7 +530,7 @@ func (p *LinuxContainerPool) releasePoolResources(resources *linux_backend.Resou
 	}
 }
 
-func (p *LinuxContainerPool) acquireSystemResources(id, containerPath, rootFSPath string, resources *linux_backend.Resources, bindMounts []garden.BindMount, pLog lager.Logger) ([]string, error) {
+func (p *LinuxContainerPool) acquireSystemResources(id, containerPath, rootFSPath string, resources *linux_backend.Resources, bindMounts []garden.BindMount, pLog lager.Logger) (process.Env, error) {
 	rootfsURL, err := url.Parse(rootFSPath)
 	if err != nil {
 		pLog.Error("parse-rootfs-path-failed", err, lager.Data{
@@ -556,14 +555,15 @@ func (p *LinuxContainerPool) acquireSystemResources(id, containerPath, rootFSPat
 
 	createCmd := path.Join(p.binPath, "create.sh")
 	create := exec.Command(createCmd, containerPath)
-	create.Env = []string{
-		"id=" + id,
-		"rootfs_path=" + rootfsPath,
-		fmt.Sprintf("user_uid=%d", resources.UserUID),
-		fmt.Sprintf("root_uid=%d", resources.RootUID),
-		"PATH=" + os.Getenv("PATH"),
+	env := process.Env{
+		"id":          id,
+		"rootfs_path": rootfsPath,
+		"user_uid":    strconv.FormatUint(uint64(resources.UserUID), 10),
+		"root_uid":    strconv.FormatUint(uint64(resources.RootUID), 10),
+		"PATH":        os.Getenv("PATH"),
 	}
-	resources.Network.ConfigureProcess(&create.Env)
+	resources.Network.ConfigureProcess(env)
+	create.Env = env.Array()
 
 	pRunner := logging.Runner{
 		CommandRunner: p.runner,

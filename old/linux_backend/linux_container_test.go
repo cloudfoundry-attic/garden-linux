@@ -399,8 +399,7 @@ var _ = Describe("Linux containers", func() {
 			})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Ω(container.CurrentEnvVars()).Should(Equal([]string{"env1=env1value", "env2=env2Value"}))
-
+			Ω(container.CurrentEnvVars()).Should(Equal(process.Env{"env1": "env1value", "env2": "env2Value"}))
 		})
 
 		It("redoes network setup and net-in/net-outs", func() {
@@ -1005,6 +1004,14 @@ var _ = Describe("Linux containers", func() {
 			id2, _, _, _, _ := fakeProcessTracker.RunArgsForCall(1)
 
 			Ω(id1).ShouldNot(Equal(id2))
+		})
+
+		It("should return an error when an environment variable is malformed", func() {
+			_, err := container.Run(garden.ProcessSpec{
+				Path: "/some/script",
+				Env:  []string{"a=="},
+			}, garden.ProcessIO{})
+			Ω(err).Should(MatchError(HavePrefix("malformed environment")))
 		})
 
 		It("runs the script with environment variables", func() {
@@ -2297,7 +2304,7 @@ func (f *fakeNetworkResources) MarshalJSON() ([]byte, error) {
 	return json.Marshal("fakeNetMarshal")
 }
 
-func (f *fakeNetworkResources) ConfigureProcess(*[]string) error {
+func (f *fakeNetworkResources) ConfigureProcess(process.Env) error {
 	return nil
 }
 

@@ -20,13 +20,13 @@ func NewEnv(array []string) (Env, error) {
 		tokens := strings.Split(str, "=")
 
 		if len(tokens) != 2 {
-			return nil, errors.New("malformed environment: invalid format (not key=value)")
+			return nil, fmt.Errorf("malformed environment: invalid format (not key=value): %q", str)
 		}
 
 		key, value := tokens[0], tokens[1]
 
 		if key == "" {
-			return nil, errors.New("malformed environment: empty key")
+			return nil, fmt.Errorf("malformed environment: empty key: %q", str)
 		}
 
 		env[key] = value

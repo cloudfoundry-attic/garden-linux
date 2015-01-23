@@ -3,6 +3,8 @@ package sysconfig
 import (
 	"fmt"
 	"strconv"
+
+	"github.com/cloudfoundry-incubator/garden-linux/process"
 )
 
 type Config struct {
@@ -55,22 +57,22 @@ func NewConfig(tag string, allowHostAccess bool) Config {
 	}
 }
 
-func (config Config) Environ() []string {
-	return []string{
-		"GARDEN_CGROUP_PATH=" + config.CgroupPath,
+func (config Config) Environ() process.Env {
+	return process.Env{
+		"GARDEN_CGROUP_PATH": config.CgroupPath,
 
-		"GARDEN_NETWORK_INTERFACE_PREFIX=" + config.NetworkInterfacePrefix,
-		"GARDEN_TAG=" + config.Tag,
+		"GARDEN_NETWORK_INTERFACE_PREFIX": config.NetworkInterfacePrefix,
+		"GARDEN_TAG":                      config.Tag,
 
-		"GARDEN_IPTABLES_ALLOW_HOST_ACCESS=" + strconv.FormatBool(config.IPTables.Filter.AllowHostAccess),
-		"GARDEN_IPTABLES_FILTER_INPUT_CHAIN=" + config.IPTables.Filter.InputChain,
+		"GARDEN_IPTABLES_ALLOW_HOST_ACCESS":  strconv.FormatBool(config.IPTables.Filter.AllowHostAccess),
+		"GARDEN_IPTABLES_FILTER_INPUT_CHAIN": config.IPTables.Filter.InputChain,
 
-		"GARDEN_IPTABLES_FILTER_FORWARD_CHAIN=" + config.IPTables.Filter.ForwardChain,
-		"GARDEN_IPTABLES_FILTER_DEFAULT_CHAIN=" + config.IPTables.Filter.DefaultChain,
-		"GARDEN_IPTABLES_FILTER_INSTANCE_PREFIX=" + config.IPTables.Filter.InstancePrefix,
+		"GARDEN_IPTABLES_FILTER_FORWARD_CHAIN":   config.IPTables.Filter.ForwardChain,
+		"GARDEN_IPTABLES_FILTER_DEFAULT_CHAIN":   config.IPTables.Filter.DefaultChain,
+		"GARDEN_IPTABLES_FILTER_INSTANCE_PREFIX": config.IPTables.Filter.InstancePrefix,
 
-		"GARDEN_IPTABLES_NAT_PREROUTING_CHAIN=" + config.IPTables.NAT.PreroutingChain,
-		"GARDEN_IPTABLES_NAT_POSTROUTING_CHAIN=" + config.IPTables.NAT.PostroutingChain,
-		"GARDEN_IPTABLES_NAT_INSTANCE_PREFIX=" + config.IPTables.NAT.InstancePrefix,
+		"GARDEN_IPTABLES_NAT_PREROUTING_CHAIN":  config.IPTables.NAT.PreroutingChain,
+		"GARDEN_IPTABLES_NAT_POSTROUTING_CHAIN": config.IPTables.NAT.PostroutingChain,
+		"GARDEN_IPTABLES_NAT_INSTANCE_PREFIX":   config.IPTables.NAT.InstancePrefix,
 	}
 }

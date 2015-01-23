@@ -12,6 +12,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/fake_graph"
 	. "github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/repository_fetcher"
+	"github.com/cloudfoundry-incubator/garden-linux/process"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/ghttp"
@@ -79,7 +80,7 @@ var _ = Describe("RepositoryFetcher", func() {
 				ghttp.VerifyRequest("GET", "/v1/images/layer-2/json"),
 				http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 					w.Header().Add("X-Docker-Size", "456")
-					w.Write([]byte(`{"id":"layer-2","parent":"parent-2","Config":{"volumes": { "/tmp": {}, "/another": {} }, "env": ["env1=env1Value", "env2=env2BadValue"]}}`))
+					w.Write([]byte(`{"id":"layer-2","parent":"parent-2","Config":{"volumes": { "/tmp": {}, "/another": {} }, "env": ["env1=env1Value", "env2=env2NewValue"]}}`))
 				}),
 			),
 			ghttp.CombineHandlers(
@@ -164,7 +165,7 @@ var _ = Describe("RepositoryFetcher", func() {
 				imageID, envvars, volumes, err := fetcher.Fetch(logger, "some-repo", "some-tag")
 
 				Ω(err).ShouldNot(HaveOccurred())
-				Ω(envvars).Should(ConsistOf([]string{"env1=env1Value", "env2=env2Value"}))
+				Ω(envvars).Should(Equal(process.Env{"env1": "env1Value", "env2": "env2NewValue"}))
 				Ω(volumes).Should(ConsistOf([]string{"/tmp", "/another"}))
 				Ω(imageID).Should(Equal("id-1"))
 			})
@@ -264,7 +265,7 @@ var _ = Describe("RepositoryFetcher", func() {
 
 				imageID, envVars, _, err := fetcher.Fetch(logger, "some-repo", "some-tag")
 				Ω(err).ShouldNot(HaveOccurred())
-				Ω(envVars).Should(ConsistOf([]string{"env2=env2Value"}))
+				Ω(envVars).Should(Equal(process.Env{"env2": "env2Value"}))
 
 				Ω(imageID).Should(Equal("id-1"))
 			})

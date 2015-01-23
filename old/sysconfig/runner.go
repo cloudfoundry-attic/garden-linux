@@ -4,13 +4,14 @@ import (
 	"os"
 	"os/exec"
 
+	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/cloudfoundry/gunk/command_runner"
 )
 
 type runner struct {
 	command_runner.CommandRunner
 
-	env []string
+	env process.Env
 }
 
 func NewRunner(config Config, commandRunner command_runner.CommandRunner) command_runner.CommandRunner {
@@ -35,9 +36,9 @@ func (runner *runner) Background(cmd *exec.Cmd) error {
 
 func (runner *runner) withEnv(cmd *exec.Cmd) *exec.Cmd {
 	if len(cmd.Env) == 0 {
-		cmd.Env = append(os.Environ(), runner.env...)
+		cmd.Env = append(os.Environ(), runner.env.Array()...)
 	} else {
-		cmd.Env = append(cmd.Env, runner.env...)
+		cmd.Env = append(cmd.Env, runner.env.Array()...)
 	}
 
 	return cmd

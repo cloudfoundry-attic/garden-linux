@@ -452,7 +452,6 @@ setup_fs
 			ls := exec.Command(wsh,
 				"--socket", socketPath,
 				"--user", "vcap",
-				"--env", "PATH=nada",
 				"ls",
 			)
 
@@ -464,7 +463,6 @@ setup_fs
 			onlyInSbin := exec.Command(wsh,
 				"--socket", socketPath,
 				"--user", "vcap",
-				"--env", "PATH=nada",
 				"ifconfig",
 			)
 
@@ -537,7 +535,6 @@ setup_fs
 			onlyInSbin := exec.Command(wsh,
 				"--socket", socketPath,
 				"--user", "root",
-				"--env", "PATH=nada",
 				"ifconfig",
 			)
 

@@ -6,6 +6,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/fake_graph_driver"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/repository_fetcher/fake_repository_fetcher"
 	. "github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/rootfs_provider"
+	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/pivotal-golang/lager/lagertest"
 
 	. "github.com/onsi/ginkgo"
@@ -71,7 +72,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 			))
 
 			Ω(mountpoint).Should(Equal("/some/graph/driver/mount/point"))
-			Ω(envvars).Should(Equal([]string{"env1", "env1Value", "env2", "env2Value"}))
+			Ω(envvars).Should(Equal(process.Env{"env1": "env1Value", "env2": "env2Value"}))
 		})
 
 		Context("when the image has associated VOLUMEs", func() {

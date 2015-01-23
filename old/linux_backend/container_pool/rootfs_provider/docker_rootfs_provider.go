@@ -8,6 +8,7 @@ import (
 	"github.com/pivotal-golang/lager"
 
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/repository_fetcher"
+	"github.com/cloudfoundry-incubator/garden-linux/process"
 )
 
 type dockerRootFSProvider struct {
@@ -32,7 +33,7 @@ func NewDocker(
 	}
 }
 
-func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id string, url *url.URL) (string, []string, error) {
+func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id string, url *url.URL) (string, process.Env, error) {
 	if len(url.Path) == 0 {
 		return "", nil, ErrInvalidDockerURL
 	}

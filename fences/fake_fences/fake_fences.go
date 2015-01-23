@@ -2,12 +2,12 @@ package fake_fences
 
 import (
 	"encoding/json"
-	"fmt"
 	"net"
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/fences"
 	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
+	"github.com/cloudfoundry-incubator/garden-linux/process"
 )
 
 type FakeFences struct {
@@ -83,8 +83,8 @@ func (f *FakeAllocation) Dismantle() error {
 func (f *FakeAllocation) Info(i *garden.ContainerInfo) {
 }
 
-func (f *FakeAllocation) ConfigureProcess(env *[]string) error {
-	*env = append(*env, fmt.Sprintf("fake_fences_env=%s", f.Subnet))
+func (f *FakeAllocation) ConfigureProcess(env process.Env) error {
+	env["fake_fences_env"] = f.Subnet
 	return nil
 }
 

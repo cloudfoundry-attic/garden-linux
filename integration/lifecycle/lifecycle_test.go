@@ -134,30 +134,17 @@ var _ = Describe("Creating a container", func() {
 			})
 		})
 
-		FContext("when the docker image specifies $HOME and $PATH", func() {
+		Context("when the docker image specifies $PATH", func() {
 			BeforeEach(func() {
-				// dockerfile contains `ENV /usr/local/bin:/usr/bin:/bin:/from-ENV`,
+				// Dockerfile contains:
+				//   ENV PATH /usr/local/bin:/usr/bin:/bin:/from-dockerfile
+				//   ENV TEST test-from-dockerfile
+				//   ENV TEST second-test-from-dockerfile:$TEST
 				// see diego-dockerfiles/with-volume
 				rootfs = "docker:///cloudfoundry/with-volume"
 			})
 
-			It("$HOME is taken from the docker image", func() {
-				stdout := gbytes.NewBuffer()
-				process, err := container.Run(garden.ProcessSpec{
-					Path: "/bin/sh",
-					Args: []string{"-c", "echo $HOME"},
-				}, garden.ProcessIO{
-					Stdout: io.MultiWriter(GinkgoWriter, stdout),
-					Stderr: GinkgoWriter,
-				})
-
-				Ω(err).ShouldNot(HaveOccurred())
-
-				process.Wait()
-				Ω(stdout).Should(gbytes.Say("/home-from-ENV"))
-			})
-
-			PIt("$PATH is taken from the docker image", func() {
+			It("$PATH is taken from the docker image", func() {
 				stdout := gbytes.NewBuffer()
 				process, err := container.Run(garden.ProcessSpec{
 					Path: "/bin/sh",
@@ -170,7 +157,23 @@ var _ = Describe("Creating a container", func() {
 				Ω(err).ShouldNot(HaveOccurred())
 
 				process.Wait()
-				Ω(stdout).Should(gbytes.Say("/usr/local/bin:/usr/bin:/bin:/from-ENV"))
+				Ω(stdout).Should(gbytes.Say("/usr/local/bin:/usr/bin:/bin:/from-dockerfile"))
+			})
+
+			It("$TEST is taken from the docker image", func() {
+				stdout := gbytes.NewBuffer()
+				process, err := container.Run(garden.ProcessSpec{
+					Path: "/bin/sh",
+					Args: []string{"-c", "echo $TEST"},
+				}, garden.ProcessIO{
+					Stdout: io.MultiWriter(GinkgoWriter, stdout),
+					Stderr: GinkgoWriter,
+				})
+
+				Ω(err).ShouldNot(HaveOccurred())
+
+				process.Wait()
+				Ω(stdout).Should(gbytes.Say("second-test-from-dockerfile:test-from-dockerfile"))
 			})
 		})
 	})

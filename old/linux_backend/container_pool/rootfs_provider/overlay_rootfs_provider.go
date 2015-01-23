@@ -6,6 +6,7 @@ import (
 	"path"
 
 	"github.com/cloudfoundry-incubator/garden-linux/old/logging"
+	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/pivotal-golang/lager"
 )
@@ -31,7 +32,7 @@ func NewOverlay(
 	}
 }
 
-func (provider *overlayRootFSProvider) ProvideRootFS(logger lager.Logger, id string, rootfs *url.URL) (string, []string, error) {
+func (provider *overlayRootFSProvider) ProvideRootFS(logger lager.Logger, id string, rootfs *url.URL) (string, process.Env, error) {
 	rootFSPath := provider.defaultRootFS
 	if rootfs.Path != "" {
 		rootFSPath = rootfs.Path

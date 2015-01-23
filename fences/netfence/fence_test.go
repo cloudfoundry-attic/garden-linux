@@ -9,6 +9,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/subnets"
 	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
+	"github.com/cloudfoundry-incubator/garden-linux/process"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/pivotal-golang/lager"
@@ -320,7 +321,7 @@ var _ = Describe("Fence", func() {
 		Describe("ConfigureProcess", func() {
 			Context("With a /29", func() {
 				var (
-					env []string
+					env process.Env
 				)
 
 				BeforeEach(func() {
@@ -329,33 +330,33 @@ var _ = Describe("Fence", func() {
 
 					fence.mtu = 123
 
-					env = []string{"foo", "bar"}
+					env = process.Env{"foo": "bar"}
 					allocation := &Fence{ipn, net.ParseIP("4.5.6.1"), "", "host", false, "bridge", fence, lagertest.NewTestLogger("allocation")}
-					allocation.ConfigureProcess(&env)
+					allocation.ConfigureProcess(env)
 				})
 
 				It("configures with the correct network_cidr", func() {
-					Ω(env).Should(ContainElement("network_cidr=4.5.6.0/29"))
+					Ω(env.Array()).Should(ContainElement("network_cidr=4.5.6.0/29"))
 				})
 
 				It("configures with the correct gateway ip", func() {
-					Ω(env).Should(ContainElement("network_host_ip=4.5.6.6"))
+					Ω(env.Array()).Should(ContainElement("network_host_ip=4.5.6.6"))
 				})
 
 				It("configures with the correct container ip", func() {
-					Ω(env).Should(ContainElement("network_container_ip=4.5.6.1"))
+					Ω(env.Array()).Should(ContainElement("network_container_ip=4.5.6.1"))
 				})
 
 				It("configures with the correct cidr suffix", func() {
-					Ω(env).Should(ContainElement("network_cidr_suffix=29"))
+					Ω(env.Array()).Should(ContainElement("network_cidr_suffix=29"))
 				})
 
 				It("configures with the correct MTU size", func() {
-					Ω(env).Should(ContainElement("container_iface_mtu=123"))
+					Ω(env.Array()).Should(ContainElement("container_iface_mtu=123"))
 				})
 
 				It("configures with the correct external IP", func() {
-					Ω(env).Should(ContainElement("external_ip=1.2.3.4"))
+					Ω(env.Array()).Should(ContainElement("external_ip=1.2.3.4"))
 				})
 			})
 		})

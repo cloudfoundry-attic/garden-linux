@@ -6,11 +6,12 @@ import (
 	"sync"
 
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/rootfs_provider"
+	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/pivotal-golang/lager"
 )
 
 type FakeRootFSProvider struct {
-	ProvideRootFSStub        func(logger lager.Logger, id string, rootfs *url.URL) (mountpoint string, envvar []string, err error)
+	ProvideRootFSStub        func(logger lager.Logger, id string, rootfs *url.URL) (mountpoint string, envvar process.Env, err error)
 	provideRootFSMutex       sync.RWMutex
 	provideRootFSArgsForCall []struct {
 		logger lager.Logger
@@ -19,7 +20,7 @@ type FakeRootFSProvider struct {
 	}
 	provideRootFSReturns struct {
 		result1 string
-		result2 []string
+		result2 process.Env
 		result3 error
 	}
 	CleanupRootFSStub        func(logger lager.Logger, id string) error
@@ -33,7 +34,7 @@ type FakeRootFSProvider struct {
 	}
 }
 
-func (fake *FakeRootFSProvider) ProvideRootFS(logger lager.Logger, id string, rootfs *url.URL) (mountpoint string, envvar []string, err error) {
+func (fake *FakeRootFSProvider) ProvideRootFS(logger lager.Logger, id string, rootfs *url.URL) (mountpoint string, envvar process.Env, err error) {
 	fake.provideRootFSMutex.Lock()
 	fake.provideRootFSArgsForCall = append(fake.provideRootFSArgsForCall, struct {
 		logger lager.Logger
@@ -60,11 +61,11 @@ func (fake *FakeRootFSProvider) ProvideRootFSArgsForCall(i int) (lager.Logger, s
 	return fake.provideRootFSArgsForCall[i].logger, fake.provideRootFSArgsForCall[i].id, fake.provideRootFSArgsForCall[i].rootfs
 }
 
-func (fake *FakeRootFSProvider) ProvideRootFSReturns(result1 string, result2 []string, result3 error) {
+func (fake *FakeRootFSProvider) ProvideRootFSReturns(result1 string, result2 process.Env, result3 error) {
 	fake.ProvideRootFSStub = nil
 	fake.provideRootFSReturns = struct {
 		result1 string
-		result2 []string
+		result2 process.Env
 		result3 error
 	}{result1, result2, result3}
 }

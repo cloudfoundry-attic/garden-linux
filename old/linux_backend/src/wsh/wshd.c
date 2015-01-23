@@ -246,27 +246,24 @@ char **env__add(char **envp, const char *key, const char *value) {
   return envp;
 }
 
-int env__has(char **envp, const char* key) {
-  size_t envplen = 0;
-
+const char* env__get(char **envp, const char* key) {
   if (envp != NULL) {
-    while(envp[envplen++] != NULL);
-
-    int i;
-    for (i = 0; i < envplen; i++) {
+    int i = 0;
+    while (envp[i] != NULL) {
       char* eq = strchr(envp[i], '=');
-        if (eq != NULL) {
-          size_t keyLen = eq - envp[i];
-          if (strlen(key) == keyLen) {
-            if (memcmp(key, envp[i], keyLen) == 0) {
-              return 1;
-            }
+      if (eq != NULL) {
+        size_t keyLen = eq - envp[i];
+        if (strlen(key) == keyLen) {
+          if (memcmp(key, envp[i], keyLen) == 0) {
+            return eq + 1;
           }
         }
+      }
+      i++;
     }
   }
 
-  return 0;
+  return NULL;
 }
 
 char **child_setup_environment(struct passwd *pw, char **extra_env_vars) {
@@ -282,7 +279,11 @@ char **child_setup_environment(struct passwd *pw, char **extra_env_vars) {
   envp = env__add(envp, "HOME", pw->pw_dir);
   envp = env__add(envp, "USER", pw->pw_name);
 
-  if (pw->pw_uid == 0) {
+  // Use $PATH if provided, otherwise default depending on uid.
+  const char * envp_path = env__get(envp, "PATH");
+  if (envp_path != NULL) {
+      setenv("PATH", envp_path, 1);
+  } else if (pw->pw_uid == 0) {
     const char *sanitizedRootPath = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
     envp = env__add(envp, "PATH", sanitizedRootPath);
     setenv("PATH", sanitizedRootPath, 1);

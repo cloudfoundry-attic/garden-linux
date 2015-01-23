@@ -7,6 +7,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
+	"github.com/cloudfoundry-incubator/garden-linux/process"
 )
 
 var ErrNoFencesRegistered = errors.New("no fences have been registered")
@@ -32,7 +33,7 @@ type Builder interface {
 
 type Fence interface {
 	json.Marshaler
-	ConfigureProcess(*[]string) error
+	ConfigureProcess(process.Env) error
 	Dismantle() error
 	Info(*garden.ContainerInfo)
 	String() string

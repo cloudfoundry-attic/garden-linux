@@ -32,6 +32,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/quota_manager/fake_quota_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/uid_pool/fake_uid_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
+	"github.com/cloudfoundry-incubator/garden-linux/process"
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
@@ -326,12 +327,12 @@ var _ = Describe("Container pool", func() {
 						Path: "/root/path/create.sh",
 						Args: []string{path.Join(depotPath, container.ID())},
 						Env: []string{
-							"id=" + container.ID(),
-							"rootfs_path=/provided/rootfs/path",
-							"user_uid=10000",
-							"root_uid=0",
 							"PATH=" + os.Getenv("PATH"),
 							"fake_fences_env=1.2.0.0/30",
+							"id=" + container.ID(),
+							"root_uid=0",
+							"rootfs_path=/provided/rootfs/path",
+							"user_uid=10000",
 						},
 					},
 				))
@@ -348,12 +349,12 @@ var _ = Describe("Container pool", func() {
 						Path: "/root/path/create.sh",
 						Args: []string{path.Join(depotPath, container.ID())},
 						Env: []string{
-							"id=" + container.ID(),
-							"rootfs_path=/provided/rootfs/path",
-							"user_uid=10000",
-							"root_uid=10001",
 							"PATH=" + os.Getenv("PATH"),
 							"fake_fences_env=1.2.0.0/30",
+							"id=" + container.ID(),
+							"root_uid=10001",
+							"rootfs_path=/provided/rootfs/path",
+							"user_uid=10000",
 						},
 					},
 				))
@@ -372,12 +373,12 @@ var _ = Describe("Container pool", func() {
 						Path: "/root/path/create.sh",
 						Args: []string{path.Join(depotPath, container.ID())},
 						Env: []string{
-							"id=" + container.ID(),
-							"rootfs_path=/provided/rootfs/path",
-							"user_uid=10000",
-							"root_uid=10001",
 							"PATH=" + os.Getenv("PATH"),
 							"fake_fences_env=1.3.0.0/30",
+							"id=" + container.ID(),
+							"root_uid=10001",
+							"rootfs_path=/provided/rootfs/path",
+							"user_uid=10000",
 						},
 					},
 				))
@@ -458,12 +459,12 @@ var _ = Describe("Container pool", func() {
 						Path: "/root/path/create.sh",
 						Args: []string{path.Join(depotPath, container.ID())},
 						Env: []string{
-							"id=" + container.ID(),
-							"rootfs_path=/var/some/mount/point",
-							"user_uid=10000",
-							"root_uid=10001",
 							"PATH=" + os.Getenv("PATH"),
 							"fake_fences_env=1.2.0.0/30",
+							"id=" + container.ID(),
+							"root_uid=10001",
+							"rootfs_path=/var/some/mount/point",
+							"user_uid=10000",
 						},
 					},
 				))
@@ -481,10 +482,19 @@ var _ = Describe("Container pool", func() {
 				Ω(string(body)).Should(Equal("fake"))
 			})
 
+			It("returns an error if the supplied environment is invalid", func() {
+				_, err := pool.Create(garden.ContainerSpec{
+					Env: []string{
+						"var1=spec=value1",
+					},
+				})
+				Ω(err).Should(MatchError(HavePrefix("malformed environment")))
+			})
+
 			It("merges the env vars associated with the rootfs with those in the spec", func() {
-				fakeRootFSProvider.ProvideRootFSReturns("/provided/rootfs/path", []string{
-					"var2=rootfs-value-2",
-					"var3=rootfs-value-3",
+				fakeRootFSProvider.ProvideRootFSReturns("/provided/rootfs/path", process.Env{
+					"var2": "rootfs-value-2",
+					"var3": "rootfs-value-3",
 				}, nil)
 
 				container, err := pool.Create(garden.ContainerSpec{
@@ -496,10 +506,10 @@ var _ = Describe("Container pool", func() {
 				})
 
 				Ω(err).ShouldNot(HaveOccurred())
-				Ω(container.(*linux_backend.LinuxContainer).CurrentEnvVars()).Should(ConsistOf([]string{
-					"var3=rootfs-value-3",
-					"var1=spec-value1",
-					"var2=spec-value2",
+				Ω(container.(*linux_backend.LinuxContainer).CurrentEnvVars()).Should(Equal(process.Env{
+					"var1": "spec-value1",
+					"var2": "spec-value2",
+					"var3": "rootfs-value-3",
 				}))
 			})
 

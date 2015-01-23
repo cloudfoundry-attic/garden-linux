@@ -782,6 +782,11 @@ func (c *LinuxContainer) Run(spec garden.ProcessSpec, processIO garden.ProcessIO
 		return nil, err
 	}
 
+	c.logger.Session("run").Debug("calculate-environment", lager.Data{
+		"container-env": c.env,
+		"run-env":       specEnv,
+	})
+
 	for _, envVar := range c.env.Merge(specEnv).Array() {
 		args = append(args, "--env", envVar)
 	}
@@ -864,8 +869,8 @@ func (c *LinuxContainer) NetOut(network string, port uint32, portRange string, p
 	return nil
 }
 
-func (c *LinuxContainer) CurrentEnvVars() []string {
-	return c.env.Array()
+func (c *LinuxContainer) CurrentEnvVars() process.Env {
+	return c.env
 }
 
 func (c *LinuxContainer) setState(state State) {

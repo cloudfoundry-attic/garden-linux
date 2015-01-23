@@ -8,6 +8,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden"
 	. "github.com/cloudfoundry-incubator/garden-linux/fences"
 	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
+	"github.com/cloudfoundry-incubator/garden-linux/process"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -300,7 +301,7 @@ func (a *FakeAllocation) MarshalJSON() ([]byte, error) {
 	return nil, nil
 }
 
-func (a *FakeAllocation) ConfigureProcess(env *[]string) error {
+func (a *FakeAllocation) ConfigureProcess(env process.Env) error {
 	return nil
 }
 
