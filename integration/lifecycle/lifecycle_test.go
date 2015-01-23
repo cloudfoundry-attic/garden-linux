@@ -117,8 +117,8 @@ var _ = Describe("Creating a container", func() {
 				rootfs = "docker:///cloudfoundry/with-volume"
 			})
 
-			stdout := gbytes.NewBuffer()
 			It("creates the volume directory, if it does not already exist", func() {
+				stdout := gbytes.NewBuffer()
 				process, err := container.Run(garden.ProcessSpec{
 					Path: "ls",
 					Args: []string{"-l", "/"},
