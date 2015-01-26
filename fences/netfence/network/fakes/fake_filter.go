@@ -18,16 +18,10 @@ type FakeFilter struct {
 	TearDownStub        func()
 	tearDownMutex       sync.RWMutex
 	tearDownArgsForCall []struct{}
-	NetOutStub        func(network string, port uint32, portRange string, protocol garden.Protocol, icmpType int32, icmpCode int32, log bool) error
+	NetOutStub        func(garden.NetOutRule) error
 	netOutMutex       sync.RWMutex
 	netOutArgsForCall []struct {
-		network   string
-		port      uint32
-		portRange string
-		protocol  garden.Protocol
-		icmpType  int32
-		icmpCode  int32
-		log       bool
+		arg1 garden.NetOutRule
 	}
 	netOutReturns struct {
 		result1 error
@@ -73,20 +67,14 @@ func (fake *FakeFilter) TearDownCallCount() int {
 	return len(fake.tearDownArgsForCall)
 }
 
-func (fake *FakeFilter) NetOut(network string, port uint32, portRange string, protocol garden.Protocol, icmpType int32, icmpCode int32, log bool) error {
+func (fake *FakeFilter) NetOut(arg1 garden.NetOutRule) error {
 	fake.netOutMutex.Lock()
 	fake.netOutArgsForCall = append(fake.netOutArgsForCall, struct {
-		network   string
-		port      uint32
-		portRange string
-		protocol  garden.Protocol
-		icmpType  int32
-		icmpCode  int32
-		log       bool
-	}{network, port, portRange, protocol, icmpType, icmpCode, log})
+		arg1 garden.NetOutRule
+	}{arg1})
 	fake.netOutMutex.Unlock()
 	if fake.NetOutStub != nil {
-		return fake.NetOutStub(network, port, portRange, protocol, icmpType, icmpCode, log)
+		return fake.NetOutStub(arg1)
 	} else {
 		return fake.netOutReturns.result1
 	}
@@ -98,10 +86,10 @@ func (fake *FakeFilter) NetOutCallCount() int {
 	return len(fake.netOutArgsForCall)
 }
 
-func (fake *FakeFilter) NetOutArgsForCall(i int) (string, uint32, string, garden.Protocol, int32, int32, bool) {
+func (fake *FakeFilter) NetOutArgsForCall(i int) garden.NetOutRule {
 	fake.netOutMutex.RLock()
 	defer fake.netOutMutex.RUnlock()
-	return fake.netOutArgsForCall[i].network, fake.netOutArgsForCall[i].port, fake.netOutArgsForCall[i].portRange, fake.netOutArgsForCall[i].protocol, fake.netOutArgsForCall[i].icmpType, fake.netOutArgsForCall[i].icmpCode, fake.netOutArgsForCall[i].log
+	return fake.netOutArgsForCall[i].arg1
 }
 
 func (fake *FakeFilter) NetOutReturns(result1 error) {

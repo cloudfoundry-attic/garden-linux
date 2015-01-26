@@ -345,148 +345,207 @@ var _ = Describe("Iptables", func() {
 			})
 
 			Describe("PrependFilterRule", func() {
-				Context("when all parameters are specified", func() {
-					It("runs iptables to prepend the rule with the correct parameters when port is specified", func() {
-						Ω(subject.PrependFilterRule(garden.ProtocolAll, "1.2.3.4/24", 8080, "", -1, -1, false)).Should(Succeed())
-
+				Context("when all parameters are defaulted", func() {
+					It("runs iptables with appropriate parameters", func() {
+						Ω(subject.PrependFilterRule(garden.NetOutRule{})).Should(Succeed())
 						Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
 							Path: "/sbin/iptables",
-							Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--destination", "1.2.3.4/24", "--destination-port", "8080", "--jump", "RETURN"},
-						}))
-					})
-
-					It("runs iptables to prepend the rule with the correct parameters when port range is specified", func() {
-						Ω(subject.PrependFilterRule(garden.ProtocolAll, "1.2.3.4/24", 0, "80:81", -1, -1, false)).Should(Succeed())
-
-						Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
-							Path: "/sbin/iptables",
-							Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--destination", "1.2.3.4/24", "--destination-port", "80:81", "--jump", "RETURN"},
+							Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--jump", "RETURN"},
 						}))
 					})
 				})
 
-				Context("when tcp protcol is specified", func() {
-					It("passes tcp protcol to iptables", func() {
-						Ω(subject.PrependFilterRule(garden.ProtocolTCP, "1.2.3.4/24", 8080, "", -1, -1, false)).Should(Succeed())
-
-						Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
-							Path: "/sbin/iptables",
-							Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "tcp", "--destination", "1.2.3.4/24", "--destination-port", "8080", "--jump", "RETURN"},
-						}))
-					})
-
-					Context("when logging is requested", func() {
-						It("forwards requests through the log chain", func() {
-							Ω(subject.PrependFilterRule(garden.ProtocolTCP, "1.2.3.4/24", 8080, "", -1, -1, true)).Should(Succeed())
+				Describe("Network", func() {
+					Context("when an empty IPRange is specified", func() {
+						It("does not limit the range", func() {
+							Ω(subject.PrependFilterRule(garden.NetOutRule{
+								Network: &garden.IPRange{},
+							})).Should(Succeed())
 
 							Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
 								Path: "/sbin/iptables",
-								Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "tcp", "--destination", "1.2.3.4/24", "--destination-port", "8080", "--goto", "foo-bar-baz-log"},
+								Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--jump", "RETURN"},
+							}))
+						})
+					})
+
+					Context("when a single destination IP is specified", func() {
+						It("opens only that IP", func() {
+							Ω(subject.PrependFilterRule(garden.NetOutRule{
+								Network: &garden.IPRange{Start: net.ParseIP("1.2.3.4")},
+							})).Should(Succeed())
+
+							Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+								Path: "/sbin/iptables",
+								Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--destination", "1.2.3.4", "--jump", "RETURN"},
+							}))
+						})
+					})
+
+					Context("when a EndIP is specified without a StartIP", func() {
+						It("opens only that IP", func() {
+							Ω(subject.PrependFilterRule(garden.NetOutRule{
+								Network: &garden.IPRange{End: net.ParseIP("1.2.3.4")},
+							})).Should(Succeed())
+
+							Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+								Path: "/sbin/iptables",
+								Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--destination", "1.2.3.4", "--jump", "RETURN"},
+							}))
+						})
+					})
+
+					Context("when a range of IPs is specified", func() {
+						It("opens only the range", func() {
+							Ω(subject.PrependFilterRule(garden.NetOutRule{
+								Network: &garden.IPRange{net.ParseIP("1.2.3.4"), net.ParseIP("2.3.4.5")},
+							})).Should(Succeed())
+
+							Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+								Path: "/sbin/iptables",
+								Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "-m", "iprange", "--dst-range", "1.2.3.4-2.3.4.5", "--jump", "RETURN"},
 							}))
 						})
 					})
 				})
 
-				Context("when udp protcol is specified", func() {
-					It("passes udp protcol to iptables", func() {
-						Ω(subject.PrependFilterRule(garden.ProtocolUDP, "1.2.3.4/24", 8080, "", -1, -1, false)).Should(Succeed())
+				Describe("Ports", func() {
+					Context("when a single port is specified", func() {
+						It("opens only that port", func() {
+							Ω(subject.PrependFilterRule(garden.NetOutRule{
+								Ports: garden.PortRangeFromPort(22),
+							})).Should(Succeed())
 
-						Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
-							Path: "/sbin/iptables",
-							Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "udp", "--destination", "1.2.3.4/24", "--destination-port", "8080", "--jump", "RETURN"},
-						}))
+							Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+								Path: "/sbin/iptables",
+								Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--destination-port", "22", "--jump", "RETURN"},
+							}))
+						})
+					})
+
+					Context("when a port range is specified", func() {
+						It("opens that port range", func() {
+							Ω(subject.PrependFilterRule(garden.NetOutRule{
+								Ports: &garden.PortRange{12, 24},
+							})).Should(Succeed())
+
+							Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+								Path: "/sbin/iptables",
+								Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--destination-port", "12:24", "--jump", "RETURN"},
+							}))
+						})
 					})
 				})
 
-				Context("when icmp protcol is specified", func() {
-					It("passes icmp protcol to iptables when no type or code is specified", func() {
-						Ω(subject.PrependFilterRule(garden.ProtocolICMP, "1.2.3.4/24", 0, "", -1, -1, false)).Should(Succeed())
+				Describe("Protocol", func() {
+					Context("when tcp protocol is specified", func() {
+						It("passes tcp protocol to iptables", func() {
+							Ω(subject.PrependFilterRule(garden.NetOutRule{
+								Protocol: garden.ProtocolTCP,
+							})).Should(Succeed())
 
-						Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
-							Path: "/sbin/iptables",
-							Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "icmp", "--destination", "1.2.3.4/24", "--jump", "RETURN"},
-						}))
+							Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+								Path: "/sbin/iptables",
+								Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "tcp", "--jump", "RETURN"},
+							}))
+						})
 					})
 
-					It("passes icmp protcol to iptables with icmp type if specified", func() {
-						Ω(subject.PrependFilterRule(garden.ProtocolICMP, "1.2.3.4/24", 0, "", 8, -1, false)).Should(Succeed())
+					Context("when udp protocol is specified", func() {
+						It("passes udp protocol to iptables", func() {
+							Ω(subject.PrependFilterRule(garden.NetOutRule{
+								Protocol: garden.ProtocolUDP,
+							})).Should(Succeed())
 
-						Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
-							Path: "/sbin/iptables",
-							Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "icmp", "--destination", "1.2.3.4/24", "--icmp-type", "8", "--jump", "RETURN"},
-						}))
+							Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+								Path: "/sbin/iptables",
+								Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "udp", "--jump", "RETURN"},
+							}))
+						})
 					})
 
-					It("passes icmp protcol to iptables with icmp type and code if both are specified", func() {
-						Ω(subject.PrependFilterRule(garden.ProtocolICMP, "1.2.3.4/24", 0, "", 8, 7, false)).Should(Succeed())
+					Context("when icmp protocol is specified", func() {
+						It("passes icmp protocol to iptables", func() {
+							Ω(subject.PrependFilterRule(garden.NetOutRule{
+								Protocol: garden.ProtocolICMP,
+							})).Should(Succeed())
 
-						Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
-							Path: "/sbin/iptables",
-							Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "icmp", "--destination", "1.2.3.4/24", "--icmp-type", "8/7", "--jump", "RETURN"},
-						}))
+							Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+								Path: "/sbin/iptables",
+								Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "icmp", "--jump", "RETURN"},
+							}))
+						})
+
+						Context("when icmp type is specified", func() {
+							It("passes icmp protcol type to iptables", func() {
+								Ω(subject.PrependFilterRule(garden.NetOutRule{
+									Protocol: garden.ProtocolICMP,
+									ICMPs: &garden.ICMPControl{
+										Type: 99,
+									},
+								})).Should(Succeed())
+
+								Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+									Path: "/sbin/iptables",
+									Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "icmp", "--icmp-type", "99", "--jump", "RETURN"},
+								}))
+							})
+						})
+
+						Context("when icmp type and code are specified", func() {
+							It("passes icmp protcol type and code to iptables", func() {
+								Ω(subject.PrependFilterRule(garden.NetOutRule{
+									Protocol: garden.ProtocolICMP,
+									ICMPs: &garden.ICMPControl{
+										Type: 99,
+										Code: garden.ICMPControlCode(11),
+									},
+								})).Should(Succeed())
+
+								Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+									Path: "/sbin/iptables",
+									Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "icmp", "--icmp-type", "99/11", "--jump", "RETURN"},
+								}))
+							})
+						})
 					})
 				})
 
-				Context("when destination is omitted", func() {
-					It("does not pass destination to iptables", func() {
-						Ω(subject.PrependFilterRule(garden.ProtocolAll, "", 8080, "", -1, -1, false)).Should(Succeed())
+				Describe("Log", func() {
+					It("redirects via the log chain if log is specified", func() {
+						Ω(subject.PrependFilterRule(garden.NetOutRule{
+							Log: true,
+						})).Should(Succeed())
 
 						Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
 							Path: "/sbin/iptables",
-							Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--destination-port", "8080", "--jump", "RETURN"},
-						}))
-					})
-				})
-
-				Context("when port is omitted", func() {
-					It("does not pass port to iptables", func() {
-						Ω(subject.PrependFilterRule(garden.ProtocolAll, "1.2.3.4/24", 0, "", -1, -1, false)).Should(Succeed())
-
-						Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
-							Path: "/sbin/iptables",
-							Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--destination", "1.2.3.4/24", "--jump", "RETURN"},
-						}))
-					})
-				})
-
-				Context("when an IP range is specified", func() {
-					It("runs iptables to prepend the rule with the correct parameters", func() {
-						Ω(subject.PrependFilterRule(garden.ProtocolAll, "1.2.3.4-1.2.3.6", 8080, "", -1, -1, false)).Should(Succeed())
-
-						Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
-							Path: "/sbin/iptables",
-							Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "-m", "iprange", "--dst-range", "1.2.3.4-1.2.3.6", "--destination-port", "8080", "--jump", "RETURN"},
+							Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--goto", "foo-bar-baz-log"},
 						}))
 					})
 				})
 
 				Context("when an invaild protocol is specified", func() {
 					It("returns an error", func() {
-						err := subject.PrependFilterRule(garden.Protocol(52), "1.2.3.4/24", 8080, "", -1, -1, false)
+						err := subject.PrependFilterRule(garden.NetOutRule{
+							Protocol: garden.Protocol(52),
+						})
 						Ω(err).Should(HaveOccurred())
 						Ω(err).Should(MatchError("invalid protocol: 52"))
 					})
 				})
 
-				Context("when port and port range are specified", func() {
-					It("returns an error", func() {
-						err := subject.PrependFilterRule(garden.ProtocolTCP, "1.2.3.4/24", 8080, "80:81", -1, -1, false)
-						Ω(err).Should(HaveOccurred())
-						Ω(err).Should(MatchError("port 8080 and port range 80:81 cannot both be specified"))
-					})
-				})
-
 				Context("when the command returns an error", func() {
-					It("returns an error", func() {
+					It("returns a wrapped error, including stderr", func() {
 						someError := errors.New("badly laid iptable")
 						fakeRunner.WhenRunning(
 							fake_command_runner.CommandSpec{Path: "/sbin/iptables"},
 							func(cmd *exec.Cmd) error {
+								cmd.Stderr.Write([]byte("stderr contents"))
 								return someError
 							},
 						)
 
-						Ω(subject.PrependFilterRule(garden.ProtocolAll, "1.3.4.5/6", 0, "", -1, -1, false)).ShouldNot(Succeed())
+						Ω(subject.PrependFilterRule(garden.NetOutRule{})).Should(MatchError("iptables: badly laid iptable, stderr contents"))
 					})
 				})
 			})

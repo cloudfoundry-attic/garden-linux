@@ -64,16 +64,10 @@ type FakeChain struct {
 	deleteNatRuleReturns struct {
 		result1 error
 	}
-	PrependFilterRuleStub        func(protocol garden.Protocol, dest string, destPort uint32, destPortRange string, destIcmpType, destIcmpCode int32, log bool) error
+	PrependFilterRuleStub        func(rule garden.NetOutRule) error
 	prependFilterRuleMutex       sync.RWMutex
 	prependFilterRuleArgsForCall []struct {
-		protocol      garden.Protocol
-		dest          string
-		destPort      uint32
-		destPortRange string
-		destIcmpType  int32
-		destIcmpCode  int32
-		log           bool
+		rule garden.NetOutRule
 	}
 	prependFilterRuleReturns struct {
 		result1 error
@@ -266,20 +260,14 @@ func (fake *FakeChain) DeleteNatRuleReturns(result1 error) {
 	}{result1}
 }
 
-func (fake *FakeChain) PrependFilterRule(protocol garden.Protocol, dest string, destPort uint32, destPortRange string, destIcmpType int32, destIcmpCode int32, log bool) error {
+func (fake *FakeChain) PrependFilterRule(rule garden.NetOutRule) error {
 	fake.prependFilterRuleMutex.Lock()
 	fake.prependFilterRuleArgsForCall = append(fake.prependFilterRuleArgsForCall, struct {
-		protocol      garden.Protocol
-		dest          string
-		destPort      uint32
-		destPortRange string
-		destIcmpType  int32
-		destIcmpCode  int32
-		log           bool
-	}{protocol, dest, destPort, destPortRange, destIcmpType, destIcmpCode, log})
+		rule garden.NetOutRule
+	}{rule})
 	fake.prependFilterRuleMutex.Unlock()
 	if fake.PrependFilterRuleStub != nil {
-		return fake.PrependFilterRuleStub(protocol, dest, destPort, destPortRange, destIcmpType, destIcmpCode, log)
+		return fake.PrependFilterRuleStub(rule)
 	} else {
 		return fake.prependFilterRuleReturns.result1
 	}
@@ -291,10 +279,10 @@ func (fake *FakeChain) PrependFilterRuleCallCount() int {
 	return len(fake.prependFilterRuleArgsForCall)
 }
 
-func (fake *FakeChain) PrependFilterRuleArgsForCall(i int) (garden.Protocol, string, uint32, string, int32, int32, bool) {
+func (fake *FakeChain) PrependFilterRuleArgsForCall(i int) garden.NetOutRule {
 	fake.prependFilterRuleMutex.RLock()
 	defer fake.prependFilterRuleMutex.RUnlock()
-	return fake.prependFilterRuleArgsForCall[i].protocol, fake.prependFilterRuleArgsForCall[i].dest, fake.prependFilterRuleArgsForCall[i].destPort, fake.prependFilterRuleArgsForCall[i].destPortRange, fake.prependFilterRuleArgsForCall[i].destIcmpType, fake.prependFilterRuleArgsForCall[i].destIcmpCode, fake.prependFilterRuleArgsForCall[i].log
+	return fake.prependFilterRuleArgsForCall[i].rule
 }
 
 func (fake *FakeChain) PrependFilterRuleReturns(result1 error) {

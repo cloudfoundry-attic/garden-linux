@@ -155,7 +155,11 @@ var _ = Describe("Net In/Out", func() {
 
 			Context("after a net_out of another range", func() {
 				It("does not allow connections to that address", func() {
-					container.NetOut("1.2.3.4/30", 0, "", garden.ProtocolAll, -1, -1, false)
+					container.NetOut(garden.NetOutRule{
+						Protocol: garden.ProtocolAll,
+						Network:  IPRangeFromCIDR("1.2.3.4/30"),
+						Ports:    garden.PortRangeFromPort(0),
+					})
 					ByRejectingTCP()
 					ByRejectingICMP()
 				})
@@ -164,7 +168,9 @@ var _ = Describe("Net In/Out", func() {
 			Context("after net_out allows tcp traffic to that IP and port", func() {
 				Context("when no port is specified", func() {
 					It("allows both tcp and icmp to that address", func() {
-						err := container.NetOut(externalIP.String(), 0, "", garden.ProtocolAll, -1, -1, false)
+						err := container.NetOut(garden.NetOutRule{
+							Network: garden.IPRangeFromIP(net.ParseIP(externalIP.String())),
+						})
 						Ω(err).ShouldNot(HaveOccurred())
 						ByAllowingTCP()
 						ByAllowingICMP()
@@ -174,7 +180,9 @@ var _ = Describe("Net In/Out", func() {
 
 			Context("after net_out allows tcp traffic to a range of IP addresses", func() {
 				It("allows tcp to an address in the range", func() {
-					err := container.NetOut(externalIP.String()+"-"+"255.255.255.254", 0, "", garden.ProtocolTCP, -1, -1, false)
+					err := container.NetOut(garden.NetOutRule{
+						Network: &garden.IPRange{Start: net.ParseIP(externalIP.String()), End: net.ParseIP("255.255.255.254")},
+					})
 					Ω(err).ShouldNot(HaveOccurred())
 					ByAllowingTCP()
 				})
@@ -189,7 +197,10 @@ var _ = Describe("Net In/Out", func() {
 					})
 
 					It("allows TCP and blocks ICMP", func() {
-						err := container.NetOut(externalIP.String(), 0, "", garden.ProtocolTCP, -1, -1, false)
+						err := container.NetOut(garden.NetOutRule{
+							Protocol: garden.ProtocolTCP,
+							Network:  garden.IPRangeFromIP(net.ParseIP(externalIP.String())),
+						})
 						Ω(err).ShouldNot(HaveOccurred())
 						ByAllowingTCP()
 						ByRejectingICMP()
@@ -202,7 +213,14 @@ var _ = Describe("Net In/Out", func() {
 					})
 
 					It("allows ICMP pings and blocks TCP", func() {
-						err := container.NetOut(externalIP.String(), 0, "", garden.ProtocolICMP, 13, 0, false)
+						err := container.NetOut(garden.NetOutRule{
+							Protocol: garden.ProtocolICMP,
+							Network:  garden.IPRangeFromIP(net.ParseIP(externalIP.String())),
+							ICMPs: &garden.ICMPControl{
+								Type: 13,
+								Code: garden.ICMPControlCode(0),
+							},
+						})
 						Ω(err).ShouldNot(HaveOccurred())
 						ByRejectingICMP()
 						ByRejectingTCP()
@@ -215,11 +233,24 @@ var _ = Describe("Net In/Out", func() {
 					})
 
 					It("allows ICMP pings and blocks TCP", func() {
-						err := container.NetOut(externalIP.String(), 0, "", garden.ProtocolICMP, 8, 4, false)
+						Ω(container.NetOut(garden.NetOutRule{
+							Protocol: garden.ProtocolICMP,
+							Network:  garden.IPRangeFromIP(net.ParseIP(externalIP.String())),
+							ICMPs: &garden.ICMPControl{
+								Type: 8,
+								Code: garden.ICMPControlCode(0),
+							},
+						})).Should(Succeed())
 						ByRejectingICMP()
 						ByRejectingTCP()
-						err = container.NetOut(externalIP.String(), 0, "", garden.ProtocolICMP, 8, 0, false)
-						Ω(err).ShouldNot(HaveOccurred())
+
+						Ω(container.NetOut(garden.NetOutRule{
+							Protocol: garden.ProtocolICMP,
+							Network:  garden.IPRangeFromIP(net.ParseIP(externalIP.String())),
+							ICMPs: &garden.ICMPControl{
+								Type: 8,
+							},
+						})).Should(Succeed())
 						ByAllowingICMP()
 						ByRejectingTCP()
 					})
@@ -231,8 +262,10 @@ var _ = Describe("Net In/Out", func() {
 					})
 
 					It("allows ICMP and blocks TCP", func() {
-						err := container.NetOut(externalIP.String(), 0, "", garden.ProtocolICMP, -1, -1, false)
-						Ω(err).ShouldNot(HaveOccurred())
+						Ω(container.NetOut(garden.NetOutRule{
+							Protocol: garden.ProtocolICMP,
+							Network:  garden.IPRangeFromIP(net.ParseIP(externalIP.String())),
+						})).Should(Succeed())
 						ByAllowingICMP()
 						ByRejectingTCP()
 					})
@@ -421,7 +454,9 @@ var _ = Describe("Net In/Out", func() {
 
 				Context("after a net_out of another range", func() {
 					It("still does not allow connections to that address", func() {
-						container.NetOut("1.2.3.4/30", 0, "", garden.ProtocolAll, -1, -1, false)
+						Ω(container.NetOut(garden.NetOutRule{
+							Network: IPRangeFromCIDR("1.2.3.4/30"),
+						})).Should(Succeed())
 						ByRejectingICMP()
 						ByRejectingUDP()
 						ByRejectingTCP()
@@ -431,7 +466,9 @@ var _ = Describe("Net In/Out", func() {
 				Context("after net_out allows all traffic to that IP and port", func() {
 					Context("when no port is specified", func() {
 						It("allows both tcp and icmp to that address", func() {
-							container.NetOut(otherContainerNetwork.String(), 0, "", garden.ProtocolAll, -1, -1, false)
+							Ω(container.NetOut(garden.NetOutRule{
+								Network: garden.IPRangeFromIPNet(otherContainerNetwork),
+							})).Should(Succeed())
 							ByAllowingICMP()
 							ByAllowingUDP()
 							ByAllowingTCP()
@@ -440,20 +477,36 @@ var _ = Describe("Net In/Out", func() {
 
 					Context("when a port is specified", func() {
 						It("allows tcp connections to that port", func() {
-							container.NetOut(otherContainerNetwork.String(), 12345, "", garden.ProtocolTCP, -1, -1, false) // wrong port
+							Ω(container.NetOut(garden.NetOutRule{
+								Protocol: garden.ProtocolTCP,
+								Network:  garden.IPRangeFromIPNet(otherContainerNetwork),
+								Ports:    garden.PortRangeFromPort(12345),
+							})).Should(Succeed())
 							ByRejectingTCP()
 
-							container.NetOut(otherContainerNetwork.String(), tcpPort, "", garden.ProtocolTCP, -1, -1, false)
+							Ω(container.NetOut(garden.NetOutRule{
+								Protocol: garden.ProtocolTCP,
+								Network:  garden.IPRangeFromIPNet(otherContainerNetwork),
+								Ports:    garden.PortRangeFromPort(tcpPort),
+							})).Should(Succeed())
 							ByRejectingUDP()
 							ByRejectingICMP()
 							ByAllowingTCP()
 						})
 
 						It("allows udp connections to that port", func() {
-							container.NetOut(otherContainerNetwork.String(), 12345, "", garden.ProtocolUDP, -1, -1, false) // wrong port
+							Ω(container.NetOut(garden.NetOutRule{
+								Protocol: garden.ProtocolUDP,
+								Network:  garden.IPRangeFromIPNet(otherContainerNetwork),
+								Ports:    garden.PortRangeFromPort(12345),
+							})).Should(Succeed())
 							ByRejectingUDP()
 
-							container.NetOut(otherContainerNetwork.String(), udpPort, "", garden.ProtocolUDP, -1, -1, false)
+							Ω(container.NetOut(garden.NetOutRule{
+								Protocol: garden.ProtocolUDP,
+								Network:  garden.IPRangeFromIPNet(otherContainerNetwork),
+								Ports:    garden.PortRangeFromPort(udpPort),
+							})).Should(Succeed())
 							ByRejectingICMP()
 							ByRejectingTCP()
 							ByAllowingUDP()
@@ -462,14 +515,24 @@ var _ = Describe("Net In/Out", func() {
 
 					Context("when a port range is specified", func() {
 						It("allows tcp connections a port in that range", func() {
-							container.NetOut(otherContainerNetwork.String(), 0, tcpPortRange, garden.ProtocolTCP, -1, -1, false)
+							Ω(container.NetOut(garden.NetOutRule{
+								Protocol: garden.ProtocolTCP,
+								Network:  garden.IPRangeFromIPNet(otherContainerNetwork),
+								Ports:    &garden.PortRange{tcpPort - 1, tcpPort + 1},
+							})).Should(Succeed())
+
 							ByRejectingUDP()
 							ByRejectingICMP()
 							ByAllowingTCP()
 						})
 
 						It("allows udp connections a port in that range", func() {
-							container.NetOut(otherContainerNetwork.String(), 0, tcpPortRange, garden.ProtocolUDP, -1, -1, false)
+							Ω(container.NetOut(garden.NetOutRule{
+								Protocol: garden.ProtocolUDP,
+								Network:  garden.IPRangeFromIPNet(otherContainerNetwork),
+								Ports:    &garden.PortRange{udpPort - 1, udpPort + 1},
+							})).Should(Succeed())
+
 							ByRejectingTCP()
 							ByRejectingICMP()
 							ByAllowingUDP()
@@ -479,14 +542,20 @@ var _ = Describe("Net In/Out", func() {
 
 				Describe("when no port or port is specified", func() {
 					It("allows all TCP and blocks other protocols", func() {
-						container.NetOut(otherContainerNetwork.String(), 0, "", garden.ProtocolTCP, -1, -1, false)
+						Ω(container.NetOut(garden.NetOutRule{
+							Protocol: garden.ProtocolTCP,
+							Network:  garden.IPRangeFromIPNet(otherContainerNetwork),
+						})).Should(Succeed())
 						ByAllowingTCP()
 						ByRejectingICMP()
 						ByRejectingUDP()
 					})
 
 					It("allows UDP and blocks other protocols", func() {
-						container.NetOut(otherContainerNetwork.String(), 0, "", garden.ProtocolUDP, -1, -1, false)
+						Ω(container.NetOut(garden.NetOutRule{
+							Protocol: garden.ProtocolUDP,
+							Network:  garden.IPRangeFromIPNet(otherContainerNetwork),
+						})).Should(Succeed())
 						ByRejectingTCP()
 						ByRejectingICMP()
 						ByAllowingUDP()
@@ -531,7 +600,11 @@ sync=1
 
 						Eventually(func() error { _, err := os.Stat(pidFile); return err }).ShouldNot(HaveOccurred(), "ulogd should write a pidfile")
 
-						err = container.NetOut(otherContainerNetwork.String(), 0, "", garden.ProtocolTCP, -1, -1, true)
+						Ω(container.NetOut(garden.NetOutRule{
+							Protocol: garden.ProtocolTCP,
+							Network:  garden.IPRangeFromIPNet(otherContainerNetwork),
+							Log:      true,
+						})).Should(Succeed())
 						Ω(err).ShouldNot(HaveOccurred())
 
 						// Use a large message to increase the probability that logging occurs.
@@ -628,4 +701,11 @@ func dumpIP() {
 	op, err = cmd.CombinedOutput()
 	Ω(err).ShouldNot(HaveOccurred())
 	fmt.Println("IP tables rules:\n", string(op))
+}
+
+func IPRangeFromCIDR(cidr string) *garden.IPRange {
+	_, ipn, err := net.ParseCIDR(cidr)
+	Ω(err).ShouldNot(HaveOccurred())
+
+	return garden.IPRangeFromIPNet(ipn)
 }

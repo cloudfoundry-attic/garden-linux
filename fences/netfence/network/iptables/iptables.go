@@ -1,11 +1,10 @@
 package iptables
 
 import (
+	"bytes"
 	"fmt"
 	"net"
 	"os/exec"
-	"strconv"
-	"strings"
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry/gunk/command_runner"
@@ -39,7 +38,7 @@ type Chain interface {
 	AppendNatRule(source string, destination string, jump Action, to net.IP) error
 	DeleteNatRule(source string, destination string, jump Action, to net.IP) error
 
-	PrependFilterRule(protocol garden.Protocol, dest string, destPort uint32, destPortRange string, destIcmpType, destIcmpCode int32, log bool) error
+	PrependFilterRule(rule garden.NetOutRule) error
 }
 
 type chain struct {
@@ -126,7 +125,7 @@ func (ch *chain) DeleteNatRule(source string, destination string, jump Action, t
 	})
 }
 
-func (ch *chain) PrependFilterRule(protocol garden.Protocol, dest string, destPort uint32, destPortRange string, destIcmpType, destIcmpCode int32, log bool) error {
+func (ch *chain) PrependFilterRule(r garden.NetOutRule) error {
 	params := []string{"-w", "-I", ch.name, "1"}
 
 	protocols := map[garden.Protocol]string{
@@ -135,48 +134,57 @@ func (ch *chain) PrependFilterRule(protocol garden.Protocol, dest string, destPo
 		garden.ProtocolICMP: "icmp",
 		garden.ProtocolUDP:  "udp",
 	}
-	protocolString, ok := protocols[protocol]
+	protocolString, ok := protocols[r.Protocol]
 
 	if !ok {
-		return fmt.Errorf("invalid protocol: %d", protocol)
+		return fmt.Errorf("invalid protocol: %d", r.Protocol)
 	}
 
 	params = append(params, "--protocol", protocolString)
 
-	if dest != "" {
-		if strings.Contains(dest, "-") {
-			params = append(params, "-m", "iprange", "--dst-range", dest)
+	if r.Network != nil {
+		if r.Network.Start != nil && r.Network.End != nil {
+			params = append(params, "-m", "iprange", "--dst-range", r.Network.Start.String()+"-"+r.Network.End.String())
+		} else if r.Network.Start != nil {
+			params = append(params, "--destination", r.Network.Start.String())
+		} else if r.Network.End != nil {
+			params = append(params, "--destination", r.Network.End.String())
+		}
+	}
+
+	if r.Ports != nil {
+		if r.Ports.End != r.Ports.Start {
+			params = append(params, "--destination-port", fmt.Sprintf("%d:%d", r.Ports.Start, r.Ports.End))
 		} else {
-			params = append(params, "--destination", dest)
+			params = append(params, "--destination-port", fmt.Sprintf("%d", r.Ports.Start))
 		}
 	}
 
-	if destPort != 0 {
-		if destPortRange != "" {
-			return fmt.Errorf("port %d and port range %s cannot both be specified", destPort, destPortRange)
-		}
-		params = append(params, "--destination-port", strconv.Itoa(int(destPort)))
-	} else if destPortRange != "" {
-		params = append(params, "--destination-port", destPortRange)
-	}
-
-	if destIcmpType != -1 {
-		icmpType := fmt.Sprintf("%d", destIcmpType)
-		if destIcmpCode != -1 {
-			icmpType = fmt.Sprintf("%d/%d", destIcmpType, destIcmpCode)
+	if r.ICMPs != nil {
+		icmpType := fmt.Sprintf("%d", r.ICMPs.Type)
+		if r.ICMPs.Code != nil {
+			icmpType = fmt.Sprintf("%d/%d", r.ICMPs.Type, *r.ICMPs.Code)
 		}
 
 		params = append(params, "--icmp-type", icmpType)
 	}
 
-	if log {
+	if r.Log {
 		params = append(params, "--goto", ch.logChainName)
 	} else {
 		params = append(params, "--jump", "RETURN")
 	}
 
 	ch.logger.Debug("prepend-filter-rule", lager.Data{"parms": params})
-	return ch.runner.Run(exec.Command("/sbin/iptables", params...))
+
+	var stderr bytes.Buffer
+	cmd := exec.Command("/sbin/iptables", params...)
+	cmd.Stderr = &stderr
+	if err := ch.runner.Run(cmd); err != nil {
+		return fmt.Errorf("iptables: %v, %v", err, stderr.String())
+	}
+
+	return nil
 }
 
 type rule struct {

@@ -137,12 +137,6 @@ var _ = Describe("Linux containers", func() {
 			_, _, err = container.NetIn(3, 4)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			err = container.NetOut("network-a", 1, "", garden.ProtocolTCP, -1, -1, false)
-			Ω(err).ShouldNot(HaveOccurred())
-
-			err = container.NetOut("network-b", 2, "", garden.ProtocolTCP, -1, -1, false)
-			Ω(err).ShouldNot(HaveOccurred())
-
 			p1 := new(wfakes.FakeProcess)
 			p1.IDReturns(1)
 
@@ -192,19 +186,6 @@ var _ = Describe("Linux containers", func() {
 					{
 						HostPort:      3,
 						ContainerPort: 4,
-					},
-				},
-			))
-
-			Ω(snapshot.NetOuts).Should(Equal(
-				[]linux_backend.NetOutSpec{
-					{
-						Network: "network-a",
-						Port:    1,
-					},
-					{
-						Network: "network-b",
-						Port:    2,
 					},
 				},
 			))
@@ -402,7 +383,7 @@ var _ = Describe("Linux containers", func() {
 			Ω(container.CurrentEnvVars()).Should(Equal(process.Env{"env1": "env1value", "env2": "env2Value"}))
 		})
 
-		It("redoes network setup and net-in/net-outs", func() {
+		It("redoes network setup and net-ins", func() {
 			err := container.Restore(linux_backend.ContainerSnapshot{
 				State:  "active",
 				Events: []string{},
@@ -415,17 +396,6 @@ var _ = Describe("Linux containers", func() {
 					{
 						HostPort:      1235,
 						ContainerPort: 5679,
-					},
-				},
-
-				NetOuts: []linux_backend.NetOutSpec{
-					{
-						Network: "somehost.example.com",
-						Port:    80,
-					},
-					{
-						Network: "someotherhost.example.com",
-						Port:    8080,
 					},
 				},
 			})
@@ -445,13 +415,6 @@ var _ = Describe("Linux containers", func() {
 					Args: []string{"in"},
 				},
 			))
-			Ω(fakeFilter.NetOutCallCount()).Should(Equal(2))
-			network, port, portRange, protocol, _, _, log := fakeFilter.NetOutArgsForCall(0)
-			Ω(network).Should(Equal("somehost.example.com"))
-			Ω(port).Should(Equal(uint32(80)))
-			Ω(portRange).Should(Equal(""))
-			Ω(protocol).Should(Equal(garden.ProtocolTCP))
-			Ω(log).Should(Equal(false))
 		})
 
 		for _, cmd := range []string{"setup", "in"} {
@@ -491,29 +454,6 @@ var _ = Describe("Linux containers", func() {
 					})
 					Ω(err).Should(Equal(disaster))
 				})
-			})
-
-			It("when filter returns an error", func() {
-				disaster := errors.New("fail")
-				fakeFilter.NetOutReturns(disaster)
-				err := container.Restore(linux_backend.ContainerSnapshot{
-					State:  "active",
-					Events: []string{},
-
-					NetIns: []linux_backend.NetInSpec{},
-
-					NetOuts: []linux_backend.NetOutSpec{
-						{
-							Network: "somehost.example.com",
-							Port:    80,
-						},
-						{
-							Network: "someotherhost.example.com",
-							Port:    8080,
-						},
-					},
-				})
-				Ω(err).Should(Equal(disaster))
 			})
 		}
 
@@ -1932,35 +1872,13 @@ var _ = Describe("Linux containers", func() {
 
 	Describe("Net out", func() {
 		It("delegates to the filter", func() {
-			err := container.NetOut("1.2.3.4/22", 567, "80:81", garden.ProtocolTCP, 8, 7, false)
+			rule := garden.NetOutRule{}
+			err := container.NetOut(rule)
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(fakeFilter.NetOutCallCount()).Should(Equal(1))
-			network, port, portRange, protocol, icmpType, icmpCode, log := fakeFilter.NetOutArgsForCall(0)
-			Ω(network).Should(Equal("1.2.3.4/22"))
-			Ω(port).Should(Equal(uint32(567)))
-			Ω(portRange).Should(Equal("80:81"))
-			Ω(protocol).Should(Equal(garden.ProtocolTCP))
-			Ω(icmpType).Should(Equal(int32(8)))
-			Ω(icmpCode).Should(Equal(int32(7)))
-			Ω(log).Should(Equal(false))
-		})
-
-		Context("when we request logging for the rule", func() {
-			It("passes the logging request through to the filter", func() {
-				err := container.NetOut("1.2.3.4/22", 0, "80:81", garden.ProtocolTCP, 9, 2, true)
-				Ω(err).ShouldNot(HaveOccurred())
-
-				Ω(fakeFilter.NetOutCallCount()).Should(Equal(1))
-				network, port, portRange, protocol, icmpType, icmpCode, log := fakeFilter.NetOutArgsForCall(0)
-				Ω(network).Should(Equal("1.2.3.4/22"))
-				Ω(port).Should(Equal(uint32(0)))
-				Ω(portRange).Should(Equal("80:81"))
-				Ω(protocol).Should(Equal(garden.ProtocolTCP))
-				Ω(icmpType).Should(Equal(int32(9)))
-				Ω(icmpCode).Should(Equal(int32(2)))
-				Ω(log).Should(Equal(true))
-			})
+			passedRule := fakeFilter.NetOutArgsForCall(0)
+			Ω(passedRule).Should(Equal(rule))
 		})
 
 		Context("when the filter fails", func() {
@@ -1971,7 +1889,7 @@ var _ = Describe("Linux containers", func() {
 			})
 
 			It("returns the error", func() {
-				err := container.NetOut("1.2.3.4/22", 567, "", garden.ProtocolTCP, -1, -1, false)
+				err := container.NetOut(garden.NetOutRule{})
 				Ω(err).Should(Equal(disaster))
 			})
 		})
