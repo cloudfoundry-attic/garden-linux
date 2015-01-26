@@ -72,12 +72,17 @@ func TestNetworking(t *testing.T) {
 		beforeSuite.GardenPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux", "-a", "-race", "-tags", "daemon")
 		Ω(err).ShouldNot(HaveOccurred())
 
-		// FIXME: netdog cannot be statically linked with Go 1.4, so use a checked-in version built with Go 1.3.1 for now.
-		// See https://groups.google.com/forum/#!msg/golang-nuts/S2WDcm47bhA/W243-l49WDsJ
-		// os.Setenv("CGO_ENABLED", "0")
-		// beforeSuite.NetdogPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/integration/networking/netdog", "-a")
-		// Ω(err).ShouldNot(HaveOccurred())
-		beforeSuite.NetdogPath = "../../integration/networking/netdog/netdog"
+		oldCgo := os.Getenv("CGO_ENABLED")
+
+		os.Setenv("CGO_ENABLED", "0")
+		beforeSuite.NetdogPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/integration/networking/netdog", "-a", "-installsuffix", "cgo")
+		Ω(err).ShouldNot(HaveOccurred())
+
+		if oldCgo == "" {
+			os.Unsetenv("CGO_ENABLED")
+		} else {
+			os.Setenv("CGO_ENABLED", oldCgo)
+		}
 
 		ips, err := net.LookupIP("www.example.com")
 		Ω(err).ShouldNot(HaveOccurred())
