@@ -1,8 +1,8 @@
 package garden
 
-import (
-	"io"
-)
+import "io"
+
+//go:generate counterfeiter . Container
 
 type Container interface {
 	Handle() string
@@ -89,27 +89,9 @@ type Container interface {
 	// If the configuration directive deny_networks is not used,
 	// all networks are already whitelisted and this command is effectively a no-op.
 	//
-	// * network: Network to whitelist (in the form 1.2.3.4/8) or a range of IP
-	//            addresses to whitelist (separated by -)
-	//
-	// * port: Port to whitelist.
-	//
-	// * portRange: Colon separated port range (in the form 8080:9080).
-	//
-	// * protocol : the protocol to be whitelisted (default TCP)
-	//
-	// * icmpType: the ICMP type value to be whitelisted when protocol=ICMP (a
-	//             value of -1 means all types and is the default)
-	//
-	// * icmpCode: the ICMP code value to be whitelisted when protocol=ICMP (a
-	//             value of -1 means all codes and is the default)
-	//
-	// * log: Boolean specifying whether or not logging should be enabled. If
-	//        logging is enabled, the first packet of a given connection is logged.
-	//
 	// Errors:
-	// * None.
-	NetOut(network string, port uint32, portRange string, protocol Protocol, icmpType int32, icmpCode int32, log bool) error
+	// * An error is returned if the NetOut call fails.
+	NetOut(netOutRule NetOutRule) error
 
 	// Run a script inside a container.
 	//
@@ -145,16 +127,6 @@ type Container interface {
 	RemoveProperty(name string) error
 }
 
-type Protocol uint8
-
-const (
-	ProtocolTCP Protocol = 1 << iota
-	ProtocolUDP
-	ProtocolICMP
-
-	ProtocolAll Protocol = (1 << iota) - 1
-)
-
 // ProcessSpec contains parameters for running a script inside a container.
 type ProcessSpec struct {
 	Path string   // Path to command to execute.
@@ -183,6 +155,8 @@ type ProcessIO struct {
 	Stdout io.Writer
 	Stderr io.Writer
 }
+
+//go:generate counterfeiter . Process
 
 type Process interface {
 	ID() uint32

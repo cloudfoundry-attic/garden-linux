@@ -1,4 +1,4 @@
-/package garden;
+package garden;
 
 message SetPropertyRequest {
   optional string handle = 1;
