@@ -14,23 +14,23 @@ var _ = math.Inf
 type NetOutRequest_Protocol int32
 
 const (
-	NetOutRequest_TCP  NetOutRequest_Protocol = 0
-	NetOutRequest_UDP  NetOutRequest_Protocol = 1
-	NetOutRequest_ICMP NetOutRequest_Protocol = 2
-	NetOutRequest_ALL  NetOutRequest_Protocol = 3
+	NetOutRequest_ALL  NetOutRequest_Protocol = 0
+	NetOutRequest_TCP  NetOutRequest_Protocol = 1
+	NetOutRequest_UDP  NetOutRequest_Protocol = 2
+	NetOutRequest_ICMP NetOutRequest_Protocol = 3
 )
 
 var NetOutRequest_Protocol_name = map[int32]string{
-	0: "TCP",
-	1: "UDP",
-	2: "ICMP",
-	3: "ALL",
+	0: "ALL",
+	1: "TCP",
+	2: "UDP",
+	3: "ICMP",
 }
 var NetOutRequest_Protocol_value = map[string]int32{
-	"TCP":  0,
-	"UDP":  1,
-	"ICMP": 2,
-	"ALL":  3,
+	"ALL":  0,
+	"TCP":  1,
+	"UDP":  2,
+	"ICMP": 3,
 }
 
 func (x NetOutRequest_Protocol) Enum() *NetOutRequest_Protocol {
@@ -53,8 +53,8 @@ func (x *NetOutRequest_Protocol) UnmarshalJSON(data []byte) error {
 type NetOutRequest struct {
 	Handle           *string                    `protobuf:"bytes,1,req,name=handle" json:"handle,omitempty"`
 	Protocol         *NetOutRequest_Protocol    `protobuf:"varint,2,req,name=protocol,enum=garden.NetOutRequest_Protocol" json:"protocol,omitempty"`
-	Network          *NetOutRequest_IPRange     `protobuf:"bytes,3,opt,name=network" json:"network,omitempty"`
-	Ports            *NetOutRequest_PortRange   `protobuf:"bytes,4,opt,name=ports" json:"ports,omitempty"`
+	Networks         []*NetOutRequest_IPRange   `protobuf:"bytes,3,rep,name=networks" json:"networks,omitempty"`
+	Ports            []*NetOutRequest_PortRange `protobuf:"bytes,4,rep,name=ports" json:"ports,omitempty"`
 	Icmps            *NetOutRequest_ICMPControl `protobuf:"bytes,5,opt,name=icmps" json:"icmps,omitempty"`
 	Log              *bool                      `protobuf:"varint,6,req,name=log" json:"log,omitempty"`
 	XXX_unrecognized []byte                     `json:"-"`
@@ -75,17 +75,17 @@ func (m *NetOutRequest) GetProtocol() NetOutRequest_Protocol {
 	if m != nil && m.Protocol != nil {
 		return *m.Protocol
 	}
-	return NetOutRequest_TCP
+	return NetOutRequest_ALL
 }
 
-func (m *NetOutRequest) GetNetwork() *NetOutRequest_IPRange {
+func (m *NetOutRequest) GetNetworks() []*NetOutRequest_IPRange {
 	if m != nil {
-		return m.Network
+		return m.Networks
 	}
 	return nil
 }
 
-func (m *NetOutRequest) GetPorts() *NetOutRequest_PortRange {
+func (m *NetOutRequest) GetPorts() []*NetOutRequest_PortRange {
 	if m != nil {
 		return m.Ports
 	}

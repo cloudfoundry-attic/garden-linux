@@ -27,8 +27,8 @@ message NetOutRequest {
   required string handle = 1;
 
   required Protocol protocol = 2;
-  optional IPRange network = 3;
-  optional PortRange ports = 4;
+  repeated IPRange networks = 3;
+  repeated PortRange ports = 4;
   optional ICMPControl icmps = 5;
   required bool log = 6;
 }

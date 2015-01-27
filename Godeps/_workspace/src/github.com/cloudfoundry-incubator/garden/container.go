@@ -89,6 +89,9 @@ type Container interface {
 	// If the configuration directive deny_networks is not used,
 	// all networks are already whitelisted and this command is effectively a no-op.
 	//
+	// Later NetOut calls take precedence over earlier calls, which is
+	// significant only in relation to logging.
+	//
 	// Errors:
 	// * An error is returned if the NetOut call fails.
 	NetOut(netOutRule NetOutRule) error

@@ -359,7 +359,9 @@ var _ = Describe("Iptables", func() {
 					Context("when an empty IPRange is specified", func() {
 						It("does not limit the range", func() {
 							Ω(subject.PrependFilterRule(garden.NetOutRule{
-								Network: &garden.IPRange{},
+								Networks: []garden.IPRange{
+									garden.IPRange{},
+								},
 							})).Should(Succeed())
 
 							Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
@@ -372,7 +374,11 @@ var _ = Describe("Iptables", func() {
 					Context("when a single destination IP is specified", func() {
 						It("opens only that IP", func() {
 							Ω(subject.PrependFilterRule(garden.NetOutRule{
-								Network: &garden.IPRange{Start: net.ParseIP("1.2.3.4")},
+								Networks: []garden.IPRange{
+									{
+										Start: net.ParseIP("1.2.3.4"),
+									},
+								},
 							})).Should(Succeed())
 
 							Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
@@ -382,10 +388,42 @@ var _ = Describe("Iptables", func() {
 						})
 					})
 
+					Context("when a multiple destination networks are specified", func() {
+						It("opens only that IP", func() {
+							Ω(subject.PrependFilterRule(garden.NetOutRule{
+								Networks: []garden.IPRange{
+									{
+										Start: net.ParseIP("1.2.3.4"),
+									},
+									{
+										Start: net.ParseIP("2.2.3.4"),
+										End:   net.ParseIP("2.2.3.9"),
+									},
+								},
+							})).Should(Succeed())
+
+							Ω(fakeRunner.ExecutedCommands()).Should(HaveLen(2))
+							Ω(fakeRunner).Should(HaveExecutedSerially(
+								fake_command_runner.CommandSpec{
+									Path: "/sbin/iptables",
+									Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--destination", "1.2.3.4", "--jump", "RETURN"},
+								},
+								fake_command_runner.CommandSpec{
+									Path: "/sbin/iptables",
+									Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "-m", "iprange", "--dst-range", "2.2.3.4-2.2.3.9", "--jump", "RETURN"},
+								},
+							))
+						})
+					})
+
 					Context("when a EndIP is specified without a StartIP", func() {
 						It("opens only that IP", func() {
 							Ω(subject.PrependFilterRule(garden.NetOutRule{
-								Network: &garden.IPRange{End: net.ParseIP("1.2.3.4")},
+								Networks: []garden.IPRange{
+									{
+										End: net.ParseIP("1.2.3.4"),
+									},
+								},
 							})).Should(Succeed())
 
 							Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
@@ -398,7 +436,11 @@ var _ = Describe("Iptables", func() {
 					Context("when a range of IPs is specified", func() {
 						It("opens only the range", func() {
 							Ω(subject.PrependFilterRule(garden.NetOutRule{
-								Network: &garden.IPRange{net.ParseIP("1.2.3.4"), net.ParseIP("2.3.4.5")},
+								Networks: []garden.IPRange{
+									{
+										net.ParseIP("1.2.3.4"), net.ParseIP("2.3.4.5"),
+									},
+								},
 							})).Should(Succeed())
 
 							Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
@@ -413,7 +455,9 @@ var _ = Describe("Iptables", func() {
 					Context("when a single port is specified", func() {
 						It("opens only that port", func() {
 							Ω(subject.PrependFilterRule(garden.NetOutRule{
-								Ports: garden.PortRangeFromPort(22),
+								Ports: []garden.PortRange{
+									garden.PortRangeFromPort(22),
+								},
 							})).Should(Succeed())
 
 							Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
@@ -426,13 +470,37 @@ var _ = Describe("Iptables", func() {
 					Context("when a port range is specified", func() {
 						It("opens that port range", func() {
 							Ω(subject.PrependFilterRule(garden.NetOutRule{
-								Ports: &garden.PortRange{12, 24},
+								Ports: []garden.PortRange{
+									{12, 24},
+								},
 							})).Should(Succeed())
 
 							Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
 								Path: "/sbin/iptables",
 								Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--destination-port", "12:24", "--jump", "RETURN"},
 							}))
+						})
+					})
+
+					Context("when multiple port ranges are specified", func() {
+						It("opens those port ranges", func() {
+							Ω(subject.PrependFilterRule(garden.NetOutRule{
+								Ports: []garden.PortRange{
+									{12, 24},
+									{64, 942},
+								},
+							})).Should(Succeed())
+
+							Ω(fakeRunner).Should(HaveExecutedSerially(
+								fake_command_runner.CommandSpec{
+									Path: "/sbin/iptables",
+									Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--destination-port", "12:24", "--jump", "RETURN"},
+								},
+								fake_command_runner.CommandSpec{
+									Path: "/sbin/iptables",
+									Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--destination-port", "64:942", "--jump", "RETURN"},
+								},
+							))
 						})
 					})
 				})
@@ -521,6 +589,46 @@ var _ = Describe("Iptables", func() {
 							Path: "/sbin/iptables",
 							Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--goto", "foo-bar-baz-log"},
 						}))
+					})
+				})
+
+				Context("when multiple port ranges and multiple networks are specified", func() {
+					It("opens the permutations of those port ranges and networks", func() {
+						Ω(subject.PrependFilterRule(garden.NetOutRule{
+							Networks: []garden.IPRange{
+								{
+									Start: net.ParseIP("1.2.3.4"),
+								},
+								{
+									Start: net.ParseIP("2.2.3.4"),
+									End:   net.ParseIP("2.2.3.9"),
+								},
+							},
+							Ports: []garden.PortRange{
+								{12, 24},
+								{64, 942},
+							},
+						})).Should(Succeed())
+
+						Ω(fakeRunner.ExecutedCommands()).Should(HaveLen(4))
+						Ω(fakeRunner).Should(HaveExecutedSerially(
+							fake_command_runner.CommandSpec{
+								Path: "/sbin/iptables",
+								Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--destination", "1.2.3.4", "--destination-port", "12:24", "--jump", "RETURN"},
+							},
+							fake_command_runner.CommandSpec{
+								Path: "/sbin/iptables",
+								Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--destination", "1.2.3.4", "--destination-port", "64:942", "--jump", "RETURN"},
+							},
+							fake_command_runner.CommandSpec{
+								Path: "/sbin/iptables",
+								Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "-m", "iprange", "--dst-range", "2.2.3.4-2.2.3.9", "--destination-port", "12:24", "--jump", "RETURN"},
+							},
+							fake_command_runner.CommandSpec{
+								Path: "/sbin/iptables",
+								Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "-m", "iprange", "--dst-range", "2.2.3.4-2.2.3.9", "--destination-port", "64:942", "--jump", "RETURN"},
+							},
+						))
 					})
 				})
 

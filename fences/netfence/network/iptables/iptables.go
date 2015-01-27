@@ -125,7 +125,45 @@ func (ch *chain) DeleteNatRule(source string, destination string, jump Action, t
 	})
 }
 
+type singleRule struct {
+	Protocol garden.Protocol
+	Networks *garden.IPRange
+	Ports    *garden.PortRange
+	ICMPs    *garden.ICMPControl
+	Log      bool
+}
+
 func (ch *chain) PrependFilterRule(r garden.NetOutRule) error {
+	single := singleRule{
+		Protocol: r.Protocol,
+		ICMPs:    r.ICMPs,
+		Log:      r.Log,
+	}
+
+	// It should still loop once even if there are no networks or ports.
+	for j := 0; j < len(r.Networks) || j == 0; j++ {
+		for i := 0; i < len(r.Ports) || i == 0; i++ {
+
+			// Preserve nils unless there are ports specified
+			if len(r.Ports) > 0 {
+				single.Ports = &r.Ports[i]
+			}
+
+			// Preserve nils unless there are networks specified
+			if len(r.Networks) > 0 {
+				single.Networks = &r.Networks[j]
+			}
+
+			if err := ch.prependSingleRule(single); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (ch *chain) prependSingleRule(r singleRule) error {
 	params := []string{"-w", "-I", ch.name, "1"}
 
 	protocols := map[garden.Protocol]string{
@@ -142,21 +180,23 @@ func (ch *chain) PrependFilterRule(r garden.NetOutRule) error {
 
 	params = append(params, "--protocol", protocolString)
 
-	if r.Network != nil {
-		if r.Network.Start != nil && r.Network.End != nil {
-			params = append(params, "-m", "iprange", "--dst-range", r.Network.Start.String()+"-"+r.Network.End.String())
-		} else if r.Network.Start != nil {
-			params = append(params, "--destination", r.Network.Start.String())
-		} else if r.Network.End != nil {
-			params = append(params, "--destination", r.Network.End.String())
+	network := r.Networks
+	if network != nil {
+		if network.Start != nil && network.End != nil {
+			params = append(params, "-m", "iprange", "--dst-range", network.Start.String()+"-"+network.End.String())
+		} else if network.Start != nil {
+			params = append(params, "--destination", network.Start.String())
+		} else if network.End != nil {
+			params = append(params, "--destination", network.End.String())
 		}
 	}
 
-	if r.Ports != nil {
-		if r.Ports.End != r.Ports.Start {
-			params = append(params, "--destination-port", fmt.Sprintf("%d:%d", r.Ports.Start, r.Ports.End))
+	ports := r.Ports
+	if ports != nil {
+		if ports.End != ports.Start {
+			params = append(params, "--destination-port", fmt.Sprintf("%d:%d", ports.Start, ports.End))
 		} else {
-			params = append(params, "--destination-port", fmt.Sprintf("%d", r.Ports.Start))
+			params = append(params, "--destination-port", fmt.Sprintf("%d", ports.Start))
 		}
 	}
 
