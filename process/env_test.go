@@ -72,6 +72,32 @@ var _ = Describe("Environment", func() {
 		})
 	})
 
+	Describe("merging an environment weakly into the current environment", func() {
+		It("does not change existing environment variables", func() {
+			old := process.Env{
+				"LANG": "C",
+			}
+			under := process.Env{
+				"LANG": "ASCII",
+			}
+
+			result := old.WeakMerge(under)
+			Ω(result["LANG"]).Should(Equal("C"))
+		})
+
+		It("changes the environment if there is no existing variable", func() {
+			old := process.Env{
+				"OTHER": "C",
+			}
+			under := process.Env{
+				"LANG": "ASCII",
+			}
+
+			result := old.WeakMerge(under)
+			Ω(result["LANG"]).Should(Equal("ASCII"))
+		})
+	})
+
 	Context("when using the constructor", func() {
 		It("can be constructed from an array", func() {
 			env, err := process.NewEnv([]string{
