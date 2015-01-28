@@ -233,21 +233,29 @@ func Main(builders *fences.BuilderRegistry) {
 		logger.Fatal("failed-to-construct-graph", err)
 	}
 
-	endpoint, err := registry.NewEndpoint(*dockerRegistry, nil)
-	if err != nil {
-		logger.Fatal("failed-to-construct-registry-endpoint", err)
+	newRepoFetcher := func(registryName string) (repository_fetcher.RepositoryFetcher, error) {
+		endpoint, err := registry.NewEndpoint(registryName, nil)
+		if err != nil {
+			logger.Error("failed-to-construct-registry-endpoint", err)
+			return nil, err
+		}
+
+		reg, err := registry.NewSession(nil, nil, endpoint, true)
+		if err != nil {
+			logger.Error("failed-to-construct-registry", err)
+			return nil, err
+		}
+		return repository_fetcher.Retryable{repository_fetcher.New(reg, graph)}, nil
 	}
 
-	reg, err := registry.NewSession(nil, nil, endpoint, true)
+	dockerRootFSProvider, err := rootfs_provider.NewDocker(newRepoFetcher, *dockerRegistry, graphDriver, rootfs_provider.SimpleVolumeCreator{})
 	if err != nil {
-		logger.Fatal("failed-to-construct-registry", err)
+		logger.Fatal("failed-to-construct-docker-rootfs-provider", err)
 	}
-
-	repoFetcher := repository_fetcher.Retryable{repository_fetcher.New(reg, graph)}
 
 	rootFSProviders := map[string]rootfs_provider.RootFSProvider{
 		"":       rootfs_provider.NewOverlay(*binPath, *overlaysPath, *rootFSPath, runner),
-		"docker": rootfs_provider.NewDocker(repoFetcher, graphDriver, rootfs_provider.SimpleVolumeCreator{}),
+		"docker": dockerRootFSProvider,
 	}
 
 	filterProvider := &provider{
@@ -310,6 +318,26 @@ func Main(builders *fences.BuilderRegistry) {
 
 	select {}
 }
+
+// func NewRepoFetcher(registryName string, graphFactory graph.GraphFactory) (RepositoryFetcher, error) {
+
+// 	graph, err := graphFactory.NewGraph(registryName)
+// 	if err != nil {
+// 		logger.Fatal("failed-to-construct-graph", err)
+// 	}
+
+// 	endpoint, err := registry.NewEndpoint(registryName, nil)
+// 	if err != nil {
+// 		logger.Fatal("failed-to-construct-registry-endpoint", err)
+// 	}
+
+// 	reg, err := registry.NewSession(nil, nil, endpoint, true)
+// 	if err != nil {
+// 		logger.Fatal("failed-to-construct-registry", err)
+// 	}
+
+// 	return repository_fetcher.Retryable{repository_fetcher.New(reg, graph)}
+// }
 
 func getMountPoint(logger lager.Logger, depotPath string) string {
 	dfOut := new(bytes.Buffer)

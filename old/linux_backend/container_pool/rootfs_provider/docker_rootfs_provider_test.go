@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/fake_graph_driver"
+	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/repository_fetcher"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/repository_fetcher/fake_repository_fetcher"
 	. "github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
@@ -33,6 +34,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 		fakeRepositoryFetcher *fake_repository_fetcher.FakeRepositoryFetcher
 		fakeGraphDriver       *fake_graph_driver.FakeGraphDriver
 		fakeVolumeCreator     *FakeVolumeCreator
+		newRepoFetcher        func(string) (repository_fetcher.RepositoryFetcher, error)
 
 		provider RootFSProvider
 
@@ -43,8 +45,12 @@ var _ = Describe("DockerRootFSProvider", func() {
 		fakeRepositoryFetcher = fake_repository_fetcher.New()
 		fakeGraphDriver = fake_graph_driver.New()
 		fakeVolumeCreator = &FakeVolumeCreator{}
-
-		provider = NewDocker(fakeRepositoryFetcher, fakeGraphDriver, fakeVolumeCreator)
+		newRepoFetcher = func(_ string) (repository_fetcher.RepositoryFetcher, error) {
+			return fakeRepositoryFetcher, nil
+		}
+		var err error
+		provider, err = NewDocker(newRepoFetcher, "dummy", fakeGraphDriver, fakeVolumeCreator)
+		Ω(err).ShouldNot(HaveOccurred())
 
 		logger = lagertest.NewTestLogger("test")
 	})
@@ -116,6 +122,53 @@ var _ = Describe("DockerRootFSProvider", func() {
 						Tag:        "some-tag",
 					},
 				))
+			})
+		})
+
+		Context("and a host is specified", func() {
+			var registryName string
+
+			BeforeEach(func() {
+				fakeRepositoryFetcher = fake_repository_fetcher.New()
+				newRepoFetcher = func(regName string) (repository_fetcher.RepositoryFetcher, error) {
+					registryName = regName
+					return fakeRepositoryFetcher, nil
+				}
+				var err error
+				provider, err = NewDocker(newRepoFetcher, "default.registry", fakeGraphDriver, fakeVolumeCreator)
+				Ω(err).ShouldNot(HaveOccurred())
+			})
+
+			It("uses the host as the registry when fetching the repository", func() {
+				_, _, err := provider.ProvideRootFS(logger, "some-id", parseURL("docker://some.host/some-repository-name"))
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(registryName).Should(Equal("some.host"))
+			})
+
+			Context("and the repository fetcher could not be created", func() {
+				It("for the default registry", func() {
+					newRepoFetcher = func(regName string) (repository_fetcher.RepositoryFetcher, error) {
+						return nil, errors.New("failed")
+					}
+
+					_, err := NewDocker(newRepoFetcher, "default.registry", fakeGraphDriver, fakeVolumeCreator)
+					Ω(err).Should(MatchError("failed"))
+				})
+
+				It("for a specified registry", func() {
+					newRepoFetcher = func(regName string) (repository_fetcher.RepositoryFetcher, error) {
+						if regName == "some.host" {
+							return nil, errors.New("failed")
+						}
+						return fakeRepositoryFetcher, nil
+					}
+					provider, err := NewDocker(newRepoFetcher, "default.registry", fakeGraphDriver, fakeVolumeCreator)
+					Ω(err).ShouldNot(HaveOccurred())
+
+					_, _, err = provider.ProvideRootFS(logger, "some-id", parseURL("docker://some.host/some-repository-name"))
+					Ω(err).Should(MatchError(ErrInvalidDockerURL))
+				})
+
 			})
 		})
 

@@ -12,28 +12,48 @@ import (
 )
 
 type dockerRootFSProvider struct {
-	repoFetcher   repository_fetcher.RepositoryFetcher
-	graphDriver   graphdriver.Driver
-	volumeCreator VolumeCreator
+	newRepoFetcher      func(registryName string) (repository_fetcher.RepositoryFetcher, error)
+	defaultRegistryName string
+	graphDriver         graphdriver.Driver
+	volumeCreator       VolumeCreator
 
-	fallback RootFSProvider
+	fallback           RootFSProvider
+	defaultRepoFetcher repository_fetcher.RepositoryFetcher
 }
 
-var ErrInvalidDockerURL = errors.New("invalid docker url; must provide path")
+var ErrInvalidDockerURL = errors.New("invalid docker url")
 
 func NewDocker(
-	repoFetcher repository_fetcher.RepositoryFetcher,
+	newRepoFetcher func(registryName string) (repository_fetcher.RepositoryFetcher, error),
+	defaultRegistryName string,
 	graphDriver graphdriver.Driver,
 	volumeCreator VolumeCreator,
-) RootFSProvider {
-	return &dockerRootFSProvider{
-		repoFetcher:   repoFetcher,
-		graphDriver:   graphDriver,
-		volumeCreator: volumeCreator,
+) (RootFSProvider, error) {
+	defaultRepoFetcher, err := newRepoFetcher(defaultRegistryName)
+	if err != nil {
+		return nil, err
 	}
+
+	return &dockerRootFSProvider{
+		newRepoFetcher:      newRepoFetcher,
+		defaultRegistryName: defaultRegistryName,
+		graphDriver:         graphDriver,
+		volumeCreator:       volumeCreator,
+		defaultRepoFetcher:  defaultRepoFetcher,
+	}, nil
 }
 
 func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id string, url *url.URL) (string, process.Env, error) {
+	repoFetcher := provider.defaultRepoFetcher
+	if url.Host != "" {
+		var err error
+		repoFetcher, err = provider.newRepoFetcher(url.Host)
+		if err != nil {
+			logger.Error("failed-to-create-repository-fetcher", err, lager.Data{"url": url})
+			return "", nil, ErrInvalidDockerURL
+		}
+	}
+
 	if len(url.Path) == 0 {
 		return "", nil, ErrInvalidDockerURL
 	}
@@ -45,7 +65,7 @@ func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id stri
 		tag = url.Fragment
 	}
 
-	imageID, envvars, volumes, err := provider.repoFetcher.Fetch(logger, repoName, tag)
+	imageID, envvars, volumes, err := repoFetcher.Fetch(logger, repoName, tag)
 	if err != nil {
 		return "", nil, err
 	}
