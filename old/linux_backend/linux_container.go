@@ -779,11 +779,10 @@ func (c *LinuxContainer) Run(spec garden.ProcessSpec, processIO garden.ProcessIO
 		"run-env":       specEnv,
 	})
 
-	compositeEnv := c.env.
-		Merge(specEnv).
-		WeakMerge(langEnv())
+	defaultEnv := langEnv().Merge(c.env)
+	processEnv := defaultEnv.Merge(specEnv)
 
-	for _, envVar := range compositeEnv.Array() {
+	for _, envVar := range processEnv.Array() {
 		args = append(args, "--env", envVar)
 	}
 

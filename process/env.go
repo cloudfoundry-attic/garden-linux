@@ -35,22 +35,6 @@ func NewEnv(array []string) (Env, error) {
 	return env, nil
 }
 
-func (env Env) WeakMerge(other Env) Env {
-	merged := make(Env, len(env)+len(other))
-
-	for key, value := range env {
-		merged[key] = value
-	}
-
-	for key, value := range other {
-		if _, found := env[key]; !found {
-			merged[key] = value
-		}
-	}
-
-	return merged
-}
-
 func (env Env) Merge(other Env) Env {
 	merged := make(Env, len(env)+len(other))
 
