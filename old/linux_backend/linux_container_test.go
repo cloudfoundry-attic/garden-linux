@@ -979,7 +979,7 @@ var _ = Describe("Linux containers", func() {
 			}))
 		})
 
-		It("fetches the LANG variable from the environment if the user doesn't specify it", func() {
+		It("forwards the LANG variable the environment if the user doesn't specify it", func() {
 			langBefore := os.Getenv("LANG")
 			os.Setenv("LANG", "C")
 
