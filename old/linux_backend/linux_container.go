@@ -779,7 +779,10 @@ func (c *LinuxContainer) Run(spec garden.ProcessSpec, processIO garden.ProcessIO
 		"run-env":       specEnv,
 	})
 
-	for _, envVar := range c.env.Merge(specEnv).Array() {
+	defaultEnv := langEnv().Merge(c.env)
+	processEnv := defaultEnv.Merge(specEnv)
+
+	for _, envVar := range processEnv.Array() {
 		args = append(args, "--env", envVar)
 	}
 
@@ -1031,6 +1034,17 @@ func parseCPUStat(usage, statContents string) (stat garden.ContainerCPUStat) {
 	}
 
 	return
+}
+
+func langEnv() process.Env {
+	lang := os.Getenv("LANG")
+	if lang == "" {
+		lang = "en_US.UTF-8"
+	}
+
+	return process.Env{
+		"LANG": lang,
+	}
 }
 
 func setRLimitsEnv(cmd *exec.Cmd, rlimits garden.ResourceLimits) {
