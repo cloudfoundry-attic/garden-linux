@@ -43,7 +43,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 
 	BeforeEach(func() {
 		fakeRepositoryFetcher = fake_repository_fetcher.New()
-		fakeGraphDriver = fake_graph_driver.New()
+		fakeGraphDriver = &fake_graph_driver.FakeGraphDriver{}
 		fakeVolumeCreator = &FakeVolumeCreator{}
 		newRepoFetcher = func(_ string) (repository_fetcher.RepositoryFetcher, error) {
 			return fakeRepositoryFetcher, nil
@@ -58,17 +58,15 @@ var _ = Describe("DockerRootFSProvider", func() {
 	Describe("ProvideRootFS", func() {
 		It("fetches it and creates a graph entry with it as the parent", func() {
 			fakeRepositoryFetcher.FetchResult = "some-image-id"
-			fakeGraphDriver.GetResult = "/some/graph/driver/mount/point"
+			fakeGraphDriver.GetReturns("/some/graph/driver/mount/point", nil)
 
 			mountpoint, envvars, err := provider.ProvideRootFS(logger, "some-id", parseURL("docker:///some-repository-name"))
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Ω(fakeGraphDriver.Created()).Should(ContainElement(
-				fake_graph_driver.CreatedGraph{
-					ID:     "some-id",
-					Parent: "some-image-id",
-				},
-			))
+			Ω(fakeGraphDriver.CreateCallCount()).Should(Equal(1))
+			id, parent := fakeGraphDriver.CreateArgsForCall(0)
+			Ω(id).Should(Equal("some-id"))
+			Ω(parent).Should(Equal("some-image-id"))
 
 			Ω(fakeRepositoryFetcher.Fetched()).Should(ContainElement(
 				fake_repository_fetcher.FetchSpec{
@@ -84,18 +82,18 @@ var _ = Describe("DockerRootFSProvider", func() {
 		Context("when the image has associated VOLUMEs", func() {
 			It("creates empty directories for all volumes", func() {
 				fakeRepositoryFetcher.FetchResult = "some-image-id"
-				fakeGraphDriver.GetResult = "/some/graph/driver/mount/point"
+				fakeGraphDriver.GetReturns("/some/graph/driver/mount/point", nil)
 
 				_, _, err := provider.ProvideRootFS(logger, "some-id", parseURL("docker:///some-repository-name"))
 				Ω(err).ShouldNot(HaveOccurred())
 
-				Ω(fakeVolumeCreator.Created).Should(Equal([]RootAndVolume{{fakeGraphDriver.GetResult, "/foo"}, {fakeGraphDriver.GetResult, "/bar"}}))
+				Ω(fakeVolumeCreator.Created).Should(Equal([]RootAndVolume{{"/some/graph/driver/mount/point", "/foo"}, {"/some/graph/driver/mount/point", "/bar"}}))
 			})
 
 			Context("when creating a volume fails", func() {
 				It("returns an error", func() {
 					fakeRepositoryFetcher.FetchResult = "some-image-id"
-					fakeGraphDriver.GetResult = "/some/graph/driver/mount/point"
+					fakeGraphDriver.GetReturns("/some/graph/driver/mount/point", nil)
 					fakeVolumeCreator.CreateError = errors.New("o nooo")
 
 					_, _, err := provider.ProvideRootFS(logger, "some-id", parseURL("docker:///some-repository-name"))
@@ -189,7 +187,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 			disaster := errors.New("oh no!")
 
 			BeforeEach(func() {
-				fakeGraphDriver.CreateError = disaster
+				fakeGraphDriver.CreateReturns(disaster)
 			})
 
 			It("returns the error", func() {
@@ -202,7 +200,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 			disaster := errors.New("oh no!")
 
 			BeforeEach(func() {
-				fakeGraphDriver.GetError = disaster
+				fakeGraphDriver.GetReturns("", disaster)
 			})
 
 			It("returns the error", func() {
@@ -217,15 +215,20 @@ var _ = Describe("DockerRootFSProvider", func() {
 			err := provider.CleanupRootFS(logger, "some-id")
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Ω(fakeGraphDriver.Putted()).Should(ContainElement("some-id"))
-			Ω(fakeGraphDriver.Removed()).Should(ContainElement("some-id"))
+			Ω(fakeGraphDriver.PutCallCount()).Should(Equal(1))
+			putted := fakeGraphDriver.PutArgsForCall(0)
+			Ω(putted).Should(Equal("some-id"))
+
+			Ω(fakeGraphDriver.RemoveCallCount()).Should(Equal(1))
+			removed := fakeGraphDriver.RemoveArgsForCall(0)
+			Ω(removed).Should(Equal("some-id"))
 		})
 
 		Context("when removing the container from the graph fails", func() {
 			disaster := errors.New("oh no!")
 
 			BeforeEach(func() {
-				fakeGraphDriver.RemoveError = disaster
+				fakeGraphDriver.RemoveReturns(disaster)
 			})
 
 			It("returns the error", func() {
