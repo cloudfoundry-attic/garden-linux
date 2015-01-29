@@ -3,8 +3,10 @@ package rootfs_provider
 import (
 	"errors"
 	"net/url"
+	"time"
 
 	"github.com/docker/docker/daemon/graphdriver"
+	"github.com/pivotal-golang/clock"
 	"github.com/pivotal-golang/lager"
 
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/repository_fetcher"
@@ -16,6 +18,8 @@ type dockerRootFSProvider struct {
 	defaultRegistryName string
 	graphDriver         graphdriver.Driver
 	volumeCreator       VolumeCreator
+	repoFetcher         repository_fetcher.RepositoryFetcher
+	clock               clock.Clock
 
 	fallback           RootFSProvider
 	defaultRepoFetcher repository_fetcher.RepositoryFetcher
@@ -28,6 +32,7 @@ func NewDocker(
 	defaultRegistryName string,
 	graphDriver graphdriver.Driver,
 	volumeCreator VolumeCreator,
+	clock clock.Clock,
 ) (RootFSProvider, error) {
 	defaultRepoFetcher, err := newRepoFetcher(defaultRegistryName)
 	if err != nil {
@@ -40,6 +45,7 @@ func NewDocker(
 		graphDriver:         graphDriver,
 		volumeCreator:       volumeCreator,
 		defaultRepoFetcher:  defaultRepoFetcher,
+		clock:               clock,
 	}, nil
 }
 
@@ -92,5 +98,22 @@ func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id stri
 func (provider *dockerRootFSProvider) CleanupRootFS(logger lager.Logger, id string) error {
 	provider.graphDriver.Put(id)
 
-	return provider.graphDriver.Remove(id)
+	var err error
+	maxAttempts := 10
+
+	for errorCount := 0; errorCount < maxAttempts; errorCount++ {
+		err = provider.graphDriver.Remove(id)
+		if err == nil {
+			break
+		}
+
+		logger.Error("cleanup-rootfs", err, lager.Data{
+			"current-attempts": errorCount + 1,
+			"max-attempts":     maxAttempts,
+		})
+
+		provider.clock.Sleep(200 * time.Millisecond)
+	}
+
+	return err
 }

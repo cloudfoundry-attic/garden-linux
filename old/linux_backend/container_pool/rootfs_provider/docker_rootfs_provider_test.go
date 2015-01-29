@@ -2,12 +2,14 @@ package rootfs_provider_test
 
 import (
 	"errors"
+	"time"
 
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/fake_graph_driver"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/repository_fetcher"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/repository_fetcher/fake_repository_fetcher"
 	. "github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
+	"github.com/pivotal-golang/clock/fakeclock"
 	"github.com/pivotal-golang/lager/lagertest"
 
 	. "github.com/onsi/ginkgo"
@@ -35,6 +37,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 		fakeGraphDriver       *fake_graph_driver.FakeGraphDriver
 		fakeVolumeCreator     *FakeVolumeCreator
 		newRepoFetcher        func(string) (repository_fetcher.RepositoryFetcher, error)
+		fakeClock             *fakeclock.FakeClock
 
 		provider RootFSProvider
 
@@ -48,8 +51,10 @@ var _ = Describe("DockerRootFSProvider", func() {
 		newRepoFetcher = func(_ string) (repository_fetcher.RepositoryFetcher, error) {
 			return fakeRepositoryFetcher, nil
 		}
+		fakeClock = fakeclock.NewFakeClock(time.Now())
+
 		var err error
-		provider, err = NewDocker(newRepoFetcher, "dummy", fakeGraphDriver, fakeVolumeCreator)
+		provider, err = NewDocker(newRepoFetcher, "dummy", fakeGraphDriver, fakeVolumeCreator, fakeClock)
 		Ω(err).ShouldNot(HaveOccurred())
 
 		logger = lagertest.NewTestLogger("test")
@@ -133,7 +138,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 					return fakeRepositoryFetcher, nil
 				}
 				var err error
-				provider, err = NewDocker(newRepoFetcher, "default.registry", fakeGraphDriver, fakeVolumeCreator)
+				provider, err = NewDocker(newRepoFetcher, "default.registry", fakeGraphDriver, fakeVolumeCreator, fakeClock)
 				Ω(err).ShouldNot(HaveOccurred())
 			})
 
@@ -149,7 +154,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 						return nil, errors.New("failed")
 					}
 
-					_, err := NewDocker(newRepoFetcher, "default.registry", fakeGraphDriver, fakeVolumeCreator)
+					_, err := NewDocker(newRepoFetcher, "default.registry", fakeGraphDriver, fakeVolumeCreator, fakeClock)
 					Ω(err).Should(MatchError("failed"))
 				})
 
@@ -160,7 +165,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 						}
 						return fakeRepositoryFetcher, nil
 					}
-					provider, err := NewDocker(newRepoFetcher, "default.registry", fakeGraphDriver, fakeVolumeCreator)
+					provider, err := NewDocker(newRepoFetcher, "default.registry", fakeGraphDriver, fakeVolumeCreator, fakeClock)
 					Ω(err).ShouldNot(HaveOccurred())
 
 					_, _, err = provider.ProvideRootFS(logger, "some-id", parseURL("docker://some.host/some-repository-name"))
@@ -227,13 +232,61 @@ var _ = Describe("DockerRootFSProvider", func() {
 		Context("when removing the container from the graph fails", func() {
 			disaster := errors.New("oh no!")
 
-			BeforeEach(func() {
-				fakeGraphDriver.RemoveReturns(disaster)
+			var (
+				succeedsAfter int
+			)
+
+			JustBeforeEach(func() {
+				retryCount := 0
+				fakeGraphDriver.RemoveStub = func(id string) error {
+					if retryCount > succeedsAfter {
+						return nil
+					}
+
+					retryCount++
+					return disaster
+				}
 			})
 
-			It("returns the error", func() {
-				err := provider.CleanupRootFS(logger, "some-id")
-				Ω(err).Should(Equal(disaster))
+			Context("and then after a retry succeeds", func() {
+				BeforeEach(func() {
+					succeedsAfter = 0
+				})
+
+				It("removes the container from the rootfs graph", func() {
+					done := make(chan struct{})
+					go func(done chan<- struct{}) {
+						err := provider.CleanupRootFS(logger, "some-id")
+						Ω(err).ShouldNot(HaveOccurred())
+						close(done)
+					}(done)
+
+					Eventually(fakeGraphDriver.RemoveCallCount).Should(Equal(1), "should not sleep before first attempt")
+					fakeClock.Increment(200 * time.Millisecond)
+
+					Eventually(fakeGraphDriver.RemoveCallCount).Should(Equal(2))
+					Eventually(done).Should(BeClosed())
+				})
+			})
+
+			Context("and then after many retries still fails", func() {
+				BeforeEach(func() {
+					succeedsAfter = 10
+				})
+
+				It("gives up and returns an error", func() {
+					errs := make(chan error)
+					go func(errs chan<- error) {
+						errs <- provider.CleanupRootFS(logger, "some-id")
+					}(errs)
+
+					for i := 0; i < 10; i++ {
+						Eventually(fakeClock.WatcherCount).Should(Equal(1))
+						fakeClock.Increment(300 * time.Millisecond)
+					}
+
+					Eventually(errs).Should(Receive())
+				})
 			})
 		})
 	})

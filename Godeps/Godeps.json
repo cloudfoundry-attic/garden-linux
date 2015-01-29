@@ -243,6 +243,10 @@
 			"Rev": "cdabc654f61ff99a82622c888f738c808c38cfa9"
 		},
 		{
+			"ImportPath": "github.com/pivotal-golang/clock",
+			"Rev": "5a6429d4274a895e93d3db8bb6addcba4c9a84eb"
+		},
+		{
 			"ImportPath": "github.com/pivotal-golang/lager",
 			"Rev": "bb90e0a5276fefdf701cc5f145185bd62184f749"
 		},

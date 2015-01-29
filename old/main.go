@@ -16,6 +16,7 @@ import (
 	_ "github.com/docker/docker/daemon/graphdriver/vfs"
 	"github.com/docker/docker/graph"
 	"github.com/docker/docker/registry"
+	"github.com/pivotal-golang/clock"
 	"github.com/pivotal-golang/lager"
 
 	"github.com/cloudfoundry-incubator/cf-debug-server"
@@ -248,7 +249,7 @@ func Main(builders *fences.BuilderRegistry) {
 		return repository_fetcher.Retryable{repository_fetcher.New(reg, graph)}, nil
 	}
 
-	dockerRootFSProvider, err := rootfs_provider.NewDocker(newRepoFetcher, *dockerRegistry, graphDriver, rootfs_provider.SimpleVolumeCreator{})
+	dockerRootFSProvider, err := rootfs_provider.NewDocker(newRepoFetcher, *dockerRegistry, graphDriver, rootfs_provider.SimpleVolumeCreator{}, clock.NewClock())
 	if err != nil {
 		logger.Fatal("failed-to-construct-docker-rootfs-provider", err)
 	}
