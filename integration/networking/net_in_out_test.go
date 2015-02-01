@@ -279,8 +279,8 @@ var _ = Describe("Net In/Out", func() {
 								garden.IPRangeFromIP(net.ParseIP(externalIP.String())),
 							},
 							ICMPs: &garden.ICMPControl{
-								Type: 8,
-								Code: garden.ICMPControlCode(0),
+								Type: 8,                         // ping request
+								Code: garden.ICMPControlCode(4), // but not correct code
 							},
 						})).Should(Succeed())
 						ByRejectingICMP()
@@ -292,7 +292,7 @@ var _ = Describe("Net In/Out", func() {
 								garden.IPRangeFromIP(net.ParseIP(externalIP.String())),
 							},
 							ICMPs: &garden.ICMPControl{
-								Type: 8,
+								Type: 8, // ping request, all codes accepted
 							},
 						})).Should(Succeed())
 						ByAllowingICMP()
