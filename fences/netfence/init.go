@@ -22,6 +22,8 @@ type Config struct {
 	ExternalIP IPVar
 }
 
+var Tag string
+
 func init() {
 	config := &Config{}
 	fences.Register(config.Init, config.Main)
@@ -46,22 +48,25 @@ func (config *Config) Init(fs *flag.FlagSet) error {
 	fs.Var(&config.ExternalIP, "externalIP",
 		"IP address to use to reach container's mapped ports")
 
+	fs.StringVar(&Tag, "tag", "", "server-wide identifier used for 'global' configuration")
+
 	return nil
 }
 
 func (config *Config) Main(registry *fences.BuilderRegistry) error {
-	subnets, err := subnets.New(config.Network.IPNet)
+	prefix := "w" + Tag
+	subnets, err := subnets.NewBridgedSubnets(config.Network.IPNet, prefix)
 	if err != nil {
 		return err
 	}
 
 	log := cf_lager.New("netfence")
 	fence := &fenceBuilder{
-		Subnets:      subnets,
-		mtu:          uint32(config.Mtu),
-		externalIP:   config.ExternalIP.IP,
-		deconfigurer: network.NewDeconfigurer(),
-		log:          log,
+		BridgedSubnets: subnets,
+		mtu:            uint32(config.Mtu),
+		externalIP:     config.ExternalIP.IP,
+		deconfigurer:   network.NewDeconfigurer(),
+		log:            log,
 	}
 	registry.Register(fence)
 

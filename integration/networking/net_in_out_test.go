@@ -131,7 +131,7 @@ var _ = Describe("Net In/Out", func() {
 				By("rejecting outbound icmp traffic", func() {
 					_, out := runInContainer(
 						container,
-						fmt.Sprintf("ping  -c 1 -w 1 %s", externalIP),
+						fmt.Sprintf("ping -c 1 -w 1 %s", externalIP),
 					)
 
 					Eventually(out, "5s").Should(gbytes.Say(" 100% packet loss"))
@@ -174,7 +174,7 @@ var _ = Describe("Net In/Out", func() {
 					It("allows both tcp and icmp to that address", func() {
 						err := container.NetOut(garden.NetOutRule{
 							Networks: []garden.IPRange{
-								garden.IPRangeFromIP(net.ParseIP(externalIP.String())),
+								garden.IPRangeFromIP(externalIP),
 							},
 						})
 						Ω(err).ShouldNot(HaveOccurred())
@@ -187,7 +187,7 @@ var _ = Describe("Net In/Out", func() {
 					It("allows both tcp and icmp to that address", func() {
 						err := container.NetOut(garden.NetOutRule{
 							Networks: []garden.IPRange{
-								garden.IPRangeFromIP(net.ParseIP(externalIP.String())),
+								garden.IPRangeFromIP(externalIP),
 								garden.IPRangeFromIP(net.ParseIP("9.9.9.9")),
 							},
 						})
@@ -202,7 +202,7 @@ var _ = Describe("Net In/Out", func() {
 						err := container.NetOut(garden.NetOutRule{
 							Networks: []garden.IPRange{
 								garden.IPRangeFromIP(net.ParseIP("9.9.9.9")),
-								garden.IPRangeFromIP(net.ParseIP(externalIP.String())),
+								garden.IPRangeFromIP(externalIP),
 							},
 						})
 						Ω(err).ShouldNot(HaveOccurred())
@@ -216,7 +216,7 @@ var _ = Describe("Net In/Out", func() {
 				It("allows tcp to an address in the range", func() {
 					err := container.NetOut(garden.NetOutRule{
 						Networks: []garden.IPRange{
-							garden.IPRange{Start: net.ParseIP(externalIP.String()), End: net.ParseIP("255.255.255.254")},
+							garden.IPRange{Start: externalIP, End: net.ParseIP("255.255.255.254")},
 						},
 					})
 					Ω(err).ShouldNot(HaveOccurred())
@@ -236,7 +236,7 @@ var _ = Describe("Net In/Out", func() {
 						err := container.NetOut(garden.NetOutRule{
 							Protocol: garden.ProtocolTCP,
 							Networks: []garden.IPRange{
-								garden.IPRangeFromIP(net.ParseIP(externalIP.String())),
+								garden.IPRangeFromIP(externalIP),
 							},
 						})
 						Ω(err).ShouldNot(HaveOccurred())
@@ -250,11 +250,11 @@ var _ = Describe("Net In/Out", func() {
 						containerNetwork = fmt.Sprintf("10.1%d.3.0/24", GinkgoParallelNode())
 					})
 
-					It("allows ICMP pings and blocks TCP", func() {
+					It("rejects ICMP pings and blocks TCP", func() {
 						err := container.NetOut(garden.NetOutRule{
 							Protocol: garden.ProtocolICMP,
 							Networks: []garden.IPRange{
-								garden.IPRangeFromIP(net.ParseIP(externalIP.String())),
+								garden.IPRangeFromIP(externalIP),
 							},
 							ICMPs: &garden.ICMPControl{
 								Type: 13,
@@ -289,7 +289,7 @@ var _ = Describe("Net In/Out", func() {
 						Ω(container.NetOut(garden.NetOutRule{
 							Protocol: garden.ProtocolICMP,
 							Networks: []garden.IPRange{
-								garden.IPRangeFromIP(net.ParseIP(externalIP.String())),
+								garden.IPRangeFromIP(externalIP),
 							},
 							ICMPs: &garden.ICMPControl{
 								Type: 8, // ping request, all codes accepted
@@ -309,7 +309,7 @@ var _ = Describe("Net In/Out", func() {
 						Ω(container.NetOut(garden.NetOutRule{
 							Protocol: garden.ProtocolICMP,
 							Networks: []garden.IPRange{
-								garden.IPRangeFromIP(net.ParseIP(externalIP.String())),
+								garden.IPRangeFromIP(externalIP),
 							},
 						})).Should(Succeed())
 						ByAllowingICMP()

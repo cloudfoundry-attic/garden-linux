@@ -43,12 +43,13 @@ var _ = Describe("Fence Registry", func() {
 
 		mainCalled := 0
 		for i := 0; i < 2; i++ {
-			registry.Register(func(fs *flag.FlagSet) error {
-				return nil
-			}, func(*BuilderRegistry) error {
-				mainCalled++
-				return nil
-			})
+			registry.Register(
+				func(fs *flag.FlagSet) error {
+					return nil
+				}, func(*BuilderRegistry) error {
+					mainCalled++
+					return nil
+				})
 		}
 
 		fs := &flag.FlagSet{}
@@ -125,10 +126,14 @@ var _ = Describe("Fence Registry", func() {
 			BeforeEach(func() {
 				r := &FlagProcessors{}
 				fakeAllocator = &FakeAllocator{}
-				r.Register(func(fs *flag.FlagSet) error { return nil }, func(r *BuilderRegistry) error {
-					r.Register(fakeAllocator)
-					return nil
-				})
+				r.Register(
+					func(fs *flag.FlagSet) error {
+						return nil
+					},
+					func(r *BuilderRegistry) error {
+						r.Register(fakeAllocator)
+						return nil
+					})
 
 				var err error
 				registry, err = r.Main(&flag.FlagSet{}, []string{})
@@ -182,10 +187,14 @@ var _ = Describe("Fence Registry", func() {
 			BeforeEach(func() {
 				r := &FlagProcessors{}
 				fakeAllocator = &FakeAllocator{}
-				r.Register(func(fs *flag.FlagSet) error { return nil }, func(r *BuilderRegistry) error {
-					r.Register(fakeAllocator)
-					return nil
-				})
+				r.Register(
+					func(fs *flag.FlagSet) error {
+						return nil
+					},
+					func(r *BuilderRegistry) error {
+						r.Register(fakeAllocator)
+						return nil
+					})
 
 				var err error
 				registry, err = r.Main(&flag.FlagSet{}, []string{})
@@ -234,10 +243,14 @@ var _ = Describe("Fence Registry", func() {
 			BeforeEach(func() {
 				r := &FlagProcessors{}
 				fakeAllocator = &FakeAllocator{}
-				r.Register(func(fs *flag.FlagSet) error { return nil }, func(r *BuilderRegistry) error {
-					r.Register(fakeAllocator)
-					return nil
-				})
+				r.Register(
+					func(fs *flag.FlagSet) error {
+						return nil
+					},
+					func(r *BuilderRegistry) error {
+						r.Register(fakeAllocator)
+						return nil
+					})
 
 				var err error
 				registry, err = r.Main(&flag.FlagSet{}, []string{})

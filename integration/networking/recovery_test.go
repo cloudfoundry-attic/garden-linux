@@ -32,7 +32,7 @@ var _ = Describe("Networking recovery", func() {
 			Ω(err).ShouldNot(HaveOccurred())
 			ctr2Path = info2.ContainerPath
 
-			bridgeEvidence = fmt.Sprintf("inet 10.%d.0.254/24 scope global w%dbr-", GinkgoParallelNode(), GinkgoParallelNode())
+			bridgeEvidence = fmt.Sprintf("inet 10.%d.0.254/24 scope global w%db-", GinkgoParallelNode(), GinkgoParallelNode())
 			cmd := exec.Command("ip", "a")
 			Ω(cmd.CombinedOutput()).Should(ContainSubstring(bridgeEvidence))
 		})

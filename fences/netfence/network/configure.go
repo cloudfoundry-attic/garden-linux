@@ -38,7 +38,7 @@ func (c *Configurer) ConfigureHost(hostIfcName, containerIfcName, bridgeName str
 	)
 
 	cLog := c.Logger.Session("configure-host", lager.Data{
-		"name":           bridgeName,
+		"bridgeName":     bridgeName,
 		"bridgeIP":       bridgeIP,
 		"subnet":         subnet,
 		"containerIface": containerIfcName,

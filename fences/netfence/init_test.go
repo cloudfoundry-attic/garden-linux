@@ -26,6 +26,26 @@ var _ = Describe("Flags", func() {
 		config.Init(flags)
 	})
 
+	Describe("-tag", func() {
+		Context("when it is not set", func() {
+			It("uses the default", func() {
+				flags.Parse(args)
+				Ω(Tag).Should(Equal(""))
+			})
+		})
+
+		Context("when it is set", func() {
+			BeforeEach(func() {
+				args = []string{"-tag", "tagvalue"}
+			})
+
+			It("parses succesfully", func() {
+				flags.Parse(args)
+				Ω(Tag).Should(Equal("tagvalue"))
+			})
+		})
+	})
+
 	Describe("-networkPool", func() {
 		Context("when it is not set", func() {
 			It("uses the default", func() {

@@ -9,18 +9,22 @@ import (
 	"sync"
 )
 
-// Subnets provides a means of allocating subnets.
+// Subnets provides a means of allocating subnets and associated IP addresses.
 type Subnets interface {
-	// Allocates a subnet and container IP address. The subnet is selected by the given SubnetSelector.
-	// The IP address is selected by the given IPSelector. If either selector fails, an error is returned.
-	Allocate(SubnetSelector, IPSelector) (*net.IPNet, net.IP, error)
+	// Allocates an IP address and associates it with a subnet. The subnet is selected by the given SubnetSelector.
+	// The IP address is selected by the given IPSelector.
+	// Returns a subnet, an IP address, and a boolean which is true if and only if this is the
+	// first IP address to be associated with this subnet.
+	// If either selector fails, an error is returned.
+	Allocate(SubnetSelector, IPSelector) (*net.IPNet, net.IP, bool, error)
 
-	// Releases an allocated network and container IP.
-	// Return a boolean which is true if and only if the network is no longer in use by other containers.
+	// Releases an IP address associated with an allocated subnet. If the subnet has no other IP
+	// addresses associated with it, it is deallocated.
+	// Returns a boolean which is true if and only if the subnet was deallocated.
 	// Returns an error if the given combination is not already in the pool.
 	Release(*net.IPNet, net.IP) (bool, error)
 
-	// Recovers an unallocated subnet and container IP so they appear to be allocated.
+	// Recovers an IP address so it appears to be associated with the given subnet.
 	Recover(*net.IPNet, net.IP) error
 
 	// Returns the number of /30 subnets which can be Allocated by a DynamicSubnetSelector.
@@ -50,27 +54,27 @@ type IPSelector interface {
 // New creates a Subnets implementation from a dynamic allocation range.
 // All dynamic allocations come from the range, static allocations are prohibited
 // from the dynamic range.
-func New(ipNet *net.IPNet) (Subnets, error) {
+func NewSubnets(ipNet *net.IPNet) (Subnets, error) {
 	return &pool{dynamicRange: ipNet, allocated: make(map[string][]net.IP)}, nil
 }
 
 // Allocate uses the given subnet and IP selectors to request a subnet, container IP address combination
 // from the pool.
-func (p *pool) Allocate(sn SubnetSelector, i IPSelector) (subnet *net.IPNet, ip net.IP, err error) {
+func (p *pool) Allocate(sn SubnetSelector, i IPSelector) (subnet *net.IPNet, ip net.IP, first bool, err error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	if subnet, err = sn.SelectSubnet(p.dynamicRange, existingSubnets(p.allocated)); err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	}
-
-	existingIPs := append(p.allocated[subnet.String()], NetworkIP(subnet), GatewayIP(subnet), BroadcastIP(subnet))
+	ips, found := p.allocated[subnet.String()]
+	existingIPs := append(ips, NetworkIP(subnet), GatewayIP(subnet), BroadcastIP(subnet))
 	if ip, err = i.SelectIP(subnet, existingIPs); err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	}
 
-	p.allocated[subnet.String()] = append(p.allocated[subnet.String()], ip)
-	return subnet, ip, nil
+	p.allocated[subnet.String()] = append(ips, ip)
+	return subnet, ip, !found, nil
 }
 
 // Recover re-allocates a given subnet and ip address combination in the pool. It returns

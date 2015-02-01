@@ -58,20 +58,25 @@ var _ = Describe("Bridge Management", func() {
 		})
 
 		Context("when the bridge exists", func() {
+			var (
+				existingIfc *net.Interface
+			)
 			BeforeEach(func() {
-				_, err := b.Create(name, ip, subnet)
+				var err error
+				existingIfc, err = b.Create(name, ip, subnet)
 				Ω(err).ShouldNot(HaveOccurred())
 			})
 
-			It("returns an error", func() {
-				_, err := b.Create(name, ip, subnet)
-				Ω(err).Should(HaveOccurred())
+			It("returns the interface for it", func() {
+				ifc, err := b.Create(name, ip, subnet)
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(ifc).Should(Equal(existingIfc))
 			})
 
 			It("does not change the existing bridge", func() {
 				ip2, subnet2, _ := net.ParseCIDR("10.8.0.2/30")
 				_, err := b.Create(name, ip2, subnet2)
-				Ω(err).Should(HaveOccurred())
+				Ω(err).ShouldNot(HaveOccurred())
 
 				intf, err := net.InterfaceByName(name)
 				Ω(err).ShouldNot(HaveOccurred())
