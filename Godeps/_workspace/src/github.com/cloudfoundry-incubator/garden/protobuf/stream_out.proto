@@ -1,9 +1,0 @@
-package garden;
-
-message StreamOutRequest {
-  required string handle = 1;
-  required string src_path = 2;
-}
-
-message StreamOutResponse {
-}

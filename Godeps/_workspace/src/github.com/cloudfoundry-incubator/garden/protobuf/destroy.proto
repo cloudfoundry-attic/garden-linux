@@ -1,8 +1,0 @@
-package garden;
-
-message DestroyRequest {
-  required string handle = 1;
-}
-
-message DestroyResponse {
-}

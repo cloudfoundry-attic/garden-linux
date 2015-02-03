@@ -1,9 +1,0 @@
-package garden;
-
-message StreamInRequest {
-  required string handle = 1;
-  required string dst_path = 2;
-}
-
-message StreamInResponse {
-}

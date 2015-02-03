@@ -1,7 +1,0 @@
-package garden;
-
-message ErrorResponse {
-  optional string message = 2;
-  optional string data = 4;
-  repeated string backtrace = 3;
-}

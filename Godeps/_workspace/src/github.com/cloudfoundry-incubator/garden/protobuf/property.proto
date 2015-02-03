@@ -1,6 +1,0 @@
-package garden;
-
-message Property {
-  required string Key = 1;
-  required string Value = 2;
-}

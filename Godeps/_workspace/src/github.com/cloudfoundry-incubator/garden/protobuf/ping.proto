@@ -1,7 +1,0 @@
-package garden;
-
-message PingRequest {
-}
-
-message PingResponse {
-}
