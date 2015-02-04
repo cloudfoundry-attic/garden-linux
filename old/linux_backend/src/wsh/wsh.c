@@ -162,9 +162,12 @@ static pid_t pid;
 void cleanup_pidfile(const char *pidfile, int pid_fd) {
   int rv;
 
-  rv = unlink(pidfile);
-  if (rv != 0) {
-    perror("unlink pidfile");
+  if (pidfile) {
+    rv = unlink(pidfile);
+    if (rv != 0) {
+      perror("unlink pidfile");
+      exit(255);
+    }
   }
 }
 
@@ -175,7 +178,7 @@ void pump_loop(const char *pid_file, pump_t *p, int pid_fd, int exit_status_fd, 
   rv = read(pid_fd, &pid, sizeof(pid));
   assert(rv >= 0);
 
-  if (pid_file != 0) {
+  if (pid_file) {
     pidfd = open(pid_file, O_RDWR|O_CREAT, 0600);
     if (pidfd == -1 ) {
       perror("open pidfile");

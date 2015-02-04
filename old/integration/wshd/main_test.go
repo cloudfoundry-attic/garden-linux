@@ -398,6 +398,21 @@ setup_fs
 		})
 	})
 
+	Context("when running without specifying a --pidfile", func() {
+		It("should exit cleanly with the correct status", func() {
+			pwd := exec.Command(wsh, "--socket", socketPath, "--dir", "/usr", "/bin/sh", "-c", "exit 3")
+
+			stdout := NewBuffer()
+			stderr := NewBuffer()
+			pwdSession, err := Start(pwd, io.MultiWriter(stdout, GinkgoWriter), io.MultiWriter(stderr, GinkgoWriter))
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Eventually(pwdSession).Should(Exit(3))
+			Ω(string(stderr.Contents())).Should(Equal(""))
+			Ω(string(stdout.Contents())).Should(Equal(""))
+		})
+	})
+
 	Context("when running a command as a user", func() {
 		It("executes with setuid and setgid", func() {
 			sh := exec.Command(wsh, "--socket", socketPath, "--user", "vcap", "/bin/sh", "-c", "id -u; id -g")
