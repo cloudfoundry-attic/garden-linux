@@ -34,10 +34,8 @@ type IPTablesNATConfig struct {
 }
 
 func NewConfig(tag string, allowHostAccess bool) Config {
-	networkInterfacePrefix := fmt.Sprintf("w%s", tag)
-
 	return Config{
-		NetworkInterfacePrefix: networkInterfacePrefix,
+		NetworkInterfacePrefix: fmt.Sprintf("w%s", tag),
 		Tag: tag,
 
 		CgroupPath: fmt.Sprintf("/tmp/garden-%s/cgroup", tag),

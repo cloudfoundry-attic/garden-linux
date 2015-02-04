@@ -9,6 +9,8 @@ import (
 	"sync"
 )
 
+//go:generate counterfeiter . Subnets
+
 // Subnets provides a means of allocating subnets and associated IP addresses.
 type Subnets interface {
 	// Allocates an IP address and associates it with a subnet. The subnet is selected by the given SubnetSelector.
@@ -37,12 +39,16 @@ type pool struct {
 	mu           sync.Mutex
 }
 
+//go:generate counterfeiter . SubnetSelector
+
 // SubnetSelector is a strategy for selecting a subnet.
 type SubnetSelector interface {
 	// Returns a subnet based on a dynamic range and some existing statically-allocated
 	// subnets. If no suitable subnet can be found, returns an error.
 	SelectSubnet(dynamic *net.IPNet, existing []*net.IPNet) (*net.IPNet, error)
 }
+
+//go:generate counterfeiter . IPSelector
 
 // IPSelector is a strategy for selecting an IP address in a subnet.
 type IPSelector interface {

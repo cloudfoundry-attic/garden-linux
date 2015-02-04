@@ -47,12 +47,7 @@ var _ = Describe("Fence", func() {
 	})
 
 	BeforeEach(func() {
-		// _, a, err := net.ParseCIDR("1.2.0.0/22")
-		// Ω(err).ShouldNot(HaveOccurred())
-
 		fakeSubnetPool = &fakes.FakeBridgedSubnets{}
-		// fakeSubnetPool.AllocateReturns(a,
-		// &fakeSubnets{nextSubnet: a}
 		fakeDeconfigurer = &FakeDeconfigurer{}
 	})
 
