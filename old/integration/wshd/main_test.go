@@ -422,6 +422,18 @@ setup_fs
 		Eventually(trapSession).Should(Say("caught sigchld"))
 	})
 
+	FIt("reaps orphaned zombie processes", func() {
+		sleep, err := Start(exec.Command(wsh, "--socket", socketPath, "--dir", "/usr", "/bin/sh", "-c", "nohup sleep 98767 &"), GinkgoWriter, GinkgoWriter)
+		Ω(err).ShouldNot(HaveOccurred())
+		Eventually(sleep).Should(Exit(0))
+
+		Eventually(func() *Session {
+			ps, err := Start(exec.Command(wsh, "--socket", socketPath, "--dir", "/usr", "/bin/sh", "-c", "ps -Aef"), GinkgoWriter, GinkgoWriter)
+			Ω(err).ShouldNot(HaveOccurred())
+			return ps
+		}).ShouldNot(Say("sleep"))
+	})
+
 	Context("when running a command as a user", func() {
 		It("executes with setuid and setgid", func() {
 			sh := exec.Command(wsh, "--socket", socketPath, "--user", "vcap", "/bin/sh", "-c", "id -u; id -g")
