@@ -29,16 +29,17 @@ var _ = Describe("Security", func() {
 			Ω(err).ShouldNot(HaveOccurred())
 
 			psout := gbytes.NewBuffer()
-			_, err = container.Run(garden.ProcessSpec{
+			ps, err := container.Run(garden.ProcessSpec{
 				Path: "sh",
-				Args: []string{"-c", "ps -a | tail -n +2 | wc -l"},
+				Args: []string{"-c", "ps -a"},
 			}, garden.ProcessIO{
 				Stdout: psout,
 				Stderr: GinkgoWriter,
 			})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Eventually(psout).Should(gbytes.Say("6")) // wshd, sleep, ps, tail, sh, wc
+			Ω(ps.Wait()).Should(Equal(0))
+			Ω(strings.Split(string(psout.Contents()), "\n")).Should(HaveLen(6)) // header, wshd, sleep, sh, ps, \n
 		})
 	})
 
