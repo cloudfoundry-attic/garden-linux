@@ -22,6 +22,7 @@ import (
 	"github.com/cloudfoundry-incubator/cf-debug-server"
 	"github.com/cloudfoundry-incubator/cf-lager"
 	"github.com/cloudfoundry-incubator/garden-linux/fences"
+	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence"
 	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network"
 	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/iptables"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
@@ -140,11 +141,7 @@ var dockerRegistry = flag.String(
 	"docker registry API endpoint",
 )
 
-var tag = flag.String(
-	"tag",
-	"",
-	"server-wide identifier used for 'global' configuration",
-)
+var tag = &netfence.Tag // flag defined in netfence/init.go
 
 var dropsondeOrigin = flag.String(
 	"dropsondeOrigin",
@@ -319,26 +316,6 @@ func Main(builders *fences.BuilderRegistry) {
 
 	select {}
 }
-
-// func NewRepoFetcher(registryName string, graphFactory graph.GraphFactory) (RepositoryFetcher, error) {
-
-// 	graph, err := graphFactory.NewGraph(registryName)
-// 	if err != nil {
-// 		logger.Fatal("failed-to-construct-graph", err)
-// 	}
-
-// 	endpoint, err := registry.NewEndpoint(registryName, nil)
-// 	if err != nil {
-// 		logger.Fatal("failed-to-construct-registry-endpoint", err)
-// 	}
-
-// 	reg, err := registry.NewSession(nil, nil, endpoint, true)
-// 	if err != nil {
-// 		logger.Fatal("failed-to-construct-registry", err)
-// 	}
-
-// 	return repository_fetcher.Retryable{repository_fetcher.New(reg, graph)}
-// }
 
 func getMountPoint(logger lager.Logger, depotPath string) string {
 	dfOut := new(bytes.Buffer)

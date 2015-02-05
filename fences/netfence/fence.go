@@ -1,7 +1,6 @@
 package netfence
 
 import (
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -17,7 +16,7 @@ import (
 )
 
 type fenceBuilder struct {
-	subnets.Subnets
+	subnets.BridgedSubnets
 	mtu          uint32
 	externalIP   net.IP
 	deconfigurer interface {
@@ -61,7 +60,7 @@ func (f *fenceBuilder) Build(spec string, sysconfig *sysconfig.Config, container
 		}
 	}
 
-	subnet, containerIP, err := f.Subnets.Allocate(subnetSelector, ipSelector)
+	subnet, containerIP, bridgeIfcName, err := f.BridgedSubnets.Allocate(subnetSelector, ipSelector)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +77,6 @@ func (f *fenceBuilder) Build(spec string, sysconfig *sysconfig.Config, container
 
 	containerIfcName := prefix + ifaceName + "-1"
 	hostIfcName := prefix + ifaceName + "-0"
-	bridgeIfcName := prefix + "br-" + hexIP(subnet.IP)
 
 	ones, _ := subnet.Mask.Size()
 	subnetShareable := (ones < 30)
@@ -117,7 +115,7 @@ func (f *fenceBuilder) Rebuild(rm *json.RawMessage) (fences.Fence, error) {
 		return nil, err
 	}
 
-	if err := f.Subnets.Recover(ipn, net.ParseIP(ff.ContainerIP)); err != nil {
+	if err := f.BridgedSubnets.Recover(ipn, net.ParseIP(ff.ContainerIP), ff.BridgeIfcName); err != nil {
 		return nil, err
 	}
 
@@ -150,13 +148,13 @@ func (a *Fence) String() string {
 }
 
 func (a *Fence) Dismantle() error {
-	releasedSubnet, err := a.fenceBldr.Release(a.IPNet, a.containerIP)
+	subnetDeallocated, bridgeIfcName, err := a.fenceBldr.Release(a.IPNet, a.containerIP)
 	if err != nil {
 		return err
 	}
 
-	if releasedSubnet {
-		return a.fenceBldr.deconfigurer.DeconfigureBridge(a.log.Session("deconfigure-bridge"), a.bridgeIfc)
+	if subnetDeallocated {
+		return a.fenceBldr.deconfigurer.DeconfigureBridge(a.log.Session("deconfigure-bridge"), bridgeIfcName)
 	}
 
 	return nil
@@ -183,11 +181,7 @@ func (a *Fence) ConfigureProcess(env process.Env) error {
 	env["subnet_shareable"] = strconv.FormatBool(a.subnetShareable)
 	env["network_cidr"] = a.IPNet.String()
 	env["external_ip"] = a.fenceBldr.externalIP.String()
-	env["network_ip_hex"] = hexIP(a.IPNet.IP) // suitable for short bridge interface names
+	env["bridge_iface"] = a.bridgeIfc
 
 	return nil
-}
-
-func hexIP(ip net.IP) string {
-	return hex.EncodeToString(ip)
 }

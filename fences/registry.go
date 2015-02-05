@@ -48,6 +48,7 @@ func Register(init FlagFunc, main func(*BuilderRegistry) error) {
 }
 
 func Main(fs *flag.FlagSet, args []string) (*BuilderRegistry, error) {
+
 	return flagProcessors.Main(fs, args)
 }
 

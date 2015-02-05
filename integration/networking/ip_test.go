@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry/gunk/localip"
@@ -174,8 +175,8 @@ var _ = Describe("IP settings", func() {
 			Ω(ierr).ShouldNot(HaveOccurred())
 
 			out, err := exec.Command("/bin/ping", "-c 2", info2.ContainerIP).Output()
-			Ω(out).Should(ContainSubstring(" 0% packet loss"))
 			Ω(err).ShouldNot(HaveOccurred())
+			Ω(out).Should(ContainSubstring(" 0% packet loss"))
 		})
 
 		It("can reach external networks", func() {
@@ -186,6 +187,64 @@ var _ = Describe("IP settings", func() {
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(sender.Wait()).Should(Equal(0))
+		})
+
+		Describe("concurrently creating and destroying containers with the same IP", func() {
+			BeforeEach(func() {
+				containerNetwork2 = fmt.Sprintf("10.%d.15.9/30", GinkgoParallelNode())
+			})
+
+			It("is safe to concurrently delete and create a container", func() {
+				client.Destroy(container1.Handle())
+				container1 = nil
+
+				for i := 1; i <= 5; i++ {
+					wait := make(chan bool)
+					go func() {
+						time.Sleep(10 * time.Millisecond)
+						Ω(client.Destroy(container2.Handle())).Should(Succeed())
+						wait <- true
+					}()
+
+					tempContainer := container2
+
+					var err error
+					for {
+						tempContainer, err = client.Create(garden.ContainerSpec{Network: containerNetwork2})
+						if err == nil || err.Error() != "the requested IP is already allocated" {
+							break // we have a container, or an unexpected error
+						}
+					}
+
+					Ω(err).ShouldNot(HaveOccurred())
+
+					ifconfig, err := tempContainer.Run(garden.ProcessSpec{
+						Path: "ifconfig",
+						User: "root",
+					}, garden.ProcessIO{
+						Stdout: GinkgoWriter,
+						Stderr: GinkgoWriter,
+					})
+					Ω(err).ShouldNot(HaveOccurred())
+					ifconfig.Wait()
+
+					info, err := tempContainer.Info()
+					Ω(err).ShouldNot(HaveOccurred())
+
+					exec.Command("/bin/ping", "-c 1", info.ContainerIP).Output()
+
+					out, err := exec.Command("/bin/ping", "-c 1", info.ContainerIP).Output()
+					Ω(out).Should(ContainSubstring(" 0% packet loss"))
+					Ω(err).ShouldNot(HaveOccurred())
+
+					Ω(client.Destroy(tempContainer.Handle())).Should(Succeed())
+
+					<-wait // make sure deletion is finished to avoid double-deleting in AfterEach
+
+					container2, err = client.Create(garden.ContainerSpec{Network: containerNetwork2})
+					Ω(err).ShouldNot(HaveOccurred())
+				}
+			})
 		})
 
 		Context("when the first container is deleted", func() {

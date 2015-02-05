@@ -8,6 +8,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/subnets"
+	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/subnets/fakes"
 	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	. "github.com/onsi/ginkgo"
@@ -28,70 +29,62 @@ func (f *FakeDeconfigurer) DeconfigureBridge(logger lager.Logger, bridgeIfc stri
 
 var _ = Describe("Fence", func() {
 	var (
-		fakeSubnetPool   *fakeSubnets
+		fakeSubnetPool   *fakes.FakeBridgedSubnets
 		fence            *fenceBuilder
 		syscfg           sysconfig.Config  = sysconfig.NewConfig("", false)
 		sysconfig        *sysconfig.Config = &syscfg
 		fakeDeconfigurer *FakeDeconfigurer
 	)
 
-	BeforeEach(func() {
-		_, a, err := net.ParseCIDR("1.2.0.0/22")
-		Ω(err).ShouldNot(HaveOccurred())
-
-		fakeSubnetPool = &fakeSubnets{nextSubnet: a}
-		fakeDeconfigurer = &FakeDeconfigurer{}
+	JustBeforeEach(func() {
 		fence = &fenceBuilder{
-			Subnets:      fakeSubnetPool,
-			mtu:          1500,
-			externalIP:   net.ParseIP("1.2.3.4"),
-			deconfigurer: fakeDeconfigurer,
-			log:          lagertest.NewTestLogger("fence"),
+			BridgedSubnets: fakeSubnetPool,
+			mtu:            1500,
+			externalIP:     net.ParseIP("1.2.3.4"),
+			deconfigurer:   fakeDeconfigurer,
+			log:            lagertest.NewTestLogger("fence"),
 		}
 	})
 
-	Describe("Capacity", func() {
-		It("delegates to Subnets", func() {
-			fakeSubnetPool.capacity = 4
-			fence := &fenceBuilder{
-				Subnets:      fakeSubnetPool,
-				mtu:          1500,
-				externalIP:   net.ParseIP("1.2.3.4"),
-				deconfigurer: fakeDeconfigurer,
-				log:          lagertest.NewTestLogger("fence"),
-			}
+	BeforeEach(func() {
+		fakeSubnetPool = &fakes.FakeBridgedSubnets{}
+		fakeDeconfigurer = &FakeDeconfigurer{}
+	})
 
+	Describe("Capacity", func() {
+		BeforeEach(func() {
+			fakeSubnetPool.CapacityReturns(4)
+		})
+
+		It("delegates to Subnets", func() {
 			Ω(fence.Capacity()).Should(Equal(4))
 		})
 	})
 
 	Describe("Build", func() {
 		Context("when the network parameter is empty", func() {
-			It("allocates a dynamic subnet from Subnets", func() {
-				var err error
-				_, fakeSubnetPool.nextSubnet, err = net.ParseCIDR("3.4.5.0/30")
+			It("allocates a dynamic subnet and dynamic IP from Subnets", func() {
+				_, subNet, err := net.ParseCIDR("3.4.5.0/30")
 				Ω(err).ShouldNot(HaveOccurred())
+
+				fakeSubnetPool.AllocateReturns(subNet, net.ParseIP("3.4.5.1"), "", nil)
 
 				allocation, err := fence.Build("", sysconfig, "")
 				Ω(err).ShouldNot(HaveOccurred())
 
-				Ω(fakeSubnetPool.lastRequested.Subnet).Should(Equal(subnets.DynamicSubnetSelector))
+				Ω(fakeSubnetPool.AllocateCallCount()).Should(Equal(1))
+				ss, is := fakeSubnetPool.AllocateArgsForCall(0)
+
+				Ω(ss).Should(Equal(subnets.DynamicSubnetSelector))
 				Ω(allocation).Should(HaveSubnet("3.4.5.0/30"))
-			})
 
-			It("allocates a dynamic IP from Subnets", func() {
-				fakeSubnetPool.nextIP = net.ParseIP("2.2.3.3")
-
-				allocation, err := fence.Build("", sysconfig, "")
-				Ω(err).ShouldNot(HaveOccurred())
-
-				Ω(fakeSubnetPool.lastRequested.IP).Should(Equal(subnets.DynamicIPSelector))
-				Ω(allocation).Should(HaveContainerIP("2.2.3.3"))
+				Ω(is).Should(Equal(subnets.DynamicIPSelector))
+				Ω(allocation).Should(HaveContainerIP("3.4.5.1"))
 			})
 
 			It("passes back an error if allocation fails", func() {
 				testErr := errors.New("some error")
-				fakeSubnetPool.allocationError = testErr
+				fakeSubnetPool.AllocateReturns(nil, nil, "", testErr)
 
 				_, err := fence.Build("", sysconfig, "")
 				Ω(err).Should(Equal(testErr))
@@ -99,7 +92,27 @@ var _ = Describe("Fence", func() {
 		})
 
 		Context("when the network parameter is not empty", func() {
+			var (
+				subNetString string
+				ipString     string
+			)
+			BeforeEach(func() {
+				subNetString = "1.1.1.0/24"
+				ipString = "1.1.1.1"
+			})
+
+			JustBeforeEach(func() {
+				_, subNet, err := net.ParseCIDR(subNetString)
+				Ω(err).ShouldNot(HaveOccurred())
+
+				fakeSubnetPool.AllocateReturns(subNet, net.ParseIP(ipString), "", nil)
+			})
+
 			Context("when it contains a prefix length", func() {
+				BeforeEach(func() {
+					subNetString = "1.3.4.0/28"
+					ipString = "1.3.4.1"
+				})
 				It("statically allocates the requested subnet ", func() {
 					_, err := fence.Build("1.3.4.0/28", sysconfig, "")
 					Ω(err).ShouldNot(HaveOccurred())
@@ -107,11 +120,18 @@ var _ = Describe("Fence", func() {
 					_, cidr, err := net.ParseCIDR("1.3.4.0/28")
 					Ω(err).ShouldNot(HaveOccurred())
 
-					Ω(fakeSubnetPool.lastRequested.Subnet).Should(Equal(subnets.StaticSubnetSelector{cidr}))
+					Ω(fakeSubnetPool.AllocateCallCount()).Should(Equal(1))
+					ss, _ := fakeSubnetPool.AllocateArgsForCall(0)
+					Ω(ss).Should(Equal(subnets.StaticSubnetSelector{cidr}))
 				})
 			})
 
 			Context("when it does not contain a prefix length", func() {
+				BeforeEach(func() {
+					subNetString = "1.3.4.0/30"
+					ipString = "1.3.4.1"
+				})
+
 				It("statically allocates the requested Network from Subnets as a /30", func() {
 					_, err := fence.Build("1.3.4.0", sysconfig, "")
 					Ω(err).ShouldNot(HaveOccurred())
@@ -119,28 +139,45 @@ var _ = Describe("Fence", func() {
 					_, cidr, err := net.ParseCIDR("1.3.4.0/30")
 					Ω(err).ShouldNot(HaveOccurred())
 
-					Ω(fakeSubnetPool.lastRequested.Subnet).Should(Equal(subnets.StaticSubnetSelector{cidr}))
+					Ω(fakeSubnetPool.AllocateCallCount()).Should(Equal(1))
+					ss, _ := fakeSubnetPool.AllocateArgsForCall(0)
+
+					Ω(ss).Should(Equal(subnets.StaticSubnetSelector{cidr}))
 				})
 			})
 
 			Context("when the network parameter has non-zero host bits", func() {
+				BeforeEach(func() {
+					subNetString = "1.3.4.4/30"
+					ipString = "1.3.4.5"
+				})
+
 				It("statically allocates an IP address based on the network parameter", func() {
-					_, err := fence.Build("1.3.4.2", sysconfig, "")
+					_, err := fence.Build("1.3.4.5", sysconfig, "")
 					Ω(err).ShouldNot(HaveOccurred())
 
-					ip := net.ParseIP("1.3.4.2")
-					Ω(fakeSubnetPool.lastRequested.IP).Should(Equal(subnets.StaticIPSelector{ip}))
+					Ω(fakeSubnetPool.AllocateCallCount()).Should(Equal(1))
+					_, is := fakeSubnetPool.AllocateArgsForCall(0)
+
+					ip := net.ParseIP("1.3.4.5")
+					Ω(is).Should(Equal(subnets.StaticIPSelector{ip}))
 				})
 			})
 
 			Context("when the network parameter has zero host bits", func() {
-				It("dynamically allocates an IP address", func() {
-					fakeSubnetPool.nextIP = net.ParseIP("9.8.7.6")
+				BeforeEach(func() {
+					subNetString = "1.3.4.0/30"
+					ipString = "9.8.7.6"
+				})
 
+				It("dynamically allocates an IP address", func() {
 					allocation, err := fence.Build("1.3.4.0", sysconfig, "")
 					Ω(err).ShouldNot(HaveOccurred())
 
-					Ω(fakeSubnetPool.lastRequested.IP).Should(Equal(subnets.DynamicIPSelector))
+					Ω(fakeSubnetPool.AllocateCallCount()).Should(Equal(1))
+					_, is := fakeSubnetPool.AllocateArgsForCall(0)
+
+					Ω(is).Should(Equal(subnets.DynamicIPSelector))
 					Ω(allocation).Should(HaveContainerIP("9.8.7.6"))
 				})
 			})
@@ -148,24 +185,26 @@ var _ = Describe("Fence", func() {
 			It("returns an error if an invalid network string is passed", func() {
 				_, err := fence.Build("invalid", sysconfig, "")
 				Ω(err).Should(HaveOccurred())
+				Ω(fakeSubnetPool.AllocateCallCount()).Should(Equal(0))
 			})
 
 			It("returns an error if allocation fails", func() {
 				testErr := errors.New("some error")
-				fakeSubnetPool.allocationError = testErr
+				fakeSubnetPool.AllocateReturns(nil, nil, "", testErr)
 
 				_, err := fence.Build("1.3.4.4/30", sysconfig, "")
 				Ω(err).Should(Equal(testErr))
+				Ω(fakeSubnetPool.AllocateCallCount()).Should(Equal(1))
 			})
-
 		})
+
 	})
 
 	var allocate = func(subnet, ip string) *Fence {
 		_, s, err := net.ParseCIDR(subnet)
 		Ω(err).ShouldNot(HaveOccurred())
 
-		return &Fence{s, net.ParseIP(ip), "", "host", false, "bridge", fence, lagertest.NewTestLogger("allocation")}
+		return &Fence{s, net.ParseIP(ip), "cIfc", "host", false, "bridge", fence, lagertest.NewTestLogger("allocation")}
 	}
 
 	It("correctly Strings Allocation instances", func() {
@@ -180,18 +219,24 @@ var _ = Describe("Fence", func() {
 				var md json.RawMessage
 
 				ip, s, err := net.ParseCIDR("1.2.0.5/28")
-				original := &Fence{s, ip, "", "foo", false, "bridge", fence, nil}
 				Ω(err).ShouldNot(HaveOccurred())
+
+				original := allocate("1.2.0.5/28", "1.2.0.5")
+
 				md, err = original.MarshalJSON()
 				Ω(err).ShouldNot(HaveOccurred())
 
 				recovered, err := fence.Rebuild(&md)
 				Ω(err).ShouldNot(HaveOccurred())
-				Ω(fakeSubnetPool.recovered).Should(ContainElement(fakeAllocation{"1.2.0.0/28", "1.2.0.5"}))
+
+				Ω(fakeSubnetPool.RecoverCallCount()).Should(Equal(1))
+				rSubnet, rIp, rBridgeIfcName := fakeSubnetPool.RecoverArgsForCall(0)
+
+				Ω(rSubnet).Should(Equal(s))
+				Ω(rIp).Should(Equal(ip))
+				Ω(rBridgeIfcName).Should(Equal("bridge"))
 
 				recoveredAllocation := recovered.(*Fence)
-				Ω(recoveredAllocation.IPNet.String()).Should(Equal("1.2.0.0/28"))
-				Ω(recoveredAllocation.containerIP.String()).Should(Equal("1.2.0.5"))
 
 				recoveredAllocation.fenceBldr = nil
 				original.fenceBldr = nil
@@ -208,10 +253,11 @@ var _ = Describe("Fence", func() {
 				md, err = allocate("1.2.0.0/22", "1.2.0.1").MarshalJSON()
 				Ω(err).ShouldNot(HaveOccurred())
 
-				fakeSubnetPool.recoverError = errors.New("o no")
+				testErr := errors.New("o no")
+				fakeSubnetPool.RecoverReturns(testErr)
 
 				_, err = fence.Rebuild(&md)
-				Ω(err).Should(MatchError("o no"))
+				Ω(err).Should(Equal(testErr))
 			})
 		})
 	})
@@ -219,24 +265,13 @@ var _ = Describe("Fence", func() {
 	Describe("Allocations return by Allocate", func() {
 		Describe("Dismantle", func() {
 			Context("when releasing the in-memory allocation fails", func() {
-				var (
-					allocation *Fence
-				)
-
-				BeforeEach(func() {
-					allocation = allocate("1.2.0.0/22", "1.2.0.1")
-					allocation.hostIfc = "thehost"
-					allocation.bridgeIfc = "thebridge"
-
-					fakeSubnetPool.releaseError = errors.New("o no")
-				})
-
 				It("returns an error", func() {
-					err := allocation.Dismantle()
-					Ω(err).Should(HaveOccurred())
-				})
+					testErr := errors.New("o no")
+					fakeSubnetPool.ReleaseReturns(false, "", testErr)
 
-				It("does not attempt to destroy the bridge", func() {
+					Ω(allocate("1.2.0.0/22", "1.2.0.1").Dismantle()).Should(Equal(testErr))
+
+					By("and does not attempt to destroy the bridge")
 					Ω(fakeDeconfigurer.DeconfiguredBridges).Should(HaveLen(0))
 				})
 			})
@@ -246,26 +281,22 @@ var _ = Describe("Fence", func() {
 					allocation *Fence
 				)
 
-				BeforeEach(func() {
+				JustBeforeEach(func() {
+					fakeSubnetPool.ReleaseReturns(false, "bridge", nil)
+
 					allocation = allocate("1.2.0.0/22", "1.2.0.1")
-					allocation.hostIfc = "thehost"
-					allocation.bridgeIfc = "thebridge"
-
-					fakeSubnetPool.releaseReturns = false
 				})
 
-				It("releases the subnet", func() {
-					err := allocation.Dismantle()
-					Ω(err).ShouldNot(HaveOccurred())
+				It("releases the IP in the subnet", func() {
+					Ω(allocation.Dismantle()).Should(Succeed())
 
-					Ω(fakeSubnetPool.released).Should(ContainElement(fakeAllocation{"1.2.0.0/22", "1.2.0.1"}))
-				})
+					Ω(fakeSubnetPool.ReleaseCallCount()).Should(Equal(1))
+					ipNet, ip := fakeSubnetPool.ReleaseArgsForCall(0)
+					Ω(ipNet.String()).Should(Equal("1.2.0.0/22"))
+					Ω(ip.String()).Should(Equal("1.2.0.1"))
 
-				It("does not destroy the bridge", func() {
-					err := allocation.Dismantle()
-					Ω(err).ShouldNot(HaveOccurred())
-
-					Ω(fakeDeconfigurer.DeconfiguredBridges).ShouldNot(ContainElement("thebridge"))
+					By("and does not attempt to destroy the bridge")
+					Ω(fakeDeconfigurer.DeconfiguredBridges).Should(HaveLen(0))
 				})
 			})
 
@@ -274,26 +305,22 @@ var _ = Describe("Fence", func() {
 					allocation *Fence
 				)
 
-				BeforeEach(func() {
-					fakeSubnetPool.releaseReturns = true
+				JustBeforeEach(func() {
+					fakeSubnetPool.ReleaseReturns(true, "bridge", nil)
+
 					allocation = allocate("1.2.0.0/22", "1.2.0.1")
-
-					allocation.hostIfc = "thehost"
-					allocation.bridgeIfc = "thebridge"
 				})
 
-				It("releases the subnet", func() {
-					err := allocation.Dismantle()
-					Ω(err).ShouldNot(HaveOccurred())
+				It("releases the IP in the subnet", func() {
+					Ω(allocation.Dismantle()).Should(Succeed())
 
-					Ω(fakeSubnetPool.released).Should(ContainElement(fakeAllocation{"1.2.0.0/22", "1.2.0.1"}))
-				})
+					Ω(fakeSubnetPool.ReleaseCallCount()).Should(Equal(1))
+					ipNet, ip := fakeSubnetPool.ReleaseArgsForCall(0)
+					Ω(ipNet.String()).Should(Equal("1.2.0.0/22"))
+					Ω(ip.String()).Should(Equal("1.2.0.1"))
 
-				It("destroys the bridge", func() {
-					err := allocation.Dismantle()
-					Ω(err).ShouldNot(HaveOccurred())
-
-					Ω(fakeDeconfigurer.DeconfiguredBridges).Should(ContainElement("thebridge"))
+					By("and destroys the bridge")
+					Ω(fakeDeconfigurer.DeconfiguredBridges).Should(ContainElement("bridge"))
 				})
 			})
 		})
@@ -324,7 +351,7 @@ var _ = Describe("Fence", func() {
 					env process.Env
 				)
 
-				BeforeEach(func() {
+				JustBeforeEach(func() {
 					_, ipn, err := net.ParseCIDR("4.5.6.0/29")
 					Ω(err).ShouldNot(HaveOccurred())
 
@@ -362,70 +389,6 @@ var _ = Describe("Fence", func() {
 		})
 	})
 })
-
-type fakeSubnets struct {
-	nextSubnet      *net.IPNet
-	nextIP          net.IP
-	allocationError error
-	lastRequested   struct {
-		Subnet subnets.SubnetSelector
-		IP     subnets.IPSelector
-	}
-
-	released  []fakeAllocation
-	recovered []fakeAllocation
-	capacity  int
-
-	releaseReturns bool
-
-	releaseError error
-	recoverError error
-}
-
-type fakeAllocation struct {
-	subnet      string
-	containerIP string
-}
-
-func (f *fakeSubnets) Allocate(s subnets.SubnetSelector, i subnets.IPSelector) (*net.IPNet, net.IP, error) {
-	if f.allocationError != nil {
-		return nil, nil, f.allocationError
-	}
-
-	f.lastRequested.Subnet = s
-	f.lastRequested.IP = i
-
-	return f.nextSubnet, f.nextIP, nil
-}
-
-func (f *fakeSubnets) Release(n *net.IPNet, c net.IP) (bool, error) {
-	f.released = append(f.released, fakeAllocation{n.String(), c.String()})
-	return f.releaseReturns, f.releaseError
-}
-
-func (f *fakeSubnets) Recover(n *net.IPNet, c net.IP) error {
-	f.recovered = append(f.recovered, fakeAllocation{n.String(), c.String()})
-	return f.recoverError
-}
-
-func (f *fakeSubnets) Capacity() int {
-	return f.capacity
-}
-
-type FakeInterface struct {
-	Name           string
-	DestroyReturns error
-	Destroyed      bool
-}
-
-func (f *FakeInterface) Destroy() error {
-	f.Destroyed = true
-	return f.DestroyReturns
-}
-
-func (f *FakeInterface) String() string {
-	return f.Name
-}
 
 type m struct {
 	value string

@@ -9,18 +9,24 @@ import (
 	"sync"
 )
 
-// Subnets provides a means of allocating subnets.
-type Subnets interface {
-	// Allocates a subnet and container IP address. The subnet is selected by the given SubnetSelector.
-	// The IP address is selected by the given IPSelector. If either selector fails, an error is returned.
-	Allocate(SubnetSelector, IPSelector) (*net.IPNet, net.IP, error)
+//go:generate counterfeiter . Subnets
 
-	// Releases an allocated network and container IP.
-	// Return a boolean which is true if and only if the network is no longer in use by other containers.
+// Subnets provides a means of allocating subnets and associated IP addresses.
+type Subnets interface {
+	// Allocates an IP address and associates it with a subnet. The subnet is selected by the given SubnetSelector.
+	// The IP address is selected by the given IPSelector.
+	// Returns a subnet, an IP address, and a boolean which is true if and only if this is the
+	// first IP address to be associated with this subnet.
+	// If either selector fails, an error is returned.
+	Allocate(SubnetSelector, IPSelector) (*net.IPNet, net.IP, bool, error)
+
+	// Releases an IP address associated with an allocated subnet. If the subnet has no other IP
+	// addresses associated with it, it is deallocated.
+	// Returns a boolean which is true if and only if the subnet was deallocated.
 	// Returns an error if the given combination is not already in the pool.
 	Release(*net.IPNet, net.IP) (bool, error)
 
-	// Recovers an unallocated subnet and container IP so they appear to be allocated.
+	// Recovers an IP address so it appears to be associated with the given subnet.
 	Recover(*net.IPNet, net.IP) error
 
 	// Returns the number of /30 subnets which can be Allocated by a DynamicSubnetSelector.
@@ -33,12 +39,16 @@ type pool struct {
 	mu           sync.Mutex
 }
 
+//go:generate counterfeiter . SubnetSelector
+
 // SubnetSelector is a strategy for selecting a subnet.
 type SubnetSelector interface {
 	// Returns a subnet based on a dynamic range and some existing statically-allocated
 	// subnets. If no suitable subnet can be found, returns an error.
 	SelectSubnet(dynamic *net.IPNet, existing []*net.IPNet) (*net.IPNet, error)
 }
+
+//go:generate counterfeiter . IPSelector
 
 // IPSelector is a strategy for selecting an IP address in a subnet.
 type IPSelector interface {
@@ -50,27 +60,27 @@ type IPSelector interface {
 // New creates a Subnets implementation from a dynamic allocation range.
 // All dynamic allocations come from the range, static allocations are prohibited
 // from the dynamic range.
-func New(ipNet *net.IPNet) (Subnets, error) {
+func NewSubnets(ipNet *net.IPNet) (Subnets, error) {
 	return &pool{dynamicRange: ipNet, allocated: make(map[string][]net.IP)}, nil
 }
 
 // Allocate uses the given subnet and IP selectors to request a subnet, container IP address combination
 // from the pool.
-func (p *pool) Allocate(sn SubnetSelector, i IPSelector) (subnet *net.IPNet, ip net.IP, err error) {
+func (p *pool) Allocate(sn SubnetSelector, i IPSelector) (subnet *net.IPNet, ip net.IP, first bool, err error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
 	if subnet, err = sn.SelectSubnet(p.dynamicRange, existingSubnets(p.allocated)); err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	}
-
-	existingIPs := append(p.allocated[subnet.String()], NetworkIP(subnet), GatewayIP(subnet), BroadcastIP(subnet))
+	ips, found := p.allocated[subnet.String()]
+	existingIPs := append(ips, NetworkIP(subnet), GatewayIP(subnet), BroadcastIP(subnet))
 	if ip, err = i.SelectIP(subnet, existingIPs); err != nil {
-		return nil, nil, err
+		return nil, nil, false, err
 	}
 
-	p.allocated[subnet.String()] = append(p.allocated[subnet.String()], ip)
-	return subnet, ip, nil
+	p.allocated[subnet.String()] = append(ips, ip)
+	return subnet, ip, !found, nil
 }
 
 // Recover re-allocates a given subnet and ip address combination in the pool. It returns
@@ -97,10 +107,18 @@ func (p *pool) Release(subnet *net.IPNet, containerIP net.IP) (bool, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	if i, found := indexOf(p.allocated[subnet.String()], containerIP); found {
-		return removeAtIndex(p.allocated, subnet.String(), i), nil
-	}
+	subnetString := subnet.String()
+	ips := p.allocated[subnetString]
 
+	if i, found := indexOf(ips, containerIP); found {
+		if reducedIps, empty := removeIPAtIndex(ips, i); empty {
+			delete(p.allocated, subnetString)
+			return true, nil
+		} else {
+			p.allocated[subnetString] = reducedIps
+			return false, nil
+		}
+	}
 	return false, ErrReleasedUnallocatedSubnet
 }
 
@@ -155,8 +173,11 @@ func indexOf(a []net.IP, w net.IP) (int, bool) {
 	return -1, false
 }
 
-// removeAtIndex removes from the array at the given key and index, and returns true if the array is then empty
-func removeAtIndex(m map[string][]net.IP, key string, i int) (removedAll bool) {
-	m[key] = append(m[key][:i], m[key][i+1:]...)
-	return len(m[key]) == 0
+// removeAtIndex removes from a slice at the given index,
+// and returns the new slice and boolean, true iff the new slice is empty.
+func removeIPAtIndex(ips []net.IP, i int) ([]net.IP, bool) {
+	l := len(ips)
+	ips[i] = ips[l-1]
+	ips = ips[:l-1]
+	return ips, l == 1
 }
