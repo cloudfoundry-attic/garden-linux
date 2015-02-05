@@ -381,6 +381,11 @@ int child_fork(msg_request_t *req, int in, int out, int err) {
       }
     }
 
+    // don't mask signals of child process
+    sigset_t mask;
+    sigemptyset(&mask);
+    sigprocmask(SIG_SETMASK, &mask, NULL);
+
     execvpe(argv[0], argv, envp);
     perror("execvpe");
 
