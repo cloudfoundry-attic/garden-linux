@@ -107,10 +107,18 @@ func (p *pool) Release(subnet *net.IPNet, containerIP net.IP) (bool, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	if i, found := indexOf(p.allocated[subnet.String()], containerIP); found {
-		return removeAtIndex(p.allocated, subnet.String(), i), nil
-	}
+	subnetString := subnet.String()
+	ips := p.allocated[subnetString]
 
+	if i, found := indexOf(ips, containerIP); found {
+		if reducedIps, empty := removeIPAtIndex(ips, i); empty {
+			delete(p.allocated, subnetString)
+			return true, nil
+		} else {
+			p.allocated[subnetString] = reducedIps
+			return false, nil
+		}
+	}
 	return false, ErrReleasedUnallocatedSubnet
 }
 
@@ -165,8 +173,11 @@ func indexOf(a []net.IP, w net.IP) (int, bool) {
 	return -1, false
 }
 
-// removeAtIndex removes from the array at the given key and index, and returns true if the array is then empty
-func removeAtIndex(m map[string][]net.IP, key string, i int) (removedAll bool) {
-	m[key] = append(m[key][:i], m[key][i+1:]...)
-	return len(m[key]) == 0
+// removeAtIndex removes from a slice at the given index,
+// and returns the new slice and boolean, true iff the new slice is empty.
+func removeIPAtIndex(ips []net.IP, i int) ([]net.IP, bool) {
+	l := len(ips)
+	ips[i] = ips[l-1]
+	ips = ips[:l-1]
+	return ips, l == 1
 }

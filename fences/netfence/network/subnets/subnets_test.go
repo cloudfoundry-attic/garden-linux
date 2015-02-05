@@ -145,6 +145,28 @@ var _ = Describe("Subnet Pool", func() {
 							Ω(first).Should(BeFalse())
 						})
 
+						It("when an IP is allocated from a subnet but released in between, it should be treated as new both times", func() {
+							_, static := networkParms("11.0.0.0/8")
+
+							ip := net.ParseIP("11.0.0.1")
+							returnedSubnet, returnedIp, first, err := subnetpool.Allocate(subnets.StaticSubnetSelector{static}, subnets.StaticIPSelector{ip})
+							Ω(err).ShouldNot(HaveOccurred())
+							Ω(returnedSubnet).Should(Equal(static))
+							Ω(returnedIp).Should(Equal(ip))
+							Ω(first).Should(BeTrue())
+
+							last, err := subnetpool.Release(returnedSubnet, returnedIp)
+							Ω(err).ShouldNot(HaveOccurred())
+							Ω(last).Should(BeTrue())
+
+							_, static = networkParms("11.0.0.0/8") // make sure we get a new pointer
+							returnedSubnet, returnedIp, first, err = subnetpool.Allocate(subnets.StaticSubnetSelector{static}, subnets.StaticIPSelector{ip})
+							Ω(err).ShouldNot(HaveOccurred())
+							Ω(returnedSubnet).Should(Equal(static))
+							Ω(returnedIp).Should(Equal(ip))
+							Ω(first).Should(BeTrue())
+						})
+
 						It("prevents dynamic allocation of the same IP", func() {
 							_, static := networkParms("11.0.0.0/8")
 
