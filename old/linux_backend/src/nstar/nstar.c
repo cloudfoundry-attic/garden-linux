@@ -17,6 +17,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <stdlib.h>
 
  #include "pwd.h"
 
@@ -89,7 +90,7 @@ int main(int argc, char **argv) {
   char *destination = NULL;
   int tpid;
   int hostrootfd;
-  int containerworkdir;
+  int binfd;
   char *compress = NULL;
   struct passwd *pw;
 
@@ -109,6 +110,14 @@ int main(int argc, char **argv) {
 
   if(argc > 4) {
     compress = argv[4];
+  }
+
+  /* save off host bindir so we can execute tar from here */
+  /* TODO: parameterize absolute path to statically linked .tar instead */
+  binfd = open("/bin", O_RDONLY);
+  if (binfd == -1) {
+    perror("open /bin/tar");
+    return 1;
   }
 
   char mntnspath[PATH_MAX];
@@ -186,45 +195,6 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  /* save off destination dir for switching back to it later */
-  containerworkdir = open(destination, O_RDONLY);
-  if(containerworkdir == -1) {
-    perror("open container destination");
-    return 1;
-  }
-
-  /* switch to original host rootfs */
-  rv = fchdir(hostrootfd);
-  if(rv == -1) {
-    perror("fchdir to host rootfs");
-    return 1;
-  }
-
-  rv = chroot(".");
-  if(rv == -1) {
-    perror("failed to chroot to host rootfs");
-    return 1;
-  }
-
-  rv = close(hostrootfd);
-  if(rv == -1) {
-    perror("close host destination");
-    return 1;
-  }
-
-  /* switch to container's destination directory, with host still as rootfs */
-  rv = fchdir(containerworkdir);
-  if(rv == -1) {
-    perror("fchdir to container destination");
-    return 1;
-  }
-
-  rv = close(containerworkdir);
-  if(rv == -1) {
-    perror("close container destination");
-    return 1;
-  }
-
   rv = setgid(pw->pw_uid);
   if(rv == -1) {
     perror("setgid");
@@ -237,18 +207,24 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  /* switch back to host's tar parent dir for running tar */
+  rv = fchdir(binfd);
+  if (rv == -1) {
+    perror("fchdir to /proc/self/fd");
+    return 1;
+  }
+
+  /* TODO: handle relative destination paths (must be relative to home dir) */
+
   if(compress != NULL) {
-    rv = execl("/bin/tar", "tar", "cf", "-", compress, NULL);
-    if(rv == -1) {
-      perror("execl");
-      return 1;
-    }
+    rv = execl("./tar", "tar", "cf", "-", "-C", destination, compress, NULL);
   } else {
-    rv = execl("/bin/tar", "tar", "xf", "-", NULL);
-    if(rv == -1) {
-      perror("execl");
-      return 1;
-    }
+    rv = execl("./tar", "tar", "xf", "-", "-C", destination, NULL);
+  }
+
+  if(rv == -1) {
+    perror("execl");
+    return 1;
   }
 
   // unreachable

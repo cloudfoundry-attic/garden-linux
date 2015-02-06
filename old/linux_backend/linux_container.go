@@ -566,7 +566,7 @@ func (c *LinuxContainer) StreamIn(dstPath string, tarStream io.Reader) error {
 	tar := exec.Command(
 		nsTarPath,
 		strconv.Itoa(pid),
-		"vcap",
+		"root",
 		dstPath,
 	)
 
@@ -607,7 +607,7 @@ func (c *LinuxContainer) StreamOut(srcPath string) (io.ReadCloser, error) {
 	tar := exec.Command(
 		nsTarPath,
 		strconv.Itoa(pid),
-		"vcap",
+		"root",
 		workingDir,
 		compressArg,
 	)
