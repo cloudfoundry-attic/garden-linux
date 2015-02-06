@@ -21,10 +21,9 @@ import (
 
 	"github.com/cloudfoundry-incubator/cf-debug-server"
 	"github.com/cloudfoundry-incubator/cf-lager"
-	"github.com/cloudfoundry-incubator/garden-linux/fences"
-	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence"
-	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network"
-	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/iptables"
+	"github.com/cloudfoundry-incubator/garden-linux/network"
+	"github.com/cloudfoundry-incubator/garden-linux/network/cnet"
+	"github.com/cloudfoundry-incubator/garden-linux/network/iptables"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/repository_fetcher"
@@ -141,7 +140,7 @@ var dockerRegistry = flag.String(
 	"docker registry API endpoint",
 )
 
-var tag = &netfence.Tag // flag defined in netfence/init.go
+var tag = &cnet.Tag // flag defined in cnet/init.go
 
 var dropsondeOrigin = flag.String(
 	"dropsondeOrigin",
@@ -167,7 +166,7 @@ var iptablesLogMethod = flag.String(
 	"type of iptable logging to use, one of 'kernel' or 'nflog' (default: kernel)",
 )
 
-func Main(builders *fences.BuilderRegistry) {
+func Main(builder cnet.Builder) {
 
 	cf_debug_server.Run()
 
@@ -270,8 +269,8 @@ func Main(builders *fences.BuilderRegistry) {
 		config,
 		rootFSProviders,
 		uidPool,
-		builders,
-		container_pool.NewFencePersistor(logger, builders),
+		builder,
+		container_pool.NewCNPersistor(logger, builder),
 		filterProvider,
 		iptables.NewGlobalChain(config.IPTables.Filter.DefaultChain, runner, logger.Session("global-chain")),
 		portPool,

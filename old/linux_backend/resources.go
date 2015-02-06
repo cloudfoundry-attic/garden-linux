@@ -1,16 +1,18 @@
 package linux_backend
 
 import (
+	"net"
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden-linux/fences"
+	"github.com/cloudfoundry-incubator/garden-linux/network/cnet"
 )
 
 type Resources struct {
-	UserUID uint32
-	RootUID uint32
-	Network fences.Fence
-	Ports   []uint32
+	UserUID    uint32
+	RootUID    uint32
+	Network    cnet.ContainerNetwork
+	Ports      []uint32
+	ExternalIP net.IP
 
 	portsLock *sync.Mutex
 }
@@ -18,14 +20,16 @@ type Resources struct {
 func NewResources(
 	useruid uint32,
 	rootuid uint32,
-	network fences.Fence,
+	network cnet.ContainerNetwork,
 	ports []uint32,
+	externalIP net.IP,
 ) *Resources {
 	return &Resources{
-		UserUID: useruid,
-		RootUID: rootuid,
-		Network: network,
-		Ports:   ports,
+		UserUID:    useruid,
+		RootUID:    rootuid,
+		Network:    network,
+		Ports:      ports,
+		ExternalIP: externalIP,
 
 		portsLock: new(sync.Mutex),
 	}

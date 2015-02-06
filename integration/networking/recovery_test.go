@@ -52,12 +52,12 @@ var _ = Describe("Networking recovery", func() {
 			})
 		})
 
-		Context("when garden is killed, a persisted fence is deleted, and garden is restarted", func() {
+		Context("when garden is killed, a persisted container network is deleted, and garden is restarted", func() {
 			BeforeEach(func() {
 				gardenProcess.Signal(syscall.SIGKILL)
 				Eventually(gardenProcess.Wait(), "10s").Should(Receive())
 
-				err := os.Remove(path.Join(ctr2Path, "fenceConfig.json"))
+				err := os.Remove(path.Join(ctr2Path, "cnetConfig.json"))
 				Ω(err).ShouldNot(HaveOccurred())
 
 				client = startGarden()

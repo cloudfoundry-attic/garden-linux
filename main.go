@@ -3,19 +3,35 @@ package main
 import (
 	"flag"
 	"fmt"
-	"os"
 
-	"github.com/cloudfoundry-incubator/garden-linux/fences"
+	"github.com/cloudfoundry-incubator/garden-linux/network/cnet"
 	"github.com/cloudfoundry-incubator/garden-linux/old"
 )
 
 // garden-linux server process
 func main() {
-	builders, err := fences.Main(flag.CommandLine, os.Args[1:])
+
+	config, err := cnet.Init(flag.CommandLine)
 	if err != nil {
-		fmt.Printf("Error creating fence: %s", err)
+		fmt.Printf("Error creating container network: %s", err)
 		return
 	}
 
-	old.Main(builders)
+	flag.Parse()
+
+	builder, err := Main(config)
+	if err != nil {
+		fmt.Printf("Error creating container network: %s", err)
+		return
+	}
+
+	old.Main(builder)
+}
+
+func Main(config *cnet.Config) (cnet.Builder, error) {
+	builder, err := cnet.Main(config)
+	if err != nil {
+		return nil, err
+	}
+	return builder, nil
 }

@@ -6,32 +6,32 @@ import (
 	"os"
 	"path"
 
-	"github.com/cloudfoundry-incubator/garden-linux/fences"
+	"github.com/cloudfoundry-incubator/garden-linux/network/cnet"
 	"github.com/pivotal-golang/lager"
 )
 
-type RawFence struct {
-	FenceRawMessage *json.RawMessage
+type RawCN struct {
+	CNRawMessage *json.RawMessage
 }
 
-type FencePersistor interface {
-	Persist(fence fences.Fence, path string) error
-	Recover(path string) (fences.Fence, error)
+type CNPersistor interface {
+	Persist(cn cnet.ContainerNetwork, path string) error
+	Recover(path string) (cnet.ContainerNetwork, error)
 }
 
-type fencePersistor struct {
-	logger       lager.Logger
-	fenceBuilder FenceBuilder
+type cnPersistor struct {
+	logger    lager.Logger
+	cnBuilder cnet.Builder
 }
 
-func NewFencePersistor(logger lager.Logger, fenceBuilder FenceBuilder) FencePersistor {
-	return &fencePersistor{
-		logger:       logger,
-		fenceBuilder: fenceBuilder,
+func NewCNPersistor(logger lager.Logger, cnBuilder cnet.Builder) CNPersistor {
+	return &cnPersistor{
+		logger:    logger,
+		cnBuilder: cnBuilder,
 	}
 }
 
-func (f *fencePersistor) Persist(fence fences.Fence, path string) error {
+func (f *cnPersistor) Persist(cn cnet.ContainerNetwork, path string) error {
 	err := os.MkdirAll(path, 0755)
 	if err != nil {
 		f.logger.Error("persist-directory-not-created", err, lager.Data{"path": path})
@@ -39,57 +39,57 @@ func (f *fencePersistor) Persist(fence fences.Fence, path string) error {
 	}
 
 	var m json.RawMessage
-	m, err = fence.MarshalJSON()
+	m, err = cn.MarshalJSON()
 	if err != nil {
-		f.logger.Error("persist-marshall-fence-error", err, lager.Data{"path": path, "fence": fence.String()})
-		return fmt.Errorf("Cannot marshall fence %#v: %s", fence, err)
+		f.logger.Error("persist-marshall-cnet-error", err, lager.Data{"path": path, "cnet": cn.String()})
+		return fmt.Errorf("Cannot marshall cnet %#v: %s", cn, err)
 	}
 
-	fenceConfigPath := fenceConfigPath(path)
+	cnConfigPath := cnConfigPath(path)
 
-	out, err := os.Create(fenceConfigPath)
+	out, err := os.Create(cnConfigPath)
 	if err != nil {
 		f.logger.Error("persist-file-create-error", err, lager.Data{"path": path})
 		return fmt.Errorf("Cannot create persistor file %q: %s", path, err)
 	}
 	defer out.Close()
 
-	rf := RawFence{&m}
+	rf := RawCN{&m}
 	err = json.NewEncoder(out).Encode(rf)
 	if err != nil {
-		f.logger.Error("persist-encode-error", err, lager.Data{"path": path, "fence": fence.String()})
-		return fmt.Errorf("Cannot encode fence %#v to path %q: %s", fence, path, err)
+		f.logger.Error("persist-encode-error", err, lager.Data{"path": path, "cnet": cn.String()})
+		return fmt.Errorf("Cannot encode cnet %#v to path %q: %s", cn, path, err)
 	}
 
 	return nil
 }
 
-func (f *fencePersistor) Recover(path string) (fences.Fence, error) {
-	fenceConfigPath := fenceConfigPath(path)
+func (f *cnPersistor) Recover(path string) (cnet.ContainerNetwork, error) {
+	cnConfigPath := cnConfigPath(path)
 
-	in, err := os.Open(fenceConfigPath)
+	in, err := os.Open(cnConfigPath)
 	if err != nil {
-		f.logger.Error("recover-persist-file-error", err, lager.Data{"fenceConfigPath": fenceConfigPath})
-		return nil, fmt.Errorf("Cannot open persistor file %q: %s", fenceConfigPath, err)
+		f.logger.Error("recover-persist-file-error", err, lager.Data{"cnetConfigPath": cnConfigPath})
+		return nil, fmt.Errorf("Cannot open persistor file %q: %s", cnConfigPath, err)
 	}
 	defer in.Close()
 
-	var rf RawFence
+	var rf RawCN
 	err = json.NewDecoder(in).Decode(&rf)
 	if err != nil {
-		f.logger.Error("recover-persist-file-decode-error", err, lager.Data{"fenceConfigPath": fenceConfigPath})
-		return nil, fmt.Errorf("Cannot decode persistor file %q: %s", fenceConfigPath, err)
+		f.logger.Error("recover-persist-file-decode-error", err, lager.Data{"cnetConfigPath": cnConfigPath})
+		return nil, fmt.Errorf("Cannot decode persistor file %q: %s", cnConfigPath, err)
 	}
 
-	fence, err := f.fenceBuilder.Rebuild(rf.FenceRawMessage)
+	cn, err := f.cnBuilder.Rebuild(rf.CNRawMessage)
 	if err != nil {
-		f.logger.Error("recover-rebuild-error", err, lager.Data{"fenceConfigPath": fenceConfigPath})
-		return nil, fmt.Errorf("Cannot rebuild fence %q: %s", fenceConfigPath, err)
+		f.logger.Error("recover-rebuild-error", err, lager.Data{"cnetConfigPath": cnConfigPath})
+		return nil, fmt.Errorf("Cannot rebuild cnet %q: %s", cnConfigPath, err)
 	}
 
-	return fence, nil
+	return cn, nil
 }
 
-func fenceConfigPath(containerPath string) string {
-	return path.Join(containerPath, "fenceConfig.json")
+func cnConfigPath(containerPath string) string {
+	return path.Join(containerPath, "cnetConfig.json")
 }

@@ -18,9 +18,9 @@ import (
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/pivotal-golang/lager"
 
-	"github.com/cloudfoundry-incubator/garden-linux/fences"
-	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network"
-	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/iptables"
+	"github.com/cloudfoundry-incubator/garden-linux/network"
+	"github.com/cloudfoundry-incubator/garden-linux/network/cnet"
+	"github.com/cloudfoundry-incubator/garden-linux/network/iptables"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/cgroups_manager"
@@ -35,12 +35,6 @@ import (
 
 var ErrUnknownRootFSProvider = errors.New("unknown rootfs provider")
 var ErrNetworkHostbitsNonZero = errors.New("network host bits non-zero")
-
-type FenceBuilder interface {
-	Rebuild(rm *json.RawMessage) (fences.Fence, error)
-	Build(spec string, sysconfig *sysconfig.Config, containerID string) (fences.Fence, error)
-	Capacity() int
-}
 
 //go:generate counterfeiter -o fake_container_pool/FakeFilterProvider.go . FilterProvider
 type FilterProvider interface {
@@ -60,10 +54,10 @@ type LinuxContainerPool struct {
 
 	rootfsProviders map[string]rootfs_provider.RootFSProvider
 
-	uidPool        uid_pool.UIDPool
-	builders       FenceBuilder
-	fencePersistor FencePersistor
-	portPool       linux_backend.PortPool
+	uidPool     uid_pool.UIDPool
+	cnBuilder   cnet.Builder
+	cnPersistor CNPersistor
+	portPool    linux_backend.PortPool
 
 	filterProvider FilterProvider
 	defaultChain   iptables.Chain
@@ -81,8 +75,8 @@ func New(
 	sysconfig sysconfig.Config,
 	rootfsProviders map[string]rootfs_provider.RootFSProvider,
 	uidPool uid_pool.UIDPool,
-	builders FenceBuilder,
-	fencePersistor FencePersistor,
+	cnBuilder cnet.Builder,
+	cnPersistor CNPersistor,
 	filterProvider FilterProvider,
 	defaultChain iptables.Chain,
 	portPool linux_backend.PortPool,
@@ -103,9 +97,9 @@ func New(
 		allowNetworks: allowNetworks,
 		denyNetworks:  denyNetworks,
 
-		uidPool:        uidPool,
-		builders:       builders,
-		fencePersistor: fencePersistor,
+		uidPool:     uidPool,
+		cnBuilder:   cnBuilder,
+		cnPersistor: cnPersistor,
 
 		filterProvider: filterProvider,
 		defaultChain:   defaultChain,
@@ -125,7 +119,7 @@ func New(
 }
 
 func (p *LinuxContainerPool) MaxContainers() int {
-	maxNet := p.builders.Capacity()
+	maxNet := p.cnBuilder.Capacity()
 	maxUid := p.uidPool.InitialSize()
 	if maxNet < maxUid {
 		return maxNet
@@ -209,13 +203,13 @@ func (p *LinuxContainerPool) pruneEntry(id string) {
 	pLog.Info("prune")
 
 	containerPath := path.Join(p.depotPath, id)
-	fence, err := p.fencePersistor.Recover(containerPath)
+	cn, err := p.cnPersistor.Recover(containerPath)
 	if err != nil {
-		pLog.Error("fence-recovery-error", err)
+		pLog.Error("cnet-recovery-error", err)
 	} else {
-		err = fence.Dismantle()
+		err = p.cnBuilder.Dismantle(cn)
 		if err != nil {
-			pLog.Error("fence-dismantle-error", err)
+			pLog.Error("cnet-dismantle-error", err)
 		}
 	}
 
@@ -242,7 +236,7 @@ func (p *LinuxContainerPool) Create(spec garden.ContainerSpec) (c linux_backend.
 		p.releasePoolResources(resources)
 	})
 
-	err = p.fencePersistor.Persist(resources.Network, containerPath)
+	err = p.cnPersistor.Persist(resources.Network, containerPath)
 	if err != nil {
 		if releaseErr := p.releaseSystemResources(pLog, id); releaseErr != nil {
 			pLog.Error("failed-to-release-system-resources", releaseErr)
@@ -313,7 +307,7 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 		return nil, err
 	}
 
-	state, err := p.builders.Rebuild(resources.Network)
+	state, err := p.cnBuilder.Rebuild(resources.Network)
 	if err != nil {
 		p.uidPool.Release(resources.UserUID)
 		p.uidPool.Release(resources.RootUID)
@@ -325,7 +319,7 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 		if err != nil {
 			p.uidPool.Release(resources.UserUID)
 			p.uidPool.Release(resources.RootUID)
-			state.Dismantle()
+			p.cnBuilder.Dismantle(state)
 
 			for _, port := range resources.Ports {
 				p.portPool.Release(port)
@@ -360,6 +354,7 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 			resources.RootUID,
 			state,
 			resources.Ports,
+			p.cnBuilder.ExternalIP(),
 		),
 		p.portPool,
 		p.runner,
@@ -477,13 +472,13 @@ func (p *LinuxContainerPool) saveRootFSProvider(id string, provider string) erro
 
 func (p *LinuxContainerPool) acquirePoolResources(spec garden.ContainerSpec, id string) (*linux_backend.Resources, error) {
 	var err error
-	resources := linux_backend.NewResources(0, 1, nil, nil)
+	resources := linux_backend.NewResources(0, 1, nil, nil, p.cnBuilder.ExternalIP())
 
 	if err := p.acquireUID(resources, spec.Privileged); err != nil {
 		return nil, err
 	}
 
-	if resources.Network, err = p.builders.Build(spec.Network, &p.sysconfig, id); err != nil {
+	if resources.Network, err = p.cnBuilder.Build(spec.Network, &p.sysconfig, id); err != nil {
 		p.logger.Error("network-acquire-failed", err)
 		p.releasePoolResources(resources)
 		return nil, err
@@ -526,7 +521,7 @@ func (p *LinuxContainerPool) releasePoolResources(resources *linux_backend.Resou
 	}
 
 	if resources.Network != nil {
-		resources.Network.Dismantle()
+		p.cnBuilder.Dismantle(resources.Network)
 	}
 }
 
@@ -562,7 +557,8 @@ func (p *LinuxContainerPool) acquireSystemResources(id, containerPath, rootFSPat
 		"root_uid":    strconv.FormatUint(uint64(resources.RootUID), 10),
 		"PATH":        os.Getenv("PATH"),
 	}
-	resources.Network.ConfigureProcess(env)
+	resources.Network.ConfigureEnvironment(env)
+	p.cnBuilder.ConfigureEnvironment(env)
 	create.Env = env.Array()
 
 	pRunner := logging.Runner{

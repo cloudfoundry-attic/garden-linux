@@ -18,14 +18,14 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/pivotal-golang/lager/lagertest"
 
-	"github.com/cloudfoundry-incubator/garden-linux/fences/fake_fences"
-	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network"
-	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/fakes"
-	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/iptables"
+	"github.com/cloudfoundry-incubator/garden-linux/network"
+	"github.com/cloudfoundry-incubator/garden-linux/network/fakes"
+	"github.com/cloudfoundry-incubator/garden-linux/network/iptables"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool"
+	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/fake_cnet"
+	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/fake_cnet_persistor"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/fake_container_pool"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/fake_fence_persistor"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/rootfs_provider/fake_rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/port_pool/fake_port_pool"
@@ -43,8 +43,8 @@ var _ = Describe("Container pool", func() {
 	var depotPath string
 	var fakeRunner *fake_command_runner.FakeCommandRunner
 	var fakeUIDPool *fake_uid_pool.FakeUIDPool
-	var fakeFences *fake_fences.FakeFences
-	var fakeFencePersistor *fake_fence_persistor.FakeFencePersistor
+	var fakeCN *fake_cnet.FakeBuilder
+	var fakeCNPersistor *fake_cnet_persistor.FakeCNPersistor
 	var fakeQuotaManager *fake_quota_manager.FakeQuotaManager
 	var fakePortPool *fake_port_pool.FakePortPool
 	var defaultFakeRootFSProvider *fake_rootfs_provider.FakeRootFSProvider
@@ -59,10 +59,10 @@ var _ = Describe("Container pool", func() {
 		Ω(err).ShouldNot(HaveOccurred())
 
 		fakeUIDPool = fake_uid_pool.New(10000)
-		fakeFences = fake_fences.New(ipNet)
+		fakeCN = fake_cnet.New(ipNet)
 
-		fakeFencePersistor = fake_fence_persistor.New()
-		fakeFencePersistor.RecoverResult, err = fakeFences.Build("", nil, "container id")
+		fakeCNPersistor = fake_cnet_persistor.New()
+		fakeCNPersistor.RecoverResult, err = fakeCN.Build("", nil, "container id")
 		Ω(err).ShouldNot(HaveOccurred())
 
 		fakeFilter = new(fakes.FakeFilter)
@@ -94,8 +94,8 @@ var _ = Describe("Container pool", func() {
 				"fake": fakeRootFSProvider,
 			},
 			fakeUIDPool,
-			fakeFences,
-			fakeFencePersistor,
+			fakeCN,
+			fakeCNPersistor,
 			fakeFilterProvider,
 			iptables.NewGlobalChain("global-default-chain", fakeRunner, logger),
 			fakePortPool,
@@ -113,7 +113,7 @@ var _ = Describe("Container pool", func() {
 	Describe("MaxContainer", func() {
 		Context("when constrained by network pool size", func() {
 			BeforeEach(func() {
-				fakeFences.InitialPoolSize = 5
+				fakeCN.InitialPoolSize = 5
 				fakeUIDPool.InitialPoolSize = 3000
 			})
 
@@ -123,7 +123,7 @@ var _ = Describe("Container pool", func() {
 		})
 		Context("when constrained by uid pool size", func() {
 			BeforeEach(func() {
-				fakeFences.InitialPoolSize = 666
+				fakeCN.InitialPoolSize = 666
 				fakeUIDPool.InitialPoolSize = 42
 			})
 
@@ -231,7 +231,7 @@ var _ = Describe("Container pool", func() {
 
 		itReleasesTheIPBlock := func() {
 			It("returns the container's IP block to the pool", func() {
-				Ω(fakeFences.Released).Should(Equal([]string{"1.2.0.0/30"}))
+				Ω(fakeCN.Released).Should(Equal([]string{"1.2.0.0/30"}))
 			})
 		}
 
@@ -328,7 +328,8 @@ var _ = Describe("Container pool", func() {
 						Args: []string{path.Join(depotPath, container.ID())},
 						Env: []string{
 							"PATH=" + os.Getenv("PATH"),
-							"fake_fences_env=1.2.0.0/30",
+							"fake_env=1.2.0.0/30",
+							"fake_global_env=global_value",
 							"id=" + container.ID(),
 							"root_uid=0",
 							"rootfs_path=/provided/rootfs/path",
@@ -350,7 +351,8 @@ var _ = Describe("Container pool", func() {
 						Args: []string{path.Join(depotPath, container.ID())},
 						Env: []string{
 							"PATH=" + os.Getenv("PATH"),
-							"fake_fences_env=1.2.0.0/30",
+							"fake_env=1.2.0.0/30",
+							"fake_global_env=global_value",
 							"id=" + container.ID(),
 							"root_uid=10001",
 							"rootfs_path=/provided/rootfs/path",
@@ -374,7 +376,8 @@ var _ = Describe("Container pool", func() {
 						Args: []string{path.Join(depotPath, container.ID())},
 						Env: []string{
 							"PATH=" + os.Getenv("PATH"),
-							"fake_fences_env=1.3.0.0/30",
+							"fake_env=1.3.0.0/30",
+							"fake_global_env=global_value",
 							"id=" + container.ID(),
 							"root_uid=10001",
 							"rootfs_path=/provided/rootfs/path",
@@ -390,7 +393,7 @@ var _ = Describe("Container pool", func() {
 				})
 
 				Ω(err).ShouldNot(HaveOccurred())
-				Ω(fakeFences.Allocated).Should(ContainElement("1.3.0.0/30"))
+				Ω(fakeCN.Allocated).Should(ContainElement("1.3.0.0/30"))
 			})
 
 			Context("when allocation of the specified Network fails", func() {
@@ -398,7 +401,7 @@ var _ = Describe("Container pool", func() {
 				allocateError := errors.New("allocateError")
 
 				BeforeEach(func() {
-					fakeFences.AllocateError = allocateError
+					fakeCN.AllocateError = allocateError
 					_, err = pool.Create(garden.ContainerSpec{
 						Network: "1.2.0.0/30",
 					})
@@ -460,7 +463,8 @@ var _ = Describe("Container pool", func() {
 						Args: []string{path.Join(depotPath, container.ID())},
 						Env: []string{
 							"PATH=" + os.Getenv("PATH"),
-							"fake_fences_env=1.2.0.0/30",
+							"fake_env=1.2.0.0/30",
+							"fake_global_env=global_value",
 							"id=" + container.ID(),
 							"root_uid=10001",
 							"rootfs_path=/var/some/mount/point",
@@ -745,11 +749,11 @@ var _ = Describe("Container pool", func() {
 			})
 		})
 
-		Context("when persisting a fence fails", func() {
+		Context("when persisting a cnet fails", func() {
 			nastyError := errors.New("oh no!")
 
 			JustBeforeEach(func() {
-				fakeFencePersistor.PersistError = nastyError
+				fakeCNPersistor.PersistError = nastyError
 			})
 
 			It("returns the error", func() {
@@ -778,7 +782,7 @@ var _ = Describe("Container pool", func() {
 				Ω(err).Should(Equal(nastyError))
 
 				Ω(fakeUIDPool.Released).Should(ContainElement(uint32(10000)))
-				Ω(fakeFences.Released).Should(ContainElement("1.2.0.0/30"))
+				Ω(fakeCN.Released).Should(ContainElement("1.2.0.0/30"))
 			})
 
 			itReleasesTheUserIDs()
@@ -895,7 +899,7 @@ var _ = Describe("Container pool", func() {
 			_, err := pool.Restore(snapshot)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Ω(fakeFences.Recovered).Should(ContainElement(string(restoredNetwork)))
+			Ω(fakeCN.Recovered).Should(ContainElement(string(restoredNetwork)))
 		})
 
 		It("removes its ports from the pool", func() {
@@ -935,7 +939,7 @@ var _ = Describe("Container pool", func() {
 			disaster := errors.New("oh no!")
 
 			JustBeforeEach(func() {
-				fakeFences.RebuildError = disaster
+				fakeCN.RebuildError = disaster
 			})
 
 			It("returns the error and releases the uid", func() {
@@ -958,7 +962,7 @@ var _ = Describe("Container pool", func() {
 				Ω(err).Should(Equal(disaster))
 
 				Ω(fakeUIDPool.Released).Should(ContainElement(uint32(10000)))
-				Ω(fakeFences.Recovered).Should(ContainElement(string(restoredNetwork)))
+				Ω(fakeCN.Recovered).Should(ContainElement(string(restoredNetwork)))
 				Ω(fakePortPool.Released).Should(ContainElement(uint32(61001)))
 				Ω(fakePortPool.Released).Should(ContainElement(uint32(61002)))
 				Ω(fakePortPool.Released).Should(ContainElement(uint32(61003)))
@@ -972,19 +976,19 @@ var _ = Describe("Container pool", func() {
 				err := os.MkdirAll(path.Join(depotPath, "container-1"), 0755)
 				Ω(err).ShouldNot(HaveOccurred())
 
-				err = createJsonFile(path.Join(depotPath, "container-1", "fenceConfig.json"))
+				err = createJsonFile(path.Join(depotPath, "container-1", "cnetConfig.json"))
 				Ω(err).ShouldNot(HaveOccurred())
 
 				err = os.MkdirAll(path.Join(depotPath, "container-2"), 0755)
 				Ω(err).ShouldNot(HaveOccurred())
 
-				err = createJsonFile(path.Join(depotPath, "container-2", "fenceConfig.json"))
+				err = createJsonFile(path.Join(depotPath, "container-2", "cnetConfig.json"))
 				Ω(err).ShouldNot(HaveOccurred())
 
 				err = os.MkdirAll(path.Join(depotPath, "container-3"), 0755)
 				Ω(err).ShouldNot(HaveOccurred())
 
-				err = createJsonFile(path.Join(depotPath, "container-3", "fenceConfig.json"))
+				err = createJsonFile(path.Join(depotPath, "container-3", "cnetConfig.json"))
 				Ω(err).ShouldNot(HaveOccurred())
 
 				err = os.MkdirAll(path.Join(depotPath, "tmp"), 0755)
@@ -1173,7 +1177,7 @@ var _ = Describe("Container pool", func() {
 
 			Ω(fakeUIDPool.Released).Should(ContainElement(uint32(10000)))
 
-			Ω(fakeFences.Released).Should(ContainElement("1.2.0.0/30"))
+			Ω(fakeCN.Released).Should(ContainElement("1.2.0.0/30"))
 		})
 
 		It("tears down filter chains", func() {
@@ -1221,7 +1225,7 @@ var _ = Describe("Container pool", func() {
 					Ω(fakePortPool.Released).ShouldNot(ContainElement(uint32(123)))
 					Ω(fakePortPool.Released).ShouldNot(ContainElement(uint32(456)))
 					Ω(fakeUIDPool.Released).ShouldNot(ContainElement(uint32(10000)))
-					Ω(fakeFences.Released).ShouldNot(ContainElement("1.2.0.0/30"))
+					Ω(fakeCN.Released).ShouldNot(ContainElement("1.2.0.0/30"))
 				})
 
 				It("does not tear down the filter", func() {
@@ -1267,7 +1271,7 @@ var _ = Describe("Container pool", func() {
 
 				Ω(fakeUIDPool.Released).Should(BeEmpty())
 
-				Ω(fakeFences.Released).Should(BeEmpty())
+				Ω(fakeCN.Released).Should(BeEmpty())
 			})
 
 			It("does not tear down the filter", func() {
@@ -1286,7 +1290,7 @@ func createJsonFile(name string) error {
 
 	b := []byte("{}")
 	rm := json.RawMessage(b)
-	fp := container_pool.RawFence{&rm}
+	fp := container_pool.RawCN{&rm}
 	err = json.NewEncoder(f).Encode(fp)
 	if err != nil {
 		return err

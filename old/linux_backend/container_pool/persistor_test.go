@@ -7,8 +7,8 @@ import (
 	"os"
 	"path"
 
-	"github.com/cloudfoundry-incubator/garden-linux/fences"
-	"github.com/cloudfoundry-incubator/garden-linux/fences/fake_fences"
+	"github.com/cloudfoundry-incubator/garden-linux/network/cnet"
+	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/fake_cnet"
 	"github.com/pivotal-golang/lager/lagertest"
 
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool"
@@ -18,12 +18,12 @@ import (
 
 var _ = Describe("Persistor", func() {
 	var (
-		fencePersistor container_pool.FencePersistor
-		fenceBuilder   container_pool.FenceBuilder
-		fakeFence      *fake_fences.FakeFences
-		fence          fences.Fence
-		persistPath    string
-		ipNet          *net.IPNet
+		cnPersistor container_pool.CNPersistor
+		cnBuilder   cnet.Builder
+		fakeCN      *fake_cnet.FakeBuilder
+		cn          cnet.ContainerNetwork
+		persistPath string
+		ipNet       *net.IPNet
 	)
 
 	BeforeEach(func() {
@@ -31,9 +31,9 @@ var _ = Describe("Persistor", func() {
 		_, ipNet, err = net.ParseCIDR("1.2.0.0/20")
 		Ω(err).ShouldNot(HaveOccurred())
 
-		fakeFence = fake_fences.New(ipNet)
-		fenceBuilder = fakeFence
-		fence, err = fenceBuilder.Build("1.2.0.0/20", nil, "test-id")
+		fakeCN = fake_cnet.New(ipNet)
+		cnBuilder = fakeCN
+		cn, err = cnBuilder.Build("1.2.0.0/20", nil, "test-id")
 		Ω(err).ShouldNot(HaveOccurred())
 		persistPath, err = ioutil.TempDir("", "test-persistor-path")
 	})
@@ -43,87 +43,87 @@ var _ = Describe("Persistor", func() {
 		Ω(err).ShouldNot(HaveOccurred())
 	})
 
-	Context("a (net)fence", func() {
+	Context("a container network", func() {
 		BeforeEach(func() {
-			fencePersistor = container_pool.NewFencePersistor(lagertest.NewTestLogger("test"), fenceBuilder)
+			cnPersistor = container_pool.NewCNPersistor(lagertest.NewTestLogger("test"), cnBuilder)
 		})
 		It("can be persisted", func() {
-			Ω(fencePersistor.Persist(fence, persistPath)).ShouldNot(HaveOccurred())
+			Ω(cnPersistor.Persist(cn, persistPath)).ShouldNot(HaveOccurred())
 		})
 
 		Context("can be recovered", func() {
 			BeforeEach(func() {
-				Ω(fencePersistor.Persist(fence, persistPath)).ShouldNot(HaveOccurred())
+				Ω(cnPersistor.Persist(cn, persistPath)).ShouldNot(HaveOccurred())
 			})
 
 			It("successfully", func() {
-				recoveredFence, err := fencePersistor.Recover(persistPath)
+				recoveredCN, err := cnPersistor.Recover(persistPath)
 				Ω(err).ShouldNot(HaveOccurred())
 
-				By("and result in the same fence content")
-				Ω(recoveredFence).Should(Equal(fence))
+				By("and result in the same cnet content")
+				Ω(recoveredCN).Should(Equal(cn))
 
-				By("and marshal the fence correctly")
-				Ω(fakeFence.Recovered[0]).Should(Equal(`{"Subnet":"1.2.0.0/20"}`))
+				By("and marshal the cnet correctly")
+				Ω(fakeCN.Recovered[0]).Should(Equal(`{"Subnet":"1.2.0.0/20"}`))
 			})
 		})
 
 		Context("cannot be persisted", func() {
 			It("when the path cannot be created", func() {
-				err := fencePersistor.Persist(fence, "")
+				err := cnPersistor.Persist(cn, "")
 				Ω(err).Should(HaveOccurred())
 				Ω(err.Error()).Should(HavePrefix("Cannot create persistor directory"))
 			})
 
 			It("when MarshalJSON returns an error", func() {
-				fakeFence.MarshalError = errors.New("banana")
-				err := fencePersistor.Persist(fence, persistPath)
+				fakeCN.MarshalError = errors.New("banana")
+				err := cnPersistor.Persist(cn, persistPath)
 				Ω(err).Should(HaveOccurred())
-				Ω(err.Error()).Should(HavePrefix("Cannot marshall fence "))
+				Ω(err.Error()).Should(HavePrefix("Cannot marshall cnet "))
 			})
 
 			It("when the persistence file cannot be opened (for write)", func() {
-				existingDir := path.Join(persistPath, "fenceConfig.json")
+				existingDir := path.Join(persistPath, "cnetConfig.json")
 				err := os.MkdirAll(existingDir, 0555)
 				Ω(err).ShouldNot(HaveOccurred())
-				err = fencePersistor.Persist(fence, persistPath)
+				err = cnPersistor.Persist(cn, persistPath)
 				Ω(err).Should(HaveOccurred())
 				Ω(err.Error()).Should(HavePrefix("Cannot create persistor file "))
 			})
 
-			It("when the fence cannot be encoded", func() {
-				fakeFence.MarshalReturns = []byte{0, 0, 0, 0, 2, 0, 1}
-				err := fencePersistor.Persist(fence, persistPath)
+			It("when the cnet cannot be encoded", func() {
+				fakeCN.MarshalReturns = []byte{0, 0, 0, 0, 2, 0, 1}
+				err := cnPersistor.Persist(cn, persistPath)
 				Ω(err).Should(HaveOccurred())
-				Ω(err.Error()).Should(HavePrefix("Cannot encode fence "))
+				Ω(err.Error()).Should(HavePrefix("Cannot encode cnet "))
 			})
 		})
 
 		Context("cannot be recovered", func() {
 			BeforeEach(func() {
-				Ω(fencePersistor.Persist(fence, persistPath)).ShouldNot(HaveOccurred())
+				Ω(cnPersistor.Persist(cn, persistPath)).ShouldNot(HaveOccurred())
 			})
 
 			It("when the persistence file cannot be opened", func() {
-				_, err := fencePersistor.Recover("no-such-dir")
+				_, err := cnPersistor.Recover("no-such-dir")
 				Ω(err).Should(HaveOccurred())
 				Ω(err.Error()).Should(HavePrefix("Cannot open persistor file "))
 			})
 
 			It("when the persistence file cannot be decoded", func() {
-				configFile := path.Join(persistPath, "fenceConfig.json")
+				configFile := path.Join(persistPath, "cnetConfig.json")
 				err := ioutil.WriteFile(configFile, []byte{0, 1, 2}, 0755)
 				Ω(err).ShouldNot(HaveOccurred())
-				_, err = fencePersistor.Recover(persistPath)
+				_, err = cnPersistor.Recover(persistPath)
 				Ω(err).Should(HaveOccurred())
 				Ω(err.Error()).Should(HavePrefix("Cannot decode persistor file "))
 			})
 
-			It("when the fence cannot be rebuilt", func() {
-				fakeFence.RebuildError = errors.New("rebuild err")
-				_, err := fencePersistor.Recover(persistPath)
+			It("when the cnet cannot be rebuilt", func() {
+				fakeCN.RebuildError = errors.New("rebuild err")
+				_, err := cnPersistor.Recover(persistPath)
 				Ω(err).Should(HaveOccurred())
-				Ω(err.Error()).Should(HavePrefix("Cannot rebuild fence "))
+				Ω(err.Error()).Should(HavePrefix("Cannot rebuild cnet "))
 			})
 		})
 	})

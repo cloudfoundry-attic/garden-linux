@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network"
+	"github.com/cloudfoundry-incubator/garden-linux/network"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/process_tracker"
@@ -545,6 +545,8 @@ func (c *LinuxContainer) Info() (garden.ContainerInfo, error) {
 	}
 
 	c.Resources().Network.Info(&info)
+	info.ExternalIP = c.Resources().ExternalIP.String()
+
 	return info, nil
 }
 

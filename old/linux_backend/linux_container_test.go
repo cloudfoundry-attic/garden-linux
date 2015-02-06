@@ -20,7 +20,7 @@ import (
 	"github.com/pivotal-golang/lager/lagertest"
 
 	"github.com/cloudfoundry-incubator/garden"
-	networkFakes "github.com/cloudfoundry-incubator/garden-linux/fences/netfence/network/fakes"
+	networkFakes "github.com/cloudfoundry-incubator/garden-linux/network/fakes"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/bandwidth_manager/fake_bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/cgroups_manager/fake_cgroups_manager"
@@ -73,6 +73,7 @@ var _ = Describe("Linux containers", func() {
 			1235,
 			&fakeNetworkResources{},
 			[]uint32{},
+			nil,
 		)
 
 		mtu = 1500
@@ -2263,7 +2264,7 @@ func (f *fakeNetworkResources) MarshalJSON() ([]byte, error) {
 	return json.Marshal("fakeNetMarshal")
 }
 
-func (f *fakeNetworkResources) ConfigureProcess(process.Env) error {
+func (f *fakeNetworkResources) ConfigureEnvironment(process.Env) error {
 	return nil
 }
 
