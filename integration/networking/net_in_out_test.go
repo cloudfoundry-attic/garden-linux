@@ -75,7 +75,7 @@ var _ = Describe("Net In/Out", func() {
 
 	Context("external addresses", func() {
 		var (
-			ByAllowingTCP, ByAllowingICMP, ByRejectingTCP, ByRejectingICMP func()
+			ByAllowingTCP, ByAllowingICMPPings, ByRejectingTCP, ByRejectingICMPPings func()
 		)
 
 		BeforeEach(func() {
@@ -90,7 +90,7 @@ var _ = Describe("Net In/Out", func() {
 				})
 			}
 
-			ByAllowingICMP = func() {
+			ByAllowingICMPPings = func() {
 				if err := exec.Command("sh", "-c", fmt.Sprintf("ping -c 1 -w 1 %s", externalIP)).Run(); err != nil {
 					fmt.Println("Ginkgo host environment cannot ping out, skipping ICMP out test: ", err)
 					return
@@ -122,13 +122,18 @@ var _ = Describe("Net In/Out", func() {
 				})
 			}
 
-			ByRejectingICMP = func() {
+			ByRejectingICMPPings = func() {
 				if err := exec.Command("sh", "-c", fmt.Sprintf("ping  -c 1 -w 1 %s", externalIP)).Run(); err != nil {
 					fmt.Println("Ginkgo host environment cannot ping out, skipping ICMP out test: ", err)
 					return
 				}
 
 				By("rejecting outbound icmp traffic", func() {
+					// sacrificial ping, which appears not to work on first packet anyway
+					runInContainer(
+						container,
+						fmt.Sprintf("ping -c 1 %s", externalIP),
+					)
 					_, out := runInContainer(
 						container,
 						fmt.Sprintf("ping -c 1 -w 1 %s", externalIP),
@@ -149,7 +154,7 @@ var _ = Describe("Net In/Out", func() {
 			Context("by default", func() {
 				It("disallows connections", func() {
 					ByRejectingTCP()
-					ByRejectingICMP()
+					ByRejectingICMPPings()
 				})
 			})
 
@@ -165,7 +170,7 @@ var _ = Describe("Net In/Out", func() {
 						},
 					})
 					ByRejectingTCP()
-					ByRejectingICMP()
+					ByRejectingICMPPings()
 				})
 			})
 
@@ -179,7 +184,7 @@ var _ = Describe("Net In/Out", func() {
 						})
 						Ω(err).ShouldNot(HaveOccurred())
 						ByAllowingTCP()
-						ByAllowingICMP()
+						ByAllowingICMPPings()
 					})
 				})
 
@@ -193,7 +198,7 @@ var _ = Describe("Net In/Out", func() {
 						})
 						Ω(err).ShouldNot(HaveOccurred())
 						ByAllowingTCP()
-						ByAllowingICMP()
+						ByAllowingICMPPings()
 					})
 				})
 
@@ -207,7 +212,7 @@ var _ = Describe("Net In/Out", func() {
 						})
 						Ω(err).ShouldNot(HaveOccurred())
 						ByAllowingTCP()
-						ByAllowingICMP()
+						ByAllowingICMPPings()
 					})
 				})
 			})
@@ -232,7 +237,7 @@ var _ = Describe("Net In/Out", func() {
 						containerNetwork = fmt.Sprintf("10.1%d.2.0/24", GinkgoParallelNode())
 					})
 
-					It("allows TCP and blocks ICMP", func() {
+					It("allows TCP and rejects ICMP pings", func() {
 						err := container.NetOut(garden.NetOutRule{
 							Protocol: garden.ProtocolTCP,
 							Networks: []garden.IPRange{
@@ -241,7 +246,7 @@ var _ = Describe("Net In/Out", func() {
 						})
 						Ω(err).ShouldNot(HaveOccurred())
 						ByAllowingTCP()
-						ByRejectingICMP()
+						ByRejectingICMPPings()
 					})
 				})
 
@@ -250,7 +255,7 @@ var _ = Describe("Net In/Out", func() {
 						containerNetwork = fmt.Sprintf("10.1%d.3.0/24", GinkgoParallelNode())
 					})
 
-					It("rejects ICMP pings and blocks TCP", func() {
+					It("rejects ICMP pings and TCP", func() {
 						err := container.NetOut(garden.NetOutRule{
 							Protocol: garden.ProtocolICMP,
 							Networks: []garden.IPRange{
@@ -262,7 +267,7 @@ var _ = Describe("Net In/Out", func() {
 							},
 						})
 						Ω(err).ShouldNot(HaveOccurred())
-						ByRejectingICMP()
+						ByRejectingICMPPings()
 						ByRejectingTCP()
 					})
 				})
@@ -272,7 +277,7 @@ var _ = Describe("Net In/Out", func() {
 						containerNetwork = fmt.Sprintf("10.1%d.4.0/24", GinkgoParallelNode())
 					})
 
-					It("allows ICMP pings and blocks TCP", func() {
+					It("allows ICMP pings and rejects TCP", func() {
 						Ω(container.NetOut(garden.NetOutRule{
 							Protocol: garden.ProtocolICMP,
 							Networks: []garden.IPRange{
@@ -283,7 +288,7 @@ var _ = Describe("Net In/Out", func() {
 								Code: garden.ICMPControlCode(4), // but not correct code
 							},
 						})).Should(Succeed())
-						ByRejectingICMP()
+						ByRejectingICMPPings()
 						ByRejectingTCP()
 
 						Ω(container.NetOut(garden.NetOutRule{
@@ -295,7 +300,7 @@ var _ = Describe("Net In/Out", func() {
 								Type: 8, // ping request, all codes accepted
 							},
 						})).Should(Succeed())
-						ByAllowingICMP()
+						ByAllowingICMPPings()
 						ByRejectingTCP()
 					})
 				})
@@ -305,14 +310,14 @@ var _ = Describe("Net In/Out", func() {
 						containerNetwork = fmt.Sprintf("10.1%d.5.0/24", GinkgoParallelNode())
 					})
 
-					It("allows ICMP and blocks TCP", func() {
+					It("allows ICMP and rejects TCP", func() {
 						Ω(container.NetOut(garden.NetOutRule{
 							Protocol: garden.ProtocolICMP,
 							Networks: []garden.IPRange{
 								garden.IPRangeFromIP(externalIP),
 							},
 						})).Should(Succeed())
-						ByAllowingICMP()
+						ByAllowingICMPPings()
 						ByRejectingTCP()
 					})
 				})
@@ -328,7 +333,7 @@ var _ = Describe("Net In/Out", func() {
 
 			It("allows connections", func() {
 				ByAllowingTCP()
-				ByAllowingICMP()
+				ByAllowingICMPPings()
 			})
 		})
 
@@ -341,7 +346,7 @@ var _ = Describe("Net In/Out", func() {
 
 			It("allows connections", func() {
 				ByAllowingTCP()
-				ByAllowingICMP()
+				ByAllowingICMPPings()
 			})
 		})
 	})
@@ -390,7 +395,7 @@ var _ = Describe("Net In/Out", func() {
 			})
 		}
 
-		ByAllowingICMP := func() {
+		ByAllowingICMPPings := func() {
 			By("allowing icmp traffic to it", func() {
 				_, out := runInContainer(
 					container,
@@ -424,7 +429,7 @@ var _ = Describe("Net In/Out", func() {
 			})
 		}
 
-		ByRejectingICMP := func() {
+		ByRejectingICMPPings := func() {
 			By("not allowing icmp traffic to it", func() {
 				_, out := runInContainer(
 					container,
@@ -456,7 +461,7 @@ var _ = Describe("Net In/Out", func() {
 				})
 
 				It("allows connections", func() {
-					ByAllowingICMP()
+					ByAllowingICMPPings()
 					ByAllowingTCP()
 					ByAllowingUDP()
 				})
@@ -492,7 +497,7 @@ var _ = Describe("Net In/Out", func() {
 
 				Context("by default", func() {
 					It("does not allow connections", func() {
-						ByRejectingICMP()
+						ByRejectingICMPPings()
 						ByRejectingUDP()
 						ByRejectingTCP()
 					})
@@ -505,7 +510,7 @@ var _ = Describe("Net In/Out", func() {
 								IPRangeFromCIDR("1.2.3.4/30"),
 							},
 						})).Should(Succeed())
-						ByRejectingICMP()
+						ByRejectingICMPPings()
 						ByRejectingUDP()
 						ByRejectingTCP()
 					})
@@ -519,7 +524,7 @@ var _ = Describe("Net In/Out", func() {
 									garden.IPRangeFromIPNet(otherContainerNetwork),
 								},
 							})).Should(Succeed())
-							ByAllowingICMP()
+							ByAllowingICMPPings()
 							ByAllowingUDP()
 							ByAllowingTCP()
 						})
@@ -550,7 +555,7 @@ var _ = Describe("Net In/Out", func() {
 								},
 							})).Should(Succeed())
 							ByRejectingUDP()
-							ByRejectingICMP()
+							ByRejectingICMPPings()
 							ByAllowingTCP()
 						})
 
@@ -578,7 +583,7 @@ var _ = Describe("Net In/Out", func() {
 								},
 							})).Should(Succeed())
 							ByRejectingUDP()
-							ByRejectingICMP()
+							ByRejectingICMPPings()
 							ByAllowingTCP()
 						})
 					})
@@ -606,7 +611,7 @@ var _ = Describe("Net In/Out", func() {
 								},
 							})).Should(Succeed())
 							ByRejectingUDP()
-							ByRejectingICMP()
+							ByRejectingICMPPings()
 							ByAllowingTCP()
 						})
 
@@ -631,7 +636,7 @@ var _ = Describe("Net In/Out", func() {
 									garden.PortRangeFromPort(udpPort),
 								},
 							})).Should(Succeed())
-							ByRejectingICMP()
+							ByRejectingICMPPings()
 							ByRejectingTCP()
 							ByAllowingUDP()
 						})
@@ -650,7 +655,7 @@ var _ = Describe("Net In/Out", func() {
 							})).Should(Succeed())
 
 							ByRejectingUDP()
-							ByRejectingICMP()
+							ByRejectingICMPPings()
 							ByAllowingTCP()
 						})
 
@@ -666,14 +671,14 @@ var _ = Describe("Net In/Out", func() {
 							})).Should(Succeed())
 
 							ByRejectingTCP()
-							ByRejectingICMP()
+							ByRejectingICMPPings()
 							ByAllowingUDP()
 						})
 					})
 				})
 
 				Describe("when no port or port is specified", func() {
-					It("allows all TCP and blocks other protocols", func() {
+					It("allows all TCP and rejects other protocols", func() {
 						Ω(container.NetOut(garden.NetOutRule{
 							Protocol: garden.ProtocolTCP,
 							Networks: []garden.IPRange{
@@ -681,11 +686,11 @@ var _ = Describe("Net In/Out", func() {
 							},
 						})).Should(Succeed())
 						ByAllowingTCP()
-						ByRejectingICMP()
+						ByRejectingICMPPings()
 						ByRejectingUDP()
 					})
 
-					It("allows UDP and blocks other protocols", func() {
+					It("allows UDP and rejects other protocols", func() {
 						Ω(container.NetOut(garden.NetOutRule{
 							Protocol: garden.ProtocolUDP,
 							Networks: []garden.IPRange{
@@ -693,7 +698,7 @@ var _ = Describe("Net In/Out", func() {
 							},
 						})).Should(Succeed())
 						ByRejectingTCP()
-						ByRejectingICMP()
+						ByRejectingICMPPings()
 						ByAllowingUDP()
 					})
 				})
@@ -775,7 +780,7 @@ sync=1
 				It("allows connections", func() {
 					ByAllowingTCP()
 					ByAllowingUDP()
-					ByAllowingICMP()
+					ByAllowingICMPPings()
 				})
 			})
 
@@ -789,7 +794,7 @@ sync=1
 				It("allows connections", func() {
 					ByAllowingTCP()
 					ByAllowingUDP()
-					ByAllowingICMP()
+					ByAllowingICMPPings()
 				})
 			})
 		})
