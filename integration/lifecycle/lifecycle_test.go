@@ -857,7 +857,7 @@ var _ = Describe("Creating a container", func() {
 
 			iptables, err := gexec.Start(exec.Command("iptables", "-L"), GinkgoWriter, GinkgoWriter)
 			Ω(err).ShouldNot(HaveOccurred())
-			Eventually(iptables).Should(gexec.Exit())
+			Eventually(iptables, "2s").Should(gexec.Exit())
 			Ω(iptables).ShouldNot(gbytes.Say(handle))
 		})
 	})
