@@ -349,6 +349,30 @@ var _ = Describe("Net In/Out", func() {
 				ByAllowingICMPPings()
 			})
 		})
+
+		Context("when there are two containers in the same subnet", func() {
+			BeforeEach(func() {
+				denyRange = "0.0.0.0/0"
+				containerNetwork = fmt.Sprintf("10.1%d.0.0/24", GinkgoParallelNode())
+			})
+
+			It("does not allow rules from the second container to affect the first", func() {
+				var err error
+				secondContainer, err := client.Create(garden.ContainerSpec{Network: containerNetwork, Privileged: true})
+				Ω(err).ShouldNot(HaveOccurred())
+
+				ByRejectingTCP()
+
+				Ω(secondContainer.NetOut(garden.NetOutRule{
+					Networks: []garden.IPRange{
+						garden.IPRangeFromIP(externalIP),
+					},
+				})).Should(Succeed())
+
+				By("continuing to reject")
+				ByRejectingTCP()
+			})
+		})
 	})
 
 	Describe("Other Containers", func() {

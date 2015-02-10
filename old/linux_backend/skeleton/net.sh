@@ -47,6 +47,7 @@ function setup_filter() {
   # Bind instance chain to forward chain
   iptables --wait -I ${filter_forward_chain} 2 \
     --in-interface ${bridge_iface} \
+    --source ${network_container_ip} \
     --goto ${filter_instance_chain}
 }
 
