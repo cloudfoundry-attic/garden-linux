@@ -156,11 +156,11 @@ var _ = Describe("The Garden server", func() {
 	})
 
 	FDescribe("streaming output from a chatty job", func() {
-		streamCounts := []int{0}
+		streamCounts := []int{1, 4, 8}
 
-		for i := 1; i <= 128; i *= 2 {
-			streamCounts = append(streamCounts, i)
-		}
+		// for i := 1; i <= 128; i *= 2 {
+		// 	streamCounts = append(streamCounts, i)
+		// }
 
 		for _, streams := range streamCounts {
 			Context(fmt.Sprintf("with %d streams", streams), func() {
@@ -247,8 +247,8 @@ var _ = Describe("The Garden server", func() {
 					Ω(err).ShouldNot(HaveOccurred())
 
 					b.RecordValue(
-						"received rsyslog messages",
-						float64(rsyslogMessages),
+						"received bytes/sec",
+						float64(rsyslogMessages*len("foo\n"))/float64(time.Since(started)/time.Second),
 						// float64(atomic.LoadUint64(&receivedBytes))/float64(time.Since(started)/time.Second),
 					)
 
