@@ -19,8 +19,7 @@ type ContainerNetwork interface {
 	String() string
 }
 
-// This should not be used outside this package.
-type FlatContainerNetwork struct {
+type flatContainerNetwork struct {
 	Ipn              string
 	ContainerIP      string
 	ContainerIfcName string
@@ -47,7 +46,7 @@ func (cn *containerNetwork) Info(i *garden.ContainerInfo) {
 }
 
 func (cn *containerNetwork) MarshalJSON() ([]byte, error) {
-	fcn := FlatContainerNetwork{cn.ipNet.String(), cn.containerIP.String(), cn.containerIfc, cn.hostIfc, cn.bridgeIfc}
+	fcn := flatContainerNetwork{cn.ipNet.String(), cn.containerIP.String(), cn.containerIfc, cn.hostIfc, cn.bridgeIfc}
 	return json.Marshal(fcn)
 }
 

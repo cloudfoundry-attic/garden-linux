@@ -90,7 +90,7 @@ func (cnb *containerNetworkBuilder) Build(spec string, sysconfig *sysconfig.Conf
 // Returns an error if any of the allocations stored in the recovered container network are no longer
 // available.
 func (cnb *containerNetworkBuilder) Rebuild(rm *json.RawMessage) (ContainerNetwork, error) {
-	fcn := FlatContainerNetwork{}
+	fcn := flatContainerNetwork{}
 	if err := json.Unmarshal(*rm, &fcn); err != nil {
 		return nil, err
 	}
