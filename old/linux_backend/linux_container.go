@@ -466,6 +466,10 @@ func (c *LinuxContainer) SetProperty(key string, value string) error {
 	c.propertiesMutex.Lock()
 	defer c.propertiesMutex.Unlock()
 
+	if c.properties == nil {
+		c.properties = make(map[string]string)
+	}
+
 	c.properties[key] = value
 
 	return nil

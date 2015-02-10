@@ -44,7 +44,9 @@ var fakePortPool *fake_port_pool.FakePortPool
 var fakeProcessTracker *fake_process_tracker.FakeProcessTracker
 var fakeFilter *networkFakes.FakeFilter
 var containerDir string
+var containerProps map[string]string
 var mtu uint32
+
 var oldLang string
 
 var _ = Describe("Linux containers", func() {
@@ -78,6 +80,11 @@ var _ = Describe("Linux containers", func() {
 		)
 
 		mtu = 1500
+
+		containerProps = map[string]string{
+			"property-name": "property-value",
+		}
+
 		oldLang = os.Getenv("LANG")
 		os.Setenv("LANG", "en_US.UTF-8")
 	})
@@ -96,9 +103,7 @@ var _ = Describe("Linux containers", func() {
 			"some-id",
 			"some-handle",
 			containerDir,
-			map[string]string{
-				"property-name": "property-value",
-			},
+			containerProps,
 			1*time.Second,
 			containerResources,
 			fakePortPool,
@@ -1978,6 +1983,26 @@ var _ = Describe("Linux containers", func() {
 			value, err = container.GetProperty("some-other-property")
 			Ω(err).Should(Equal(linux_backend.UndefinedPropertyError{"some-other-property"}))
 			Ω(value).Should(BeZero())
+		})
+
+		Context("with a nil map of properties at container creation", func() {
+			BeforeEach(func() {
+				containerProps = nil
+			})
+
+			It("reading a property fails in the expected way", func() {
+				_, err := container.GetProperty("property-name")
+				Ω(err).Should(Equal(linux_backend.UndefinedPropertyError{"property-name"}))
+			})
+
+			It("setting a property succeeds", func() {
+				err := container.SetProperty("some-other-property", "some-other-value")
+				Ω(err).ShouldNot(HaveOccurred())
+
+				value, err := container.GetProperty("some-other-property")
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(value).Should(Equal("some-other-value"))
+			})
 		})
 	})
 
