@@ -162,6 +162,8 @@ var _ = Describe("The Garden server", func() {
 		// 	streamCounts = append(streamCounts, i)
 		// }
 
+		loggedLine := strings.Repeat("x", 1024)
+
 		for _, streams := range streamCounts {
 			Context(fmt.Sprintf("with %d streams", streams), func() {
 				var started time.Time
@@ -181,7 +183,7 @@ var _ = Describe("The Garden server", func() {
 
 							_, err := container.Run(garden.ProcessSpec{
 								Path: "sh",
-								Args: []string{"-c", "while true; do echo foo; done"},
+								Args: []string{"-c", "while true; do echo " + loggedLine + "; done"},
 							}, garden.ProcessIO{})
 							Ω(err).ShouldNot(HaveOccurred())
 
@@ -248,7 +250,7 @@ var _ = Describe("The Garden server", func() {
 
 					b.RecordValue(
 						"received bytes/sec",
-						float64(rsyslogMessages*len("foo\n"))/float64(time.Since(started)/time.Second),
+						float64(rsyslogMessages*len(loggedLine)+len("\n"))/float64(time.Since(started)/time.Second),
 						// float64(atomic.LoadUint64(&receivedBytes))/float64(time.Since(started)/time.Second),
 					)
 
