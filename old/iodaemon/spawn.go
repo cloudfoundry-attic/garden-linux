@@ -98,6 +98,22 @@ func spawn(socketPath string, argv []string, timeout time.Duration, withTty bool
 	cmd.Stdout = stdoutW
 	cmd.Stderr = stderrW
 
+	outLogger := exec.Command("logger", "-t", "gmeasure.out")
+	outLogger.Stdin = stdoutR
+
+	err = outLogger.Start()
+	if err != nil {
+		fatal(err)
+	}
+
+	errLogger := exec.Command("logger", "-t", "gmeasure.err")
+	errLogger.Stdin = stderrR
+
+	err = errLogger.Start()
+	if err != nil {
+		fatal(err)
+	}
+
 	statusR, statusW, err := os.Pipe()
 	if err != nil {
 		fatal(err)
@@ -114,9 +130,14 @@ func spawn(socketPath string, argv []string, timeout time.Duration, withTty bool
 			break
 		}
 
+		null, err := os.Open("/dev/null")
+		if err != nil {
+			fatal(err)
+		}
+
 		rights := syscall.UnixRights(
-			int(stdoutR.Fd()),
-			int(stderrR.Fd()),
+			int(null.Fd()),
+			int(null.Fd()),
 			int(statusR.Fd()),
 		)
 

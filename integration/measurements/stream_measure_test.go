@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"runtime"
 	"strconv"
 	"strings"
@@ -154,7 +155,7 @@ var _ = Describe("The Garden server", func() {
 		}, 1)
 	})
 
-	Describe("streaming output from a chatty job", func() {
+	FDescribe("streaming output from a chatty job", func() {
 		streamCounts := []int{0}
 
 		for i := 1; i <= 128; i *= 2 {
@@ -172,8 +173,6 @@ var _ = Describe("The Garden server", func() {
 					atomic.StoreUint64(&receivedBytes, 0)
 					started = time.Now()
 
-					byteCounter := &byteCounterWriter{&receivedBytes}
-
 					spawned := make(chan bool)
 
 					for j := 0; j < numToSpawn; j++ {
@@ -181,11 +180,9 @@ var _ = Describe("The Garden server", func() {
 							defer GinkgoRecover()
 
 							_, err := container.Run(garden.ProcessSpec{
-								Path: "cat",
-								Args: []string{"/dev/zero"},
-							}, garden.ProcessIO{
-								Stdout: byteCounter,
-							})
+								Path: "sh",
+								Args: []string{"-c", "while true; do echo foo; done"},
+							}, garden.ProcessIO{})
 							Ω(err).ShouldNot(HaveOccurred())
 
 							spawned <- true
@@ -233,9 +230,26 @@ var _ = Describe("The Garden server", func() {
 						Ω(err).ShouldNot(HaveOccurred())
 					})
 
+					rsyslogMessages := 0
+
+					shCmd := exec.Command("sh", "-c", "cat /var/log/gmeasure | wc -l")
+
+					shOut, err := shCmd.StdoutPipe()
+					Ω(err).ShouldNot(HaveOccurred())
+
+					err = shCmd.Start()
+					Ω(err).ShouldNot(HaveOccurred())
+
+					_, err = fmt.Fscanf(shOut, "%d", &rsyslogMessages)
+					Ω(err).ShouldNot(HaveOccurred())
+
+					err = shCmd.Wait()
+					Ω(err).ShouldNot(HaveOccurred())
+
 					b.RecordValue(
-						"received rate (bytes/second)",
-						float64(atomic.LoadUint64(&receivedBytes))/float64(time.Since(started)/time.Second),
+						"received rsyslog messages",
+						float64(rsyslogMessages),
+						// float64(atomic.LoadUint64(&receivedBytes))/float64(time.Since(started)/time.Second),
 					)
 
 					fmt.Println("total time:", time.Since(started))

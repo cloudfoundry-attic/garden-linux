@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"syscall"
 	"testing"
 
@@ -16,7 +17,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/integration/runner"
 )
 
-var binPath = "../../linux_backend/bin" // relative to test suite directory
+var binPath = "../../old/linux_backend/bin" // relative to test suite directory
 var rootFSPath = os.Getenv("GARDEN_TEST_ROOTFS")
 var graphPath = os.Getenv("GARDEN_TEST_GRAPHPATH")
 
@@ -56,12 +57,41 @@ func TestLifecycle(t *testing.T) {
 		return
 	}
 
+	var rsyslogd *os.Process
+
 	SynchronizedBeforeSuite(func() []byte {
+		rsyslogConf, err := os.Create("/etc/rsyslog.d/51-test.conf")
+		Ω(err).ShouldNot(HaveOccurred())
+
+		_, err = rsyslogConf.Write([]byte(`#
+# Please work.
+#
+$RepeatedMsgReduction off
+:programname, startswith, "gmeasure" /var/log/gmeasure
+`))
+		Ω(err).ShouldNot(HaveOccurred())
+
+		err = rsyslogConf.Close()
+		Ω(err).ShouldNot(HaveOccurred())
+
+		rsyslogdCmd := exec.Command("rsyslogd")
+		rsyslogdCmd.Stdout = os.Stdout
+		rsyslogdCmd.Stderr = os.Stderr
+
+		err = rsyslogdCmd.Start()
+		Ω(err).ShouldNot(HaveOccurred())
+
+		rsyslogd = rsyslogdCmd.Process
+
 		gardenPath, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux", "-a", "-race", "-tags", "daemon")
 		Ω(err).ShouldNot(HaveOccurred())
 		return []byte(gardenPath)
 	}, func(gardenPath []byte) {
 		gardenBin = string(gardenPath)
+	})
+
+	BeforeEach(func() {
+		// os.Remove("/var/log/gmeasure")
 	})
 
 	AfterEach(func() {
@@ -73,6 +103,9 @@ func TestLifecycle(t *testing.T) {
 		//noop
 	}, func() {
 		gexec.CleanupBuildArtifacts()
+		rsyslogd.Signal(os.Kill)
+		rsyslogd.Wait()
+		os.Remove("/etc/rsyslog.d/51-test.conf")
 	})
 
 	RegisterFailHandler(Fail)
