@@ -45,6 +45,7 @@ var fakeProcessTracker *fake_process_tracker.FakeProcessTracker
 var fakeFilter *networkFakes.FakeFilter
 var containerDir string
 var mtu uint32
+var oldLang string
 
 var _ = Describe("Linux containers", func() {
 	BeforeEach(func() {
@@ -77,6 +78,16 @@ var _ = Describe("Linux containers", func() {
 		)
 
 		mtu = 1500
+		oldLang = os.Getenv("LANG")
+		os.Setenv("LANG", "en_US.UTF-8")
+	})
+
+	AfterEach(func() {
+		if oldLang == "" {
+			os.Unsetenv("LANG")
+		} else {
+			os.Setenv("LANG", oldLang)
+		}
 	})
 
 	JustBeforeEach(func() {
