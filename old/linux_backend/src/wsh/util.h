@@ -6,6 +6,7 @@
 
 void fcntl_set_cloexec(int fd, int on);
 void fcntl_set_nonblock(int fd, int on);
+int hook(const char *p1, const char *p2);
 int run(const char *p1, const char *p2);
 void setproctitle(char **argv, const char *title);
 
