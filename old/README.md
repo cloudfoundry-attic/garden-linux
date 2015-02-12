@@ -91,7 +91,7 @@ Install ginkgo (used to test garden):
 # go install github.com/onsi/ginkgo/ginkgo
 ```
 
-Run the tests (skipping performance measurements):
+Run the tests:
 ```
-# ginkgo -r -skipMeasurements
+# ginkgo -r
 ```
