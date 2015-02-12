@@ -16,7 +16,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/integration/runner"
 )
 
-var binPath = "../../linux_backend/bin" // relative to test suite directory
+var binPath = "../../old/linux_backend/bin" // relative to test suite directory
 var rootFSPath = os.Getenv("GARDEN_TEST_ROOTFS")
 var graphPath = os.Getenv("GARDEN_TEST_GRAPHPATH")
 
