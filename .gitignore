@@ -10,3 +10,5 @@ old/linux_backend/bin/repquota
 old/linux_backend/skeleton/bin/*
 garden-test-rootfs.tar
 *.test
+.idea/*
+*.iml
