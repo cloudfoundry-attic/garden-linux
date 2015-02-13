@@ -63,16 +63,25 @@ void fcntl_set_nonblock(int fd, int on) {
 }
 
 int run(const char *p1, const char *p2) {
+  return run_with_arg(p1, p2, NULL);
+}
+
+int hook(const char *p1, const char *p2) {
+  return run_with_arg(p1, "hook", p2);
+}
+
+int run_with_arg(const char *p1, const char *p2, const char *arg) {
   char path[MAXPATHLEN];
   int rv;
-  char *argv[2];
+  char *argv[3];
   int status;
 
   rv = snprintf(path, sizeof(path), "%s/%s", p1, p2);
   assert(rv < sizeof(path));
 
   argv[0] = path;
-  argv[1] = NULL;
+  argv[1] = arg;
+  argv[2] = NULL;
 
   rv = fork();
   if (rv == -1) {

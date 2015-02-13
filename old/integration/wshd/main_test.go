@@ -62,6 +62,11 @@ var _ = Describe("Running wshd", func() {
 		err = copyFile(wshd, path.Join(binDir, "wshd"))
 		Ω(err).ShouldNot(HaveOccurred())
 
+		hookPath, err := Build("github.com/cloudfoundry-incubator/garden-linux/old/integration/wshd/fake_hook")
+		Ω(err).ShouldNot(HaveOccurred())
+		err = copyFile(hookPath, path.Join(libDir, "hook"))
+		Ω(err).ShouldNot(HaveOccurred())
+
 		ioutil.WriteFile(path.Join(libDir, "hook-parent-before-clone.sh"), []byte(`#!/bin/sh
 
 set -o nounset

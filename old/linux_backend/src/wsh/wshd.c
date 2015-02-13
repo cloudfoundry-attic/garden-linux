@@ -743,7 +743,7 @@ int child_run(void *data) {
   rv = barrier_wait(&w->barrier_parent);
   assert(rv == 0);
 
-  rv = run(w->lib_path, "hook-child-before-pivot.sh");
+  rv = hook(w->lib_path, "child-before-pivot");
   assert(rv == 0);
 
   /* Prepare lib path for pivot */
@@ -811,7 +811,7 @@ int child_run(void *data) {
     abort();
   }
 
-  rv = run(pivoted_lib_path, "hook-child-after-pivot.sh");
+  rv = hook(pivoted_lib_path, "child-after-pivot");
   if(rv != 0) {
     perror("hook-child-after-pivot");
     abort();
@@ -992,7 +992,7 @@ int parent_run(wshd_t *w) {
   rv = unshare(CLONE_NEWNS);
   assert(rv == 0);
 
-  rv = run(w->lib_path, "hook-parent-before-clone.sh");
+  rv = hook(w->lib_path, "parent-before-clone");
   assert(rv == 0);
 
   /* Set hard resource limits to their maximum values so that soft and
@@ -1005,7 +1005,7 @@ int parent_run(wshd_t *w) {
 
   parent_setenv_pid(w, pid);
 
-  rv = run(w->lib_path, "hook-parent-after-clone.sh");
+  rv = hook(w->lib_path, "parent-after-clone");
   assert(rv == 0);
 
   rv = barrier_signal(&w->barrier_parent);
