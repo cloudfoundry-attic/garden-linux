@@ -18,6 +18,13 @@ import (
 	. "github.com/onsi/gomega"
 )
 
+const (
+	iterations    = 0 // e.g. 50
+	numStreams    = 0 // e.g. 128
+	repeats       = 0 // e.g. 10
+	streamSamples = 0 // e.g. 5
+)
+
 type byteCounterWriter struct {
 	num *uint64
 }
@@ -67,8 +74,6 @@ var _ = Describe("The Garden server", func() {
 
 	Describe("repeatedly running processes", func() {
 		Measure("does not leak goroutines", func(b Benchmarker) {
-			iterations := 50
-
 			for i := 1; i <= iterations; i++ {
 				process, err := container.Run(garden.ProcessSpec{
 					Path: "echo",
@@ -108,8 +113,6 @@ var _ = Describe("The Garden server", func() {
 		})
 
 		Measure("does not leak goroutines", func(b Benchmarker) {
-			iterations := 50
-
 			for i := 1; i <= iterations; i++ {
 				stdoutR, stdoutW := io.Pipe()
 				stdinR, stdinW := io.Pipe()
@@ -157,7 +160,7 @@ var _ = Describe("The Garden server", func() {
 	Describe("streaming output from a chatty job", func() {
 		streamCounts := []int{0}
 
-		for i := 1; i <= 128; i *= 2 {
+		for i := 1; i <= numStreams; i *= 2 {
 			streamCounts = append(streamCounts, i)
 		}
 
@@ -212,15 +215,15 @@ var _ = Describe("The Garden server", func() {
 						Ω(err).ShouldNot(HaveOccurred())
 					})
 
-					for i := 0; i < 10; i++ {
-						b.Time("getting container info (10x)", func() {
+					for i := 0; i < repeats; i++ {
+						b.Time("getting container info ("+strconv.Itoa(repeats)+"x)", func() {
 							_, err := newContainer.Info()
 							Ω(err).ShouldNot(HaveOccurred())
 						})
 					}
 
-					for i := 0; i < 10; i++ {
-						b.Time("running a job (10x)", func() {
+					for i := 0; i < repeats; i++ {
+						b.Time("running a job ("+strconv.Itoa(repeats)+"x)", func() {
 							process, err := newContainer.Run(garden.ProcessSpec{Path: "ls"}, garden.ProcessIO{})
 							Ω(err).ShouldNot(HaveOccurred())
 
@@ -239,7 +242,7 @@ var _ = Describe("The Garden server", func() {
 					)
 
 					fmt.Println("total time:", time.Since(started))
-				}, 5)
+				}, streamSamples)
 			})
 		}
 	})
