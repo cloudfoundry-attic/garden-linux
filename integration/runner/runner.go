@@ -13,7 +13,6 @@ import (
 	"github.com/cloudfoundry-incubator/garden/client"
 	"github.com/cloudfoundry-incubator/garden/client/connection"
 	"github.com/onsi/ginkgo"
-	"github.com/onsi/gomega/gexec"
 	"github.com/pivotal-golang/lager"
 	"github.com/pivotal-golang/lager/lagertest"
 	"github.com/tedsuo/ifrit"
@@ -85,11 +84,7 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 		return err
 	}
 
-	cmd, err := gexec.Start(exec.Command("sh", "-c", fmt.Sprintf("[ ! -d \"%s\" ] && mkdir -p \"%s\" && mount -t tmpfs tmpfs %s", overlaysPath, overlaysPath, overlaysPath)), os.Stdout, os.Stderr)
-	if err != nil {
-		panic(err)
-	}
-	cmd.Wait()
+	MustMountTmpfs(overlaysPath)
 
 	gardenArgs := append(
 		r.argv,

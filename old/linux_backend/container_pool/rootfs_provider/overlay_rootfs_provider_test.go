@@ -77,6 +77,25 @@ var _ = Describe("OverlayRootfsProvider", func() {
 				)
 			})
 
+			Context("when the exit status is 222", func() {
+				BeforeEach(func() {
+					fakeRunner.WhenRunning(
+						fake_command_runner.CommandSpec{
+							Path: "/some/bin/path/overlay.sh",
+							Args: []string{"create", "/some/overlays/path/some-id", "/some/given/rootfs"},
+						},
+						func(*exec.Cmd) error {
+							return disaster
+						},
+					)
+				})
+
+				It("returns a helpful error message about nested aufs/overlayfs", func() {
+					_, _, err := provider.ProvideRootFS(logger, "some-id", parseURL("/some/given/rootfs"))
+					Ω(err).Should(MatchError("fstype does not support overlayfs/aufs"))
+				})
+			})
+
 			It("returns the error", func() {
 				_, _, err := provider.ProvideRootFS(logger, "some-id", parseURL("/some/given/rootfs"))
 				Ω(err).Should(Equal(disaster))
