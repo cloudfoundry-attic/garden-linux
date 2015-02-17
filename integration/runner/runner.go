@@ -84,6 +84,8 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 		return err
 	}
 
+	MustMountTmpfs(overlaysPath)
+
 	gardenArgs := append(
 		r.argv,
 		"--listenNetwork", r.network,

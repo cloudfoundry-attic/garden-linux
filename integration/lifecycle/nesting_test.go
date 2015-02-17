@@ -74,6 +74,9 @@ var _ = Describe("When nested", func() {
 				"-c",
 				`
 				mkdir /tmp/overlays /tmp/containers /tmp/snapshots /tmp/graph;
+				mount -t tmpfs tmpfs /tmp/overlays   # ensure overlay directory supports xattr (aufs does not)
+				mount -t tmpfs tmpfs /tmp/containers
+
 				./bin/garden-linux \
 					-bin /home/vcap/binpath/bin \
 					-rootfs /home/vcap/rootfs \
