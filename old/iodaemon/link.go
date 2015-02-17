@@ -10,10 +10,11 @@ import (
 	"github.com/kr/pty"
 )
 
-func link(socketPath string) {
+func link(socketPath string) int {
 	l, err := linkpkg.Create(socketPath, os.Stdout, os.Stderr)
 	if err != nil {
-		fatal(err)
+        logErr(err)
+        return 2
 	}
 
 	resized := make(chan os.Signal, 10)
@@ -35,8 +36,13 @@ func link(socketPath string) {
 
 	status, err := l.Wait()
 	if err != nil {
-		fatal(err)
+		logErr(err)
+        return 3
 	}
 
-	os.Exit(status)
+	return status
+}
+
+func logErr(err error) {
+    println("fatal: " + err.Error())
 }

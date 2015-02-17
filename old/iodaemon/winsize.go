@@ -1,4 +1,4 @@
-package ptyutil
+package main
 
 import (
 	"os"
@@ -13,7 +13,7 @@ type ttySize struct {
 	Ypixel uint16
 }
 
-func SetWinSize(f *os.File, cols int, rows int) error {
+func setWinSize(f *os.File, cols int, rows int) error {
 	_, _, e := syscall.Syscall6(
 		syscall.SYS_IOCTL,
 		uintptr(f.Fd()),
