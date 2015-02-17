@@ -111,10 +111,11 @@ function setup_fs() {
   elif should_use_overlayfs; then
     mount -n -t overlayfs -o rw,upperdir=$overlay_path,lowerdir=$base_path none $rootfs_path
   else
-    # aufs and overlayfs are the only supported mount types. 
-    # aufs and overlayfs can be used in nested containers by mounting 
+    # aufs and overlayfs are the only supported mount types.
+    # aufs and overlayfs can be used in nested containers by mounting
     # the overlay directories on e.g. tmpfs
-    exit 222 
+    echo "container directory and rootfs must be mounted on a filesystem type that supports aufs or overlayfs" >&2
+    exit 222
   fi
 }
 

@@ -65,21 +65,24 @@ var _ = Describe("OverlayRootfsProvider", func() {
 		Context("when overlay.sh fails", func() {
 			disaster := errors.New("oh no!")
 
-			BeforeEach(func() {
-				fakeRunner.WhenRunning(
-					fake_command_runner.CommandSpec{
-						Path: "/some/bin/path/overlay.sh",
-						Args: []string{"create", "/some/overlays/path/some-id", "/some/given/rootfs"},
-					},
-					func(*exec.Cmd) error {
-						return disaster
-					},
-				)
-			})
+			Context("and stderr contains an error message", func() {
+				BeforeEach(func() {
+					fakeRunner.WhenRunning(
+						fake_command_runner.CommandSpec{
+							Path: "/some/bin/path/overlay.sh",
+							Args: []string{"create", "/some/overlays/path/some-id", "/some/given/rootfs"},
+						},
+						func(cmd *exec.Cmd) error {
+							cmd.Stderr.Write([]byte("this cake is not fresh\n"))
+							return disaster
+						},
+					)
+				})
 
-			It("returns the error", func() {
-				_, _, err := provider.ProvideRootFS(logger, "some-id", parseURL("/some/given/rootfs"))
-				Ω(err).Should(Equal(disaster))
+				It("returns the error message from stderr", func() {
+					_, _, err := provider.ProvideRootFS(logger, "some-id", parseURL("/some/given/rootfs"))
+					Ω(err).Should(MatchError("overlay.sh: oh no!, this cake is not fresh"))
+				})
 			})
 		})
 	})
