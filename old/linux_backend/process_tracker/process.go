@@ -12,7 +12,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry/gunk/command_runner"
 
-	"github.com/cloudfoundry-incubator/garden-linux/old/iodaemon/link"
+    "github.com/cloudfoundry-incubator/garden-linux/old/iodaemon/link2"
 )
 
 type Process struct {
@@ -24,7 +24,7 @@ type Process struct {
 	runningLink *sync.Once
 
 	linked chan struct{}
-	link   *link.Link
+	link   *link2.Link
 
 	exited     chan struct{}
 	exitStatus int
@@ -186,7 +186,7 @@ func (p *Process) Attach(processIO garden.ProcessIO) {
 func (p *Process) runLinker() {
 	processSock := path.Join(p.containerPath, "processes", fmt.Sprintf("%d.sock", p.ID()))
 
-	link, err := link.Create(processSock, p.stdout, p.stderr)
+	link, err := link2.Create(processSock, p.stdout, p.stderr)
 	if err != nil {
 		p.completed(-1, err)
 		return

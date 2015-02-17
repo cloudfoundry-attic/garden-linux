@@ -6,12 +6,12 @@ import (
 	"os/signal"
 	"syscall"
 
-	linkpkg "github.com/cloudfoundry-incubator/garden-linux/old/iodaemon/link"
+	"github.com/cloudfoundry-incubator/garden-linux/old/iodaemon/link2"
 	"github.com/kr/pty"
 )
 
 func link(socketPath string) {
-	l, err := linkpkg.Create(socketPath, os.Stdout, os.Stderr)
+	l, err := link2.Create(socketPath, os.Stdout, os.Stderr)
 	if err != nil {
 		fatal(err)
 	}

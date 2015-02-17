@@ -11,7 +11,7 @@ import (
 	"syscall"
 	"time"
 
-	linkpkg "github.com/cloudfoundry-incubator/garden-linux/old/iodaemon/link"
+	linkpkg "github.com/cloudfoundry-incubator/garden-linux/old/iodaemon/link2"
 	"github.com/kr/pty"
 )
 
