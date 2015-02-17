@@ -12,7 +12,6 @@ import (
 	"time"
 
 	linkpkg "github.com/cloudfoundry-incubator/garden-linux/old/iodaemon/link"
-	"github.com/cloudfoundry-incubator/garden-linux/old/ptyutil"
 	"github.com/kr/pty"
 )
 
@@ -78,7 +77,7 @@ func spawn(socketPath string, argv []string, timeout time.Duration, withTty bool
 		stdoutW = tty
 		stderrW = tty
 
-		ptyutil.SetWinSize(stdinW, windowColumns, windowRows)
+		setWinSize(stdinW, windowColumns, windowRows)
 
 		cmd.SysProcAttr.Setctty = true
 		cmd.SysProcAttr.Setsid = true
@@ -167,7 +166,7 @@ func spawn(socketPath string, argv []string, timeout time.Duration, withTty bool
 			}
 
 			if input.WindowSize != nil {
-				ptyutil.SetWinSize(stdinW, input.WindowSize.Columns, input.WindowSize.Rows)
+				setWinSize(stdinW, input.WindowSize.Columns, input.WindowSize.Rows)
 				cmd.Process.Signal(syscall.SIGWINCH)
 			} else if input.EOF {
 				err := stdinW.Close()
