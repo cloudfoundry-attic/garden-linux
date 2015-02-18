@@ -38,7 +38,7 @@ var _ = Describe("Through a restart", func() {
 	})
 
 	It("retains the container list", func() {
-		restartGarden()
+		restartGarden(gardenArgs...)
 
 		handles := getContainerHandles()
 		Ω(handles).Should(ContainElement(container.Handle()))
@@ -52,7 +52,7 @@ var _ = Describe("Through a restart", func() {
 			}, garden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			restartGarden()
+			restartGarden(gardenArgs...)
 
 			_, err = process.Wait()
 			Ω(err).Should(HaveOccurred())
@@ -85,7 +85,7 @@ var _ = Describe("Through a restart", func() {
 
 			Eventually(stdout).Should(gbytes.Say("hello"))
 
-			restartGarden()
+			restartGarden(gardenArgs...)
 
 			_, err = process.Wait()
 			Ω(err).Should(HaveOccurred())
@@ -142,7 +142,7 @@ var _ = Describe("Through a restart", func() {
 
 			Eventually(stdout).Should(gbytes.Say("waiting"))
 
-			restartGarden()
+			restartGarden(gardenArgs...)
 
 			_, err = process.Wait()
 			Ω(err).Should(HaveOccurred())
@@ -178,7 +178,7 @@ var _ = Describe("Through a restart", func() {
 			}, garden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			restartGarden()
+			restartGarden(gardenArgs...)
 
 			process2, err := container.Run(garden.ProcessSpec{
 				Path: "sh",
@@ -203,7 +203,7 @@ var _ = Describe("Through a restart", func() {
 			}, garden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			restartGarden()
+			restartGarden(gardenArgs...)
 
 			stdout := gbytes.NewBuffer()
 			attached, err := container.Attach(process.ID(), garden.ProcessIO{
@@ -232,7 +232,7 @@ var _ = Describe("Through a restart", func() {
 			stdinW.Write([]byte("first-line\n"))
 			Eventually(stdout).Should(gbytes.Say("first-line\n"))
 
-			restartGarden()
+			restartGarden(gardenArgs...)
 
 			stdinR, stdinW = io.Pipe()
 			stdout = gbytes.NewBuffer()
@@ -253,7 +253,7 @@ var _ = Describe("Through a restart", func() {
 			err := container.LimitMemory(garden.MemoryLimits{4 * 1024 * 1024})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			restartGarden()
+			restartGarden(gardenArgs...)
 
 			process, err := container.Run(garden.ProcessSpec{
 				Path: "sh",
@@ -277,7 +277,7 @@ var _ = Describe("Through a restart", func() {
 			}, garden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			restartGarden()
+			restartGarden(gardenArgs...)
 
 			info, err := container.Info()
 			Ω(err).ShouldNot(HaveOccurred())
@@ -307,7 +307,7 @@ var _ = Describe("Through a restart", func() {
 				return info.Events
 			}).Should(ContainElement("out of memory"))
 
-			restartGarden()
+			restartGarden(gardenArgs...)
 
 			info, err := container.Info()
 			Ω(err).ShouldNot(HaveOccurred())
@@ -330,7 +330,7 @@ var _ = Describe("Through a restart", func() {
 
 			Ω(info.Properties["foo"]).Should(Equal("bar"))
 
-			restartGarden()
+			restartGarden(gardenArgs...)
 
 			info, err = containerWithProperties.Info()
 			Ω(err).ShouldNot(HaveOccurred())
@@ -346,7 +346,7 @@ var _ = Describe("Through a restart", func() {
 
 			Ω(info.State).Should(Equal("active"))
 
-			restartGarden()
+			restartGarden(gardenArgs...)
 
 			info, err = container.Info()
 			Ω(err).ShouldNot(HaveOccurred())
@@ -356,7 +356,7 @@ var _ = Describe("Through a restart", func() {
 			err = container.Stop(false)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			restartGarden()
+			restartGarden(gardenArgs...)
 
 			info, err = container.Info()
 			Ω(err).ShouldNot(HaveOccurred())
@@ -370,7 +370,7 @@ var _ = Describe("Through a restart", func() {
 			infoA, err := container.Info()
 			Ω(err).ShouldNot(HaveOccurred())
 
-			restartGarden()
+			restartGarden(gardenArgs...)
 
 			newContainer, err := client.Create(garden.ContainerSpec{})
 			Ω(err).ShouldNot(HaveOccurred())
@@ -388,7 +388,7 @@ var _ = Describe("Through a restart", func() {
 			netInAHost, netInAContainer, err := container.NetIn(0, 0)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			restartGarden()
+			restartGarden(gardenArgs...)
 
 			containerB, err := client.Create(garden.ContainerSpec{})
 			Ω(err).ShouldNot(HaveOccurred())
@@ -416,7 +416,7 @@ var _ = Describe("Through a restart", func() {
 
 			Ω(processA.Wait()).Should(Equal(0))
 
-			restartGarden()
+			restartGarden(gardenArgs...)
 
 			otherContainer, err := client.Create(garden.ContainerSpec{})
 			Ω(err).ShouldNot(HaveOccurred())
@@ -439,7 +439,7 @@ var _ = Describe("Through a restart", func() {
 		})
 
 		It("is still enforced", func() {
-			restartGarden()
+			restartGarden(gardenArgs...)
 
 			Ω(getContainerHandles()).Should(ContainElement(container.Handle()))
 			Eventually(getContainerHandles, 10*time.Second).ShouldNot(ContainElement(container.Handle()))
