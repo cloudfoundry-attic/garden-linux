@@ -16,9 +16,11 @@ import (
 var _ = Describe("Through a restart", func() {
 	var container garden.Container
 	var gardenArgs []string
+	var privileged bool
 
 	BeforeEach(func() {
 		gardenArgs = []string{}
+		privileged = false
 	})
 
 	JustBeforeEach(func() {
@@ -26,7 +28,7 @@ var _ = Describe("Through a restart", func() {
 
 		var err error
 
-		container, err = client.Create(garden.ContainerSpec{})
+		container, err = client.Create(garden.ContainerSpec{Privileged: privileged})
 		Ω(err).ShouldNot(HaveOccurred())
 	})
 
@@ -444,6 +446,17 @@ var _ = Describe("Through a restart", func() {
 			Ω(getContainerHandles()).Should(ContainElement(container.Handle()))
 			Eventually(getContainerHandles, 10*time.Second).ShouldNot(ContainElement(container.Handle()))
 			container = nil
+		})
+	})
+
+	Describe("a privileged container", func() {
+		BeforeEach(func() {
+			privileged = true
+		})
+
+		It("is still present", func() {
+			restartGarden(gardenArgs...)
+			Ω(getContainerHandles()).Should(ContainElement(container.Handle()))
 		})
 	})
 })
