@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"net"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -13,7 +14,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden"
 )
 
-var _ = Describe("Through a restart", func() {
+var _ = FDescribe("Through a restart", func() {
 	var container garden.Container
 	var gardenArgs []string
 
@@ -42,6 +43,16 @@ var _ = Describe("Through a restart", func() {
 
 		handles := getContainerHandles()
 		Ω(handles).Should(ContainElement(container.Handle()))
+	})
+
+	It("allows us to run processes in the same container before and after restart", func() {
+		By("running a process before restart")
+		runEcho(container)
+
+		restartGarden(gardenArgs...)
+
+		By("and then running a process after restart")
+		runEcho(container)
 	})
 
 	Describe("a started process", func() {
@@ -381,6 +392,39 @@ var _ = Describe("Through a restart", func() {
 			Ω(infoA.HostIP).ShouldNot(Equal(infoB.HostIP))
 			Ω(infoA.ContainerIP).ShouldNot(Equal(infoB.ContainerIP))
 		})
+
+		Context("when denying all networks initially", func() {
+			BeforeEach(func() {
+				gardenArgs = []string{
+					"-denyNetworks", "0.0.0.0/0", // deny everything
+					"-allowNetworks", "", // allow nothing
+				}
+			})
+
+			It("preserves NetOut rules", func() {
+				By("checking the network rule we are about to apply is not in place")
+				attemptedExternalIP, allowed := outboundTcpAllowed(container)
+				Ω(allowed).Should(BeTrue())
+
+				Ω(container.NetOut(garden.NetOutRule{
+					Protocol: garden.ProtocolTCP,
+					Networks: []garden.IPRange{
+						garden.IPRangeFromIP(attemptedExternalIP),
+					},
+				})).Should(Succeed())
+
+				By("checking that the network rule is now in place")
+				_, allowed = outboundTcpAllowed(container)
+				Ω(allowed).Should(BeTrue())
+
+				restartGarden(gardenArgs...)
+
+				By("after restarting, checking that the network rule is still in place")
+				_, allowed = outboundTcpAllowed(container)
+				Ω(allowed).Should(BeTrue())
+			})
+		})
+
 	})
 
 	Describe("a container's mapped port", func() {
@@ -458,4 +502,50 @@ func getContainerHandles() []string {
 	}
 
 	return handles
+}
+
+func outboundTcpAllowed(container garden.Container) (net.IP, bool) {
+	ips, err := net.LookupIP("www.example.com")
+	Ω(err).ShouldNot(HaveOccurred())
+	Ω(ips).ShouldNot(BeEmpty())
+	externalIP := ips[0]
+
+	process, _ := runInContainer(
+		container,
+		fmt.Sprintf("(echo 'GET / HTTP/1.1'; echo 'Host: example.com'; echo) | nc -w5 %s 80", externalIP),
+	)
+
+	status, err := process.Wait()
+	Ω(err).ShouldNot(HaveOccurred())
+	return externalIP, status == 0
+}
+
+func runInContainer(container garden.Container, script string) (garden.Process, *gbytes.Buffer) {
+	out := gbytes.NewBuffer()
+	process, err := container.Run(garden.ProcessSpec{
+		Path: "sh",
+		Args: []string{"-c", script},
+	}, garden.ProcessIO{
+		Stdout: io.MultiWriter(out, GinkgoWriter),
+		Stderr: GinkgoWriter,
+	})
+	Ω(err).ShouldNot(HaveOccurred())
+
+	return process, out
+}
+
+func runEcho(container garden.Container) {
+	out := gbytes.NewBuffer()
+	process, err := container.Run(garden.ProcessSpec{
+		Path: "sh",
+		Args: []string{"-c", "echo hello"},
+	}, garden.ProcessIO{
+		Stdout: io.MultiWriter(out, GinkgoWriter),
+		Stderr: GinkgoWriter,
+	})
+	Ω(err).ShouldNot(HaveOccurred())
+
+	status, err := process.Wait()
+	Ω(err).ShouldNot(HaveOccurred())
+	Ω(status).Should(Equal(0))
 }
