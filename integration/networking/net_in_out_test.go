@@ -165,15 +165,12 @@ var _ = Describe("Net In/Out", func() {
 
 			Context("after a net_out of another range", func() {
 				It("does not allow connections to that address", func() {
-					container.NetOut(garden.NetOutRule{
+					Ω(container.NetOut(garden.NetOutRule{
 						Protocol: garden.ProtocolAll,
 						Networks: []garden.IPRange{
 							IPRangeFromCIDR("1.2.3.4/30"),
 						},
-						Ports: []garden.PortRange{
-							garden.PortRangeFromPort(0),
-						},
-					})
+					})).Should(Succeed())
 					ByRejectingTCP()
 					ByRejectingICMPPings()
 				})
