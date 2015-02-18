@@ -526,10 +526,10 @@ func (c *LinuxContainer) Info() (garden.ContainerInfo, error) {
 		return garden.ContainerInfo{}, err
 	}
 
-	bandwidthStat, err := c.bandwidthManager.GetLimits(cLog)
-	if err != nil {
-		return garden.ContainerInfo{}, err
-	}
+	// bandwidthStat, err := c.bandwidthManager.GetLimits(cLog)
+	// if err != nil {
+	// 	return garden.ContainerInfo{}, err
+	// }
 
 	mappedPorts := []garden.PortMapping{}
 
@@ -558,8 +558,8 @@ func (c *LinuxContainer) Info() (garden.ContainerInfo, error) {
 		MemoryStat:    parseMemoryStat(memoryStat),
 		CPUStat:       parseCPUStat(cpuUsage, cpuStat),
 		DiskStat:      diskStat,
-		BandwidthStat: bandwidthStat,
-		MappedPorts:   mappedPorts,
+		// BandwidthStat: bandwidthStat,
+		MappedPorts: mappedPorts,
 	}
 
 	c.Resources().Network.Info(&info)
