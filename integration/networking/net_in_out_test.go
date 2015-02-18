@@ -26,6 +26,8 @@ var _ = Describe("Net In/Out", func() {
 	var (
 		container      garden.Container
 		otherContainer garden.Container
+		privileged     bool
+		gardenArgs     []string
 
 		containerNetwork string
 		denyRange        string
@@ -35,20 +37,23 @@ var _ = Describe("Net In/Out", func() {
 	BeforeEach(func() {
 		denyRange = ""
 		allowRange = ""
+		privileged = true
+		gardenArgs = []string{}
 	})
 
 	JustBeforeEach(func() {
-		client = startGarden(
+		gardenArgs = []string{
 			"-denyNetworks", strings.Join([]string{
 				denyRange,
 				allowRange, // so that it can be overridden by allowNetworks below
 			}, ","),
 			"-allowNetworks", allowRange,
 			"-iptablesLogMethod", "nflog", // so that we can read logs when running in fly
-		)
+		}
+		client = startGarden(gardenArgs...)
 
 		var err error
-		container, err = client.Create(garden.ContainerSpec{Network: containerNetwork, Privileged: true})
+		container, err = client.Create(garden.ContainerSpec{Network: containerNetwork, Privileged: privileged})
 		Ω(err).ShouldNot(HaveOccurred())
 
 		Ω(container.StreamIn("bin/", tgzReader(netdogBin))).Should(Succeed())
