@@ -279,6 +279,16 @@ func (p *LinuxContainerPool) Create(spec garden.ContainerSpec) (c linux_backend.
 	), nil
 }
 
+func (p *LinuxContainerPool) releaseUIDs(userUID, rootUID uint32) {
+	if userUID != 0 {
+		p.uidPool.Release(userUID)
+	}
+
+	if rootUID != 0 {
+		p.uidPool.Release(rootUID)
+	}
+}
+
 func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Container, error) {
 	var containerSnapshot linux_backend.ContainerSnapshot
 
@@ -302,23 +312,23 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 		return nil, err
 	}
 
-	err = p.uidPool.Remove(resources.RootUID)
-	if err != nil {
-		return nil, err
+	if resources.RootUID != 0 {
+		err = p.uidPool.Remove(resources.RootUID)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	state, err := p.cnBuilder.Rebuild(resources.Network)
 	if err != nil {
-		p.uidPool.Release(resources.UserUID)
-		p.uidPool.Release(resources.RootUID)
+		p.releaseUIDs(resources.UserUID, resources.RootUID)
 		return nil, err
 	}
 
 	for _, port := range resources.Ports {
 		err = p.portPool.Remove(port)
 		if err != nil {
-			p.uidPool.Release(resources.UserUID)
-			p.uidPool.Release(resources.RootUID)
+			p.releaseUIDs(resources.UserUID, resources.RootUID)
 			p.cnBuilder.Dismantle(state)
 
 			for _, port := range resources.Ports {
@@ -512,13 +522,7 @@ func (p *LinuxContainerPool) releasePoolResources(resources *linux_backend.Resou
 		p.portPool.Release(port)
 	}
 
-	if resources.UserUID != 0 {
-		p.uidPool.Release(resources.UserUID)
-	}
-
-	if resources.RootUID != 0 {
-		p.uidPool.Release(resources.RootUID)
-	}
+	p.releaseUIDs(resources.UserUID, resources.RootUID)
 
 	if resources.Network != nil {
 		p.cnBuilder.Dismantle(resources.Network)

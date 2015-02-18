@@ -827,13 +827,19 @@ var _ = Describe("Container pool", func() {
 
 	Describe("restoring", func() {
 		var snapshot io.Reader
+		var buf *bytes.Buffer
 
 		var restoredNetwork json.RawMessage
+		var rootUID uint32
 
 		BeforeEach(func() {
-			buf := new(bytes.Buffer)
+			rootUID = 10001
 
+			buf = new(bytes.Buffer)
 			snapshot = buf
+		})
+
+		JustBeforeEach(func() {
 
 			var err error
 			restoredNetwork, err = json.Marshal("serializedNetwork")
@@ -854,7 +860,7 @@ var _ = Describe("Container pool", func() {
 
 					Resources: linux_backend.ResourcesSnapshot{
 						UserUID: 10000,
-						RootUID: 10001,
+						RootUID: rootUID,
 						Network: &restoredNetwork,
 						Ports:   []uint32{61001, 61002, 61003},
 					},
@@ -893,6 +899,19 @@ var _ = Describe("Container pool", func() {
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(fakeUIDPool.Removed).Should(ContainElement(uint32(10000)))
+		})
+
+		Context("when the Root UID is 0", func() {
+			BeforeEach(func() {
+				rootUID = 0
+			})
+
+			It("does not remove it from the pool", func() {
+				_, err := pool.Restore(snapshot)
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Ω(fakeUIDPool.Removed).ShouldNot(ContainElement(rootUID))
+			})
 		})
 
 		It("removes its network from the pool", func() {
@@ -966,6 +985,19 @@ var _ = Describe("Container pool", func() {
 				Ω(fakePortPool.Released).Should(ContainElement(uint32(61001)))
 				Ω(fakePortPool.Released).Should(ContainElement(uint32(61002)))
 				Ω(fakePortPool.Released).Should(ContainElement(uint32(61003)))
+			})
+
+			Context("when the container is privileged", func() {
+				BeforeEach(func() {
+					rootUID = 0
+				})
+
+				It("does not release uid 0 back to the uid pool", func() {
+					_, err := pool.Restore(snapshot)
+					Ω(err).Should(Equal(disaster))
+
+					Ω(fakeUIDPool.Released).ShouldNot(ContainElement(rootUID))
+				})
 			})
 		})
 	})
