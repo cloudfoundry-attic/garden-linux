@@ -201,10 +201,6 @@ func (c *LinuxContainer) GraceTime() time.Duration {
 	return c.graceTime
 }
 
-func (c *LinuxContainer) Properties() garden.Properties {
-	return c.properties
-}
-
 func (c *LinuxContainer) State() State {
 	c.stateMutex.RLock()
 	defer c.stateMutex.RUnlock()
@@ -450,6 +446,13 @@ func (c *LinuxContainer) Stop(kill bool) error {
 	return nil
 }
 
+func (c *LinuxContainer) Properties() garden.Properties {
+	c.propertiesMutex.RLock()
+	defer c.propertiesMutex.RUnlock()
+
+	return c.properties
+}
+
 func (c *LinuxContainer) GetProperty(key string) (string, error) {
 	c.propertiesMutex.RLock()
 	defer c.propertiesMutex.RUnlock()
@@ -466,11 +469,14 @@ func (c *LinuxContainer) SetProperty(key string, value string) error {
 	c.propertiesMutex.Lock()
 	defer c.propertiesMutex.Unlock()
 
-	if c.properties == nil {
-		c.properties = make(map[string]string)
+	props := garden.Properties{}
+	for k, v := range c.properties {
+		props[k] = v
 	}
 
-	c.properties[key] = value
+	props[key] = value
+
+	c.properties = props
 
 	return nil
 }
@@ -484,7 +490,15 @@ func (c *LinuxContainer) RemoveProperty(key string) error {
 		return UndefinedPropertyError{key}
 	}
 
-	delete(c.properties, key)
+	props := garden.Properties{}
+	for k, v := range c.properties {
+		if k == key {
+			continue
+		}
+		props[k] = v
+	}
+
+	c.properties = props
 
 	return nil
 }
@@ -512,10 +526,10 @@ func (c *LinuxContainer) Info() (garden.ContainerInfo, error) {
 		return garden.ContainerInfo{}, err
 	}
 
-	bandwidthStat, err := c.bandwidthManager.GetLimits(cLog)
-	if err != nil {
-		return garden.ContainerInfo{}, err
-	}
+	// bandwidthStat, err := c.bandwidthManager.GetLimits(cLog)
+	// if err != nil {
+	// 	return garden.ContainerInfo{}, err
+	// }
 
 	mappedPorts := []garden.PortMapping{}
 
@@ -544,8 +558,8 @@ func (c *LinuxContainer) Info() (garden.ContainerInfo, error) {
 		MemoryStat:    parseMemoryStat(memoryStat),
 		CPUStat:       parseCPUStat(cpuUsage, cpuStat),
 		DiskStat:      diskStat,
-		BandwidthStat: bandwidthStat,
-		MappedPorts:   mappedPorts,
+		// BandwidthStat: bandwidthStat,
+		MappedPorts: mappedPorts,
 	}
 
 	c.Resources().Network.Info(&info)
