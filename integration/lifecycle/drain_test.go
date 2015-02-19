@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"net"
 	"os/exec"
 	"time"
 
@@ -398,6 +399,39 @@ var _ = Describe("Through a restart", func() {
 			Ω(infoA.HostIP).ShouldNot(Equal(infoB.HostIP))
 			Ω(infoA.ContainerIP).ShouldNot(Equal(infoB.ContainerIP))
 		})
+
+		Context("when denying all networks initially", func() {
+			BeforeEach(func() {
+				gardenArgs = []string{
+					"-denyNetworks", "0.0.0.0/0", // deny everything
+					"-allowNetworks", "", // allow nothing
+				}
+			})
+
+			FIt("preserves NetOut rules", func() {
+				By("checking the network rule we are about to apply is not in place")
+				attemptedExternalIP, allowed := outboundTcpAllowed(container)
+				Ω(allowed).Should(BeTrue())
+
+				Ω(container.NetOut(garden.NetOutRule{
+					Protocol: garden.ProtocolTCP,
+					Networks: []garden.IPRange{
+						garden.IPRangeFromIP(attemptedExternalIP),
+					},
+				})).Should(Succeed())
+
+				By("checking that the network rule is now in place")
+				_, allowed = outboundTcpAllowed(container)
+				Ω(allowed).Should(BeTrue())
+
+				restartGarden(gardenArgs...)
+
+				By("after restarting, checking that the network rule is still in place")
+				_, allowed = outboundTcpAllowed(container)
+				Ω(allowed).Should(BeTrue())
+			})
+		})
+
 	})
 
 	Describe("a container's mapped port", func() {
@@ -486,6 +520,22 @@ func getContainerHandles() []string {
 	}
 
 	return handles
+}
+
+func outboundTcpAllowed(container garden.Container) (net.IP, bool) {
+	ips, err := net.LookupIP("www.example.com")
+	Ω(err).ShouldNot(HaveOccurred())
+	Ω(ips).ShouldNot(BeEmpty())
+	externalIP := ips[0]
+
+	process, _ := runInContainer(
+		container,
+		fmt.Sprintf("(echo 'GET / HTTP/1.1'; echo 'Host: example.com'; echo) | nc -w5 %s 80", externalIP),
+	)
+
+	status, err := process.Wait()
+	Ω(err).ShouldNot(HaveOccurred())
+	return externalIP, status == 0
 }
 
 func runInContainer(container garden.Container, script string) (garden.Process, *gbytes.Buffer) {
