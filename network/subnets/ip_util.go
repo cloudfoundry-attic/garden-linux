@@ -3,7 +3,9 @@ package subnets
 import "net"
 
 func equals(a *net.IPNet, b *net.IPNet) bool {
-	return a.Contains(b.IP) && b.Contains(a.IP)
+	aOnes, aBits := a.Mask.Size()
+	bOnes, bBits := b.Mask.Size()
+	return a.IP.Equal(b.IP) && (aOnes == bOnes) && (aBits == bBits)
 }
 
 func overlaps(a *net.IPNet, b *net.IPNet) bool {

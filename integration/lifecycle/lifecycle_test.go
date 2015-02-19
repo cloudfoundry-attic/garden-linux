@@ -23,11 +23,23 @@ import (
 
 var _ = Describe("Creating a container", func() {
 
-	Context("when the requested Network overlaps the dynamic allocation range", func() {
-		It("returns an error message naming the overlapped range", func() {
-			client = startGarden("--networkPool", "1.2.3.0/24")
-			_, err := client.Create(garden.ContainerSpec{Network: "1.2.3.0/25"})
-			Ω(err).Should(MatchError("the requested subnet (1.2.3.0/25) overlaps the dynamic allocation range (1.2.3.0/24)"))
+	Describe("Overlapping networks", func() {
+		Context("when the requested Network overlaps the dynamic allocation range", func() {
+			It("returns an error message naming the overlapped range", func() {
+				client = startGarden("--networkPool", "1.2.3.0/24")
+				_, err := client.Create(garden.ContainerSpec{Network: "1.2.3.0/25"})
+				Ω(err).Should(MatchError("the requested subnet (1.2.3.0/25) overlaps the dynamic allocation range (1.2.3.0/24)"))
+			})
+		})
+
+		Context("when the requested Network overlaps another subnet", func() {
+			It("returns an error message naming the overlapped range", func() {
+				client = startGarden()
+				_, err := client.Create(garden.ContainerSpec{Privileged: false, Network: "10.2.0.0/29"})
+				Ω(err).ShouldNot(HaveOccurred())
+				_, err = client.Create(garden.ContainerSpec{Privileged: false, Network: "10.2.0.0/30"})
+				Ω(err).Should(MatchError("the requested subnet (10.2.0.0/30) overlaps an existing subnet (10.2.0.0/29)"))
+			})
 		})
 	})
 

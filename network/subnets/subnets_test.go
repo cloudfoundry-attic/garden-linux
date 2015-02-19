@@ -305,6 +305,31 @@ var _ = Describe("Subnet Pool", func() {
 					})
 				})
 
+				Context("after a subnet has been allocated, a subsequent request for an overlapping subnet which begins on the same ip", func() {
+					var (
+						firstSubnetPool  *net.IPNet
+						firstContainerIP net.IP
+						secondSubnetPool *net.IPNet
+					)
+
+					JustBeforeEach(func() {
+						var err error
+						firstContainerIP, firstSubnetPool = networkParms("10.9.3.0/30")
+						Ω(err).ShouldNot(HaveOccurred())
+
+						_, secondSubnetPool = networkParms("10.9.3.0/29")
+						Ω(err).ShouldNot(HaveOccurred())
+
+						_, _, _, err = subnetpool.Allocate(subnets.StaticSubnetSelector{firstSubnetPool}, subnets.DynamicIPSelector)
+						Ω(err).ShouldNot(HaveOccurred())
+					})
+
+					It("returns an appropriate error", func() {
+						_, _, _, err := subnetpool.Allocate(subnets.StaticSubnetSelector{secondSubnetPool}, subnets.DynamicIPSelector)
+						Ω(err).Should(MatchError("the requested subnet (10.9.3.0/29) overlaps an existing subnet (10.9.3.0/30)"))
+					})
+				})
+
 				Context("after a subnet has been allocated, a subsequent request for an overlapping subnet", func() {
 					var (
 						firstSubnetPool  *net.IPNet
