@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"os/exec"
 	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
+	"github.com/onsi/gomega/gexec"
 
 	"github.com/cloudfoundry-incubator/garden"
 )
@@ -44,6 +46,19 @@ var _ = Describe("Through a restart", func() {
 
 		handles := getContainerHandles()
 		Ω(handles).Should(ContainElement(container.Handle()))
+	})
+
+	It("allows us to run processes in the same container before and after restart", func() {
+		By("running a process before restart")
+		runEcho(container)
+		info, _ := container.Info()
+		cmd, _ := gexec.Start(exec.Command("sh", "-c", fmt.Sprintf("find %s", info.ContainerPath)), GinkgoWriter, GinkgoWriter)
+		cmd.Wait()
+
+		restartGarden(gardenArgs...)
+
+		By("and then running a process after restart")
+		runEcho(container)
 	})
 
 	Describe("a started process", func() {
@@ -471,4 +486,25 @@ func getContainerHandles() []string {
 	}
 
 	return handles
+}
+
+func runInContainer(container garden.Container, script string) (garden.Process, *gbytes.Buffer) {
+	out := gbytes.NewBuffer()
+	process, err := container.Run(garden.ProcessSpec{
+		Path: "sh",
+		Args: []string{"-c", script},
+	}, garden.ProcessIO{
+		Stdout: io.MultiWriter(out, GinkgoWriter),
+		Stderr: GinkgoWriter,
+	})
+	Ω(err).ShouldNot(HaveOccurred())
+
+	return process, out
+}
+
+func runEcho(container garden.Container) {
+	process, _ := runInContainer(container, "echo hello")
+	status, err := process.Wait()
+	Ω(err).ShouldNot(HaveOccurred())
+	Ω(status).Should(Equal(0))
 }

@@ -62,9 +62,6 @@ var _ = Describe("Iodaemon", func() {
 			Eventually(linkS).Should(gexec.Exit(0))
 
 			Eventually(spawnS).Should(gexec.Exit(0))
-
-			err = os.Remove(socketPath)
-			Ω(err).ShouldNot(HaveOccurred())
 		}
 	})
 })

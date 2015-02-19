@@ -146,6 +146,7 @@ func spawn(socketPath string, argv []string, timeout time.Duration, withTty bool
 					fmt.Fprintf(statusW, "%d\n", cmd.ProcessState.Sys().(syscall.WaitStatus).ExitStatus())
 				}
 
+				listener.Close()
 				os.Exit(0)
 			}()
 
