@@ -2252,41 +2252,6 @@ system 2
 				})
 			})
 		})
-
-		// Describe("bandwidth info", func() {
-		// 	It("is returned in the response", func() {
-		// 		fakeBandwidthManager.GetLimitsResult = garden.ContainerBandwidthStat{
-		// 			InRate:   1,
-		// 			InBurst:  2,
-		// 			OutRate:  3,
-		// 			OutBurst: 4,
-		// 		}
-
-		// 		info, err := container.Info()
-		// 		Ω(err).ShouldNot(HaveOccurred())
-
-		// 		Ω(info.BandwidthStat).Should(Equal(garden.ContainerBandwidthStat{
-		// 			InRate:   1,
-		// 			InBurst:  2,
-		// 			OutRate:  3,
-		// 			OutBurst: 4,
-		// 		}))
-
-		// 	})
-
-		// 	Context("when getting the bandwidth usage fails", func() {
-		// 		disaster := errors.New("oh no!")
-
-		// 		JustBeforeEach(func() {
-		// 			fakeBandwidthManager.GetLimitsError = disaster
-		// 		})
-
-		// 		It("returns the error", func() {
-		// 			_, err := container.Info()
-		// 			Ω(err).Should(Equal(disaster))
-		// 		})
-		// 	})
-		// })
 	})
 })
 
