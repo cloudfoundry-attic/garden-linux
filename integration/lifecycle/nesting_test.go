@@ -132,6 +132,6 @@ var _ = Describe("When nested", func() {
 
 		nestedClient := gclient.New(gconn.New("tcp", nestedGardenAddress))
 		_, err := nestedClient.Create(garden.ContainerSpec{})
-		Ω(err).Should(MatchError("overlay.sh: exit status 222, container directory and rootfs must be mounted on a filesystem type that supports aufs or overlayfs"))
+		Ω(err).Should(MatchError("overlay.sh: exit status 222, the directories that contain the depot and rootfs must be mounted on a filesystem type that supports aufs or overlayfs"))
 	})
 })
