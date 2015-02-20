@@ -1985,6 +1985,19 @@ var _ = Describe("Linux containers", func() {
 			Ω(value).Should(BeZero())
 		})
 
+		It("returns a properties snapshot", func() {
+			err := container.SetProperty("some-property", "some-value")
+			Ω(err).ShouldNot(HaveOccurred())
+
+			properties := container.Properties()
+			Ω(properties["some-property"]).Should(Equal("some-value"))
+
+			err = container.SetProperty("some-property", "some-other-value")
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(properties["some-property"]).Should(Equal("some-value"))
+		})
+
 		Context("with a nil map of properties at container creation", func() {
 			BeforeEach(func() {
 				containerProps = nil
