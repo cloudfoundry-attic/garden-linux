@@ -114,7 +114,7 @@ function setup_fs() {
     # aufs and overlayfs are the only supported mount types.
     # aufs and overlayfs can be used in nested containers by mounting
     # the overlay directories on e.g. tmpfs
-    echo "container directory and rootfs must be mounted on a filesystem type that supports aufs or overlayfs" >&2
+    echo "the directories that contain the depot and rootfs must be mounted on a filesystem type that supports aufs or overlayfs" >&2
     exit 222
   fi
 }
