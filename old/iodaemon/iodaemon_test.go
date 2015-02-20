@@ -51,6 +51,9 @@ var _ = Describe("Iodaemon", func() {
 		fakeOut = wc{
 			bytes.NewBuffer([]byte{}),
 		}
+        fakeErr = wc{
+            bytes.NewBuffer([]byte{}),
+        }
 	})
 
 	AfterEach(func() {
@@ -112,6 +115,22 @@ var _ = Describe("Iodaemon", func() {
 			l.Close() //bash will normally terminate when it receives EOF on stdin
 			Eventually(done).Should(BeClosed())
 		})
+
+        Context("when there is an existing socket file", func(){
+            BeforeEach(func(){
+                file, err := os.Create(socketPath)
+                Ω(err).ShouldNot(HaveOccurred())
+                file.Close()
+            })
+
+            It("still creates the process", func() {
+                spawnProcess("echo", "hello")
+
+                _, linkStdout, _, err := createLink(socketPath)
+                Ω(err).ShouldNot(HaveOccurred())
+                Eventually(linkStdout).Should(gbytes.Say("hello\n"))
+            })
+        })
 	})
 
 	Context("spawning a tty", func() {

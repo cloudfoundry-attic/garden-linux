@@ -60,9 +60,16 @@ func spawn(
 		}
 	}
 
+    // Delete socketPath if it exists to avoid bind failures.
+    err = os.Remove(socketPath)
+    if err != nil && !os.IsNotExist(err) {
+        fatal(err)
+    }
+
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
 		fatal(err)
+        return
 	}
 
 	bin, err := exec.LookPath(argv[0])
