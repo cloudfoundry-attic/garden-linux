@@ -73,6 +73,7 @@ func (p *pool) Allocate(sn SubnetSelector, i IPSelector) (subnet *net.IPNet, ip 
 	if subnet, err = sn.SelectSubnet(p.dynamicRange, existingSubnets(p.allocated)); err != nil {
 		return nil, nil, false, err
 	}
+
 	ips, found := p.allocated[subnet.String()]
 	existingIPs := append(ips, NetworkIP(subnet), GatewayIP(subnet), BroadcastIP(subnet))
 	if ip, err = i.SelectIP(subnet, existingIPs); err != nil {

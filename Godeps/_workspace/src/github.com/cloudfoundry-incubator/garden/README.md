@@ -70,51 +70,31 @@ Make a directory to contain go code:
 $ mkdir ~/go
 ```
 
-From now on, we assume this directory is in `/root/go`.
-
-Install Go 1.2.1 or later. For example, install [gvm](https://github.com/moovweb/gvm) and issue:
+Install Go. For example, install [gvm](https://github.com/moovweb/gvm) and issue:
 ```
-$ gvm install go1.2.1
-$ gvm use go1.2.1
+$ gvm install go1.4.1
+$ gvm use go1.4.1
 ```
 
-Extend `$GOPATH` and `$PATH`:
+Make sure that your `$GOPATH` and `$PATH` are set. For example:
 ```
-$ export GOPATH=/root/go:$GOPATH
-$ export PATH=$PATH:/root/go/bin
-```
-
-Install [godep](https://github.com/kr/godep) (used to manage garden's dependencies):
-```
-$ go get github.com/kr/godep
+$ export GOPATH=~/go:$GOPATH
+$ export PATH=$PATH:~/go/bin
 ```
 
 Get garden and its dependencies:
 ```
-$ go get github.com/cloudfoundry-incubator/garden
+$ go get -t -u github.com/cloudfoundry-incubator/garden
+$ cd ~/go/src/github.com/cloudfoundry-incubator/garden
+$ go get -t -u ./...
 ```
-
-and in this directory, re-build the protocol (if you've changed it) see [below](#building-the-protocol).
 
 Install ginkgo (used to test garden):
 ```
 $ go install github.com/onsi/ginkgo/ginkgo
 ```
 
-Run the tests (skipping performance measurements):
+Run the tests:
 ```
 $ ginkgo -r
-```
-
-# Building the protocol
-
-## Pre-requisite
-
-* [protoc](https://developers.google.com/protocol-buffers/docs/downloads);
-    download the archive, unpack it into a directory with no spaces in the full path; and build according to INSTALL.txt.
-
-To build the protocol:
-```
-$ go get code.google.com/p/gogoprotobuf/{proto,protoc-gen-gogo,gogoproto}
-$ make protocol
 ```

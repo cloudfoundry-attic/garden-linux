@@ -1,9 +1,12 @@
 package rootfs_provider
 
 import (
+	"bytes"
+	"fmt"
 	"net/url"
 	"os/exec"
 	"path"
+	"strings"
 
 	"github.com/cloudfoundry-incubator/garden-linux/old/logging"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
@@ -48,9 +51,12 @@ func (provider *overlayRootFSProvider) ProvideRootFS(logger lager.Logger, id str
 		"create", path.Join(provider.overlaysPath, id), rootFSPath,
 	)
 
+	var stderr bytes.Buffer
+	createOverlay.Stderr = &stderr
+
 	err := pRunner.Run(createOverlay)
 	if err != nil {
-		return "", nil, err
+		return "", nil, fmt.Errorf("overlay.sh: %v, %v", err, strings.TrimRight(stderr.String(), "\n"))
 	}
 
 	return path.Join(provider.overlaysPath, id, "rootfs"), nil, nil

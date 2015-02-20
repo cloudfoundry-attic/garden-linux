@@ -62,14 +62,6 @@ void fcntl_set_nonblock(int fd, int on) {
   }
 }
 
-int run(const char *p1, const char *p2) {
-  return run_with_arg(p1, p2, NULL);
-}
-
-int hook(const char *p1, const char *p2) {
-  return run_with_arg(p1, "hook", p2);
-}
-
 int run_with_arg(const char *p1, const char *p2, const char *arg) {
   char path[MAXPATHLEN];
   int rv;
@@ -80,7 +72,7 @@ int run_with_arg(const char *p1, const char *p2, const char *arg) {
   assert(rv < sizeof(path));
 
   argv[0] = path;
-  argv[1] = arg;
+  argv[1] = strdup(arg);
   argv[2] = NULL;
 
   rv = fork();
@@ -107,6 +99,14 @@ int run_with_arg(const char *p1, const char *p2, const char *arg) {
   }
 
   return 0;
+}
+
+int run(const char *p1, const char *p2) {
+  return run_with_arg(p1, p2, NULL);
+}
+
+int hook(const char *p1, const char *p2) {
+  return run_with_arg(p1, "hook", p2);
 }
 
 void setproctitle(char **argv, const char *title) {

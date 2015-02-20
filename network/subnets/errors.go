@@ -12,15 +12,11 @@ var (
 	// ErrReleasedUnallocatedNetwork is returned by Release if the subnet is not allocated.
 	ErrReleasedUnallocatedSubnet = errors.New("subnet is not allocated")
 
-	// ErrOverlapsExistingSubnet is returned if a requested subnet overlaps an existing, allocated subnet
+	// ErrOverlapsExistingSubnet is returned if a recovered subnet overlaps an existing, allocated subnet
 	ErrOverlapsExistingSubnet = errors.New("subnet overlaps an existing subnet")
 
 	// ErrInvalidRange is returned by AllocateStatically and by Recover if the subnet range is invalid.
 	ErrInvalidRange = errors.New("subnet has invalid range")
-
-	// ErrNotAllowed is returned by AllocateStatically if the subnet range overlaps the dynamic allocation range
-	// and by Recover if the subnet range contains the dynamic allocation range.
-	ErrNotAllowed = errors.New("the requested range cannot be allocated statically")
 
 	// ErrInvalidIP is returned if a static IP is requested inside a subnet
 	// which does not contain that IP

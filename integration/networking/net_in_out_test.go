@@ -26,6 +26,8 @@ var _ = Describe("Net In/Out", func() {
 	var (
 		container      garden.Container
 		otherContainer garden.Container
+		privileged     bool
+		gardenArgs     []string
 
 		containerNetwork string
 		denyRange        string
@@ -35,20 +37,23 @@ var _ = Describe("Net In/Out", func() {
 	BeforeEach(func() {
 		denyRange = ""
 		allowRange = ""
+		privileged = true
+		gardenArgs = []string{}
 	})
 
 	JustBeforeEach(func() {
-		client = startGarden(
+		gardenArgs = []string{
 			"-denyNetworks", strings.Join([]string{
 				denyRange,
 				allowRange, // so that it can be overridden by allowNetworks below
 			}, ","),
 			"-allowNetworks", allowRange,
 			"-iptablesLogMethod", "nflog", // so that we can read logs when running in fly
-		)
+		}
+		client = startGarden(gardenArgs...)
 
 		var err error
-		container, err = client.Create(garden.ContainerSpec{Network: containerNetwork, Privileged: true})
+		container, err = client.Create(garden.ContainerSpec{Network: containerNetwork, Privileged: privileged})
 		Ω(err).ShouldNot(HaveOccurred())
 
 		Ω(container.StreamIn("bin/", tgzReader(netdogBin))).Should(Succeed())
@@ -160,15 +165,12 @@ var _ = Describe("Net In/Out", func() {
 
 			Context("after a net_out of another range", func() {
 				It("does not allow connections to that address", func() {
-					container.NetOut(garden.NetOutRule{
+					Ω(container.NetOut(garden.NetOutRule{
 						Protocol: garden.ProtocolAll,
 						Networks: []garden.IPRange{
 							IPRangeFromCIDR("1.2.3.4/30"),
 						},
-						Ports: []garden.PortRange{
-							garden.PortRangeFromPort(0),
-						},
-					})
+					})).Should(Succeed())
 					ByRejectingTCP()
 					ByRejectingICMPPings()
 				})

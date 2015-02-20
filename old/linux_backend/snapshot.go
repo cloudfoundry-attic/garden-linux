@@ -23,7 +23,7 @@ type ContainerSnapshot struct {
 	Processes []ProcessSnapshot
 
 	NetIns  []NetInSpec
-	NetOuts []NetOutSpec
+	NetOuts []garden.NetOutRule
 
 	Properties garden.Properties
 

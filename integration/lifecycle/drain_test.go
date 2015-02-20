@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"net"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -16,9 +17,11 @@ import (
 var _ = Describe("Through a restart", func() {
 	var container garden.Container
 	var gardenArgs []string
+	var privileged bool
 
 	BeforeEach(func() {
 		gardenArgs = []string{}
+		privileged = false
 	})
 
 	JustBeforeEach(func() {
@@ -26,7 +29,7 @@ var _ = Describe("Through a restart", func() {
 
 		var err error
 
-		container, err = client.Create(garden.ContainerSpec{})
+		container, err = client.Create(garden.ContainerSpec{Privileged: privileged})
 		Ω(err).ShouldNot(HaveOccurred())
 	})
 
@@ -38,10 +41,20 @@ var _ = Describe("Through a restart", func() {
 	})
 
 	It("retains the container list", func() {
-		restartGarden()
+		restartGarden(gardenArgs...)
 
 		handles := getContainerHandles()
 		Ω(handles).Should(ContainElement(container.Handle()))
+	})
+
+	It("allows us to run processes in the same container before and after restart", func() {
+		By("running a process before restart")
+		runEcho(container)
+
+		restartGarden(gardenArgs...)
+
+		By("and then running a process after restart")
+		runEcho(container)
 	})
 
 	Describe("a started process", func() {
@@ -52,7 +65,7 @@ var _ = Describe("Through a restart", func() {
 			}, garden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			restartGarden()
+			restartGarden(gardenArgs...)
 
 			_, err = process.Wait()
 			Ω(err).Should(HaveOccurred())
@@ -85,7 +98,7 @@ var _ = Describe("Through a restart", func() {
 
 			Eventually(stdout).Should(gbytes.Say("hello"))
 
-			restartGarden()
+			restartGarden(gardenArgs...)
 
 			_, err = process.Wait()
 			Ω(err).Should(HaveOccurred())
@@ -142,7 +155,7 @@ var _ = Describe("Through a restart", func() {
 
 			Eventually(stdout).Should(gbytes.Say("waiting"))
 
-			restartGarden()
+			restartGarden(gardenArgs...)
 
 			_, err = process.Wait()
 			Ω(err).Should(HaveOccurred())
@@ -178,7 +191,7 @@ var _ = Describe("Through a restart", func() {
 			}, garden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			restartGarden()
+			restartGarden(gardenArgs...)
 
 			process2, err := container.Run(garden.ProcessSpec{
 				Path: "sh",
@@ -203,7 +216,7 @@ var _ = Describe("Through a restart", func() {
 			}, garden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			restartGarden()
+			restartGarden(gardenArgs...)
 
 			stdout := gbytes.NewBuffer()
 			attached, err := container.Attach(process.ID(), garden.ProcessIO{
@@ -232,7 +245,7 @@ var _ = Describe("Through a restart", func() {
 			stdinW.Write([]byte("first-line\n"))
 			Eventually(stdout).Should(gbytes.Say("first-line\n"))
 
-			restartGarden()
+			restartGarden(gardenArgs...)
 
 			stdinR, stdinW = io.Pipe()
 			stdout = gbytes.NewBuffer()
@@ -253,7 +266,7 @@ var _ = Describe("Through a restart", func() {
 			err := container.LimitMemory(garden.MemoryLimits{4 * 1024 * 1024})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			restartGarden()
+			restartGarden(gardenArgs...)
 
 			process, err := container.Run(garden.ProcessSpec{
 				Path: "sh",
@@ -277,7 +290,7 @@ var _ = Describe("Through a restart", func() {
 			}, garden.ProcessIO{})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			restartGarden()
+			restartGarden(gardenArgs...)
 
 			info, err := container.Info()
 			Ω(err).ShouldNot(HaveOccurred())
@@ -307,7 +320,7 @@ var _ = Describe("Through a restart", func() {
 				return info.Events
 			}).Should(ContainElement("out of memory"))
 
-			restartGarden()
+			restartGarden(gardenArgs...)
 
 			info, err := container.Info()
 			Ω(err).ShouldNot(HaveOccurred())
@@ -330,7 +343,7 @@ var _ = Describe("Through a restart", func() {
 
 			Ω(info.Properties["foo"]).Should(Equal("bar"))
 
-			restartGarden()
+			restartGarden(gardenArgs...)
 
 			info, err = containerWithProperties.Info()
 			Ω(err).ShouldNot(HaveOccurred())
@@ -346,7 +359,7 @@ var _ = Describe("Through a restart", func() {
 
 			Ω(info.State).Should(Equal("active"))
 
-			restartGarden()
+			restartGarden(gardenArgs...)
 
 			info, err = container.Info()
 			Ω(err).ShouldNot(HaveOccurred())
@@ -356,7 +369,7 @@ var _ = Describe("Through a restart", func() {
 			err = container.Stop(false)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			restartGarden()
+			restartGarden(gardenArgs...)
 
 			info, err = container.Info()
 			Ω(err).ShouldNot(HaveOccurred())
@@ -370,7 +383,7 @@ var _ = Describe("Through a restart", func() {
 			infoA, err := container.Info()
 			Ω(err).ShouldNot(HaveOccurred())
 
-			restartGarden()
+			restartGarden(gardenArgs...)
 
 			newContainer, err := client.Create(garden.ContainerSpec{})
 			Ω(err).ShouldNot(HaveOccurred())
@@ -381,6 +394,68 @@ var _ = Describe("Through a restart", func() {
 			Ω(infoA.HostIP).ShouldNot(Equal(infoB.HostIP))
 			Ω(infoA.ContainerIP).ShouldNot(Equal(infoB.ContainerIP))
 		})
+
+		Context("when denying all networks initially", func() {
+			var ByAllowingTCPTo func(net.IP)
+			var ByDenyingTCPTo func(net.IP)
+			var externalIP net.IP
+
+			BeforeEach(func() {
+				ips, err := net.LookupIP("www.example.com")
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(ips).ShouldNot(BeEmpty())
+				externalIP = ips[0]
+
+				gardenArgs = []string{
+					"-denyNetworks", "0.0.0.0/0", // deny everything
+					"-allowNetworks", "", // allow nothing
+				}
+
+				ByAllowingTCPTo = func(ip net.IP) {
+					By("Allowing TCP to"+ip.String(), func() {
+						process, _ := runInContainer(
+							container,
+							fmt.Sprintf("(echo 'GET / HTTP/1.1'; echo 'Host: example.com'; echo) | nc -w5 %s 80", ip),
+						)
+						status, err := process.Wait()
+						Ω(err).ShouldNot(HaveOccurred())
+						Ω(status).Should(Equal(0))
+					})
+				}
+
+				ByDenyingTCPTo = func(ip net.IP) {
+					By("Denying TCP to"+ip.String(), func() {
+						process, _ := runInContainer(
+							container,
+							fmt.Sprintf("(echo 'GET / HTTP/1.1'; echo 'Host: example.com'; echo) | nc -w5 %s 80", ip),
+						)
+						status, err := process.Wait()
+						Ω(err).ShouldNot(HaveOccurred())
+						Ω(status).ShouldNot(Equal(0))
+					})
+				}
+			})
+
+			It("preserves NetOut rules", func() {
+				// Initially prevented from accessing (sanity check)
+				ByDenyingTCPTo(externalIP)
+
+				// Allow access
+				Ω(container.NetOut(garden.NetOutRule{
+					Protocol: garden.ProtocolTCP,
+					Networks: []garden.IPRange{
+						garden.IPRangeFromIP(externalIP),
+					},
+				})).Should(Succeed())
+
+				// Check it worked (sanity check)
+				ByAllowingTCPTo(externalIP)
+
+				restartGarden(gardenArgs...)
+				ByAllowingTCPTo(externalIP)
+			})
+		})
+
 	})
 
 	Describe("a container's mapped port", func() {
@@ -388,7 +463,7 @@ var _ = Describe("Through a restart", func() {
 			netInAHost, netInAContainer, err := container.NetIn(0, 0)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			restartGarden()
+			restartGarden(gardenArgs...)
 
 			containerB, err := client.Create(garden.ContainerSpec{})
 			Ω(err).ShouldNot(HaveOccurred())
@@ -416,7 +491,7 @@ var _ = Describe("Through a restart", func() {
 
 			Ω(processA.Wait()).Should(Equal(0))
 
-			restartGarden()
+			restartGarden(gardenArgs...)
 
 			otherContainer, err := client.Create(garden.ContainerSpec{})
 			Ω(err).ShouldNot(HaveOccurred())
@@ -439,11 +514,22 @@ var _ = Describe("Through a restart", func() {
 		})
 
 		It("is still enforced", func() {
-			restartGarden()
+			restartGarden(gardenArgs...)
 
 			Ω(getContainerHandles()).Should(ContainElement(container.Handle()))
 			Eventually(getContainerHandles, 10*time.Second).ShouldNot(ContainElement(container.Handle()))
 			container = nil
+		})
+	})
+
+	Describe("a privileged container", func() {
+		BeforeEach(func() {
+			privileged = true
+		})
+
+		It("is still present", func() {
+			restartGarden(gardenArgs...)
+			Ω(getContainerHandles()).Should(ContainElement(container.Handle()))
 		})
 	})
 })
@@ -458,4 +544,25 @@ func getContainerHandles() []string {
 	}
 
 	return handles
+}
+
+func runInContainer(container garden.Container, script string) (garden.Process, *gbytes.Buffer) {
+	out := gbytes.NewBuffer()
+	process, err := container.Run(garden.ProcessSpec{
+		Path: "sh",
+		Args: []string{"-c", script},
+	}, garden.ProcessIO{
+		Stdout: io.MultiWriter(out, GinkgoWriter),
+		Stderr: GinkgoWriter,
+	})
+	Ω(err).ShouldNot(HaveOccurred())
+
+	return process, out
+}
+
+func runEcho(container garden.Container) {
+	process, _ := runInContainer(container, "echo hello")
+	status, err := process.Wait()
+	Ω(err).ShouldNot(HaveOccurred())
+	Ω(status).Should(Equal(0))
 }

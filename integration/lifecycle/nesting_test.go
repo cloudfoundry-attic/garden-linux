@@ -18,9 +18,6 @@ import (
 )
 
 var _ = Describe("When nested", func() {
-	var container garden.Container
-	var nestedGardenAddress string
-
 	nestedRootfsPath := os.Getenv("GARDEN_NESTABLE_TEST_ROOTFS")
 	if nestedRootfsPath == "" {
 		log.Println("GARDEN_NESTABLE_TEST_ROOTFS undefined; skipping nesting test")
@@ -28,13 +25,14 @@ var _ = Describe("When nested", func() {
 	}
 
 	BeforeEach(func() {
-		var err error
 		client = startGarden()
+	})
 
+	startNestedGarden := func(mountOverlayOnTmpfs bool) (garden.Container, string) {
 		absoluteBinPath, err := filepath.Abs(binPath)
 		Ω(err).ShouldNot(HaveOccurred())
 
-		container, err = client.Create(garden.ContainerSpec{
+		container, err := client.Create(garden.ContainerSpec{
 			RootFSPath: nestedRootfsPath,
 			// only privileged containers support nesting
 			Privileged: true,
@@ -65,6 +63,11 @@ var _ = Describe("When nested", func() {
 
 		nestedServerOutput := gbytes.NewBuffer()
 
+		extraMounts := ""
+		if mountOverlayOnTmpfs {
+			extraMounts = "mount -t tmpfs tmpfs /tmp/overlays"
+		}
+
 		// start nested garden, again need to be root
 		_, err = container.Run(garden.ProcessSpec{
 			Path: "sh",
@@ -72,8 +75,11 @@ var _ = Describe("When nested", func() {
 			Dir:  "/home/vcap",
 			Args: []string{
 				"-c",
-				`
+				fmt.Sprintf(`
 				mkdir /tmp/overlays /tmp/containers /tmp/snapshots /tmp/graph;
+				%s
+				mount -t tmpfs tmpfs /tmp/containers
+
 				./bin/garden-linux \
 					-bin /home/vcap/binpath/bin \
 					-rootfs /home/vcap/rootfs \
@@ -84,7 +90,7 @@ var _ = Describe("When nested", func() {
 					-disableQuotas \
 					-listenNetwork tcp \
 					-listenAddr 0.0.0.0:7778;
-				`,
+				`, extraMounts),
 			},
 		}, garden.ProcessIO{
 			Stdout: io.MultiWriter(nestedServerOutput, gexec.NewPrefixedWriter("\x1b[32m[o]\x1b[34m[nested-garden-linux]\x1b[0m ", GinkgoWriter)),
@@ -94,15 +100,16 @@ var _ = Describe("When nested", func() {
 		info, err := container.Info()
 		Ω(err).ShouldNot(HaveOccurred())
 
-		nestedGardenAddress = fmt.Sprintf("%s:7778", info.ContainerIP)
+		nestedGardenAddress := fmt.Sprintf("%s:7778", info.ContainerIP)
 		Eventually(nestedServerOutput).Should(gbytes.Say("garden-linux.started"))
-	})
 
-	AfterEach(func() {
-		Ω(client.Destroy(container.Handle())).Should(Succeed())
-	})
+		return container, nestedGardenAddress
+	}
 
 	It("can start a nested garden-linux and run a container inside it", func() {
+		container, nestedGardenAddress := startNestedGarden(true)
+		defer client.Destroy(container.Handle())
+
 		nestedClient := gclient.New(gconn.New("tcp", nestedGardenAddress))
 		nestedContainer, err := nestedClient.Create(garden.ContainerSpec{})
 		Ω(err).ShouldNot(HaveOccurred())
@@ -117,5 +124,14 @@ var _ = Describe("When nested", func() {
 		Ω(err).ShouldNot(HaveOccurred())
 
 		Eventually(nestedOutput).Should(gbytes.Say("I am nested!"))
+	})
+
+	It("returns helpful error message when depot directory fstype cannot be nested", func() {
+		container, nestedGardenAddress := startNestedGarden(false)
+		defer client.Destroy(container.Handle())
+
+		nestedClient := gclient.New(gconn.New("tcp", nestedGardenAddress))
+		_, err := nestedClient.Create(garden.ContainerSpec{})
+		Ω(err).Should(MatchError("overlay.sh: exit status 222, container directory and rootfs must be mounted on a filesystem type that supports aufs or overlayfs"))
 	})
 })

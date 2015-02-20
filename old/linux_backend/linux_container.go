@@ -84,7 +84,7 @@ type LinuxContainer struct {
 	netIns      []NetInSpec
 	netInsMutex sync.RWMutex
 
-	netOuts      []NetOutSpec
+	netOuts      []garden.NetOutRule
 	netOutsMutex sync.RWMutex
 
 	mtu uint32
@@ -119,12 +119,6 @@ func (p *ProcessIDPool) Restore(id uint32) {
 type NetInSpec struct {
 	HostPort      uint32
 	ContainerPort uint32
-}
-
-// TODO: extend this for security groups https://www.pivotaltracker.com/story/show/82554270
-type NetOutSpec struct {
-	Network string
-	Port    uint32
 }
 
 type PortPool interface {
@@ -199,10 +193,6 @@ func (c *LinuxContainer) Handle() string {
 
 func (c *LinuxContainer) GraceTime() time.Duration {
 	return c.graceTime
-}
-
-func (c *LinuxContainer) Properties() garden.Properties {
-	return c.properties
 }
 
 func (c *LinuxContainer) State() State {
@@ -388,6 +378,13 @@ func (c *LinuxContainer) Restore(snapshot ContainerSnapshot) error {
 		}
 	}
 
+	for _, out := range snapshot.NetOuts {
+		if err := c.NetOut(out); err != nil {
+			cLog.Error("failed-to-reenforce-net-out", err)
+			return err
+		}
+	}
+
 	cLog.Info("restored")
 
 	return nil
@@ -450,6 +447,13 @@ func (c *LinuxContainer) Stop(kill bool) error {
 	return nil
 }
 
+func (c *LinuxContainer) Properties() garden.Properties {
+	c.propertiesMutex.RLock()
+	defer c.propertiesMutex.RUnlock()
+
+	return c.properties
+}
+
 func (c *LinuxContainer) GetProperty(key string) (string, error) {
 	c.propertiesMutex.RLock()
 	defer c.propertiesMutex.RUnlock()
@@ -466,11 +470,14 @@ func (c *LinuxContainer) SetProperty(key string, value string) error {
 	c.propertiesMutex.Lock()
 	defer c.propertiesMutex.Unlock()
 
-	if c.properties == nil {
-		c.properties = make(map[string]string)
+	props := garden.Properties{}
+	for k, v := range c.properties {
+		props[k] = v
 	}
 
-	c.properties[key] = value
+	props[key] = value
+
+	c.properties = props
 
 	return nil
 }
@@ -484,7 +491,15 @@ func (c *LinuxContainer) RemoveProperty(key string) error {
 		return UndefinedPropertyError{key}
 	}
 
-	delete(c.properties, key)
+	props := garden.Properties{}
+	for k, v := range c.properties {
+		if k == key {
+			continue
+		}
+		props[k] = v
+	}
+
+	c.properties = props
 
 	return nil
 }
@@ -508,11 +523,6 @@ func (c *LinuxContainer) Info() (garden.ContainerInfo, error) {
 	}
 
 	diskStat, err := c.quotaManager.GetUsage(cLog, c.resources.UserUID)
-	if err != nil {
-		return garden.ContainerInfo{}, err
-	}
-
-	bandwidthStat, err := c.bandwidthManager.GetLimits(cLog)
 	if err != nil {
 		return garden.ContainerInfo{}, err
 	}
@@ -544,7 +554,6 @@ func (c *LinuxContainer) Info() (garden.ContainerInfo, error) {
 		MemoryStat:    parseMemoryStat(memoryStat),
 		CPUStat:       parseCPUStat(cpuUsage, cpuStat),
 		DiskStat:      diskStat,
-		BandwidthStat: bandwidthStat,
 		MappedPorts:   mappedPorts,
 	}
 
@@ -864,6 +873,8 @@ func (c *LinuxContainer) NetOut(r garden.NetOutRule) error {
 
 	c.netOutsMutex.Lock()
 	defer c.netOutsMutex.Unlock()
+
+	c.netOuts = append(c.netOuts, r)
 
 	return nil
 }

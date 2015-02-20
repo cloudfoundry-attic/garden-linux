@@ -49,7 +49,8 @@ func startGarden(argv ...string) garden.Client {
 }
 
 func restartGarden(argv ...string) {
-	gardenProcess.Signal(syscall.SIGINT)
+	Ω(client.Ping()).Should(Succeed(), "tried to restart garden while it was not running")
+	gardenProcess.Signal(syscall.SIGTERM)
 	Eventually(gardenProcess.Wait(), "10s").Should(Receive())
 
 	startGarden(argv...)

@@ -1,6 +1,9 @@
 package subnets
 
-import "net"
+import (
+	"fmt"
+	"net"
+)
 
 // StaticSubnetSelector requests a specific ("static") subnet. Returns an error if the subnet is already allocated.
 type StaticSubnetSelector struct {
@@ -9,12 +12,12 @@ type StaticSubnetSelector struct {
 
 func (s StaticSubnetSelector) SelectSubnet(dynamic *net.IPNet, existing []*net.IPNet) (*net.IPNet, error) {
 	if overlaps(dynamic, s.IPNet) {
-		return nil, ErrNotAllowed
+		return nil, fmt.Errorf("the requested subnet (%v) overlaps the dynamic allocation range (%v)", s.IPNet.String(), dynamic.String())
 	}
 
 	for _, e := range existing {
 		if overlaps(s.IPNet, e) && !equals(s.IPNet, e) {
-			return nil, ErrOverlapsExistingSubnet
+			return nil, fmt.Errorf("the requested subnet (%v) overlaps an existing subnet (%v)", s.IPNet.String(), e.String())
 		}
 	}
 

@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/ioutil"
 	"math"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -50,6 +51,22 @@ var mtu uint32
 var oldLang string
 
 var _ = Describe("Linux containers", func() {
+	netOutRule1 := garden.NetOutRule{
+		Protocol: garden.ProtocolUDP,
+		Networks: []garden.IPRange{garden.IPRangeFromIP(net.ParseIP("1.2.3.4"))},
+		Ports:    []garden.PortRange{{Start: 12, End: 24}},
+		ICMPs:    &garden.ICMPControl{Type: 3, Code: garden.ICMPControlCode(12)},
+		Log:      true,
+	}
+
+	netOutRule2 := garden.NetOutRule{
+		Protocol: garden.ProtocolTCP,
+		Networks: []garden.IPRange{garden.IPRangeFromIP(net.ParseIP("1.2.5.4"))},
+		Ports:    []garden.PortRange{{Start: 13, End: 34}},
+		ICMPs:    &garden.ICMPControl{Type: 3, Code: garden.ICMPControlCode(5)},
+		Log:      false,
+	}
+
 	BeforeEach(func() {
 		fakeRunner = fake_command_runner.New()
 
@@ -154,6 +171,9 @@ var _ = Describe("Linux containers", func() {
 			_, _, err = container.NetIn(3, 4)
 			Ω(err).ShouldNot(HaveOccurred())
 
+			container.NetOut(netOutRule1)
+			container.NetOut(netOutRule2)
+
 			p1 := new(wfakes.FakeProcess)
 			p1.IDReturns(1)
 
@@ -206,6 +226,10 @@ var _ = Describe("Linux containers", func() {
 					},
 				},
 			))
+
+			Ω(snapshot.NetOuts).Should(Equal([]garden.NetOutRule{
+				netOutRule1, netOutRule2,
+			}))
 
 			Ω(snapshot.Processes).Should(ContainElement(
 				linux_backend.ProcessSnapshot{
@@ -400,6 +424,27 @@ var _ = Describe("Linux containers", func() {
 			Ω(container.CurrentEnvVars()).Should(Equal(process.Env{"env1": "env1value", "env2": "env2Value"}))
 		})
 
+		It("redoes net-outs", func() {
+			Ω(container.Restore(linux_backend.ContainerSnapshot{
+				NetOuts: []garden.NetOutRule{netOutRule1, netOutRule2},
+			})).Should(Succeed())
+
+			Ω(fakeFilter.NetOutCallCount()).Should(Equal(2))
+			Ω(fakeFilter.NetOutArgsForCall(0)).Should(Equal(netOutRule1))
+			Ω(fakeFilter.NetOutArgsForCall(1)).Should(Equal(netOutRule2))
+		})
+
+		Context("when applying a netout rule fails", func() {
+			It("returns an error", func() {
+				fakeFilter.NetOutReturns(errors.New("didn't work"))
+
+				Ω(container.Restore(
+					linux_backend.ContainerSnapshot{
+						NetOuts: []garden.NetOutRule{{}},
+					})).Should(MatchError("didn't work"))
+			})
+		})
+
 		It("redoes network setup and net-ins", func() {
 			err := container.Restore(linux_backend.ContainerSnapshot{
 				State:  "active",
@@ -467,7 +512,7 @@ var _ = Describe("Linux containers", func() {
 							},
 						},
 
-						NetOuts: []linux_backend.NetOutSpec{},
+						NetOuts: []garden.NetOutRule{},
 					})
 					Ω(err).Should(Equal(disaster))
 				})
@@ -1985,6 +2030,19 @@ var _ = Describe("Linux containers", func() {
 			Ω(value).Should(BeZero())
 		})
 
+		It("returns a properties snapshot", func() {
+			err := container.SetProperty("some-property", "some-value")
+			Ω(err).ShouldNot(HaveOccurred())
+
+			properties := container.Properties()
+			Ω(properties["some-property"]).Should(Equal("some-value"))
+
+			err = container.SetProperty("some-property", "some-other-value")
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(properties["some-property"]).Should(Equal("some-value"))
+		})
+
 		Context("with a nil map of properties at container creation", func() {
 			BeforeEach(func() {
 				containerProps = nil
@@ -2244,41 +2302,6 @@ system 2
 
 				JustBeforeEach(func() {
 					fakeQuotaManager.GetUsageError = disaster
-				})
-
-				It("returns the error", func() {
-					_, err := container.Info()
-					Ω(err).Should(Equal(disaster))
-				})
-			})
-		})
-
-		Describe("bandwidth info", func() {
-			It("is returned in the response", func() {
-				fakeBandwidthManager.GetLimitsResult = garden.ContainerBandwidthStat{
-					InRate:   1,
-					InBurst:  2,
-					OutRate:  3,
-					OutBurst: 4,
-				}
-
-				info, err := container.Info()
-				Ω(err).ShouldNot(HaveOccurred())
-
-				Ω(info.BandwidthStat).Should(Equal(garden.ContainerBandwidthStat{
-					InRate:   1,
-					InBurst:  2,
-					OutRate:  3,
-					OutBurst: 4,
-				}))
-
-			})
-
-			Context("when getting the bandwidth usage fails", func() {
-				disaster := errors.New("oh no!")
-
-				JustBeforeEach(func() {
-					fakeBandwidthManager.GetLimitsError = disaster
 				})
 
 				It("returns the error", func() {

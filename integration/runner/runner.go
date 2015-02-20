@@ -84,25 +84,41 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 		return err
 	}
 
-	gardenArgs := append(
-		r.argv,
-		"--listenNetwork", r.network,
-		"--listenAddr", r.addr,
-		"--bin", r.binPath,
-		"--rootfs", r.rootFSPath,
-		"--depot", depotPath,
-		"--debugAddr", r.debugAddr,
-		"--overlays", overlaysPath,
-		"--snapshots", snapshotsPath,
-		"--graph", r.graphPath,
-		"--logLevel", "debug",
-		"--disableQuotas",
-		"--networkPool", fmt.Sprintf("10.250.%d.0/24", ginkgo.GinkgoParallelNode()),
-		"--portPoolStart", strconv.Itoa(51000+(1000*ginkgo.GinkgoParallelNode())),
-		"--portPoolSize", "1000",
-		"--uidPoolStart", strconv.Itoa(10000*ginkgo.GinkgoParallelNode()),
-		"--tag", strconv.Itoa(ginkgo.GinkgoParallelNode()),
-	)
+	MustMountTmpfs(overlaysPath)
+
+	var appendDefaultFlag = func(ar []string, key, value string) []string {
+		for _, a := range r.argv {
+			if a == key {
+				return ar
+			}
+		}
+
+		if value != "" {
+			return append(ar, key, value)
+		} else {
+			return append(ar, key)
+		}
+	}
+
+	gardenArgs := make([]string, len(r.argv))
+	copy(gardenArgs, r.argv)
+
+	gardenArgs = appendDefaultFlag(gardenArgs, "--listenNetwork", r.network)
+	gardenArgs = appendDefaultFlag(gardenArgs, "--listenAddr", r.addr)
+	gardenArgs = appendDefaultFlag(gardenArgs, "--bin", r.binPath)
+	gardenArgs = appendDefaultFlag(gardenArgs, "--rootfs", r.rootFSPath)
+	gardenArgs = appendDefaultFlag(gardenArgs, "--depot", depotPath)
+	gardenArgs = appendDefaultFlag(gardenArgs, "--debugAddr", r.debugAddr)
+	gardenArgs = appendDefaultFlag(gardenArgs, "--overlays", overlaysPath)
+	gardenArgs = appendDefaultFlag(gardenArgs, "--snapshots", snapshotsPath)
+	gardenArgs = appendDefaultFlag(gardenArgs, "--graph", r.graphPath)
+	gardenArgs = appendDefaultFlag(gardenArgs, "--logLevel", "debug")
+	gardenArgs = appendDefaultFlag(gardenArgs, "--disableQuotas", "")
+	gardenArgs = appendDefaultFlag(gardenArgs, "--networkPool", fmt.Sprintf("10.250.%d.0/24", ginkgo.GinkgoParallelNode()))
+	gardenArgs = appendDefaultFlag(gardenArgs, "--portPoolStart", strconv.Itoa(51000+(1000*ginkgo.GinkgoParallelNode())))
+	gardenArgs = appendDefaultFlag(gardenArgs, "--portPoolSize", "1000")
+	gardenArgs = appendDefaultFlag(gardenArgs, "--uidPoolStart", strconv.Itoa(10000*ginkgo.GinkgoParallelNode()))
+	gardenArgs = appendDefaultFlag(gardenArgs, "--tag", strconv.Itoa(ginkgo.GinkgoParallelNode()))
 
 	var signal os.Signal
 

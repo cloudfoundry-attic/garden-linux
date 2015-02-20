@@ -68,8 +68,7 @@ var _ = Describe("Subnet Pool", func() {
 					_, static := networkParms("10.2.3.4/30")
 
 					_, _, _, err := subnetpool.Allocate(subnets.StaticSubnetSelector{static}, subnets.DynamicIPSelector)
-					Ω(err).Should(HaveOccurred())
-					Ω(err).Should(Equal(subnets.ErrNotAllowed))
+					Ω(err).Should(MatchError("the requested subnet (10.2.3.4/30) overlaps the dynamic allocation range (10.2.3.0/29)"))
 				})
 			})
 
@@ -83,7 +82,7 @@ var _ = Describe("Subnet Pool", func() {
 
 					_, _, _, err := subnetpool.Allocate(subnets.StaticSubnetSelector{static}, subnets.DynamicIPSelector)
 					Ω(err).Should(HaveOccurred())
-					Ω(err).Should(Equal(subnets.ErrNotAllowed))
+					Ω(err).Should(MatchError("the requested subnet (10.2.3.0/24) overlaps the dynamic allocation range (10.2.3.4/30)"))
 				})
 			})
 
@@ -306,6 +305,31 @@ var _ = Describe("Subnet Pool", func() {
 					})
 				})
 
+				Context("after a subnet has been allocated, a subsequent request for an overlapping subnet which begins on the same ip", func() {
+					var (
+						firstSubnetPool  *net.IPNet
+						firstContainerIP net.IP
+						secondSubnetPool *net.IPNet
+					)
+
+					JustBeforeEach(func() {
+						var err error
+						firstContainerIP, firstSubnetPool = networkParms("10.9.3.0/30")
+						Ω(err).ShouldNot(HaveOccurred())
+
+						_, secondSubnetPool = networkParms("10.9.3.0/29")
+						Ω(err).ShouldNot(HaveOccurred())
+
+						_, _, _, err = subnetpool.Allocate(subnets.StaticSubnetSelector{firstSubnetPool}, subnets.DynamicIPSelector)
+						Ω(err).ShouldNot(HaveOccurred())
+					})
+
+					It("returns an appropriate error", func() {
+						_, _, _, err := subnetpool.Allocate(subnets.StaticSubnetSelector{secondSubnetPool}, subnets.DynamicIPSelector)
+						Ω(err).Should(MatchError("the requested subnet (10.9.3.0/29) overlaps an existing subnet (10.9.3.0/30)"))
+					})
+				})
+
 				Context("after a subnet has been allocated, a subsequent request for an overlapping subnet", func() {
 					var (
 						firstSubnetPool  *net.IPNet
@@ -327,8 +351,7 @@ var _ = Describe("Subnet Pool", func() {
 
 					It("returns an appropriate error", func() {
 						_, _, _, err := subnetpool.Allocate(subnets.StaticSubnetSelector{secondSubnetPool}, subnets.DynamicIPSelector)
-						Ω(err).Should(HaveOccurred())
-						Ω(err).Should(Equal(subnets.ErrOverlapsExistingSubnet))
+						Ω(err).Should(MatchError("the requested subnet (10.9.3.0/29) overlaps an existing subnet (10.9.3.4/30)"))
 					})
 
 					Context("but after it is released", func() {
