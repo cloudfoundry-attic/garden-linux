@@ -84,7 +84,7 @@ type LinuxContainer struct {
 	netIns      []NetInSpec
 	netInsMutex sync.RWMutex
 
-	netOuts      []NetOutSpec
+	netOuts      []garden.NetOutRule
 	netOutsMutex sync.RWMutex
 
 	mtu uint32
@@ -119,12 +119,6 @@ func (p *ProcessIDPool) Restore(id uint32) {
 type NetInSpec struct {
 	HostPort      uint32
 	ContainerPort uint32
-}
-
-// TODO: extend this for security groups https://www.pivotaltracker.com/story/show/82554270
-type NetOutSpec struct {
-	Network string
-	Port    uint32
 }
 
 type PortPool interface {
@@ -380,6 +374,13 @@ func (c *LinuxContainer) Restore(snapshot ContainerSnapshot) error {
 		_, _, err = c.NetIn(in.HostPort, in.ContainerPort)
 		if err != nil {
 			cLog.Error("failed-to-reenforce-port-mapping", err)
+			return err
+		}
+	}
+
+	for _, out := range snapshot.NetOuts {
+		if err := c.NetOut(out); err != nil {
+			cLog.Error("failed-to-reenforce-net-out", err)
 			return err
 		}
 	}
@@ -872,6 +873,8 @@ func (c *LinuxContainer) NetOut(r garden.NetOutRule) error {
 
 	c.netOutsMutex.Lock()
 	defer c.netOutsMutex.Unlock()
+
+	c.netOuts = append(c.netOuts, r)
 
 	return nil
 }

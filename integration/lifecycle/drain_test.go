@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"net"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -393,6 +394,68 @@ var _ = Describe("Through a restart", func() {
 			Ω(infoA.HostIP).ShouldNot(Equal(infoB.HostIP))
 			Ω(infoA.ContainerIP).ShouldNot(Equal(infoB.ContainerIP))
 		})
+
+		Context("when denying all networks initially", func() {
+			var ByAllowingTCPTo func(net.IP)
+			var ByDenyingTCPTo func(net.IP)
+			var externalIP net.IP
+
+			BeforeEach(func() {
+				ips, err := net.LookupIP("www.example.com")
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(ips).ShouldNot(BeEmpty())
+				externalIP = ips[0]
+
+				gardenArgs = []string{
+					"-denyNetworks", "0.0.0.0/0", // deny everything
+					"-allowNetworks", "", // allow nothing
+				}
+
+				ByAllowingTCPTo = func(ip net.IP) {
+					By("Allowing TCP to"+ip.String(), func() {
+						process, _ := runInContainer(
+							container,
+							fmt.Sprintf("(echo 'GET / HTTP/1.1'; echo 'Host: example.com'; echo) | nc -w5 %s 80", ip),
+						)
+						status, err := process.Wait()
+						Ω(err).ShouldNot(HaveOccurred())
+						Ω(status).Should(Equal(0))
+					})
+				}
+
+				ByDenyingTCPTo = func(ip net.IP) {
+					By("Denying TCP to"+ip.String(), func() {
+						process, _ := runInContainer(
+							container,
+							fmt.Sprintf("(echo 'GET / HTTP/1.1'; echo 'Host: example.com'; echo) | nc -w5 %s 80", ip),
+						)
+						status, err := process.Wait()
+						Ω(err).ShouldNot(HaveOccurred())
+						Ω(status).ShouldNot(Equal(0))
+					})
+				}
+			})
+
+			It("preserves NetOut rules", func() {
+				// Initially prevented from accessing (sanity check)
+				ByDenyingTCPTo(externalIP)
+
+				// Allow access
+				Ω(container.NetOut(garden.NetOutRule{
+					Protocol: garden.ProtocolTCP,
+					Networks: []garden.IPRange{
+						garden.IPRangeFromIP(externalIP),
+					},
+				})).Should(Succeed())
+
+				// Check it worked (sanity check)
+				ByAllowingTCPTo(externalIP)
+
+				restartGarden(gardenArgs...)
+				ByAllowingTCPTo(externalIP)
+			})
+		})
+
 	})
 
 	Describe("a container's mapped port", func() {
