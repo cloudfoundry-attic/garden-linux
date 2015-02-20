@@ -4,13 +4,11 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"os/exec"
 	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
-	"github.com/onsi/gomega/gexec"
 
 	"github.com/cloudfoundry-incubator/garden"
 )
@@ -51,9 +49,6 @@ var _ = Describe("Through a restart", func() {
 	It("allows us to run processes in the same container before and after restart", func() {
 		By("running a process before restart")
 		runEcho(container)
-		info, _ := container.Info()
-		cmd, _ := gexec.Start(exec.Command("sh", "-c", fmt.Sprintf("find %s", info.ContainerPath)), GinkgoWriter, GinkgoWriter)
-		cmd.Wait()
 
 		restartGarden(gardenArgs...)
 
