@@ -8,11 +8,11 @@ import (
 
 const USAGE = `usage:
 
-	iomux spawn [-timeout timeout] [-tty] <socket> <path> <args...>:
+	iodaemon spawn [-timeout timeout] [-tty] <socket> <path> <args...>:
 		spawn a subprocess, making its stdio and exit status available via
 		the given socket
 
-	iomux link <socket>:
+	iodemon link <socket>:
 		attach to a process via the given socket
 `
 
@@ -44,7 +44,7 @@ var windowRows = flag.Int(
 var debug = flag.Bool(
 	"debug",
 	false,
-	"emit debugging information beside socket file as .trace",
+	"emit debugging information beside socket file as .trace (unsupported option)",
 )
 
 func main() {
@@ -58,14 +58,16 @@ func main() {
 			usage()
 		}
 
-		spawn(args[1], args[2:], *timeout, *tty, *windowColumns, *windowRows, *debug)
+		spawn(args[1], args[2:], *timeout, *tty, *windowColumns, *windowRows, *debug, func(exitStatus int) {
+			os.Exit(exitStatus)
+		}, os.Stdin, os.Stdout, os.Stderr)
 
 	case "link":
 		if len(args) < 2 {
 			usage()
 		}
 
-		link(args[1])
+		os.Exit(link(args[1]))
 
 	default:
 		usage()

@@ -5,6 +5,7 @@ tmp/
 out/
 root/
 *.coverprofile*
+*.trace
 .rootfs/
 old/linux_backend/bin/repquota
 old/linux_backend/skeleton/bin/*

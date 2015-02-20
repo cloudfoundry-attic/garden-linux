@@ -7,16 +7,36 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	debugPkg "runtime/debug"
 	"strconv"
 	"syscall"
 	"time"
 
+	"io"
+
 	linkpkg "github.com/cloudfoundry-incubator/garden-linux/old/iodaemon/link"
-	"github.com/cloudfoundry-incubator/garden-linux/old/ptyutil"
 	"github.com/kr/pty"
 )
 
-func spawn(socketPath string, argv []string, timeout time.Duration, withTty bool, windowColumns int, windowRows int, debug bool) {
+func spawn(
+	socketPath string,
+	argv []string,
+	timeout time.Duration,
+	withTty bool,
+	windowColumns int,
+	windowRows int,
+	debug bool,
+	terminate func(int),
+	inStream io.ReadCloser,
+	outStream io.WriteCloser,
+	errStream io.WriteCloser,
+) {
+	fatal := func(err error) {
+		debugPkg.PrintStack()
+		fmt.Fprintln(errStream, "fatal: "+err.Error())
+		terminate(1)
+	}
+
 	err := os.MkdirAll(filepath.Dir(socketPath), 0755)
 	if err != nil {
 		fatal(err)
@@ -40,9 +60,16 @@ func spawn(socketPath string, argv []string, timeout time.Duration, withTty bool
 		}
 	}
 
+    // Delete socketPath if it exists to avoid bind failures.
+    err = os.Remove(socketPath)
+    if err != nil && !os.IsNotExist(err) {
+        fatal(err)
+    }
+
 	listener, err := net.Listen("unix", socketPath)
 	if err != nil {
 		fatal(err)
+        return
 	}
 
 	bin, err := exec.LookPath(argv[0])
@@ -52,46 +79,17 @@ func spawn(socketPath string, argv []string, timeout time.Duration, withTty bool
 
 	cmd := child(bin, argv)
 
-	// stderr will not be assigned in the case of a tty, so make
-	// a dummy pipe to send across instead
-	stderrR, stderrW, err := os.Pipe()
-	if err != nil {
-		fatal(err)
-	}
-
-	var stdinW, stdoutR *os.File
-	var stdinR, stdoutW *os.File
-
+	var stdinR, stdinW, stdoutR, stdoutW, stderrR, stderrW *os.File
 	if withTty {
-		pty, tty, err := pty.Open()
-		if err != nil {
-			fatal(err)
-		}
-
-		// do NOT assign stderrR to pty; the receiving end should only receive one
-		// pty output stream, as they're both the same fd
-
-		stdinW = pty
-		stdoutR = pty
-
-		stdinR = tty
-		stdoutW = tty
-		stderrW = tty
-
-		ptyutil.SetWinSize(stdinW, windowColumns, windowRows)
-
+		stdinR, stdinW, stdoutR, stdoutW, stderrR, stderrW, err = glueTty(windowColumns, windowRows)
 		cmd.SysProcAttr.Setctty = true
 		cmd.SysProcAttr.Setsid = true
 	} else {
-		stdinR, stdinW, err = os.Pipe()
-		if err != nil {
-			fatal(err)
-		}
+		stdinR, stdinW, stdoutR, stdoutW, stderrR, stderrW, err = glueNoTty(windowColumns, windowRows)
+	}
 
-		stdoutR, stdoutW, err = os.Pipe()
-		if err != nil {
-			fatal(err)
-		}
+	if err != nil {
+		fatal(err)
 	}
 
 	cmd.Stdin = stdinR
@@ -103,7 +101,7 @@ func spawn(socketPath string, argv []string, timeout time.Duration, withTty bool
 		fatal(err)
 	}
 
-	fmt.Println("ready")
+	fmt.Fprintln(outStream, "ready")
 
 	started := false
 
@@ -122,6 +120,7 @@ func spawn(socketPath string, argv []string, timeout time.Duration, withTty bool
 
 		_, _, err = conn.(*net.UnixConn).WriteMsgUnix([]byte{}, rights, nil)
 		if err != nil {
+			fatal(err)
 			break
 		}
 
@@ -137,7 +136,7 @@ func spawn(socketPath string, argv []string, timeout time.Duration, withTty bool
 			stdoutW.Close()
 			stderrW.Close()
 
-			fmt.Println("pid:", cmd.Process.Pid)
+			fmt.Fprintln(outStream, "pid:", cmd.Process.Pid)
 
 			go func() {
 				cmd.Wait()
@@ -146,14 +145,13 @@ func spawn(socketPath string, argv []string, timeout time.Duration, withTty bool
 					fmt.Fprintf(statusW, "%d\n", cmd.ProcessState.Sys().(syscall.WaitStatus).ExitStatus())
 				}
 
-				listener.Close()
-				os.Exit(0)
+				terminate(0)
 			}()
 
 			// detach from parent process
-			os.Stdin.Close()
-			os.Stdout.Close()
-			os.Stderr.Close()
+			inStream.Close()
+			outStream.Close()
+			errStream.Close()
 
 			started = true
 		}
@@ -168,10 +166,14 @@ func spawn(socketPath string, argv []string, timeout time.Duration, withTty bool
 			}
 
 			if input.WindowSize != nil {
-				ptyutil.SetWinSize(stdinW, input.WindowSize.Columns, input.WindowSize.Rows)
+				setWinSize(stdinW, input.WindowSize.Columns, input.WindowSize.Rows)
 				cmd.Process.Signal(syscall.SIGWINCH)
 			} else if input.EOF {
+				stdinW.Sync()
 				err := stdinW.Close()
+				if withTty {
+					cmd.Process.Signal(syscall.SIGHUP)
+				}
 				if err != nil {
 					conn.Close()
 					break
@@ -187,7 +189,50 @@ func spawn(socketPath string, argv []string, timeout time.Duration, withTty bool
 	}
 }
 
-func fatal(err error) {
-	println("fatal: " + err.Error())
-	os.Exit(1)
+func glueNoTty(windowColumns int, windowRows int) (stdinR, stdinW, stdoutR, stdoutW, stderrR, stderrW *os.File, err error) {
+	// stderr will not be assigned in the case of a tty, so make
+	// a dummy pipe to send across instead
+	stderrR, stderrW, err = os.Pipe()
+	if err != nil {
+		return nil, nil, nil, nil, nil, nil, err
+	}
+
+	stdinR, stdinW, err = os.Pipe()
+	if err != nil {
+		return nil, nil, nil, nil, nil, nil, err
+	}
+
+	stdoutR, stdoutW, err = os.Pipe()
+	if err != nil {
+		return nil, nil, nil, nil, nil, nil, err
+	}
+
+	return
+}
+
+func glueTty(windowColumns int, windowRows int) (stdinR, stdinW, stdoutR, stdoutW, stderrR, stderrW *os.File, err error) {
+	// stderr will not be assigned in the case of a tty, so ensure it will return EOF on read
+    stderrR, err = os.Open("/dev/null")
+	if err != nil {
+		return nil, nil, nil, nil, nil, nil, err
+	}
+
+	pty, tty, err := pty.Open()
+	if err != nil {
+		return nil, nil, nil, nil, nil, nil, err
+	}
+
+	// do NOT assign stderrR to pty; the receiving end should only receive one
+	// pty output stream, as they're both the same fd
+
+	stdinW = pty
+	stdoutR = pty
+
+	stdinR = tty
+	stdoutW = tty
+	stderrW = tty
+
+	setWinSize(stdinW, windowColumns, windowRows)
+
+	return
 }
