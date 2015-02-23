@@ -12,7 +12,7 @@ const USAGE = `usage:
 		spawn a subprocess, making its stdio and exit status available via
 		the given socket
 
-	iodemon link <socket>:
+	iodaemon link <socket>:
 		attach to a process via the given socket
 `
 
@@ -60,7 +60,7 @@ func main() {
 
 		spawn(args[1], args[2:], *timeout, *tty, *windowColumns, *windowRows, *debug, func(exitStatus int) {
 			os.Exit(exitStatus)
-		}, os.Stdin, os.Stdout, os.Stderr)
+		}, os.Stdout, os.Stderr)
 
 	case "link":
 		if len(args) < 2 {

@@ -9,7 +9,6 @@ import (
 
 	"bytes"
 	"io"
-	"strings"
 
 	linkpkg "github.com/cloudfoundry-incubator/garden-linux/old/iodaemon/link"
 	. "github.com/onsi/ginkgo"
@@ -31,7 +30,6 @@ var _ = Describe("Iodaemon", func() {
 		tmpdir     string
 		done       chan struct{}
 		terminate  func(int)
-		fakeIn     io.ReadCloser
 		fakeOut    wc
 		fakeErr    wc
 	)
@@ -47,13 +45,12 @@ var _ = Describe("Iodaemon", func() {
 		terminate = func(exitStatus int) {
 			close(done)
 		}
-		fakeIn = ioutil.NopCloser(strings.NewReader(""))
 		fakeOut = wc{
 			bytes.NewBuffer([]byte{}),
 		}
-        fakeErr = wc{
-            bytes.NewBuffer([]byte{}),
-        }
+		fakeErr = wc{
+			bytes.NewBuffer([]byte{}),
+		}
 	})
 
 	AfterEach(func() {
@@ -63,7 +60,7 @@ var _ = Describe("Iodaemon", func() {
 
 	Context("spawning a process", func() {
 		spawnProcess := func(args ...string) {
-			go spawn(socketPath, args, time.Second, false, 0, 0, false, terminate, fakeIn, fakeOut, fakeErr)
+			go spawn(socketPath, args, time.Second, false, 0, 0, false, terminate, fakeOut, fakeErr)
 		}
 
 		It("reports back stdout", func() {
@@ -116,26 +113,26 @@ var _ = Describe("Iodaemon", func() {
 			Eventually(done).Should(BeClosed())
 		})
 
-        Context("when there is an existing socket file", func(){
-            BeforeEach(func(){
-                file, err := os.Create(socketPath)
-                Ω(err).ShouldNot(HaveOccurred())
-                file.Close()
-            })
+		Context("when there is an existing socket file", func() {
+			BeforeEach(func() {
+				file, err := os.Create(socketPath)
+				Ω(err).ShouldNot(HaveOccurred())
+				file.Close()
+			})
 
-            It("still creates the process", func() {
-                spawnProcess("echo", "hello")
+			It("still creates the process", func() {
+				spawnProcess("echo", "hello")
 
-                _, linkStdout, _, err := createLink(socketPath)
-                Ω(err).ShouldNot(HaveOccurred())
-                Eventually(linkStdout).Should(gbytes.Say("hello\n"))
-            })
-        })
+				_, linkStdout, _, err := createLink(socketPath)
+				Ω(err).ShouldNot(HaveOccurred())
+				Eventually(linkStdout).Should(gbytes.Say("hello\n"))
+			})
+		})
 	})
 
 	Context("spawning a tty", func() {
 		spawnTty := func(args ...string) {
-			go spawn(socketPath, args, time.Second, true, 200, 80, false, terminate, fakeIn, fakeOut, fakeErr)
+			go spawn(socketPath, args, time.Second, true, 200, 80, false, terminate, fakeOut, fakeErr)
 		}
 
 		It("reports back stdout", func() {

@@ -5,9 +5,9 @@ import (
 	"syscall"
 )
 
-func child(bin string, argv []string) *exec.Cmd {
+func child(executablePath string, argv []string) *exec.Cmd {
 	return &exec.Cmd{
-		Path:        bin,
+		Path:        executablePath,
 		Args:        argv,
 		SysProcAttr: &syscall.SysProcAttr{},
 	}

@@ -24,7 +24,7 @@ var _ = Describe("Iodaemon integration tests", func() {
 		defer spawnS.Kill()
 
 		Eventually(spawnS).Should(gbytes.Say("ready\n"))
-		Consistently(spawnS).ShouldNot(gbytes.Say("pid:"))
+		Consistently(spawnS).ShouldNot(gbytes.Say("active\n"))
 
 		linkStdout := gbytes.NewBuffer()
 		link, err := linkpkg.Create(socketPath, linkStdout, os.Stderr)
@@ -33,7 +33,7 @@ var _ = Describe("Iodaemon integration tests", func() {
 		link.Write([]byte("hello\ngoodbye"))
 		link.Close()
 
-		Eventually(spawnS).Should(gbytes.Say("pid:"))
+		Eventually(spawnS).Should(gbytes.Say("active\n"))
 		Eventually(linkStdout).Should(gbytes.Say("hello\ngoodbye"))
 
 		Ω(link.Wait()).Should(Equal(42))
@@ -52,7 +52,7 @@ var _ = Describe("Iodaemon integration tests", func() {
 		defer spawnS.Kill()
 
 		Eventually(spawnS).Should(gbytes.Say("ready\n"))
-		Consistently(spawnS).ShouldNot(gbytes.Say("pid:"))
+		Consistently(spawnS).ShouldNot(gbytes.Say("active\n"))
 
 		linkStdout := gbytes.NewBuffer()
 		link, err := linkpkg.Create(socketPath, linkStdout, os.Stderr)
@@ -61,7 +61,7 @@ var _ = Describe("Iodaemon integration tests", func() {
 		link.Write([]byte("hello\ngoodbye"))
 		link.Close()
 
-		Eventually(spawnS).Should(gbytes.Say("pid:"))
+		Eventually(spawnS).Should(gbytes.Say("active\n"))
 		Eventually(linkStdout).Should(gbytes.Say("hello\r\ngoodbye"))
 
 		Ω(link.Wait()).Should(Equal(-1)) // -1 indicates unhandled SIGHUP
@@ -84,7 +84,7 @@ var _ = Describe("Iodaemon integration tests", func() {
 			linkS, err := gexec.Start(link, GinkgoWriter, GinkgoWriter)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Eventually(spawnS).Should(gbytes.Say("pid:"))
+			Eventually(spawnS).Should(gbytes.Say("active\n"))
 
 			Eventually(linkS).Should(gbytes.Say("hi"))
 			Eventually(linkS).Should(gexec.Exit(0))

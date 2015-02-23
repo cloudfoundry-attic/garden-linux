@@ -18,6 +18,8 @@ import (
 	"github.com/kr/pty"
 )
 
+// spawn listens on a unix socket at the given socketPath and when the first connection
+// is received, starts a child process.
 func spawn(
 	socketPath string,
 	argv []string,
@@ -27,8 +29,7 @@ func spawn(
 	windowRows int,
 	debug bool,
 	terminate func(int),
-	inStream io.ReadCloser,
-	outStream io.WriteCloser,
+	notifyStream io.WriteCloser,
 	errStream io.WriteCloser,
 ) {
 	fatal := func(err error) {
@@ -37,159 +38,194 @@ func spawn(
 		terminate(1)
 	}
 
-	err := os.MkdirAll(filepath.Dir(socketPath), 0755)
+	if debug {
+		enableTracing(socketPath, fatal)
+	}
+
+	listener, err := listen(socketPath)
 	if err != nil {
 		fatal(err)
+		return
 	}
 
-	if debug {
-		ownPid := os.Getpid()
-
-		traceOut, err := os.Create(socketPath + ".trace")
-		if err != nil {
-			fatal(err)
-		}
-
-		strace := exec.Command("strace", "-f", "-s", "10240", "-p", strconv.Itoa(ownPid))
-		strace.Stdout = traceOut
-		strace.Stderr = traceOut
-
-		err = strace.Start()
-		if err != nil {
-			fatal(err)
-		}
-	}
-
-    // Delete socketPath if it exists to avoid bind failures.
-    err = os.Remove(socketPath)
-    if err != nil && !os.IsNotExist(err) {
-        fatal(err)
-    }
-
-	listener, err := net.Listen("unix", socketPath)
+	executablePath, err := exec.LookPath(argv[0])
 	if err != nil {
 		fatal(err)
         return
 	}
 
-	bin, err := exec.LookPath(argv[0])
-	if err != nil {
-		fatal(err)
-	}
+	cmd := child(executablePath, argv)
 
-	cmd := child(bin, argv)
-
-	var stdinR, stdinW, stdoutR, stdoutW, stderrR, stderrW *os.File
+	var stdinW, stdoutR, stderrR *os.File
 	if withTty {
-		stdinR, stdinW, stdoutR, stdoutW, stderrR, stderrW, err = glueTty(windowColumns, windowRows)
+        cmd.Stdin, stdinW, stdoutR, cmd.Stdout, stderrR, cmd.Stderr, err = createTtyPty(windowColumns, windowRows)
 		cmd.SysProcAttr.Setctty = true
 		cmd.SysProcAttr.Setsid = true
 	} else {
-		stdinR, stdinW, stdoutR, stdoutW, stderrR, stderrW, err = glueNoTty(windowColumns, windowRows)
+        cmd.Stdin, stdinW, stdoutR, cmd.Stdout, stderrR, cmd.Stderr, err = createPipes()
 	}
 
 	if err != nil {
 		fatal(err)
+        return
 	}
-
-	cmd.Stdin = stdinR
-	cmd.Stdout = stdoutW
-	cmd.Stderr = stderrW
 
 	statusR, statusW, err := os.Pipe()
 	if err != nil {
 		fatal(err)
+        return
 	}
 
-	fmt.Fprintln(outStream, "ready")
+	notify(notifyStream, "ready")
 
-	started := false
+	childProcessStarted := false
 
-	for {
-		conn, err := listener.Accept()
+	childProcessTerminated := make(chan bool)
+
+	go terminateWhenDone(childProcessTerminated, terminate)
+
+	// Loop accepting and processing connections from the caller.
+    for {
+		conn, err := acceptConnection(listener, stdoutR, stderrR, statusR)
 		if err != nil {
 			fatal(err)
-			break
+			return
 		}
 
-		rights := syscall.UnixRights(
-			int(stdoutR.Fd()),
-			int(stderrR.Fd()),
-			int(statusR.Fd()),
-		)
-
-		_, _, err = conn.(*net.UnixConn).WriteMsgUnix([]byte{}, rights, nil)
-		if err != nil {
-			fatal(err)
-			break
-		}
-
-		if !started {
-			err := cmd.Start()
+		if !childProcessStarted {
+			err = startChildProcess(cmd, errStream, notifyStream, statusW, childProcessTerminated)
 			if err != nil {
 				fatal(err)
+				return
 			}
-
-			// close no longer relevant pipe ends
-			// this closes tty 3 times but that's OK
-			stdinR.Close()
-			stdoutW.Close()
-			stderrW.Close()
-
-			fmt.Fprintln(outStream, "pid:", cmd.Process.Pid)
-
-			go func() {
-				cmd.Wait()
-
-				if cmd.ProcessState != nil {
-					fmt.Fprintf(statusW, "%d\n", cmd.ProcessState.Sys().(syscall.WaitStatus).ExitStatus())
-				}
-
-				terminate(0)
-			}()
-
-			// detach from parent process
-			inStream.Close()
-			outStream.Close()
 			errStream.Close()
-
-			started = true
+			childProcessStarted = true
 		}
 
-		decoder := gob.NewDecoder(conn)
+		processLinkRequests(conn, stdinW, cmd, withTty)
+	}
+}
 
-		for {
-			var input linkpkg.Input
-			err := decoder.Decode(&input)
+func startChildProcess(cmd *exec.Cmd, errStream, notifyStream io.WriteCloser, statusW *os.File, done chan bool) error {
+	err := cmd.Start()
+	if err != nil {
+		return err
+	}
+
+	notify(notifyStream, "active")
+	notifyStream.Close()
+
+	go func() {
+		cmd.Wait()
+
+		if cmd.ProcessState != nil {
+			fmt.Fprintf(statusW, "%d\n", cmd.ProcessState.Sys().(syscall.WaitStatus).ExitStatus())
+		}
+
+		done <- true
+	}()
+
+	return nil
+}
+
+func terminateWhenDone(done chan bool, terminate func(int)) {
+	<-done
+	terminate(0)
+}
+
+func notify(notifyStream io.Writer, message string) {
+	fmt.Fprintln(notifyStream, message)
+}
+
+func enableTracing(socketPath string, fatal func(error)) {
+	ownPid := os.Getpid()
+
+	traceOut, err := os.Create(socketPath + ".trace")
+	if err != nil {
+		fatal(err)
+	}
+
+	strace := exec.Command("strace", "-f", "-s", "10240", "-p", strconv.Itoa(ownPid))
+	strace.Stdout = traceOut
+	strace.Stderr = traceOut
+
+	err = strace.Start()
+	if err != nil {
+		fatal(err)
+	}
+}
+
+func listen(socketPath string) (net.Listener, error) {
+	// Delete socketPath if it exists to avoid bind failures.
+	err := os.Remove(socketPath)
+	if err != nil && !os.IsNotExist(err) {
+		return nil, err
+	}
+
+	err = os.MkdirAll(filepath.Dir(socketPath), 0755)
+	if err != nil {
+		return nil, err
+	}
+
+	return net.Listen("unix", socketPath)
+}
+
+func acceptConnection(listener net.Listener, stdoutR, stderrR, statusR *os.File) (net.Conn, error) {
+	conn, err := listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+
+	rights := syscall.UnixRights(
+		int(stdoutR.Fd()),
+		int(stderrR.Fd()),
+		int(statusR.Fd()),
+	)
+
+	_, _, err = conn.(*net.UnixConn).WriteMsgUnix([]byte{}, rights, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return conn, nil
+}
+
+// Loop receiving and processing link requests on the given connection.
+// The loop terminates when the connection is closed or an error occurs.
+func processLinkRequests(conn net.Conn, stdinW *os.File, cmd *exec.Cmd, withTty bool) {
+	decoder := gob.NewDecoder(conn)
+
+	for {
+		var input linkpkg.Input
+		err := decoder.Decode(&input)
+		if err != nil {
+			break
+		}
+
+		if input.WindowSize != nil {
+			setWinSize(stdinW, input.WindowSize.Columns, input.WindowSize.Rows)
+			cmd.Process.Signal(syscall.SIGWINCH)
+		} else if input.EOF {
+			stdinW.Sync()
+			err := stdinW.Close()
+			if withTty {
+				cmd.Process.Signal(syscall.SIGHUP)
+			}
 			if err != nil {
+				conn.Close()
 				break
 			}
-
-			if input.WindowSize != nil {
-				setWinSize(stdinW, input.WindowSize.Columns, input.WindowSize.Rows)
-				cmd.Process.Signal(syscall.SIGWINCH)
-			} else if input.EOF {
-				stdinW.Sync()
-				err := stdinW.Close()
-				if withTty {
-					cmd.Process.Signal(syscall.SIGHUP)
-				}
-				if err != nil {
-					conn.Close()
-					break
-				}
-			} else {
-				_, err := stdinW.Write(input.Data)
-				if err != nil {
-					conn.Close()
-					break
-				}
+		} else {
+			_, err := stdinW.Write(input.Data)
+			if err != nil {
+				conn.Close()
+				break
 			}
 		}
 	}
 }
 
-func glueNoTty(windowColumns int, windowRows int) (stdinR, stdinW, stdoutR, stdoutW, stderrR, stderrW *os.File, err error) {
+func createPipes() (stdinR, stdinW, stdoutR, stdoutW, stderrR, stderrW *os.File, err error) {
 	// stderr will not be assigned in the case of a tty, so make
 	// a dummy pipe to send across instead
 	stderrR, stderrW, err = os.Pipe()
@@ -210,9 +246,9 @@ func glueNoTty(windowColumns int, windowRows int) (stdinR, stdinW, stdoutR, stdo
 	return
 }
 
-func glueTty(windowColumns int, windowRows int) (stdinR, stdinW, stdoutR, stdoutW, stderrR, stderrW *os.File, err error) {
+func createTtyPty(windowColumns int, windowRows int) (stdinR, stdinW, stdoutR, stdoutW, stderrR, stderrW *os.File, err error) {
 	// stderr will not be assigned in the case of a tty, so ensure it will return EOF on read
-    stderrR, err = os.Open("/dev/null")
+	stderrR, err = os.Open("/dev/null")
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, err
 	}
