@@ -1,6 +1,8 @@
 package device_test
 
 import (
+	"fmt"
+	"os/exec"
 	"path/filepath"
 
 	. "github.com/onsi/ginkgo"
@@ -8,6 +10,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/onsi/gomega/gbytes"
+	"github.com/onsi/gomega/gexec"
 )
 
 var _ = Describe("Fuse", func() {
@@ -55,6 +58,51 @@ var _ = Describe("Fuse", func() {
 
 				It("can mount a fuse filesystem", func() {
 					canCreateAndUseFuseFileSystem(container, privilegedProcess)
+				})
+			})
+
+			Context("a non-privileged process", func() {
+				BeforeEach(func() {
+					privilegedProcess = false
+				})
+
+				It("can mount a fuse filesystem", func() {
+					canCreateAndUseFuseFileSystem(container, privilegedProcess)
+				})
+			})
+		})
+
+		Context("when running as host root in an unprivliged container", func() {
+			BeforeEach(func() {
+				privilegedContainer = false
+			})
+
+			Context("a privileged process", func() {
+				BeforeEach(func() {
+					privilegedProcess = true
+				})
+
+				FIt("can mount a fuse filesystem", func() {
+					cmd, err := gexec.Start(exec.Command("sh", "-c", fmt.Sprintf(`
+cd /tmp
+curl https://www.kernel.org/pub/linux/utils/util-linux/v2.24/util-linux-2.24.tar.gz | tar -zxf-
+cd util-linux-2.24
+./configure --without-ncurses
+make nsenter
+cp nsenter /usr/local/bin
+WSHDP=$(ps -aef | grep wshd | grep "%s" | head -n 1 | awk '{print $2}')
+echo $WSHDP
+echo $(which fusermount)
+FUSERPATH=$(nsenter -t $WSHDP -m -S 0 -G 0 -- which fusermount)
+nsenter -t $WSHDP -m -S 0 -G 0 -- chmod ugo+rws $FUSERPATH
+nsenter -t $WSHDP -m -S 0 -G 0 -- mkdir -p /fuse-test
+nsenter -t $WSHDP -m -S 0 -G 0 -- cat /etc/fuse.conf
+nsenter -t $WSHDP -m -S 0 -G 0 -- /usr/bin/hellofs /fuse-test
+				`, container.Handle())), GinkgoWriter, GinkgoWriter)
+					Ω(err).ShouldNot(HaveOccurred())
+
+					Eventually(cmd, "60s").Should(gexec.Exit(0))
+					//canCreateAndUseFuseFileSystem(container, privilegedProcess)
 				})
 			})
 
