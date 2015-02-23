@@ -230,22 +230,9 @@ func Main(builder cnet.Builder) {
 		logger.Fatal("failed-to-construct-graph", err)
 	}
 
-	newRepoFetcher := func(registryName string) (repository_fetcher.RepositoryFetcher, error) {
-		endpoint, err := registry.NewEndpoint(registryName, nil)
-		if err != nil {
-			logger.Error("failed-to-construct-registry-endpoint", err)
-			return nil, err
-		}
+	repoFetcher := repository_fetcher.Retryable{repository_fetcher.New(repository_fetcher.NewRepositoryProvider(*dockerRegistry), graph)}
 
-		reg, err := registry.NewSession(nil, nil, endpoint, true)
-		if err != nil {
-			logger.Error("failed-to-construct-registry", err)
-			return nil, err
-		}
-		return repository_fetcher.Retryable{repository_fetcher.New(reg, graph)}, nil
-	}
-
-	dockerRootFSProvider, err := rootfs_provider.NewDocker(newRepoFetcher, *dockerRegistry, graphDriver, rootfs_provider.SimpleVolumeCreator{}, clock.NewClock())
+	dockerRootFSProvider, err := rootfs_provider.NewDocker(repoFetcher, graphDriver, rootfs_provider.SimpleVolumeCreator{}, clock.NewClock())
 	if err != nil {
 		logger.Fatal("failed-to-construct-docker-rootfs-provider", err)
 	}

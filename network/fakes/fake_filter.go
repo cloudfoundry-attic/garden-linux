@@ -12,15 +12,15 @@ type FakeFilter struct {
 	SetupStub        func() error
 	setupMutex       sync.RWMutex
 	setupArgsForCall []struct{}
-	setupReturns     struct {
+	setupReturns struct {
 		result1 error
 	}
 	TearDownStub        func()
 	tearDownMutex       sync.RWMutex
 	tearDownArgsForCall []struct{}
-	NetOutStub          func(garden.NetOutRule) error
-	netOutMutex         sync.RWMutex
-	netOutArgsForCall   []struct {
+	NetOutStub        func(garden.NetOutRule) error
+	netOutMutex       sync.RWMutex
+	netOutArgsForCall []struct {
 		arg1 garden.NetOutRule
 	}
 	netOutReturns struct {

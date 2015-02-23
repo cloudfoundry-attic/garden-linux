@@ -49,11 +49,11 @@ var _ = Describe("Rootfs container create parameter", func() {
 			})
 
 			Context("which is invalid", func() {
-				It("the container is created successfully", func() {
+				It("the container is not created successfully", func() {
 					var err error
 
 					container, err = client.Create(garden.ContainerSpec{RootFSPath: "docker://xindex.docker.io/busybox"})
-					Ω(err).Should(MatchError("invalid docker url"))
+					Ω(err.Error()).Should(MatchRegexp("could not resolve"))
 				})
 			})
 		})

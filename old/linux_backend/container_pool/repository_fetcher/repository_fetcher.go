@@ -3,6 +3,7 @@ package repository_fetcher
 import (
 	"fmt"
 	"io"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -15,8 +16,14 @@ import (
 )
 
 type RepositoryFetcher interface {
-	Fetch(logger lager.Logger, repoName string, tag string) (imageID string, envvars process.Env, volumes []string, err error)
+	Fetch(logger lager.Logger, url *url.URL, tag string) (imageID string, envvars process.Env, volumes []string, err error)
 }
+
+// apes dockers registry.NewEndpoint
+var RegistryNewEndpoint = registry.NewEndpoint
+
+// apes dockers registry.NewSession
+var RegistryNewSession = registry.NewSession
 
 // apes docker's *registry.Registry
 type Registry interface {
@@ -36,8 +43,8 @@ type Graph interface {
 }
 
 type DockerRepositoryFetcher struct {
-	registry Registry
-	graph    Graph
+	registryProvider RegistryProvider
+	graph            Graph
 
 	fetchingLayers map[string]chan struct{}
 	fetchingMutex  *sync.Mutex
@@ -70,36 +77,46 @@ type dockerLayer struct {
 	vols []string
 }
 
-func New(registry Registry, graph Graph) RepositoryFetcher {
+func New(registry RegistryProvider, graph Graph) RepositoryFetcher {
 	return &DockerRepositoryFetcher{
-		registry:       registry,
-		graph:          graph,
-		fetchingLayers: map[string]chan struct{}{},
-		fetchingMutex:  new(sync.Mutex),
+		registryProvider: registry,
+		graph:            graph,
+		fetchingLayers:   map[string]chan struct{}{},
+		fetchingMutex:    new(sync.Mutex),
 	}
 }
 
-func (fetcher *DockerRepositoryFetcher) Fetch(logger lager.Logger, repoName string, tag string) (string, process.Env, []string, error) {
+func (fetcher *DockerRepositoryFetcher) Fetch(
+	logger lager.Logger,
+	repoURL *url.URL,
+	tag string,
+) (string, process.Env, []string, error) {
 	fLog := logger.Session("fetch", lager.Data{
-		"repo": repoName,
+		"repo": repoURL,
 		"tag":  tag,
 	})
 
 	fLog.Debug("fetching")
 
-	repoData, err := fetcher.registry.GetRepositoryData(repoName)
+	registry, err := fetcher.registryProvider.ProvideRegistry(repoURL.Host)
+	if err != nil {
+		logger.Error("failed-to-construct-registry-endpoint", err)
+		return "", nil, nil, err
+	}
+
+	repoData, err := registry.GetRepositoryData(repoURL.Path[1:])
 	if err != nil {
 		return "", nil, nil, err
 	}
 
-	tagsList, err := fetcher.registry.GetRemoteTags(repoData.Endpoints, repoName, repoData.Tokens)
+	tagsList, err := registry.GetRemoteTags(repoData.Endpoints, repoURL.Path[1:], repoData.Tokens)
 	if err != nil {
 		return "", nil, nil, err
 	}
 
 	imgID, ok := tagsList[tag]
 	if !ok {
-		return "", nil, nil, fmt.Errorf("unknown tag: %s:%s", repoName, tag)
+		return "", nil, nil, fmt.Errorf("unknown tag: %s:%s", repoURL, tag)
 	}
 
 	token := repoData.Tokens
@@ -110,7 +127,7 @@ func (fetcher *DockerRepositoryFetcher) Fetch(logger lager.Logger, repoName stri
 			"image":    imgID,
 		})
 
-		image, err := fetcher.fetchFromEndpoint(fLog, endpoint, imgID, token)
+		image, err := fetcher.fetchFromEndpoint(fLog, registry, endpoint, imgID, token)
 		if err == nil {
 			fLog.Debug("fetched", lager.Data{
 				"endpoint": endpoint,
@@ -126,15 +143,15 @@ func (fetcher *DockerRepositoryFetcher) Fetch(logger lager.Logger, repoName stri
 	return "", nil, nil, fmt.Errorf("all endpoints failed: %v", err)
 }
 
-func (fetcher *DockerRepositoryFetcher) fetchFromEndpoint(logger lager.Logger, endpoint string, imgID string, token []string) (*dockerImage, error) {
-	history, err := fetcher.registry.GetRemoteHistory(imgID, endpoint, token)
+func (fetcher *DockerRepositoryFetcher) fetchFromEndpoint(logger lager.Logger, registry Registry, endpoint string, imgID string, token []string) (*dockerImage, error) {
+	history, err := registry.GetRemoteHistory(imgID, endpoint, token)
 	if err != nil {
 		return nil, err
 	}
 
 	var allLayers []*dockerLayer
 	for i := len(history) - 1; i >= 0; i-- {
-		layer, err := fetcher.fetchLayer(logger, endpoint, history[i], token)
+		layer, err := fetcher.fetchLayer(logger, registry, endpoint, history[i], token)
 		if err != nil {
 			return nil, err
 		}
@@ -145,7 +162,7 @@ func (fetcher *DockerRepositoryFetcher) fetchFromEndpoint(logger lager.Logger, e
 	return &dockerImage{allLayers}, nil
 }
 
-func (fetcher *DockerRepositoryFetcher) fetchLayer(logger lager.Logger, endpoint string, layerID string, token []string) (*dockerLayer, error) {
+func (fetcher *DockerRepositoryFetcher) fetchLayer(logger lager.Logger, registry Registry, endpoint string, layerID string, token []string) (*dockerLayer, error) {
 	for acquired := false; !acquired; acquired = fetcher.fetching(layerID) {
 	}
 
@@ -160,7 +177,7 @@ func (fetcher *DockerRepositoryFetcher) fetchLayer(logger lager.Logger, endpoint
 		return &dockerLayer{imgEnv(img, logger), imgVolumes(img)}, nil
 	}
 
-	imgJSON, imgSize, err := fetcher.registry.GetRemoteImageJSON(layerID, endpoint, token)
+	imgJSON, imgSize, err := registry.GetRemoteImageJSON(layerID, endpoint, token)
 	if err != nil {
 		return nil, fmt.Errorf("get remote image JSON: %v", err)
 	}
@@ -170,7 +187,7 @@ func (fetcher *DockerRepositoryFetcher) fetchLayer(logger lager.Logger, endpoint
 		return nil, fmt.Errorf("new image JSON: %v", err)
 	}
 
-	layer, err := fetcher.registry.GetRemoteImageLayer(img.ID, endpoint, token, int64(imgSize))
+	layer, err := registry.GetRemoteImageLayer(img.ID, endpoint, token, int64(imgSize))
 	if err != nil {
 		return nil, fmt.Errorf("get remote image layer: %v", err)
 	}

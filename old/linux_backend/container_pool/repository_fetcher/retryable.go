@@ -1,6 +1,8 @@
 package repository_fetcher
 
 import (
+	"net/url"
+
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/pivotal-golang/lager"
 )
@@ -9,7 +11,7 @@ type Retryable struct {
 	RepositoryFetcher
 }
 
-func (retryable Retryable) Fetch(logger lager.Logger, repoName string, tag string) (string, process.Env, []string, error) {
+func (retryable Retryable) Fetch(logger lager.Logger, repoName *url.URL, tag string) (string, process.Env, []string, error) {
 	var res string
 	var err error
 	var envvars process.Env

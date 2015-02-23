@@ -1,6 +1,7 @@
 package fake_repository_fetcher
 
 import (
+	"net/url"
 	"sync"
 
 	"github.com/cloudfoundry-incubator/garden-linux/process"
@@ -26,13 +27,13 @@ func New() *FakeRepositoryFetcher {
 	}
 }
 
-func (fetcher *FakeRepositoryFetcher) Fetch(logger lager.Logger, repoName string, tag string) (string, process.Env, []string, error) {
+func (fetcher *FakeRepositoryFetcher) Fetch(logger lager.Logger, repoName *url.URL, tag string) (string, process.Env, []string, error) {
 	if fetcher.FetchError != nil {
 		return "", nil, nil, fetcher.FetchError
 	}
 
 	fetcher.mutex.Lock()
-	fetcher.fetched = append(fetcher.fetched, FetchSpec{repoName, tag})
+	fetcher.fetched = append(fetcher.fetched, FetchSpec{repoName.String(), tag})
 	fetcher.mutex.Unlock()
 	envvars := process.Env{"env1": "env1Value", "env2": "env2Value"}
 	volumes := []string{"/foo", "/bar"}

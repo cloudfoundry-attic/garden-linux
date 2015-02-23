@@ -1,9 +1,11 @@
 package repository_fetcher_test
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 
 	"github.com/docker/docker/image"
 	"github.com/docker/docker/pkg/archive"
@@ -12,6 +14,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/fake_graph"
 	. "github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/repository_fetcher"
+	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/repository_fetcher/fakes"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -27,6 +30,8 @@ var _ = Describe("RepositoryFetcher", func() {
 	var server *ghttp.Server
 	var endpoint1 *ghttp.Server
 	var endpoint2 *ghttp.Server
+
+	var fakeRegistryProvider *fakes.FakeRegistryProvider
 
 	BeforeEach(func() {
 		graph = fake_graph.New()
@@ -56,7 +61,9 @@ var _ = Describe("RepositoryFetcher", func() {
 		registry, err := registry.NewSession(nil, nil, endpoint, true)
 		Ω(err).ShouldNot(HaveOccurred())
 
-		fetcher = New(registry, graph)
+		fakeRegistryProvider = new(fakes.FakeRegistryProvider)
+		fakeRegistryProvider.ProvideRegistryReturns(registry, nil)
+		fetcher = New(fakeRegistryProvider, graph)
 
 		logger = lagertest.NewTestLogger("test")
 	})
@@ -141,6 +148,26 @@ var _ = Describe("RepositoryFetcher", func() {
 			)
 		})
 
+		Describe("connecting to the correct registry", func() {
+			BeforeEach(func() {
+				setupSuccessfulFetch(endpoint1)
+			})
+
+			It("retrieves the registry from the registry provider based on the host of the repo url", func() {
+				fetcher.Fetch(logger, parseURL("some-scheme://some-registry:4444/some-repo"), "some-tag")
+				Ω(fakeRegistryProvider.ProvideRegistryCallCount()).Should(Equal(1))
+				Ω(fakeRegistryProvider.ProvideRegistryArgsForCall(0)).Should(Equal("some-registry:4444"))
+			})
+
+			Context("when retrieving a session from the registry provider errors", func() {
+				It("returns error", func() {
+					fakeRegistryProvider.ProvideRegistryReturns(nil, errors.New("an error"))
+					_, _, _, err := fetcher.Fetch(logger, parseURL("some-scheme://some-registry:4444/some-repo"), "some-tag")
+					Ω(err).Should(MatchError("an error"))
+				})
+			})
+		})
+
 		Context("when none of the layers already exist", func() {
 			BeforeEach(func() {
 				setupSuccessfulFetch(endpoint1)
@@ -162,7 +189,11 @@ var _ = Describe("RepositoryFetcher", func() {
 					return nil
 				}
 
-				imageID, envvars, volumes, err := fetcher.Fetch(logger, "some-repo", "some-tag")
+				imageID, envvars, volumes, err := fetcher.Fetch(
+					logger,
+					parseURL("scheme://host/some-repo"),
+					"some-tag",
+				)
 
 				Ω(err).ShouldNot(HaveOccurred())
 				Ω(envvars).Should(Equal(process.Env{"env1": "env1Value", "env2": "env2NewValue"}))
@@ -189,7 +220,11 @@ var _ = Describe("RepositoryFetcher", func() {
 				})
 
 				It("retries with the next endpoint", func() {
-					imageID, _, _, err := fetcher.Fetch(logger, "some-repo", "some-tag")
+					imageID, _, _, err := fetcher.Fetch(
+						logger,
+						parseURL("scheme://host/some-repo"),
+						"some-tag",
+					)
 					Ω(err).ShouldNot(HaveOccurred())
 
 					Ω(imageID).Should(Equal("id-1"))
@@ -203,7 +238,11 @@ var _ = Describe("RepositoryFetcher", func() {
 					})
 
 					It("returns an error", func() {
-						_, _, _, err := fetcher.Fetch(logger, "some-repo", "some-tag")
+						_, _, _, err := fetcher.Fetch(
+							logger,
+							parseURL("scheme://host/some-repo"),
+							"some-tag",
+						)
 						Ω(err).Should(HaveOccurred())
 					})
 				})
@@ -263,7 +302,11 @@ var _ = Describe("RepositoryFetcher", func() {
 					return nil
 				}
 
-				imageID, envVars, _, err := fetcher.Fetch(logger, "some-repo", "some-tag")
+				imageID, envVars, _, err := fetcher.Fetch(
+					logger,
+					parseURL("scheme://host/some-repo"),
+					"some-tag",
+				)
 				Ω(err).ShouldNot(HaveOccurred())
 				Ω(envVars).Should(Equal(process.Env{"env2": "env2Value"}))
 
@@ -279,7 +322,11 @@ var _ = Describe("RepositoryFetcher", func() {
 			})
 
 			It("returns an error", func() {
-				_, _, _, err := fetcher.Fetch(logger, "some-repo", "some-tag")
+				_, _, _, err := fetcher.Fetch(
+					logger,
+					parseURL("scheme://host/some-repo"),
+					"some-tag",
+				)
 				Ω(err).Should(HaveOccurred())
 			})
 		})
@@ -306,7 +353,11 @@ var _ = Describe("RepositoryFetcher", func() {
 			})
 
 			It("tries the next endpoint", func() {
-				_, _, _, err := fetcher.Fetch(logger, "some-repo", "some-tag")
+				_, _, _, err := fetcher.Fetch(
+					logger,
+					parseURL("scheme://host/some-repo"),
+					"some-tag",
+				)
 				Ω(err).ShouldNot(HaveOccurred())
 			})
 
@@ -318,10 +369,21 @@ var _ = Describe("RepositoryFetcher", func() {
 				})
 
 				It("returns an error", func() {
-					_, _, _, err := fetcher.Fetch(logger, "some-repo", "some-tag")
+					_, _, _, err := fetcher.Fetch(
+						logger,
+						parseURL("scheme://host/some-repo"),
+						"some-tag",
+					)
 					Ω(err).Should(HaveOccurred())
 				})
 			})
 		})
 	})
 })
+
+func parseURL(str string) *url.URL {
+	parsedURL, err := url.Parse(str)
+	Ω(err).ShouldNot(HaveOccurred())
+
+	return parsedURL
+}
