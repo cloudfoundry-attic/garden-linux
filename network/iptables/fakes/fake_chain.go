@@ -13,13 +13,13 @@ type FakeChain struct {
 	SetupStub        func() error
 	setupMutex       sync.RWMutex
 	setupArgsForCall []struct{}
-	setupReturns     struct {
+	setupReturns struct {
 		result1 error
 	}
 	TearDownStub        func() error
 	tearDownMutex       sync.RWMutex
 	tearDownArgsForCall []struct{}
-	tearDownReturns     struct {
+	tearDownReturns struct {
 		result1 error
 	}
 	AppendRuleStub        func(source string, destination string, jump iptables.Action) error
