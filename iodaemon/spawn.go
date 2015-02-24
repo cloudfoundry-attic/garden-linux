@@ -14,7 +14,7 @@ import (
 
 	"io"
 
-	linkpkg "github.com/cloudfoundry-incubator/garden-linux/old/iodaemon/link"
+	linkpkg "github.com/cloudfoundry-incubator/garden-linux/iodaemon/link"
 	"github.com/kr/pty"
 )
 

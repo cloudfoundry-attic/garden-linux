@@ -28,7 +28,7 @@ var _ = BeforeEach(func() {
 	tmpdir, err = ioutil.TempDir("", "process-tracker-tests")
 	Ω(err).ShouldNot(HaveOccurred())
 
-	iodaemon, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/old/iodaemon")
+	iodaemon, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/iodaemon")
 	Ω(err).ShouldNot(HaveOccurred())
 
 	err = os.MkdirAll(filepath.Join(tmpdir, "bin"), 0755)

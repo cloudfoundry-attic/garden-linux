@@ -27,10 +27,10 @@ type CompiledAssets struct {
 var _ = SynchronizedBeforeSuite(func() []byte {
 	var err error
 	assets := CompiledAssets{}
-	assets.IoDaemon, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/old/iodaemon", "-race")
+	assets.IoDaemon, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/iodaemon", "-race")
 	Ω(err).ShouldNot(HaveOccurred())
 
-	assets.WinSizeReporter, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/old/iodaemon/winsizereporter", "-race")
+	assets.WinSizeReporter, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/iodaemon/winsizereporter", "-race")
 	Ω(err).ShouldNot(HaveOccurred())
 
 	marshalledAssets, err := json.Marshal(assets)
