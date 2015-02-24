@@ -13,6 +13,7 @@ import (
 
 var _ = Describe("RepositoryProvider", func() {
 	var receivedHost string
+	var receievedInsecureRegistries []string
 	var receivedEndpoint *registry.Endpoint
 	var endpointReturnsError error
 	var sessionReturnsError error
@@ -22,13 +23,16 @@ var _ = Describe("RepositoryProvider", func() {
 
 	BeforeEach(func() {
 		receivedHost = ""
+		receievedInsecureRegistries = nil
 		receivedEndpoint = nil
+
 		endpointReturnsError = nil
 		sessionReturnsError = nil
 
 		returnedEndpoint = &registry.Endpoint{}
 		RegistryNewEndpoint = func(host string, insecure []string) (*registry.Endpoint, error) {
 			receivedHost = host
+			receievedInsecureRegistries = insecure
 			return returnedEndpoint, endpointReturnsError
 		}
 
@@ -41,7 +45,7 @@ var _ = Describe("RepositoryProvider", func() {
 
 	Context("when the hostname is empty", func() {
 		It("creates a new endpoint based on the default host and port", func() {
-			provider := NewRepositoryProvider("the-default-host:11")
+			provider := NewRepositoryProvider("the-default-host:11", nil)
 			provider.ProvideRegistry("")
 
 			Ω(receivedHost).Should(Equal("the-default-host:11"))
@@ -50,17 +54,26 @@ var _ = Describe("RepositoryProvider", func() {
 
 	Context("when the hostname is not empty", func() {
 		It("creates a new endpoint based on the host and port", func() {
-			provider := NewRepositoryProvider("")
+			provider := NewRepositoryProvider("", nil)
 			provider.ProvideRegistry("the-registry-host:44")
 
 			Ω(receivedHost).Should(Equal("the-registry-host:44"))
 		})
 	})
 
+	Context("when a list of secure repositories is provided", func() {
+		It("creates a new endpoint passing the list of secure repositories", func() {
+			provider := NewRepositoryProvider("", []string{"insecure1", "insecure2"})
+			provider.ProvideRegistry("the-registry-host:44")
+
+			Ω(receievedInsecureRegistries).Should(Equal([]string{"insecure1", "insecure2"}))
+		})
+	})
+
 	Context("when NewEndpoint returns an error", func() {
 		It("returns the error", func() {
 			endpointReturnsError = errors.New("an error")
-			provider := NewRepositoryProvider("")
+			provider := NewRepositoryProvider("", nil)
 
 			_, err := provider.ProvideRegistry("the-registry-host:44")
 			Ω(err).Should(MatchError("an error"))
@@ -68,7 +81,7 @@ var _ = Describe("RepositoryProvider", func() {
 	})
 
 	It("creates a new session based on the endpoint", func() {
-		provider := NewRepositoryProvider("")
+		provider := NewRepositoryProvider("", nil)
 		session, err := provider.ProvideRegistry("the-registry-host:44")
 		Ω(err).ShouldNot(HaveOccurred())
 		Ω(session).Should(Equal(returnedSession))
@@ -79,7 +92,7 @@ var _ = Describe("RepositoryProvider", func() {
 	Context("when NewSession returns an error", func() {
 		It("returns the error", func() {
 			sessionReturnsError = errors.New("an error")
-			provider := NewRepositoryProvider("")
+			provider := NewRepositoryProvider("", nil)
 
 			_, err := provider.ProvideRegistry("the-registry-host:44")
 			Ω(err).Should(MatchError("an error"))

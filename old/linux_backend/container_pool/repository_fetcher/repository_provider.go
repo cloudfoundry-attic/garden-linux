@@ -6,7 +6,8 @@ type RegistryProvider interface {
 }
 
 type registryProvider struct {
-	DefaultHostname string
+	DefaultHostname    string
+	InsecureRegistries []string
 }
 
 func (rp registryProvider) ProvideRegistry(hostname string) (Registry, error) {
@@ -16,7 +17,7 @@ func (rp registryProvider) ProvideRegistry(hostname string) (Registry, error) {
 		hostname = rp.DefaultHostname
 	}
 
-	endpoint, err := RegistryNewEndpoint(hostname, nil)
+	endpoint, err := RegistryNewEndpoint(hostname, rp.InsecureRegistries)
 	if err != nil {
 		return nil, err
 	}
@@ -24,6 +25,6 @@ func (rp registryProvider) ProvideRegistry(hostname string) (Registry, error) {
 	return RegistryNewSession(nil, nil, endpoint, true)
 }
 
-func NewRepositoryProvider(defaultHostname string) RegistryProvider {
-	return &registryProvider{DefaultHostname: defaultHostname}
+func NewRepositoryProvider(defaultHostname string, insecureRegistries []string) RegistryProvider {
+	return &registryProvider{DefaultHostname: defaultHostname, InsecureRegistries: insecureRegistries}
 }
