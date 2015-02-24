@@ -93,7 +93,7 @@ func (p *Process) Signal(s garden.Signal) error {
 	case garden.SignalTerminate:
 		return p.signaller.Signal(syscall.SIGTERM)
 	default:
-		return fmt.Errorf("processtracker: signal: unknown signal: %d", s)
+		return fmt.Errorf("process_tracker.Process.Signal: unknown signal: %d", s)
 	}
 }
 
@@ -183,6 +183,7 @@ func (p *Process) Attach(processIO garden.ProcessIO) {
 	}
 }
 
+// This is guarded by runningLink so will only run once per Process.
 func (p *Process) runLinker() {
 	processSock := path.Join(p.containerPath, "processes", fmt.Sprintf("%d.sock", p.ID()))
 

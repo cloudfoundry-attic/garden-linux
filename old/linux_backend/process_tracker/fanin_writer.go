@@ -14,46 +14,45 @@ type faninWriter struct {
 	hasSink chan struct{}
 }
 
-func (w *faninWriter) Write(data []byte) (int, error) {
-	<-w.hasSink
+func (fw *faninWriter) Write(data []byte) (int, error) {
+	<-fw.hasSink
 
-	w.writeL.Lock()
+	fw.writeL.Lock()
+	defer fw.writeL.Unlock()
 
-	if w.closed {
+	if fw.closed {
 		return 0, errors.New("write after close")
 	}
 
-	defer w.writeL.Unlock()
-
-	return w.w.Write(data)
+	return fw.w.Write(data)
 }
 
-func (w *faninWriter) Close() error {
-	<-w.hasSink
+func (fw *faninWriter) Close() error {
+	<-fw.hasSink
 
-	w.writeL.Lock()
+	fw.writeL.Lock()
+	defer fw.writeL.Unlock()
 
-	if w.closed {
+	if fw.closed {
 		return errors.New("closed twice")
 	}
 
-	w.closed = true
+	fw.closed = true
 
-	defer w.writeL.Unlock()
-
-	return w.w.Close()
+	return fw.w.Close()
 }
 
-func (w *faninWriter) AddSink(sink io.WriteCloser) {
-	w.w = sink
-	close(w.hasSink)
+//AddSink can only be called once
+func (fw *faninWriter) AddSink(sink io.WriteCloser) {
+	fw.w = sink
+	close(fw.hasSink)
 }
 
-func (w *faninWriter) AddSource(source io.Reader) {
+func (fw *faninWriter) AddSource(source io.Reader) {
 	go func() {
-		_, err := io.Copy(w, source)
+		_, err := io.Copy(fw, source)
 		if err == nil {
-			w.Close()
+			fw.Close()
 		}
 	}()
 }

@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"syscall"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -56,14 +57,35 @@ var _ = Describe("Running processes", func() {
 		Ω(process.Wait()).Should(Equal(42))
 	})
 
-	It("assigns a signaller to the process", func() {
-		signaller := &FakeSignaller{}
-		cmd := exec.Command("bash", "-c", "echo hi")
-		process, err := processTracker.Run(2, cmd, garden.ProcessIO{}, nil, signaller)
-		Expect(err).NotTo(HaveOccurred())
+	Describe("signalling a running process", func() {
+		var (
+			process   garden.Process
+			signaller *FakeSignaller
+		)
 
-		Ω(process.Signal(garden.SignalKill)).Should(Succeed())
-		Ω(signaller.sent).Should(Equal([]os.Signal{os.Kill}))
+		BeforeEach(func() {
+			signaller = &FakeSignaller{}
+			cmd := exec.Command("bash", "-c", "echo hi")
+
+			var err error
+			process, err = processTracker.Run(2, cmd, garden.ProcessIO{}, nil, signaller)
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("kills the process with a kill signal", func() {
+			Ω(process.Signal(garden.SignalKill)).Should(Succeed())
+			Ω(signaller.sent).Should(Equal([]os.Signal{os.Kill}))
+		})
+
+		It("kills the process with a terminate signal", func() {
+			Ω(process.Signal(garden.SignalTerminate)).Should(Succeed())
+			Ω(signaller.sent).Should(Equal([]os.Signal{syscall.SIGTERM}))
+		})
+
+		It("errors when an unsupported signal is sent", func() {
+			Ω(process.Signal(garden.Signal(999))).Should(MatchError(HaveSuffix("unknown signal: 999")))
+			Ω(signaller.sent).Should(BeNil())
+		})
 	})
 
 	It("streams the process's stdout and stderr", func() {
@@ -122,6 +144,45 @@ var _ = Describe("Running processes", func() {
 
 			pipeW.Write([]byte("Hello again, stdin!"))
 			Eventually(stdout).Should(gbytes.Say("Hello again, stdin!"))
+
+			pipeW.Close()
+			Ω(process.Wait()).Should(Equal(0))
+		})
+
+		It("supports attaching more than once", func() {
+			pipeR, pipeW := io.Pipe()
+			stdout := gbytes.NewBuffer()
+
+			process, err := processTracker.Run(55, exec.Command("cat"), garden.ProcessIO{
+				Stdin:  pipeR,
+				Stdout: stdout,
+			}, nil, nil)
+			Expect(err).NotTo(HaveOccurred())
+
+			pipeW.Write([]byte("Hello stdin!"))
+			Eventually(stdout).Should(gbytes.Say("Hello stdin!"))
+
+			pipeW.CloseWithError(errors.New("Failed"))
+			Consistently(stdout, 0.1).ShouldNot(gbytes.Say("."))
+
+			pipeR, pipeW = io.Pipe()
+			_, err = processTracker.Attach(process.ID(), garden.ProcessIO{
+				Stdin: pipeR,
+			})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			pipeW.Write([]byte("Hello again, stdin!"))
+			Eventually(stdout).Should(gbytes.Say("Hello again, stdin!"))
+
+			pipeR, pipeW = io.Pipe()
+
+			_, err = processTracker.Attach(process.ID(), garden.ProcessIO{
+				Stdin: pipeR,
+			})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			pipeW.Write([]byte("Hello again again, stdin!"))
+			Eventually(stdout, "1s").Should(gbytes.Say("Hello again again, stdin!"))
 
 			pipeW.Close()
 			Ω(process.Wait()).Should(Equal(0))

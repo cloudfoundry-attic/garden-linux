@@ -8,12 +8,13 @@ import (
 
 type fanoutWriter struct {
 	sinks  []io.Writer
-	closed bool
+	closed bool //TODO: Is this needed?
 	sinksL sync.Mutex
 }
 
 func (w *fanoutWriter) Write(data []byte) (int, error) {
 	w.sinksL.Lock()
+	defer w.sinksL.Unlock()
 
 	if w.closed {
 		return 0, errors.New("write after close")
@@ -25,17 +26,14 @@ func (w *fanoutWriter) Write(data []byte) (int, error) {
 		s.Write(data)
 	}
 
-	w.sinksL.Unlock()
-
 	return len(data), nil
 }
 
 func (w *fanoutWriter) AddSink(sink io.Writer) {
 	w.sinksL.Lock()
+	defer w.sinksL.Unlock()
 
 	if !w.closed {
 		w.sinks = append(w.sinks, sink)
 	}
-
-	w.sinksL.Unlock()
 }
