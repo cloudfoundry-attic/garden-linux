@@ -140,6 +140,12 @@ var dockerRegistry = flag.String(
 	"docker registry API endpoint",
 )
 
+var insecureRegistries = flag.String(
+	"insecureDockerRegistryList",
+	"",
+	"comma-separated list of docker registries to allow connection to even if they are not secure",
+)
+
 var tag = &cnet.Tag // flag defined in cnet/init.go
 
 var dropsondeOrigin = flag.String(
@@ -230,7 +236,7 @@ func Main(builder cnet.Builder) {
 		logger.Fatal("failed-to-construct-graph", err)
 	}
 
-	repoFetcher := repository_fetcher.Retryable{repository_fetcher.New(repository_fetcher.NewRepositoryProvider(*dockerRegistry), graph)}
+	repoFetcher := repository_fetcher.Retryable{repository_fetcher.New(repository_fetcher.NewRepositoryProvider(*dockerRegistry, strings.Split(*insecureRegistries, ",")), graph)}
 
 	dockerRootFSProvider, err := rootfs_provider.NewDocker(repoFetcher, graphDriver, rootfs_provider.SimpleVolumeCreator{}, clock.NewClock())
 	if err != nil {
