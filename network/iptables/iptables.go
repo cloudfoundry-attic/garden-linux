@@ -5,11 +5,19 @@ import (
 	"fmt"
 	"net"
 	"os/exec"
+	"strings"
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/pivotal-golang/lager"
 )
+
+var protocols = map[garden.Protocol]string{
+	garden.ProtocolAll:  "all",
+	garden.ProtocolTCP:  "tcp",
+	garden.ProtocolICMP: "icmp",
+	garden.ProtocolUDP:  "udp",
+}
 
 // NewGlobalChain creates a chain without an associated log chain.
 // The chain is not created by this package (currently it is created in net.sh).
@@ -134,6 +142,11 @@ type singleRule struct {
 }
 
 func (ch *chain) PrependFilterRule(r garden.NetOutRule) error {
+
+	if len(r.Ports) > 0 && !allowsPort(r.Protocol) {
+		return fmt.Errorf("Ports cannot be specified for Protocol %s", strings.ToUpper(protocols[r.Protocol]))
+	}
+
 	single := singleRule{
 		Protocol: r.Protocol,
 		ICMPs:    r.ICMPs,
@@ -163,15 +176,13 @@ func (ch *chain) PrependFilterRule(r garden.NetOutRule) error {
 	return nil
 }
 
+func allowsPort(p garden.Protocol) bool {
+	return p == garden.ProtocolTCP || p == garden.ProtocolUDP
+}
+
 func (ch *chain) prependSingleRule(r singleRule) error {
 	params := []string{"-w", "-I", ch.name, "1"}
 
-	protocols := map[garden.Protocol]string{
-		garden.ProtocolAll:  "all",
-		garden.ProtocolTCP:  "tcp",
-		garden.ProtocolICMP: "icmp",
-		garden.ProtocolUDP:  "udp",
-	}
 	protocolString, ok := protocols[r.Protocol]
 
 	if !ok {

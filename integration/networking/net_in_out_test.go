@@ -78,6 +78,17 @@ var _ = Describe("Net In/Out", func() {
 		return process, out
 	}
 
+	Describe("invalid rules", func() {
+		Context("when a Protocol does not support a port range", func() {
+			It("returns an informative message", func() {
+				Ω(container.NetOut(garden.NetOutRule{
+					Protocol: garden.ProtocolAll,
+					Ports:    []garden.PortRange{{Start: 1, End: 5}},
+				})).Should(MatchError("Ports cannot be specified for Protocol ALL"))
+			})
+		})
+	})
+
 	Context("external addresses", func() {
 		var (
 			ByAllowingTCP, ByAllowingICMPPings, ByRejectingTCP, ByRejectingICMPPings func()

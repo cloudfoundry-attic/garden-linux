@@ -455,6 +455,7 @@ var _ = Describe("Iptables", func() {
 					Context("when a single port is specified", func() {
 						It("opens only that port", func() {
 							Ω(subject.PrependFilterRule(garden.NetOutRule{
+								Protocol: garden.ProtocolTCP,
 								Ports: []garden.PortRange{
 									garden.PortRangeFromPort(22),
 								},
@@ -462,7 +463,7 @@ var _ = Describe("Iptables", func() {
 
 							Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
 								Path: "/sbin/iptables",
-								Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--destination-port", "22", "--jump", "RETURN"},
+								Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "tcp", "--destination-port", "22", "--jump", "RETURN"},
 							}))
 						})
 					})
@@ -470,6 +471,7 @@ var _ = Describe("Iptables", func() {
 					Context("when a port range is specified", func() {
 						It("opens that port range", func() {
 							Ω(subject.PrependFilterRule(garden.NetOutRule{
+								Protocol: garden.ProtocolTCP,
 								Ports: []garden.PortRange{
 									{12, 24},
 								},
@@ -477,7 +479,7 @@ var _ = Describe("Iptables", func() {
 
 							Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
 								Path: "/sbin/iptables",
-								Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--destination-port", "12:24", "--jump", "RETURN"},
+								Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "tcp", "--destination-port", "12:24", "--jump", "RETURN"},
 							}))
 						})
 					})
@@ -485,6 +487,7 @@ var _ = Describe("Iptables", func() {
 					Context("when multiple port ranges are specified", func() {
 						It("opens those port ranges", func() {
 							Ω(subject.PrependFilterRule(garden.NetOutRule{
+								Protocol: garden.ProtocolTCP,
 								Ports: []garden.PortRange{
 									{12, 24},
 									{64, 942},
@@ -494,11 +497,11 @@ var _ = Describe("Iptables", func() {
 							Ω(fakeRunner).Should(HaveExecutedSerially(
 								fake_command_runner.CommandSpec{
 									Path: "/sbin/iptables",
-									Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--destination-port", "12:24", "--jump", "RETURN"},
+									Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "tcp", "--destination-port", "12:24", "--jump", "RETURN"},
 								},
 								fake_command_runner.CommandSpec{
 									Path: "/sbin/iptables",
-									Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--destination-port", "64:942", "--jump", "RETURN"},
+									Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "tcp", "--destination-port", "64:942", "--jump", "RETURN"},
 								},
 							))
 						})
@@ -595,6 +598,7 @@ var _ = Describe("Iptables", func() {
 				Context("when multiple port ranges and multiple networks are specified", func() {
 					It("opens the permutations of those port ranges and networks", func() {
 						Ω(subject.PrependFilterRule(garden.NetOutRule{
+							Protocol: garden.ProtocolTCP,
 							Networks: []garden.IPRange{
 								{
 									Start: net.ParseIP("1.2.3.4"),
@@ -614,21 +618,57 @@ var _ = Describe("Iptables", func() {
 						Ω(fakeRunner).Should(HaveExecutedSerially(
 							fake_command_runner.CommandSpec{
 								Path: "/sbin/iptables",
-								Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--destination", "1.2.3.4", "--destination-port", "12:24", "--jump", "RETURN"},
+								Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "tcp", "--destination", "1.2.3.4", "--destination-port", "12:24", "--jump", "RETURN"},
 							},
 							fake_command_runner.CommandSpec{
 								Path: "/sbin/iptables",
-								Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "--destination", "1.2.3.4", "--destination-port", "64:942", "--jump", "RETURN"},
+								Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "tcp", "--destination", "1.2.3.4", "--destination-port", "64:942", "--jump", "RETURN"},
 							},
 							fake_command_runner.CommandSpec{
 								Path: "/sbin/iptables",
-								Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "-m", "iprange", "--dst-range", "2.2.3.4-2.2.3.9", "--destination-port", "12:24", "--jump", "RETURN"},
+								Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "tcp", "-m", "iprange", "--dst-range", "2.2.3.4-2.2.3.9", "--destination-port", "12:24", "--jump", "RETURN"},
 							},
 							fake_command_runner.CommandSpec{
 								Path: "/sbin/iptables",
-								Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "all", "-m", "iprange", "--dst-range", "2.2.3.4-2.2.3.9", "--destination-port", "64:942", "--jump", "RETURN"},
+								Args: []string{"-w", "-I", "foo-bar-baz", "1", "--protocol", "tcp", "-m", "iprange", "--dst-range", "2.2.3.4-2.2.3.9", "--destination-port", "64:942", "--jump", "RETURN"},
 							},
 						))
+					})
+				})
+
+				Context("when a portrange is specified for ProtocolALL", func() {
+					It("returns a nice error message", func() {
+						Ω(subject.PrependFilterRule(garden.NetOutRule{
+							Protocol: garden.ProtocolAll,
+							Ports:    []garden.PortRange{{Start: 1, End: 5}},
+						})).Should(MatchError("Ports cannot be specified for Protocol ALL"))
+					})
+
+					It("does not run iptables", func() {
+						subject.PrependFilterRule(garden.NetOutRule{
+							Protocol: garden.ProtocolAll,
+							Ports:    []garden.PortRange{{Start: 1, End: 5}},
+						})
+
+						Ω(fakeRunner.ExecutedCommands()).Should(HaveLen(0))
+					})
+				})
+
+				Context("when a portrange is specified for ProtocolICMP", func() {
+					It("returns a nice error message", func() {
+						Ω(subject.PrependFilterRule(garden.NetOutRule{
+							Protocol: garden.ProtocolICMP,
+							Ports:    []garden.PortRange{{Start: 1, End: 5}},
+						})).Should(MatchError("Ports cannot be specified for Protocol ICMP"))
+					})
+
+					It("does not run iptables", func() {
+						subject.PrependFilterRule(garden.NetOutRule{
+							Protocol: garden.ProtocolICMP,
+							Ports:    []garden.PortRange{{Start: 1, End: 5}},
+						})
+
+						Ω(fakeRunner.ExecutedCommands()).Should(HaveLen(0))
 					})
 				})
 
