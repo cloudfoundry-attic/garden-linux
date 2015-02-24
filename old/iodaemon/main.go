@@ -11,9 +11,6 @@ const USAGE = `usage:
 	iodaemon spawn [-timeout timeout] [-tty] <socket> <path> <args...>:
 		spawn a subprocess, making its stdio and exit status available via
 		the given socket
-
-	iodaemon link <socket>:
-		attach to a process via the given socket
 `
 
 // TODO actually do this
@@ -61,13 +58,6 @@ func main() {
 		spawn(args[1], args[2:], *timeout, *tty, *windowColumns, *windowRows, *debug, func(exitStatus int) {
 			os.Exit(exitStatus)
 		}, os.Stdout, os.Stderr)
-
-	case "link":
-		if len(args) < 2 {
-			usage()
-		}
-
-		os.Exit(link(args[1]))
 
 	default:
 		usage()

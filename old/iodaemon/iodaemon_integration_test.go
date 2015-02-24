@@ -79,16 +79,11 @@ var _ = Describe("Iodaemon integration tests", func() {
 
 			Eventually(spawnS).Should(gbytes.Say("ready\n"))
 
-			link := exec.Command(iodaemon, "link", socketPath)
-
-			linkS, err := gexec.Start(link, GinkgoWriter, GinkgoWriter)
+			lk, err := linkpkg.Create(socketPath, GinkgoWriter, GinkgoWriter)
 			Ω(err).ShouldNot(HaveOccurred())
+			lk.Close()
 
 			Eventually(spawnS).Should(gbytes.Say("active\n"))
-
-			Eventually(linkS).Should(gbytes.Say("hi"))
-			Eventually(linkS).Should(gexec.Exit(0))
-
 			Eventually(spawnS).Should(gexec.Exit(0))
 		}
 	})
