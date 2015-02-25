@@ -8,10 +8,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <linux/capability.h>
 #include <sys/ioctl.h>
 #include <sys/ipc.h>
 #include <sys/mount.h>
 #include <sys/param.h>
+#include <sys/prctl.h>
 #include <sys/resource.h>
 #include <sys/shm.h>
 #include <sys/signalfd.h>
@@ -385,6 +387,52 @@ int child_fork(msg_request_t *req, int in, int out, int err) {
     sigset_t mask;
     sigemptyset(&mask);
     sigprocmask(SIG_SETMASK, &mask, NULL);
+
+    // drop all capabilities we don't definitely need now
+    int droppedCapabilities[] = {
+      CAP_AUDIT_CONTROL,
+      CAP_AUDIT_WRITE,
+      CAP_BLOCK_SUSPEND,
+      CAP_CHOWN,
+      CAP_DAC_OVERRIDE,
+      CAP_DAC_READ_SEARCH,
+      CAP_FOWNER,
+      CAP_FSETID,
+      CAP_IPC_LOCK,
+      CAP_IPC_OWNER,
+      CAP_KILL,
+      CAP_LEASE,
+      CAP_LINUX_IMMUTABLE,
+      CAP_MAC_ADMIN,
+      CAP_MAC_OVERRIDE,
+      CAP_MKNOD,
+      CAP_NET_ADMIN,
+      CAP_NET_BIND_SERVICE,
+      CAP_NET_BROADCAST,
+      CAP_NET_RAW,
+      CAP_SETGID,
+      CAP_SETFCAP,
+      CAP_SETPCAP,
+      CAP_SETUID,
+      CAP_SYS_ADMIN,
+      CAP_SYS_BOOT,
+      CAP_SYS_CHROOT,
+      CAP_SYS_MODULE,
+      CAP_SYS_NICE,
+      CAP_SYS_PACCT,
+      CAP_SYS_PTRACE,
+      CAP_SYS_RAWIO,
+      CAP_SYS_RESOURCE,
+      CAP_SYS_TIME,
+      CAP_SYS_TTY_CONFIG,
+      CAP_SYSLOG,
+      CAP_WAKE_ALARM
+    };
+
+    int i;
+    for (i = 0; i < sizeof(droppedCapabilities)/sizeof(droppedCapabilities[0]); i++) {
+      prctl(PR_CAPBSET_DROP, droppedCapabilities[i], 0, 0);
+    }
 
     execvpe(argv[0], argv, envp);
     perror("execvpe");

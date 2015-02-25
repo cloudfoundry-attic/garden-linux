@@ -14,6 +14,28 @@ import (
 
 var _ = Describe("Security", func() {
 	Describe("Isolating PIDs", func() {
+		FIt("does not allow processes to do naughty things, even as root in a privileged container", func() {
+			client = startGarden()
+			container, err := client.Create(garden.ContainerSpec{Privileged: true})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			cmd, err := container.Run(garden.ProcessSpec{
+				User: "root",
+				Path: "/bin/sh",
+				Args: []string{
+					"-c", "whoami; mknod -m 666 /dev/fuse2 c 10 229",
+				},
+			}, garden.ProcessIO{
+				Stdout: GinkgoWriter,
+				Stderr: GinkgoWriter,
+			})
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(cmd.Wait()).Should(Equal(0))
+		})
+	})
+
+	Describe("Isolating PIDs", func() {
 		It("isolates processes so that only process from inside the container are visible", func() {
 			client = startGarden()
 			container, err := client.Create(garden.ContainerSpec{})
