@@ -1,24 +1,27 @@
-package process_tracker
+package writer
 
 import (
-	"errors"
 	"io"
 	"sync"
 )
 
-type fanoutWriter struct {
+type FanOut interface {
+    Write(data []byte) (int, error)
+    AddSink(sink io.Writer)
+}
+
+func NewFanOut() FanOut {
+    return &fanOut{}
+}
+
+type fanOut struct {
 	sinks  []io.Writer
-	closed bool //TODO: Is this needed?
 	sinksL sync.Mutex
 }
 
-func (w *fanoutWriter) Write(data []byte) (int, error) {
+func (w *fanOut) Write(data []byte) (int, error) {
 	w.sinksL.Lock()
 	defer w.sinksL.Unlock()
-
-	if w.closed {
-		return 0, errors.New("write after close")
-	}
 
 	// the sinks should be nonblocking and never actually error;
 	// we can assume lossiness here, and do this all within the lock
@@ -29,11 +32,9 @@ func (w *fanoutWriter) Write(data []byte) (int, error) {
 	return len(data), nil
 }
 
-func (w *fanoutWriter) AddSink(sink io.Writer) {
+func (w *fanOut) AddSink(sink io.Writer) {
 	w.sinksL.Lock()
 	defer w.sinksL.Unlock()
 
-	if !w.closed {
-		w.sinks = append(w.sinks, sink)
-	}
+	w.sinks = append(w.sinks, sink)
 }

@@ -13,7 +13,7 @@ import (
 	"github.com/cloudfoundry/gunk/command_runner"
 
 	"github.com/cloudfoundry-incubator/garden-linux/iodaemon/link"
-)
+    "github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/process_tracker/writer")
 
 type Process struct {
 	id uint32
@@ -30,9 +30,9 @@ type Process struct {
 	exitStatus int
 	exitErr    error
 
-	stdin  *faninWriter
-	stdout *fanoutWriter
-	stderr *fanoutWriter
+	stdin  writer.FanIn
+	stdout writer.FanOut
+	stderr writer.FanOut
 
 	signaller Signaller
 }
@@ -59,9 +59,9 @@ func NewProcess(
 
 		exited: make(chan struct{}),
 
-		stdin:  &faninWriter{hasSink: make(chan struct{})},
-		stdout: &fanoutWriter{},
-		stderr: &fanoutWriter{},
+		stdin:  writer.NewFanIn(),
+		stdout: writer.NewFanOut(),
+		stderr: writer.NewFanOut(),
 
 		signaller: signaller,
 	}
