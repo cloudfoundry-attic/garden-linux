@@ -83,7 +83,7 @@ var _ = Describe("Running processes", func() {
 		})
 
 		It("errors when an unsupported signal is sent", func() {
-			Ω(process.Signal(garden.Signal(999))).Should(MatchError(HaveSuffix("unknown signal: 999")))
+			Ω(process.Signal(garden.Signal(999))).Should(MatchError(HaveSuffix("failed to send signal: unknown signal: 999")))
 			Ω(signaller.sent).Should(BeNil())
 		})
 	})

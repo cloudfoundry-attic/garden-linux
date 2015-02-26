@@ -10,8 +10,8 @@ import (
 )
 
 type ProcessTracker interface {
-	Run(uint32, *exec.Cmd, garden.ProcessIO, *garden.TTYSpec, Signaller) (garden.Process, error)
-	Attach(uint32, garden.ProcessIO) (garden.Process, error)
+	Run(processID uint32, cmd *exec.Cmd, io garden.ProcessIO, tty *garden.TTYSpec, signaller Signaller) (garden.Process, error)
+	Attach(processID uint32, io garden.ProcessIO) (garden.Process, error)
 	Restore(processID uint32, signaller Signaller)
 	ActiveProcesses() []garden.Process
 }
@@ -29,7 +29,7 @@ type UnknownProcessError struct {
 }
 
 func (e UnknownProcessError) Error() string {
-	return fmt.Sprintf("unknown process: %d", e.ProcessID)
+	return fmt.Sprintf("process_tracker: unknown process: %d", e.ProcessID)
 }
 
 func New(containerPath string, runner command_runner.CommandRunner) ProcessTracker {
@@ -37,18 +37,15 @@ func New(containerPath string, runner command_runner.CommandRunner) ProcessTrack
 		containerPath: containerPath,
 		runner:        runner,
 
-		processes:      make(map[uint32]*Process),
 		processesMutex: new(sync.RWMutex),
+		processes:      make(map[uint32]*Process),
 	}
 }
 
 func (t *processTracker) Run(processID uint32, cmd *exec.Cmd, processIO garden.ProcessIO, tty *garden.TTYSpec, signaller Signaller) (garden.Process, error) {
 	t.processesMutex.Lock()
-
 	process := NewProcess(processID, t.containerPath, t.runner, signaller)
-
 	t.processes[processID] = process
-
 	t.processesMutex.Unlock()
 
 	ready, active := process.Spawn(cmd, tty)

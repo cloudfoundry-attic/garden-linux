@@ -7,14 +7,14 @@ import (
 )
 
 type FanIn interface {
-    Write(data []byte) (int, error)
-    Close() error
-    AddSink(sink io.WriteCloser)
-    AddSource(source io.Reader)
+	Write(data []byte) (int, error)
+	Close() error
+	AddSink(sink io.WriteCloser)
+	AddSource(source io.Reader)
 }
 
 func NewFanIn() FanIn {
-    return &fanIn{hasSink: make(chan struct{})}
+	return &fanIn{hasSink: make(chan struct{})}
 }
 
 type fanIn struct {
@@ -57,7 +57,7 @@ func (fw *fanIn) Close() error {
 func (fw *fanIn) AddSink(sink io.WriteCloser) {
 	fw.w = sink
 
-    // Allow Write and Close to proceed.
+	// Allow Write and Close to proceed.
 	close(fw.hasSink)
 }
 
@@ -65,7 +65,7 @@ func (fw *fanIn) AddSource(source io.Reader) {
 	go func() {
 		_, err := io.Copy(fw, source)
 		if err == nil {
-            fw.Close()
-        }
-    }()
+			fw.Close()
+		}
+	}()
 }

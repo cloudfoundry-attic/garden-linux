@@ -6,12 +6,12 @@ import (
 )
 
 type FanOut interface {
-    Write(data []byte) (int, error)
-    AddSink(sink io.Writer)
+	Write(data []byte) (int, error)
+	AddSink(sink io.Writer)
 }
 
 func NewFanOut() FanOut {
-    return &fanOut{}
+	return &fanOut{}
 }
 
 type fanOut struct {
