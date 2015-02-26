@@ -11,7 +11,6 @@ import (
 	"os/exec"
 	"path"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
@@ -166,10 +165,6 @@ func (p *LinuxContainerPool) setupIPTables() error {
 	}
 
 	return nil
-}
-
-func formatNetworks(networks []string) string {
-	return strings.Join(networks, " ")
 }
 
 func (p *LinuxContainerPool) Prune(keep map[string]bool) error {
