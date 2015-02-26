@@ -24,9 +24,14 @@ type dockerRootFSProvider struct {
 
 var ErrInvalidDockerURL = errors.New("invalid docker url")
 
+//go:generate counterfeiter -o fake_graph_driver/fake_graph_driver.go . GraphDriver
+type GraphDriver interface {
+	graphdriver.Driver
+}
+
 func NewDocker(
 	repoFetcher repository_fetcher.RepositoryFetcher,
-	graphDriver graphdriver.Driver,
+	graphDriver GraphDriver,
 	volumeCreator VolumeCreator,
 	clock clock.Clock,
 ) (RootFSProvider, error) {
