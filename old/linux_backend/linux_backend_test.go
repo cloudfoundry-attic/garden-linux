@@ -12,8 +12,8 @@ import (
 	"github.com/pivotal-golang/lager/lagertest"
 
 	"github.com/cloudfoundry-incubator/garden"
+	"github.com/cloudfoundry-incubator/garden-linux/container_pool/fake_container_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/fake_container_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/old/system_info/fake_system_info"
 )
 

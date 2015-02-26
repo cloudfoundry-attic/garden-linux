@@ -21,11 +21,11 @@ import (
 
 	"github.com/cloudfoundry-incubator/cf-debug-server"
 	"github.com/cloudfoundry-incubator/cf-lager"
+	"github.com/cloudfoundry-incubator/garden-linux/container_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/network"
 	"github.com/cloudfoundry-incubator/garden-linux/network/cnet"
 	"github.com/cloudfoundry-incubator/garden-linux/network/iptables"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/repository_fetcher"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/port_pool"

@@ -7,11 +7,11 @@ import (
 	"os"
 	"path"
 
+	"github.com/cloudfoundry-incubator/garden-linux/container_pool"
+	"github.com/cloudfoundry-incubator/garden-linux/container_pool/fake_cnet"
 	"github.com/cloudfoundry-incubator/garden-linux/network/cnet"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/fake_cnet"
 	"github.com/pivotal-golang/lager/lagertest"
 
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
