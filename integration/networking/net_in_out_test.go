@@ -84,7 +84,7 @@ var _ = Describe("Net In/Out", func() {
 				Ω(container.NetOut(garden.NetOutRule{
 					Protocol: garden.ProtocolAll,
 					Ports:    []garden.PortRange{{Start: 1, End: 5}},
-				})).Should(MatchError("Ports cannot be specified for Protocol ALL"))
+				})).Should(MatchError(HaveSuffix("Ports cannot be specified for Protocol ALL")))
 			})
 		})
 	})

@@ -10,7 +10,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/pivotal-golang/lager"
-)
+    "github.com/cloudfoundry-incubator/garden-linux/gerr")
 
 var protocols = map[garden.Protocol]string{
 	garden.ProtocolAll:  "all",
@@ -144,7 +144,7 @@ type singleRule struct {
 func (ch *chain) PrependFilterRule(r garden.NetOutRule) error {
 
 	if len(r.Ports) > 0 && !allowsPort(r.Protocol) {
-		return fmt.Errorf("Ports cannot be specified for Protocol %s", strings.ToUpper(protocols[r.Protocol]))
+        return gerr.Newf("prepending-filter-rule", "Ports cannot be specified for Protocol %s", strings.ToUpper(protocols[r.Protocol]))
 	}
 
 	single := singleRule{
@@ -231,8 +231,8 @@ func (ch *chain) prependSingleRule(r singleRule) error {
 	var stderr bytes.Buffer
 	cmd := exec.Command("/sbin/iptables", params...)
 	cmd.Stderr = &stderr
-	if err := ch.runner.Run(cmd); err != nil {
-		return fmt.Errorf("iptables: %v, %v", err, stderr.String())
+    if err := ch.runner.Run(cmd); err != nil {
+        return gerr.NewFromError("prepend-filter-rule", err, stderr.String())
 	}
 
 	return nil

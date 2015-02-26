@@ -1,9 +1,8 @@
 package network
 
 import (
-	"fmt"
-
 	"github.com/cloudfoundry-incubator/garden"
+	"github.com/cloudfoundry-incubator/garden-linux/gerr"
 	"github.com/cloudfoundry-incubator/garden-linux/network/iptables"
 )
 
@@ -25,7 +24,7 @@ func NewFilter(instanceChain iptables.Chain) Filter {
 
 func (fltr *filter) Setup() error {
 	if err := fltr.chain.Setup(); err != nil {
-		return fmt.Errorf("network: log chain setup: %v", err)
+		return gerr.NewFromError("log-chain-setup", err)
 	}
 	return nil
 }

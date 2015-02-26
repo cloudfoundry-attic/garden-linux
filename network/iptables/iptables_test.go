@@ -641,7 +641,7 @@ var _ = Describe("Iptables", func() {
 						Ω(subject.PrependFilterRule(garden.NetOutRule{
 							Protocol: garden.ProtocolAll,
 							Ports:    []garden.PortRange{{Start: 1, End: 5}},
-						})).Should(MatchError("Ports cannot be specified for Protocol ALL"))
+						})).Should(MatchError("iptables: prepending-filter-rule: Ports cannot be specified for Protocol ALL"))
 					})
 
 					It("does not run iptables", func() {
@@ -659,7 +659,7 @@ var _ = Describe("Iptables", func() {
 						Ω(subject.PrependFilterRule(garden.NetOutRule{
 							Protocol: garden.ProtocolICMP,
 							Ports:    []garden.PortRange{{Start: 1, End: 5}},
-						})).Should(MatchError("Ports cannot be specified for Protocol ICMP"))
+						})).Should(MatchError("iptables: prepending-filter-rule: Ports cannot be specified for Protocol ICMP"))
 					})
 
 					It("does not run iptables", func() {
@@ -693,7 +693,7 @@ var _ = Describe("Iptables", func() {
 							},
 						)
 
-						Ω(subject.PrependFilterRule(garden.NetOutRule{})).Should(MatchError("iptables: badly laid iptable, stderr contents"))
+						Ω(subject.PrependFilterRule(garden.NetOutRule{})).Should(MatchError("iptables: prepend-filter-rule: stderr contents: badly laid iptable"))
 					})
 				})
 			})

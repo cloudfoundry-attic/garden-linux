@@ -32,7 +32,7 @@ var _ = Describe("Filter", func() {
 			It("Setup wraps the error and returns it", func() {
 				fakeChain.SetupReturns(errors.New("x"))
 				err := filter.Setup()
-				Ω(err).Should(MatchError("network: log chain setup: x"))
+				Ω(err).Should(MatchError("network: log-chain-setup: x"))
 			})
 		})
 	})
