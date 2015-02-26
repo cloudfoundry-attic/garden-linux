@@ -19,12 +19,13 @@ import (
 	"github.com/pivotal-golang/lager/lagertest"
 
 	"github.com/cloudfoundry-incubator/garden-linux/network"
+	"github.com/cloudfoundry-incubator/garden-linux/network/cnet"
 	"github.com/cloudfoundry-incubator/garden-linux/network/fakes"
 	"github.com/cloudfoundry-incubator/garden-linux/network/iptables"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool"
+	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/fake_cn_persistor"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/fake_cnet"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/fake_cnet_persistor"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/fake_container_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/rootfs_provider/fake_rootfs_provider"
@@ -44,7 +45,7 @@ var _ = Describe("Container pool", func() {
 	var fakeRunner *fake_command_runner.FakeCommandRunner
 	var fakeUIDPool *fake_uid_pool.FakeUIDPool
 	var fakeCN *fake_cnet.FakeBuilder
-	var fakeCNPersistor *fake_cnet_persistor.FakeCNPersistor
+	var fakeCNPersistor *fake_cn_persistor.FakeCNPersistor
 	var fakeQuotaManager *fake_quota_manager.FakeQuotaManager
 	var fakePortPool *fake_port_pool.FakePortPool
 	var defaultFakeRootFSProvider *fake_rootfs_provider.FakeRootFSProvider
@@ -61,8 +62,8 @@ var _ = Describe("Container pool", func() {
 		fakeUIDPool = fake_uid_pool.New(10000)
 		fakeCN = fake_cnet.New(ipNet)
 
-		fakeCNPersistor = fake_cnet_persistor.New()
-		fakeCNPersistor.RecoverResult, err = fakeCN.Build("", nil, "container id")
+		fakeCNPersistor = new(fake_cn_persistor.FakeCNPersistor)
+		fakeCNPersistor.RecoverReturns(fakeCN.Build("", nil, "container id"))
 		Ω(err).ShouldNot(HaveOccurred())
 
 		fakeFilter = new(fakes.FakeFilter)
@@ -133,7 +134,7 @@ var _ = Describe("Container pool", func() {
 		})
 	})
 
-	Describe("setup", func() {
+	Describe("Setup", func() {
 		It("executes setup.sh with the correct environment", func() {
 			fakeQuotaManager.MountPointResult = "/depot/mount/point"
 
@@ -753,7 +754,7 @@ var _ = Describe("Container pool", func() {
 			nastyError := errors.New("oh no!")
 
 			JustBeforeEach(func() {
-				fakeCNPersistor.PersistError = nastyError
+				fakeCNPersistor.PersistReturns(nastyError)
 			})
 
 			It("returns the error", func() {
@@ -1036,6 +1037,33 @@ var _ = Describe("Container pool", func() {
 				Ω(err).ShouldNot(HaveOccurred())
 			})
 
+			Context("and there is no cnetConfig.json for that container", func() {
+				It("destroys the container and does not return an error", func() {
+					Ω(os.Remove(path.Join(depotPath, "container-3", "cnetConfig.json"))).Should(Succeed())
+					err := pool.Prune(map[string]bool{})
+					Ω(err).ShouldNot(HaveOccurred())
+
+					Ω(fakeRunner).Should(HaveExecutedSerially(
+						fake_command_runner.CommandSpec{
+							Path: "/root/path/destroy.sh",
+							Args: []string{path.Join(depotPath, "container-3")},
+						},
+					))
+				})
+			})
+
+			Context("and there is a cnetConfig.json for that container", func() {
+				It("dismantles the container network using the cnetBuilder", func() {
+					fakeCNPersistor.RecoverStub = func(p string) (cnet.ContainerNetwork, error) {
+						if p == path.Join(depotPath, "container-2", "cnetConfig.json") {
+							return cnet.ContainerNetwork{}, nil
+						}
+
+						return nil, errors.New("called recoverStub with wrong path")
+					}
+				})
+			})
+
 			It("destroys each container", func() {
 				err := pool.Prune(map[string]bool{})
 				Ω(err).ShouldNot(HaveOccurred())
@@ -1127,7 +1155,7 @@ var _ = Describe("Container pool", func() {
 				})
 			})
 
-			Context("when a container to exclude is specified", func() {
+			Context("when a container to keep is specified", func() {
 				It("is not destroyed", func() {
 					err := pool.Prune(map[string]bool{"container-2": true})
 					Ω(err).ShouldNot(HaveOccurred())

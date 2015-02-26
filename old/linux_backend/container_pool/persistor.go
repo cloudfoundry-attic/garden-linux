@@ -14,6 +14,7 @@ type RawCN struct {
 	CNRawMessage *json.RawMessage
 }
 
+//go:generate counterfeiter -o fake_cn_persistor/fake_cn_persistor.go . CNPersistor
 type CNPersistor interface {
 	Persist(cn cnet.ContainerNetwork, path string) error
 	Recover(path string) (cnet.ContainerNetwork, error)
