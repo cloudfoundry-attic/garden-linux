@@ -18,10 +18,10 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/network"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/cgroups_manager"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/process_tracker"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/quota_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/logging"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
+	"github.com/cloudfoundry-incubator/garden-linux/process_tracker"
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/pivotal-golang/lager"
 )

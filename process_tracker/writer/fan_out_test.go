@@ -1,7 +1,7 @@
 package writer_test
 
 import (
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/process_tracker/writer"
+	"github.com/cloudfoundry-incubator/garden-linux/process_tracker/writer"
 
 	"errors"
 

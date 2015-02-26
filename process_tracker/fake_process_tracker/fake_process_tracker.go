@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/process_tracker"
+	"github.com/cloudfoundry-incubator/garden-linux/process_tracker"
 )
 
 type FakeProcessTracker struct {
