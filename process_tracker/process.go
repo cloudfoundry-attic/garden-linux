@@ -13,6 +13,7 @@ import (
 	"github.com/cloudfoundry/gunk/command_runner"
 
 	"github.com/cloudfoundry-incubator/garden-linux/iodaemon/link"
+	"github.com/cloudfoundry-incubator/garden-linux/process_tracker/writer"
 )
 
 type Process struct {
@@ -22,17 +23,16 @@ type Process struct {
 	runner        command_runner.CommandRunner
 
 	runningLink *sync.Once
-
-	linked chan struct{}
-	link   *link.Link
+	linked      chan struct{}
+	link        *link.Link
 
 	exited     chan struct{}
 	exitStatus int
 	exitErr    error
 
-	stdin  *faninWriter
-	stdout *fanoutWriter
-	stderr *fanoutWriter
+	stdin  writer.FanIn
+	stdout writer.FanOut
+	stderr writer.FanOut
 
 	signaller Signaller
 }
@@ -59,9 +59,9 @@ func NewProcess(
 
 		exited: make(chan struct{}),
 
-		stdin:  &faninWriter{hasSink: make(chan struct{})},
-		stdout: &fanoutWriter{},
-		stderr: &fanoutWriter{},
+		stdin:  writer.NewFanIn(),
+		stdout: writer.NewFanOut(),
+		stderr: writer.NewFanOut(),
 
 		signaller: signaller,
 	}
@@ -93,7 +93,7 @@ func (p *Process) Signal(s garden.Signal) error {
 	case garden.SignalTerminate:
 		return p.signaller.Signal(syscall.SIGTERM)
 	default:
-		return fmt.Errorf("processtracker: signal: unknown signal: %d", s)
+		return fmt.Errorf("process_tracker: failed to send signal: unknown signal: %d", s)
 	}
 }
 
@@ -183,6 +183,7 @@ func (p *Process) Attach(processIO garden.ProcessIO) {
 	}
 }
 
+// This is guarded by runningLink so will only run once per Process per garden.
 func (p *Process) runLinker() {
 	processSock := path.Join(p.containerPath, "processes", fmt.Sprintf("%d.sock", p.ID()))
 

@@ -71,12 +71,24 @@ var _ = Describe("RepositoryProvider", func() {
 	})
 
 	Context("when NewEndpoint returns an error", func() {
-		It("returns the error", func() {
-			endpointReturnsError = errors.New("an error")
-			provider := NewRepositoryProvider("", nil)
+		Context("and the error message does not contain `--insecure-registry`", func() {
+			It("returns the error", func() {
+				endpointReturnsError = errors.New("an error")
+				provider := NewRepositoryProvider("", nil)
 
-			_, err := provider.ProvideRegistry("the-registry-host:44")
-			Ω(err).Should(MatchError("an error"))
+				_, err := provider.ProvideRegistry("the-registry-host:44")
+				Ω(err).Should(MatchError("an error"))
+			})
+		})
+
+		Context("and the error message DOES contain `--insecure-registry`", func() {
+			It("returns an InsecureRegistryError", func() {
+				endpointReturnsError = errors.New("some text that has --insecure-registry in it")
+				provider := NewRepositoryProvider("", []string{"foo", "bar"})
+
+				_, err := provider.ProvideRegistry("the-registry-host:44")
+				Ω(err).Should(MatchError(&InsecureRegistryError{Cause: endpointReturnsError, Endpoint: "the-registry-host:44", InsecureRegistries: []string{"foo", "bar"}}))
+			})
 		})
 	})
 
