@@ -48,8 +48,11 @@ already be running locally in a virtual machine.
 
 ## Coding Conventions
 
-Thankfully Go defines a standard code format so we simply adhere to that (
-and will soon enforce it with a commit hook).
+Thankfully Go defines a standard code format so we simply adhere to that.
+
+If you write Go code using some tool, like IntelliJ IDEA, which does not enforce
+the standard format, you should install a
+[pre-commit hook](https://golang.org/misc/git/pre-commit) to check the formatting.
 
 ### Error Handling
 
