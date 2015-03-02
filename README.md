@@ -18,7 +18,10 @@ Then, checkout the code and restore the dependencies with godeps (this assumes y
 
     git clone https://github.com/cloudfoundry-incubator/garden-linux $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux
     cd $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux
-    godep restore
+    godep restore # if this fails, re-issue it.
+
+(One known reason for godep restore failing is that the Docker repository is [not "go gettable"](https://github.com/docker/docker/issues/10922),
+ but re-running `godep restore` works around this problem.)
 
 Now, make sure to set `$GOHOME` to `$GOPATH` so that cf-guardian dev box knows where to find your go code:
 
