@@ -236,7 +236,15 @@ func Main(builder cnet.Builder) {
 		logger.Fatal("failed-to-construct-graph", err)
 	}
 
-	repoFetcher := repository_fetcher.Retryable{repository_fetcher.New(repository_fetcher.NewRepositoryProvider(*dockerRegistry, strings.Split(*insecureRegistries, ",")), graph)}
+	repoFetcher := repository_fetcher.Retryable{
+		repository_fetcher.New(
+			repository_fetcher.NewRepositoryProvider(
+				*dockerRegistry,
+				strings.Split(*insecureRegistries, ","),
+			),
+			graph,
+		),
+	}
 
 	dockerRootFSProvider, err := rootfs_provider.NewDocker(repoFetcher, graphDriver, rootfs_provider.SimpleVolumeCreator{}, clock.NewClock())
 	if err != nil {
