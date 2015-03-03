@@ -16,6 +16,7 @@ var _ = Describe("Networking recovery", func() {
 	Context("with two containers in the same subnet", func() {
 		var (
 			ctr1           garden.Container
+            ctr2           garden.Container
 			ctr2Path       string
 			bridgeEvidence string
 		)
@@ -26,7 +27,7 @@ var _ = Describe("Networking recovery", func() {
 			var err error
 			ctr1, err = client.Create(garden.ContainerSpec{Network: containerNetwork})
 			Ω(err).ShouldNot(HaveOccurred())
-			ctr2, err := client.Create(garden.ContainerSpec{Network: containerNetwork})
+			ctr2, err = client.Create(garden.ContainerSpec{Network: containerNetwork})
 			Ω(err).ShouldNot(HaveOccurred())
 			info2, err := ctr2.Info()
 			Ω(err).ShouldNot(HaveOccurred())
@@ -37,7 +38,7 @@ var _ = Describe("Networking recovery", func() {
 			Ω(cmd.CombinedOutput()).Should(ContainSubstring(bridgeEvidence))
 		})
 
-		Context("when garden is killed and restarted", func() {
+		Context("when garden is killed and restarted using SIGKILL", func() {
 			BeforeEach(func() {
 				gardenProcess.Signal(syscall.SIGKILL)
 				Eventually(gardenProcess.Wait(), "10s").Should(Receive())
@@ -48,6 +49,27 @@ var _ = Describe("Networking recovery", func() {
 
 			It("the subnet's bridge no longer exists", func() {
 				cmd := exec.Command("ip", "a")
+				Ω(cmd.CombinedOutput()).ShouldNot(ContainSubstring(bridgeEvidence))
+			})
+		})
+
+		Context("when garden is shut down cleanly and restarted, and the containers are deleted", func() {
+			BeforeEach(func() {
+				gardenProcess.Signal(syscall.SIGTERM)
+				Eventually(gardenProcess.Wait(), "10s").Should(Receive())
+
+				client = startGarden()
+				Ω(client.Ping()).ShouldNot(HaveOccurred())
+
+                cmd := exec.Command("ip", "a")
+                Ω(cmd.CombinedOutput()).Should(ContainSubstring(bridgeEvidence))
+
+                Ω(client.Destroy(ctr1.Handle())).Should(Succeed())
+                Ω(client.Destroy(ctr2.Handle())).Should(Succeed())
+            })
+
+			It("the subnet's bridge no longer exists", func() {
+                cmd := exec.Command("ip", "a")
 				Ω(cmd.CombinedOutput()).ShouldNot(ContainSubstring(bridgeEvidence))
 			})
 		})
