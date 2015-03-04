@@ -73,10 +73,17 @@ var _ = Describe("Rootfs container create parameter", func() {
 			Context("which is insecure", func() {
 				var dockerRegistry garden.Container
 
+				dockerRegistryIP := "10.0.0.1"
+				dockerRegistryPort := "5001"
+
 				if dockerRegistryRootFSPath == "" {
 					log.Println("GARDEN_DOCKER_REGISTRY_TEST_ROOTFS undefined; skipping")
 					return
 				}
+
+				JustBeforeEach(func() {
+					dockerRegistry = startDockerRegistry(dockerRegistryIP, dockerRegistryPort)
+				})
 
 				AfterEach(func() {
 					if dockerRegistry != nil {
@@ -85,9 +92,6 @@ var _ = Describe("Rootfs container create parameter", func() {
 				})
 
 				Context("when the host is listed in -insecureDockerRegistryList", func() {
-					dockerRegistryIP := "10.0.0.1"
-					dockerRegistryPort := "5001"
-
 					BeforeEach(func() {
 						args = []string{
 							"-insecureDockerRegistryList", dockerRegistryIP + ":" + dockerRegistryPort,
@@ -95,15 +99,24 @@ var _ = Describe("Rootfs container create parameter", func() {
 						}
 					})
 
-					JustBeforeEach(func() {
-						dockerRegistry = startDockerRegistry(dockerRegistryIP, dockerRegistryPort)
-					})
-
 					It("creates the container successfully ", func() {
 						_, err := client.Create(garden.ContainerSpec{
 							RootFSPath: fmt.Sprintf("docker://%s:%s/busybox", dockerRegistryIP, dockerRegistryPort),
 						})
 						Ω(err).ShouldNot(HaveOccurred())
+					})
+				})
+
+				Context("when the host is NOT listed in -insecureDockerRegistryList", func() {
+					It("fails, and suggests the -insecureDockerRegistryList flag", func() {
+						_, err := client.Create(garden.ContainerSpec{
+							RootFSPath: fmt.Sprintf("docker://%s:%s/busybox", dockerRegistryIP, dockerRegistryPort),
+						})
+
+						Ω(err).Should(MatchError(ContainSubstring("-insecureDockerRegistryList")))
+						Ω(err).Should(MatchError(ContainSubstring(
+							"Unable to fetch RootFS image from docker://%s:%s", dockerRegistryIP, dockerRegistryPort,
+						)))
 					})
 				})
 			})

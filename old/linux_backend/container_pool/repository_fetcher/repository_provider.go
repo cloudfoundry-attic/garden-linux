@@ -1,6 +1,9 @@
 package repository_fetcher
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 //go:generate counterfeiter . RegistryProvider
 type RegistryProvider interface {
@@ -13,8 +16,11 @@ type InsecureRegistryError struct {
 	InsecureRegistries []string
 }
 
-func (InsecureRegistryError) Error() string {
-	return "repository_provider: Unable to fetch RootFS image from insecure docker registry URL.  To enable insecure access from this host, add it to the -insecureDockerRegistryList on boot."
+func (err InsecureRegistryError) Error() string {
+	return fmt.Sprintf(
+		"repository_provider: Unable to fetch RootFS image from docker://%s.  To enable insecure access from this host, add it to the -insecureDockerRegistryList on boot.",
+		err.Endpoint,
+	)
 }
 
 type registryProvider struct {

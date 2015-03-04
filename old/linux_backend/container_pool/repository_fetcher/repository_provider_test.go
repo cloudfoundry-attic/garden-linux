@@ -87,7 +87,13 @@ var _ = Describe("RepositoryProvider", func() {
 				provider := NewRepositoryProvider("", []string{"foo", "bar"})
 
 				_, err := provider.ProvideRegistry("the-registry-host:44")
-				Ω(err).Should(MatchError(&InsecureRegistryError{Cause: endpointReturnsError, Endpoint: "the-registry-host:44", InsecureRegistries: []string{"foo", "bar"}}))
+				Ω(err).Should(MatchError(
+					&InsecureRegistryError{
+						Cause:              endpointReturnsError,
+						Endpoint:           "the-registry-host:44",
+						InsecureRegistries: []string{"foo", "bar"},
+					},
+				))
 			})
 		})
 	})
