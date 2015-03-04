@@ -87,7 +87,7 @@ function rootfs_mountpoints() {
 }
 
 function teardown_fs() {
-  for i in $(seq 10); do
+  for i in $(seq 120); do
     local mountpoints=$(rootfs_mountpoints)
     if [ -z "$mountpoints" ] || umount $mountpoints; then
       if rm -rf $container_path; then
