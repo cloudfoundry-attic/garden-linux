@@ -1251,14 +1251,18 @@ var _ = Describe("Container pool", func() {
 					Ω(err).Should(Equal(disaster))
 				})
 
-				It("does not release the container's ports, uid, and network", func() {
+				It("does not release the container's ports or uid", func() {
 					pool.Destroy(createdContainer)
 
 					Ω(fakePortPool.Released).ShouldNot(ContainElement(uint32(123)))
 					Ω(fakePortPool.Released).ShouldNot(ContainElement(uint32(456)))
 					Ω(fakeUIDPool.Released).ShouldNot(ContainElement(uint32(10000)))
-					Ω(fakeCN.Released).ShouldNot(ContainElement("1.2.0.0/30"))
 				})
+
+                It("releases the network", func(){
+                    pool.Destroy(createdContainer)
+                    Ω(fakeCN.Released).Should(Equal([]string{"1.2.0.0/30"}))
+                })
 
 				It("does not tear down the filter", func() {
 					pool.Destroy(createdContainer)
@@ -1294,17 +1298,21 @@ var _ = Describe("Container pool", func() {
 				Ω(fakeRootFSProvider.CleanupRootFSCallCount()).Should(Equal(0))
 			})
 
-			It("does not release the container's resources", func() {
+			It("does not release the container's ports or uid", func() {
 				err := pool.Destroy(createdContainer)
 				Ω(err).Should(HaveOccurred())
 
 				Ω(fakePortPool.Released).Should(BeEmpty())
 				Ω(fakePortPool.Released).Should(BeEmpty())
-
 				Ω(fakeUIDPool.Released).Should(BeEmpty())
-
-				Ω(fakeCN.Released).Should(BeEmpty())
 			})
+
+            It("releases the network", func(){
+                err := pool.Destroy(createdContainer)
+                Ω(err).Should(HaveOccurred())
+
+                Ω(fakeCN.Released).Should(Equal([]string{"1.2.0.0/30"}))
+            })
 
 			It("does not tear down the filter", func() {
 				pool.Destroy(createdContainer)
