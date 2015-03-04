@@ -1259,10 +1259,10 @@ var _ = Describe("Container pool", func() {
 					Ω(fakeUIDPool.Released).ShouldNot(ContainElement(uint32(10000)))
 				})
 
-                It("releases the network", func(){
-                    pool.Destroy(createdContainer)
-                    Ω(fakeCN.Released).Should(Equal([]string{"1.2.0.0/30"}))
-                })
+				It("releases the network", func() {
+					pool.Destroy(createdContainer)
+					Ω(fakeCN.Released).Should(Equal([]string{"1.2.0.0/30"}))
+				})
 
 				It("does not tear down the filter", func() {
 					pool.Destroy(createdContainer)
@@ -1307,12 +1307,12 @@ var _ = Describe("Container pool", func() {
 				Ω(fakeUIDPool.Released).Should(BeEmpty())
 			})
 
-            It("releases the network", func(){
-                err := pool.Destroy(createdContainer)
-                Ω(err).Should(HaveOccurred())
+			It("releases the network", func() {
+				err := pool.Destroy(createdContainer)
+				Ω(err).Should(HaveOccurred())
 
-                Ω(fakeCN.Released).Should(Equal([]string{"1.2.0.0/30"}))
-            })
+				Ω(fakeCN.Released).Should(Equal([]string{"1.2.0.0/30"}))
+			})
 
 			It("does not tear down the filter", func() {
 				pool.Destroy(createdContainer)

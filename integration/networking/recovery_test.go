@@ -16,7 +16,7 @@ var _ = Describe("Networking recovery", func() {
 	Context("with two containers in the same subnet", func() {
 		var (
 			ctr1           garden.Container
-            ctr2           garden.Container
+			ctr2           garden.Container
 			ctr2Path       string
 			bridgeEvidence string
 		)
@@ -61,15 +61,15 @@ var _ = Describe("Networking recovery", func() {
 				client = startGarden()
 				Ω(client.Ping()).ShouldNot(HaveOccurred())
 
-                cmd := exec.Command("ip", "a")
-                Ω(cmd.CombinedOutput()).Should(ContainSubstring(bridgeEvidence))
+				cmd := exec.Command("ip", "a")
+				Ω(cmd.CombinedOutput()).Should(ContainSubstring(bridgeEvidence))
 
-                Ω(client.Destroy(ctr1.Handle())).Should(Succeed())
-                Ω(client.Destroy(ctr2.Handle())).Should(Succeed())
-            })
+				Ω(client.Destroy(ctr1.Handle())).Should(Succeed())
+				Ω(client.Destroy(ctr2.Handle())).Should(Succeed())
+			})
 
 			It("the subnet's bridge no longer exists", func() {
-                cmd := exec.Command("ip", "a")
+				cmd := exec.Command("ip", "a")
 				Ω(cmd.CombinedOutput()).ShouldNot(ContainSubstring(bridgeEvidence))
 			})
 		})

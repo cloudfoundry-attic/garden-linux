@@ -389,14 +389,14 @@ func (p *LinuxContainerPool) Destroy(container linux_backend.Container) error {
 	pLog.Info("destroying")
 
 	linuxContainer := container.(*linux_backend.LinuxContainer)
-    resources := linuxContainer.Resources()
-    if resources.Network != nil {
-        err := p.cnBuilder.Dismantle(resources.Network)
-        if err != nil {
-            return err
-        }
-        resources.Network = nil
-    }
+	resources := linuxContainer.Resources()
+	if resources.Network != nil {
+		err := p.cnBuilder.Dismantle(resources.Network)
+		if err != nil {
+			return err
+		}
+		resources.Network = nil
+	}
 
 	err := p.releaseSystemResources(pLog, container.ID())
 	if err != nil {

@@ -51,29 +51,29 @@ func spawn(
 	executablePath, err := exec.LookPath(argv[0])
 	if err != nil {
 		fatal(err)
-        return
+		return
 	}
 
 	cmd := child(executablePath, argv)
 
 	var stdinW, stdoutR, stderrR *os.File
 	if withTty {
-        cmd.Stdin, stdinW, stdoutR, cmd.Stdout, stderrR, cmd.Stderr, err = createTtyPty(windowColumns, windowRows)
+		cmd.Stdin, stdinW, stdoutR, cmd.Stdout, stderrR, cmd.Stderr, err = createTtyPty(windowColumns, windowRows)
 		cmd.SysProcAttr.Setctty = true
 		cmd.SysProcAttr.Setsid = true
 	} else {
-        cmd.Stdin, stdinW, stdoutR, cmd.Stdout, stderrR, cmd.Stderr, err = createPipes()
+		cmd.Stdin, stdinW, stdoutR, cmd.Stdout, stderrR, cmd.Stderr, err = createPipes()
 	}
 
 	if err != nil {
 		fatal(err)
-        return
+		return
 	}
 
 	statusR, statusW, err := os.Pipe()
 	if err != nil {
 		fatal(err)
-        return
+		return
 	}
 
 	notify(notifyStream, "ready")
@@ -85,7 +85,7 @@ func spawn(
 	go terminateWhenDone(childProcessTerminated, terminate)
 
 	// Loop accepting and processing connections from the caller.
-    for {
+	for {
 		conn, err := acceptConnection(listener, stdoutR, stderrR, statusR)
 		if err != nil {
 			fatal(err)
