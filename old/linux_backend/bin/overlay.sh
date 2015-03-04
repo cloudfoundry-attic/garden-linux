@@ -8,43 +8,6 @@ overlay_path=$2/overlay
 rootfs_path=$2/rootfs
 base_path=$3
 
-function overlay_directory_in_rootfs() {
-  # Skip if exists
-  if [ ! -d $overlay_path/$1 ]
-  then
-    if [ -d $rootfs_path/$1 ]
-    then
-      cp -r $rootfs_path/$1 $overlay_path/
-    else
-      mkdir -p $overlay_path/$1
-    fi
-  fi
-
-  mount -n --bind $overlay_path/$1 $rootfs_path/$1
-  mount -n --bind -o remount,$2 $overlay_path/$1 $rootfs_path/$1
-}
-
-function setup_fs_other() {
-  mkdir -p $base_path/proc
-
-  mount -n --bind $base_path $rootfs_path
-  mount -n --bind -o remount,ro $base_path $rootfs_path
-
-  overlay_directory_in_rootfs /dev rw
-  overlay_directory_in_rootfs /etc rw
-  overlay_directory_in_rootfs /home rw
-  overlay_directory_in_rootfs /root rw
-  overlay_directory_in_rootfs /sbin rw
-  overlay_directory_in_rootfs /var rw
-
-  mkdir -p $overlay_path/run
-  overlay_directory_in_rootfs /run rw
-
-  mkdir -p $overlay_path/tmp
-  chmod 777 $overlay_path/tmp
-  overlay_directory_in_rootfs /tmp rw
-}
-
 function get_mountpoint() {
   df -P $1 | tail -1 | awk '{print $NF}'
 }
