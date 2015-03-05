@@ -1,4 +1,4 @@
-package linux_backend
+package linux_container
 
 import (
 	"bufio"
@@ -16,6 +16,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/network"
+	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/quota_manager"
@@ -52,7 +53,7 @@ type LinuxContainer struct {
 	events      []string
 	eventsMutex sync.RWMutex
 
-	resources *Resources
+	resources *linux_backend.Resources
 
 	portPool PortPool
 
@@ -140,7 +141,7 @@ func NewLinuxContainer(
 	id, handle, path string,
 	properties garden.Properties,
 	graceTime time.Duration,
-	resources *Resources,
+	resources *linux_backend.Resources,
 	portPool PortPool,
 	runner command_runner.CommandRunner,
 	cgroupsManager cgroups_manager.CgroupsManager,
@@ -213,7 +214,7 @@ func (c *LinuxContainer) Events() []string {
 	return events
 }
 
-func (c *LinuxContainer) Resources() *Resources {
+func (c *LinuxContainer) Resources() *linux_backend.Resources {
 	return c.resources
 }
 
@@ -353,7 +354,7 @@ func (c *LinuxContainer) Restore(snapshot ContainerSnapshot) error {
 
 		pidfile := path.Join(c.path, "processes", fmt.Sprintf("%d.pid", process.ID))
 
-		signaller := &NamespacedSignaller{
+		signaller := &linux_backend.NamespacedSignaller{
 			Runner:        c.runner,
 			ContainerPath: c.path,
 			PidFilePath:   pidfile,
@@ -805,7 +806,7 @@ func (c *LinuxContainer) Run(spec garden.ProcessSpec, processIO garden.ProcessIO
 	pidfile := path.Join(c.path, "processes", fmt.Sprintf("%d.pid", processID))
 	args = append(args, "--pidfile", pidfile)
 
-	signaller := &NamespacedSignaller{
+	signaller := &linux_backend.NamespacedSignaller{
 		Runner:        c.runner,
 		ContainerPath: c.path,
 		PidFilePath:   pidfile,

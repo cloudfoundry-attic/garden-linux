@@ -22,10 +22,10 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/container_pool/fake_cn_persistor"
 	"github.com/cloudfoundry-incubator/garden-linux/container_pool/fake_cnet"
 	"github.com/cloudfoundry-incubator/garden-linux/container_pool/fake_container_pool"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
 	"github.com/cloudfoundry-incubator/garden-linux/network"
 	"github.com/cloudfoundry-incubator/garden-linux/network/fakes"
 	"github.com/cloudfoundry-incubator/garden-linux/network/iptables"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/rootfs_provider/fake_rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/port_pool/fake_port_pool"
@@ -510,7 +510,7 @@ var _ = Describe("Container pool", func() {
 				})
 
 				Ω(err).ShouldNot(HaveOccurred())
-				Ω(container.(*linux_backend.LinuxContainer).CurrentEnvVars()).Should(Equal(process.Env{
+				Ω(container.(*linux_container.LinuxContainer).CurrentEnvVars()).Should(Equal(process.Env{
 					"var1": "spec-value1",
 					"var2": "spec-value2",
 					"var3": "rootfs-value-3",
@@ -846,7 +846,7 @@ var _ = Describe("Container pool", func() {
 			Ω(err).ShouldNot(HaveOccurred())
 
 			err = json.NewEncoder(buf).Encode(
-				linux_backend.ContainerSnapshot{
+				linux_container.ContainerSnapshot{
 					ID:     "some-restored-id",
 					Handle: "some-restored-handle",
 
@@ -858,7 +858,7 @@ var _ = Describe("Container pool", func() {
 						"some-other-restored-event",
 					},
 
-					Resources: linux_backend.ResourcesSnapshot{
+					Resources: linux_container.ResourcesSnapshot{
 						UserUID: 10000,
 						RootUID: rootUID,
 						Network: &restoredNetwork,
@@ -884,9 +884,9 @@ var _ = Describe("Container pool", func() {
 				"foo": "bar",
 			})))
 
-			linuxContainer := container.(*linux_backend.LinuxContainer)
+			linuxContainer := container.(*linux_container.LinuxContainer)
 
-			Ω(linuxContainer.State()).Should(Equal(linux_backend.State("some-restored-state")))
+			Ω(linuxContainer.State()).Should(Equal(linux_container.State("some-restored-state")))
 			Ω(linuxContainer.Events()).Should(Equal([]string{
 				"some-restored-event",
 				"some-other-restored-event",
@@ -1176,13 +1176,13 @@ var _ = Describe("Container pool", func() {
 	})
 
 	Describe("destroying", func() {
-		var createdContainer *linux_backend.LinuxContainer
+		var createdContainer *linux_container.LinuxContainer
 
 		BeforeEach(func() {
 			container, err := pool.Create(garden.ContainerSpec{})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			createdContainer = container.(*linux_backend.LinuxContainer)
+			createdContainer = container.(*linux_container.LinuxContainer)
 
 			createdContainer.Resources().AddPort(123)
 			createdContainer.Resources().AddPort(456)

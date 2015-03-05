@@ -17,6 +17,7 @@ import (
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/pivotal-golang/lager"
 
+	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
 	"github.com/cloudfoundry-incubator/garden-linux/network"
 	"github.com/cloudfoundry-incubator/garden-linux/network/cnet"
 	"github.com/cloudfoundry-incubator/garden-linux/network/iptables"
@@ -56,7 +57,7 @@ type LinuxContainerPool struct {
 	uidPool     uid_pool.UIDPool
 	cnBuilder   cnet.Builder
 	cnPersistor CNPersistor
-	portPool    linux_backend.PortPool
+	portPool    linux_container.PortPool
 
 	filterProvider FilterProvider
 	defaultChain   iptables.Chain
@@ -78,7 +79,7 @@ func New(
 	cnPersistor CNPersistor,
 	filterProvider FilterProvider,
 	defaultChain iptables.Chain,
-	portPool linux_backend.PortPool,
+	portPool linux_container.PortPool,
 	denyNetworks, allowNetworks []string,
 	runner command_runner.CommandRunner,
 	quotaManager quota_manager.QuotaManager,
@@ -255,7 +256,7 @@ func (p *LinuxContainerPool) Create(spec garden.ContainerSpec) (c linux_backend.
 		"rootfs-env": rootFSEnv,
 		"create-env": specEnv,
 	})
-	return linux_backend.NewLinuxContainer(
+	return linux_container.NewLinuxContainer(
 		pLog,
 		id,
 		getHandle(spec.Handle, id),
@@ -285,7 +286,7 @@ func (p *LinuxContainerPool) releaseUIDs(userUID, rootUID uint32) {
 }
 
 func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Container, error) {
-	var containerSnapshot linux_backend.ContainerSnapshot
+	var containerSnapshot linux_container.ContainerSnapshot
 
 	err := json.NewDecoder(snapshot).Decode(&containerSnapshot)
 	if err != nil {
@@ -347,7 +348,7 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 		return nil, err
 	}
 
-	container := linux_backend.NewLinuxContainer(
+	container := linux_container.NewLinuxContainer(
 		containerLogger,
 		id,
 		containerSnapshot.Handle,
@@ -388,7 +389,7 @@ func (p *LinuxContainerPool) Destroy(container linux_backend.Container) error {
 
 	pLog.Info("destroying")
 
-	linuxContainer := container.(*linux_backend.LinuxContainer)
+	linuxContainer := container.(*linux_container.LinuxContainer)
 	resources := linuxContainer.Resources()
 	if resources.Network != nil {
 		err := p.cnBuilder.Dismantle(resources.Network)
