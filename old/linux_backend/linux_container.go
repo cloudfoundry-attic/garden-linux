@@ -490,20 +490,11 @@ func (c *LinuxContainer) RemoveProperty(key string) error {
 	c.propertiesMutex.Lock()
 	defer c.propertiesMutex.Unlock()
 
-	_, found := c.properties[key]
-	if !found {
+	if _, found := c.properties[key]; !found {
 		return UndefinedPropertyError{key}
 	}
 
-	props := garden.Properties{}
-	for k, v := range c.properties {
-		if k == key {
-			continue
-		}
-		props[k] = v
-	}
-
-	c.properties = props
+	delete(c.properties, key)
 
 	return nil
 }

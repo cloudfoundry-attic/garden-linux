@@ -134,6 +134,18 @@ var _ = Describe("Linux containers", func() {
 		)
 	})
 
+	It("sets the container ID", func() {
+		Ω(container.ID()).Should(Equal("some-id"))
+	})
+
+	It("sets the container handle", func() {
+		Ω(container.Handle()).Should(Equal("some-handle"))
+	})
+
+	It("sets the container grace time", func() {
+		Ω(container.GraceTime()).Should(Equal(1 * time.Second))
+	})
+
 	Describe("Snapshotting", func() {
 		memoryLimits := garden.MemoryLimits{
 			LimitInBytes: 1,
@@ -1041,32 +1053,30 @@ var _ = Describe("Linux containers", func() {
 			}))
 		})
 
-		It("forwards the LANG variable the environment if the user doesn't specify it", func() {
-			langBefore := os.Getenv("LANG")
-			os.Setenv("LANG", "C")
+		Describe("LANG environment variable", func() {
+			It("forwards the LANG variable the environment if the user doesn't specify it", func() {
+				os.Setenv("LANG", "C")
 
-			_, err := container.Run(garden.ProcessSpec{
-				Path: "/some/script",
-			}, garden.ProcessIO{})
-			Ω(err).ShouldNot(HaveOccurred())
+				_, err := container.Run(garden.ProcessSpec{
+					Path: "/some/script",
+				}, garden.ProcessIO{})
+				Ω(err).ShouldNot(HaveOccurred())
 
-			_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
-			Ω(ranCmd.Args).Should(Equal([]string{
-				containerDir + "/bin/wsh",
-				"--socket", containerDir + "/run/wshd.sock",
-				"--user", "vcap",
-				"--env", "LANG=C",
-				"--env", "env1=env1Value",
-				"--env", "env2=env2Value",
-				"--pidfile", containerDir + "/processes/1.pid",
-				"/some/script",
-			}))
+				_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
+				Ω(ranCmd.Args).Should(ContainElement("LANG=C"))
+			})
 
-			if langBefore == "" {
+			It("forwards the LANG variable the environment if the user doesn't specify it", func() {
 				os.Unsetenv("LANG")
-			} else {
-				os.Setenv("LANG", langBefore)
-			}
+
+				_, err := container.Run(garden.ProcessSpec{
+					Path: "/some/script",
+				}, garden.ProcessIO{})
+				Ω(err).ShouldNot(HaveOccurred())
+
+				_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
+				Ω(ranCmd.Args).Should(ContainElement("LANG=en_US.UTF-8"))
+			})
 		})
 
 		It("runs the script with the environment variables from the run taking precedence over the container environment variables", func() {
@@ -1704,20 +1714,28 @@ var _ = Describe("Linux containers", func() {
 		})
 
 		Context("when getting the limit fails", func() {
-			disaster := errors.New("oh no!")
-
-			JustBeforeEach(func() {
+			It("returns the error", func() {
+				disaster := errors.New("oh no!")
 				fakeCgroups.WhenGetting("memory", "memory.limit_in_bytes", func() (string, error) {
 					return "", disaster
 				})
-			})
 
-			It("returns the error", func() {
-				limits, err := container.CurrentMemoryLimits()
+				_, err := container.CurrentMemoryLimits()
 				Ω(err).Should(Equal(disaster))
-				Ω(limits).Should(BeZero())
 			})
 		})
+
+		Context("when the returned memory limit is malformed", func() {
+			It("returns the error", func() {
+				fakeCgroups.WhenGetting("memory", "memory.limit_in_bytes", func() (string, error) {
+					return "500M", nil
+				})
+
+				_, err := container.CurrentMemoryLimits()
+				Ω(err.Error()).Should(HaveSuffix("invalid syntax"))
+			})
+		})
+
 	})
 
 	Describe("Limiting CPU", func() {
@@ -1772,18 +1790,25 @@ var _ = Describe("Linux containers", func() {
 		})
 
 		Context("when getting the limit fails", func() {
-			disaster := errors.New("oh no!")
-
-			JustBeforeEach(func() {
+			It("returns the error", func() {
+				disaster := errors.New("oh no!")
 				fakeCgroups.WhenGetting("cpu", "cpu.shares", func() (string, error) {
 					return "", disaster
 				})
-			})
 
-			It("returns the error", func() {
-				limits, err := container.CurrentCPULimits()
+				_, err := container.CurrentCPULimits()
 				Ω(err).Should(Equal(disaster))
-				Ω(limits).Should(BeZero())
+			})
+		})
+
+		Context("when the current CPU limit is malformed", func() {
+			It("returns the error", func() {
+				fakeCgroups.WhenGetting("cpu", "cpu.shares", func() (string, error) {
+					return "50%", nil
+				})
+
+				_, err := container.CurrentCPULimits()
+				Ω(err.Error()).Should(HaveSuffix("invalid syntax"))
 			})
 		})
 	})
@@ -1999,35 +2024,65 @@ var _ = Describe("Linux containers", func() {
 	})
 
 	Describe("Properties", func() {
-		It("can CRUD", func() {
-			value, err := container.GetProperty("property-name")
-			Ω(err).ShouldNot(HaveOccurred())
-			Ω(value).Should(Equal("property-value"))
+		Describe("CRUD", func() {
+			It("can get a property", func() {
+				value, err := container.GetProperty("property-name")
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(value).Should(Equal("property-value"))
+			})
 
-			value, err = container.GetProperty("some-other-property")
-			Ω(err).Should(Equal(linux_backend.UndefinedPropertyError{"some-other-property"}))
-			Ω(value).Should(BeZero())
+			It("returns an error when the property is undefined", func() {
+				_, err := container.GetProperty("some-other-property")
+				Ω(err).Should(Equal(linux_backend.UndefinedPropertyError{"some-other-property"}))
+				Ω(err).Should(MatchError("property does not exist: some-other-property"))
+			})
 
-			err = container.SetProperty("some-other-property", "some-other-value")
-			Ω(err).ShouldNot(HaveOccurred())
+			It("can set a new property", func() {
+				err := container.SetProperty("some-other-property", "some-other-value")
+				Ω(err).ShouldNot(HaveOccurred())
+				value, err := container.GetProperty("some-other-property")
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(value).Should(Equal("some-other-value"))
+			})
 
-			value, err = container.GetProperty("some-other-property")
-			Ω(err).ShouldNot(HaveOccurred())
-			Ω(value).Should(Equal("some-other-value"))
+			It("can override an existing property", func() {
+				err := container.SetProperty("property-name", "some-other-new-value")
+				Ω(err).ShouldNot(HaveOccurred())
 
-			err = container.SetProperty("some-other-property", "some-other-new-value")
-			Ω(err).ShouldNot(HaveOccurred())
+				value, err := container.GetProperty("property-name")
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(value).Should(Equal("some-other-new-value"))
+			})
 
-			value, err = container.GetProperty("some-other-property")
-			Ω(err).ShouldNot(HaveOccurred())
-			Ω(value).Should(Equal("some-other-new-value"))
+			Context("when removing a property", func() {
+				var err error
 
-			err = container.RemoveProperty("some-other-property")
-			Ω(err).ShouldNot(HaveOccurred())
+				JustBeforeEach(func() {
+					err = container.SetProperty("other-property-name", "some-other-value")
+					Ω(err).ShouldNot(HaveOccurred())
 
-			value, err = container.GetProperty("some-other-property")
-			Ω(err).Should(Equal(linux_backend.UndefinedPropertyError{"some-other-property"}))
-			Ω(value).Should(BeZero())
+					err = container.RemoveProperty("property-name")
+				})
+
+				It("removes the property", func() {
+					Ω(err).ShouldNot(HaveOccurred())
+
+					_, err = container.GetProperty("property-name")
+					Ω(err).Should(Equal(linux_backend.UndefinedPropertyError{"property-name"}))
+				})
+
+				It("does not remove other properties", func() {
+					value, err := container.GetProperty("other-property-name")
+					Ω(err).ShouldNot(HaveOccurred())
+					Ω(value).Should(Equal("some-other-value"))
+				})
+			})
+
+			It("returns an error when removing an undefined property", func() {
+				err := container.RemoveProperty("some-other-property")
+				Ω(err).Should(HaveOccurred())
+				Ω(err).Should(MatchError("property does not exist: some-other-property"))
+			})
 		})
 
 		It("can return all properties as a map", func() {
