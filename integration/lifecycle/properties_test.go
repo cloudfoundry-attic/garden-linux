@@ -40,6 +40,17 @@ var _ = Describe("A container with properties", func() {
 		})
 	})
 
+	Describe("getting container properties without getting info", func() {
+		It("can list properties", func() {
+			err := container.SetProperty("bar", "baz")
+
+			value, err := container.GetProperties()
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(value).Should(HaveKeyWithValue("foo", "bar"))
+			Ω(value).Should(HaveKeyWithValue("bar", "baz"))
+		})
+	})
+
 	Describe("updating container properties", func() {
 		It("can CRUD", func() {
 			value, err := container.GetProperty("foo")

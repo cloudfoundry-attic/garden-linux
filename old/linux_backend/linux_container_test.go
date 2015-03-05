@@ -2030,6 +2030,13 @@ var _ = Describe("Linux containers", func() {
 			Ω(value).Should(BeZero())
 		})
 
+		It("can return all properties as a map", func() {
+			properties, err := container.GetProperties()
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(properties).Should(Equal(garden.Properties{"property-name": "property-value"}))
+		})
+
 		It("returns a properties snapshot", func() {
 			err := container.SetProperty("some-property", "some-value")
 			Ω(err).ShouldNot(HaveOccurred())

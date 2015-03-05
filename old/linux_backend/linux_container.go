@@ -454,6 +454,10 @@ func (c *LinuxContainer) Properties() garden.Properties {
 	return c.properties
 }
 
+func (c *LinuxContainer) GetProperties() (garden.Properties, error) {
+	return c.Properties(), nil
+}
+
 func (c *LinuxContainer) GetProperty(key string) (string, error) {
 	c.propertiesMutex.RLock()
 	defer c.propertiesMutex.RUnlock()
