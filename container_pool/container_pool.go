@@ -50,6 +50,12 @@ type SubnetPool interface {
 	Remove(*linux_backend.Network) error
 }
 
+//go:generate counterfeiter -o fake_bridge_builder/FakeBridgeBuilder.go . BridgeBuilder
+type BridgeBuilder interface {
+	Create(name string)
+	Destroy()
+}
+
 type LinuxContainerPool struct {
 	logger lager.Logger
 
@@ -73,6 +79,7 @@ type LinuxContainerPool struct {
 	cnPersistor CNPersistor
 	portPool    linux_container.PortPool
 
+	bridgeBuilder  BridgeBuilder
 	filterProvider FilterProvider
 	defaultChain   iptables.Chain
 
@@ -94,6 +101,7 @@ func New(
 	subnetPool SubnetPool,
 	cnBuilder cnet.Builder,
 	cnPersistor CNPersistor,
+	bridgeBuilder BridgeBuilder,
 	filterProvider FilterProvider,
 	defaultChain iptables.Chain,
 	portPool linux_container.PortPool,
@@ -123,6 +131,7 @@ func New(
 		cnBuilder:   cnBuilder,
 		cnPersistor: cnPersistor,
 
+		bridgeBuilder:  bridgeBuilder,
 		filterProvider: filterProvider,
 		defaultChain:   defaultChain,
 
@@ -220,17 +229,6 @@ func (p *LinuxContainerPool) pruneEntry(id string) {
 
 	pLog.Info("prune")
 
-	// containerPath := path.Join(p.depotPath, id)
-	// cn, err := p.cnPersistor.Recover(containerPath)
-	// if err != nil {
-	// 	pLog.Error("cnet-recovery-error", err)
-	// } else {
-	// 	err = p.cnBuilder.Dismantle(cn)
-	// 	if err != nil {
-	// 		pLog.Error("cnet-dismantle-error", err)
-	// 	}
-	// }
-
 	err := p.releaseSystemResources(pLog, id)
 	if err != nil {
 		pLog.Error("release-system-resources-error", err)
@@ -255,13 +253,8 @@ func (p *LinuxContainerPool) Create(spec garden.ContainerSpec) (c linux_backend.
 	})
 
 	err = os.MkdirAll(containerPath, 0755) //TODO: Untested line
-	// err = p.cnPersistor.Persist(resources.Network, containerPath)
-	// if err != nil {
-	// 	if releaseErr := p.releaseSystemResources(pLog, id); releaseErr != nil {
-	// 		pLog.Error("failed-to-release-system-resources", releaseErr)
-	// 	}
-	// 	return nil, err
-	// }
+
+	p.bridgeBuilder.Create(resources.Network.Subnet.String())
 
 	rootFSEnv, err := p.acquireSystemResources(id, containerPath, spec.RootFSPath, resources, spec.BindMounts, pLog)
 	if err != nil {
@@ -342,18 +335,12 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 		p.releaseUIDs(resources.UserUID, resources.RootUID)
 		return nil, err
 	}
-	// state, err := p.cnBuilder.Rebuild(resources.Network)
-	// if err != nil {
-	// p.releaseUIDs(resources.UserUID, resources.RootUID)
-	// return nil, err
-	// }
 
 	for _, port := range resources.Ports {
 		err = p.portPool.Remove(port)
 		if err != nil {
 			p.releaseUIDs(resources.UserUID, resources.RootUID)
 			p.subnetPool.Release(resources.Network)
-			//p.cnBuilder.Dismantle(state)
 
 			for _, port := range resources.Ports {
 				p.portPool.Release(port)
@@ -417,22 +404,15 @@ func (p *LinuxContainerPool) Destroy(container linux_backend.Container) error {
 
 	pLog.Info("destroying")
 
-	linuxContainer := container.(*linux_container.LinuxContainer)
-	resources := linuxContainer.Resources()
-
-	// if resources.Network != nil {
-	// 	err := p.cnBuilder.Dismantle(resources.Network)
-	// 	if err != nil {
-	// 		return err
-	// 	}
-	// 	resources.Network = nil
-	// }
-
 	err := p.releaseSystemResources(pLog, container.ID())
 	if err != nil {
 		return err
 	}
 
+	p.bridgeBuilder.Destroy()
+
+	linuxContainer := container.(*linux_backend.LinuxContainer)
+	resources := linuxContainer.Resources()
 	p.releasePoolResources(resources)
 
 	pLog.Info("destroyed")
@@ -607,8 +587,6 @@ func (p *LinuxContainerPool) acquireSystemResources(id, containerPath, rootFSPat
 		"root_uid":             strconv.FormatUint(uint64(resources.RootUID), 10),
 		"PATH":                 os.Getenv("PATH"),
 	}
-	//resources.Network.ConfigureEnvironment(env)
-	//p.cnBuilder.ConfigureEnvironment(env) // TODO: untested code
 	create.Env = env.Array()
 
 	pRunner := logging.Runner{

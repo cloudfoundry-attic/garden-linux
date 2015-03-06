@@ -286,18 +286,18 @@ func Main(builder cnet.Builder) {
 		log:              logger,
 	}
 
-	var parsedExternalIP net.IP
 	if *externalIP == "" {
-		parsedExternalIP, err = localip.LocalIP()
+		ip, err := localip.LocalIP()
 		if err != nil {
 			panic("couldn't determine local IP to use for -externalIP parameter. You can use the -externalIP flag to pass an external IP")
 		}
-	} else {
-		parsedExternalIP = net.ParseIP(*externalIP)
+
+		externalIP = &ip
 	}
 
-	if externalIP == nil {
-		panic(fmt.Sprintf("Value of -externalIP %s could not be converted to an IP", externalIP))
+	parsedExternalIP := net.ParseIP(*externalIP)
+	if parsedExternalIP == nil {
+		panic(fmt.Sprintf("Value of -externalIP %s could not be converted to an IP", *externalIP))
 	}
 
 	pool := container_pool.New(
@@ -307,8 +307,8 @@ func Main(builder cnet.Builder) {
 		config,
 		rootFSProviders,
 		uidPool,
-		*mtu,
 		parsedExternalIP,
+		*mtu,
 		subnetPool,
 		builder,
 		container_pool.NewCNPersistor(logger, builder),

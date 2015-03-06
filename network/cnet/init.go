@@ -37,11 +37,11 @@ func Init(fs *flag.FlagSet) (*Config, error) {
 	fs.Var(&config.Network, "networkPool",
 		"Pool of dynamically allocated container subnets")
 
-	fs.Var(&config.Mtu, "mtu",
-		"MTU size for container network interfaces")
+	// fs.Var(&config.Mtu, "mtu",
+	// 	"MTU size for container network interfaces")
 
-	fs.Var(&config.ExternalIP, "externalIP",
-		"IP address to use to reach container's mapped ports")
+	// fs.Var(&config.ExternalIP, "externalIP",
+	// 	"IP address to use to reach container's mapped ports")
 
 	fs.StringVar(&Tag, "tag", "", "server-wide identifier used for 'global' configuration")
 

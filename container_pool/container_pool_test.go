@@ -19,6 +19,7 @@ import (
 	"github.com/pivotal-golang/lager/lagertest"
 
 	"github.com/cloudfoundry-incubator/garden-linux/container_pool"
+	"github.com/cloudfoundry-incubator/garden-linux/container_pool/fake_bridge_builder"
 	"github.com/cloudfoundry-incubator/garden-linux/container_pool/fake_cn_persistor"
 	"github.com/cloudfoundry-incubator/garden-linux/container_pool/fake_cnet"
 	"github.com/cloudfoundry-incubator/garden-linux/container_pool/fake_container_pool"
@@ -52,6 +53,7 @@ var _ = Describe("Container pool", func() {
 	var fakePortPool *fake_port_pool.FakePortPool
 	var defaultFakeRootFSProvider *fake_rootfs_provider.FakeRootFSProvider
 	var fakeRootFSProvider *fake_rootfs_provider.FakeRootFSProvider
+	var fakeBridgeBuilder *fake_bridge_builder.FakeBridgeBuilder
 	var fakeFilterProvider *fake_container_pool.FakeFilterProvider
 	var fakeFilter *fakes.FakeFilter
 	var pool *container_pool.LinuxContainerPool
@@ -75,6 +77,8 @@ var _ = Describe("Container pool", func() {
 		containerNetwork.IP, containerNetwork.Subnet, err = net.ParseCIDR("10.2.0.1/30")
 		Ω(err).ShouldNot(HaveOccurred())
 		fakeSubnetPool.AcquireReturns(containerNetwork, nil)
+
+		fakeBridgeBuilder = new(fake_bridge_builder.FakeBridgeBuilder)
 
 		fakeFilter = new(fakes.FakeFilter)
 		fakeFilterProvider = new(fake_container_pool.FakeFilterProvider)
@@ -110,6 +114,7 @@ var _ = Describe("Container pool", func() {
 			fakeSubnetPool,
 			fakeCN,
 			fakeCNPersistor,
+			fakeBridgeBuilder,
 			fakeFilterProvider,
 			iptables.NewGlobalChain("global-default-chain", fakeRunner, logger),
 			fakePortPool,
@@ -419,6 +424,7 @@ var _ = Describe("Container pool", func() {
 						},
 					},
 				))
+
 			})
 
 			It("allocates the requested Network", func() {
@@ -460,6 +466,47 @@ var _ = Describe("Container pool", func() {
 				It("doesn't attempt to release the network if it has not been assigned", func() {
 					Ω(fakeSubnetPool.ReleaseCallCount()).Should(Equal(0))
 				})
+			})
+
+			It("creates a bridge for the container", func() {
+				_, err := pool.Create(garden.ContainerSpec{
+					Network: "1.3.0.0/30",
+				})
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Ω(fakeBridgeBuilder.CreateCallCount()).Should(Equal(1))
+			})
+
+			PIt("reuses the same bridge name for containers in the same subnet", func() {
+				differentNetwork := &linux_backend.Network{}
+				_, differentNetwork.Subnet, _ = net.ParseCIDR("10.3.0.2/29")
+				fakeSubnetPool.AcquireReturns(differentNetwork, nil)
+
+				_, err := pool.Create(garden.ContainerSpec{Network: "1.3.0.0/30"})
+				Ω(err).ShouldNot(HaveOccurred())
+
+				_, err = pool.Create(garden.ContainerSpec{Network: "1.3.0.0/30"})
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Ω(fakeBridgeBuilder.CreateCallCount()).Should(Equal(2))
+				Ω(fakeBridgeBuilder.CreateArgsForCall(0)).Should(Equal(fakeBridgeBuilder.CreateArgsForCall(1)))
+			})
+
+			It("creates a distinct bridge name for each subnet", func() {
+				differentNetwork := &linux_backend.Network{}
+				_, differentNetwork.Subnet, _ = net.ParseCIDR("10.3.0.2/29")
+				fakeSubnetPool.AcquireReturns(differentNetwork, nil)
+
+				_, err := pool.Create(garden.ContainerSpec{Network: "1.3.0.0/30"})
+				Ω(err).ShouldNot(HaveOccurred())
+
+				_, differentNetwork.Subnet, _ = net.ParseCIDR("10.4.0.2/29")
+				fakeSubnetPool.AcquireReturns(differentNetwork, nil)
+				_, err = pool.Create(garden.ContainerSpec{Network: "1.3.0.0/30"})
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Ω(fakeBridgeBuilder.CreateCallCount()).Should(Equal(2))
+				Ω(fakeBridgeBuilder.CreateArgsForCall(0)).ShouldNot(Equal(fakeBridgeBuilder.CreateArgsForCall(1)))
 			})
 		})
 
@@ -928,7 +975,6 @@ var _ = Describe("Container pool", func() {
 				"some-restored-event",
 				"some-other-restored-event",
 			}))
-
 		})
 
 		It("removes its UID from the pool", func() {
@@ -1258,6 +1304,13 @@ var _ = Describe("Container pool", func() {
 
 			Ω(fakeSubnetPool.ReleaseCallCount()).Should(Equal(1))
 			Ω(fakeSubnetPool.ReleaseArgsForCall(0)).Should(Equal(createdContainerNetwork))
+		})
+
+		It("deletes the container's bridge", func() {
+			err := pool.Destroy(createdContainer)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(fakeBridgeBuilder.DestroyCallCount()).Should(Equal(1))
 		})
 
 		It("tears down filter chains", func() {
