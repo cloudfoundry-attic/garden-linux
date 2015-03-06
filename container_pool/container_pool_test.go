@@ -22,10 +22,12 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/container_pool/fake_cn_persistor"
 	"github.com/cloudfoundry-incubator/garden-linux/container_pool/fake_cnet"
 	"github.com/cloudfoundry-incubator/garden-linux/container_pool/fake_container_pool"
+	"github.com/cloudfoundry-incubator/garden-linux/container_pool/fake_subnet_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
 	"github.com/cloudfoundry-incubator/garden-linux/network"
 	"github.com/cloudfoundry-incubator/garden-linux/network/fakes"
 	"github.com/cloudfoundry-incubator/garden-linux/network/iptables"
+	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/rootfs_provider/fake_rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/port_pool/fake_port_pool"
@@ -43,6 +45,7 @@ var _ = Describe("Container pool", func() {
 	var depotPath string
 	var fakeRunner *fake_command_runner.FakeCommandRunner
 	var fakeUIDPool *fake_uid_pool.FakeUIDPool
+	var fakeSubnetPool *fake_subnet_pool.FakeSubnetPool
 	var fakeCN *fake_cnet.FakeBuilder
 	var fakeCNPersistor *fake_cn_persistor.FakeCNPersistor
 	var fakeQuotaManager *fake_quota_manager.FakeQuotaManager
@@ -54,16 +57,24 @@ var _ = Describe("Container pool", func() {
 	var pool *container_pool.LinuxContainerPool
 	var config sysconfig.Config
 
+	var containerNetwork *linux_backend.Network
+
 	BeforeEach(func() {
 		_, ipNet, err := net.ParseCIDR("1.2.0.0/20")
 		Ω(err).ShouldNot(HaveOccurred())
 
 		fakeUIDPool = fake_uid_pool.New(10000)
+		fakeSubnetPool = new(fake_subnet_pool.FakeSubnetPool)
 		fakeCN = fake_cnet.New(ipNet)
 
 		fakeCNPersistor = new(fake_cn_persistor.FakeCNPersistor)
 		fakeCNPersistor.RecoverReturns(fakeCN.Build("", nil, "container id"))
 		Ω(err).ShouldNot(HaveOccurred())
+
+		containerNetwork = &linux_backend.Network{}
+		containerNetwork.IP, containerNetwork.Subnet, err = net.ParseCIDR("10.2.0.1/30")
+		Ω(err).ShouldNot(HaveOccurred())
+		fakeSubnetPool.AcquireReturns(containerNetwork, nil)
 
 		fakeFilter = new(fakes.FakeFilter)
 		fakeFilterProvider = new(fake_container_pool.FakeFilterProvider)
@@ -94,6 +105,9 @@ var _ = Describe("Container pool", func() {
 				"fake": fakeRootFSProvider,
 			},
 			fakeUIDPool,
+			net.ParseIP("1.2.3.4"),
+			345,
+			fakeSubnetPool,
 			fakeCN,
 			fakeCNPersistor,
 			fakeFilterProvider,
@@ -231,7 +245,8 @@ var _ = Describe("Container pool", func() {
 
 		itReleasesTheIPBlock := func() {
 			It("returns the container's IP block to the pool", func() {
-				Ω(fakeCN.Released).Should(Equal([]string{"1.2.0.0/30"}))
+				Ω(fakeSubnetPool.ReleaseCallCount()).Should(Equal(1))
+				Ω(fakeSubnetPool.ReleaseArgsForCall(0)).Should(Equal(containerNetwork))
 			})
 		}
 
@@ -328,9 +343,14 @@ var _ = Describe("Container pool", func() {
 						Args: []string{path.Join(depotPath, container.ID())},
 						Env: []string{
 							"PATH=" + os.Getenv("PATH"),
-							"fake_env=1.2.0.0/30",
-							"fake_global_env=global_value",
+							"bridge_iface=fishfinger",
+							"container_iface_mtu=345",
+							"external_ip=1.2.3.4",
 							"id=" + container.ID(),
+							"network_cidr=10.2.0.0/30",
+							"network_cidr_suffix=30",
+							"network_container_ip=10.2.0.1",
+							"network_host_ip=10.2.0.2",
 							"root_uid=0",
 							"rootfs_path=/provided/rootfs/path",
 							"user_uid=10000",
@@ -351,9 +371,14 @@ var _ = Describe("Container pool", func() {
 						Args: []string{path.Join(depotPath, container.ID())},
 						Env: []string{
 							"PATH=" + os.Getenv("PATH"),
-							"fake_env=1.2.0.0/30",
-							"fake_global_env=global_value",
+							"bridge_iface=fishfinger",
+							"container_iface_mtu=345",
+							"external_ip=1.2.3.4",
 							"id=" + container.ID(),
+							"network_cidr=10.2.0.0/30",
+							"network_cidr_suffix=30",
+							"network_container_ip=10.2.0.1",
+							"network_host_ip=10.2.0.2",
 							"root_uid=10001",
 							"rootfs_path=/provided/rootfs/path",
 							"user_uid=10000",
@@ -365,6 +390,10 @@ var _ = Describe("Container pool", func() {
 
 		Context("when the Network parameter is specified", func() {
 			It("executes create.sh with the correct args and environment", func() {
+				differentNetwork := &linux_backend.Network{}
+				differentNetwork.IP, differentNetwork.Subnet, _ = net.ParseCIDR("10.3.0.2/29")
+				fakeSubnetPool.AcquireReturns(differentNetwork, nil)
+
 				container, err := pool.Create(garden.ContainerSpec{
 					Network: "1.3.0.0/30",
 				})
@@ -376,9 +405,14 @@ var _ = Describe("Container pool", func() {
 						Args: []string{path.Join(depotPath, container.ID())},
 						Env: []string{
 							"PATH=" + os.Getenv("PATH"),
-							"fake_env=1.3.0.0/30",
-							"fake_global_env=global_value",
+							"bridge_iface=fishfinger",
+							"container_iface_mtu=345",
+							"external_ip=1.2.3.4",
 							"id=" + container.ID(),
+							"network_cidr=10.3.0.0/29",
+							"network_cidr_suffix=29",
+							"network_container_ip=10.3.0.2",
+							"network_host_ip=10.3.0.6",
 							"root_uid=10001",
 							"rootfs_path=/provided/rootfs/path",
 							"user_uid=10000",
@@ -393,7 +427,8 @@ var _ = Describe("Container pool", func() {
 				})
 
 				Ω(err).ShouldNot(HaveOccurred())
-				Ω(fakeCN.Allocated).Should(ContainElement("1.3.0.0/30"))
+				Ω(fakeSubnetPool.AcquireCallCount()).Should(Equal(1))
+				Ω(fakeSubnetPool.AcquireArgsForCall(0)).Should(Equal("1.3.0.0/30"))
 			})
 
 			Context("when allocation of the specified Network fails", func() {
@@ -401,7 +436,8 @@ var _ = Describe("Container pool", func() {
 				allocateError := errors.New("allocateError")
 
 				BeforeEach(func() {
-					fakeCN.AllocateError = allocateError
+					fakeSubnetPool.AcquireReturns(nil, allocateError)
+
 					_, err = pool.Create(garden.ContainerSpec{
 						Network: "1.2.0.0/30",
 					})
@@ -419,6 +455,10 @@ var _ = Describe("Container pool", func() {
 							Path: "/root/path/create.sh",
 						},
 					))
+				})
+
+				It("doesn't attempt to release the network if it has not been assigned", func() {
+					Ω(fakeSubnetPool.ReleaseCallCount()).Should(Equal(0))
 				})
 			})
 		})
@@ -463,9 +503,14 @@ var _ = Describe("Container pool", func() {
 						Args: []string{path.Join(depotPath, container.ID())},
 						Env: []string{
 							"PATH=" + os.Getenv("PATH"),
-							"fake_env=1.2.0.0/30",
-							"fake_global_env=global_value",
+							"bridge_iface=fishfinger",
+							"container_iface_mtu=345",
+							"external_ip=1.2.3.4",
 							"id=" + container.ID(),
+							"network_cidr=10.2.0.0/30",
+							"network_cidr_suffix=30",
+							"network_container_ip=10.2.0.1",
+							"network_host_ip=10.2.0.2",
 							"root_uid=10001",
 							"rootfs_path=/var/some/mount/point",
 							"user_uid=10000",
@@ -749,21 +794,9 @@ var _ = Describe("Container pool", func() {
 			})
 		})
 
-		Context("when persisting a cnet fails", func() {
-			nastyError := errors.New("oh no!")
-
-			JustBeforeEach(func() {
-				fakeCNPersistor.PersistReturns(nastyError)
-			})
-
-			It("returns the error", func() {
-				_, err := pool.Create(garden.ContainerSpec{})
-				Ω(err).Should(Equal(nastyError))
-			})
-		})
-
 		Context("when executing create.sh fails", func() {
 			nastyError := errors.New("oh no!")
+			var err error
 
 			BeforeEach(func() {
 				fakeRunner.WhenRunning(
@@ -774,15 +807,16 @@ var _ = Describe("Container pool", func() {
 					},
 				)
 
-				pool.Create(garden.ContainerSpec{})
+				_, err = pool.Create(garden.ContainerSpec{})
 			})
 
 			It("returns the error and releases the uid and network", func() {
-				_, err := pool.Create(garden.ContainerSpec{})
 				Ω(err).Should(Equal(nastyError))
 
 				Ω(fakeUIDPool.Released).Should(ContainElement(uint32(10000)))
-				Ω(fakeCN.Released).Should(ContainElement("1.2.0.0/30"))
+
+				Ω(fakeSubnetPool.ReleaseCallCount()).Should(Equal(1))
+				Ω(fakeSubnetPool.ReleaseArgsForCall(0)).Should(Equal(containerNetwork))
 			})
 
 			itReleasesTheUserIDs()
@@ -829,7 +863,7 @@ var _ = Describe("Container pool", func() {
 		var snapshot io.Reader
 		var buf *bytes.Buffer
 
-		var restoredNetwork json.RawMessage
+		var containerNetwork *linux_backend.Network
 		var rootUID uint32
 
 		BeforeEach(func() {
@@ -837,15 +871,15 @@ var _ = Describe("Container pool", func() {
 
 			buf = new(bytes.Buffer)
 			snapshot = buf
+			_, subnet, _ := net.ParseCIDR("2.3.4.5/29")
+			containerNetwork = &linux_backend.Network{
+				Subnet: subnet,
+				IP:     net.ParseIP("1.2.3.4"),
+			}
 		})
 
 		JustBeforeEach(func() {
-
-			var err error
-			restoredNetwork, err = json.Marshal("serializedNetwork")
-			Ω(err).ShouldNot(HaveOccurred())
-
-			err = json.NewEncoder(buf).Encode(
+			err := json.NewEncoder(buf).Encode(
 				linux_container.ContainerSnapshot{
 					ID:     "some-restored-id",
 					Handle: "some-restored-handle",
@@ -861,8 +895,11 @@ var _ = Describe("Container pool", func() {
 					Resources: linux_container.ResourcesSnapshot{
 						UserUID: 10000,
 						RootUID: rootUID,
-						Network: &restoredNetwork,
-						Ports:   []uint32{61001, 61002, 61003},
+						Network: linux_container.NetworkSnapshot{
+							IP:     containerNetwork.IP,
+							Subnet: containerNetwork.Subnet.String(),
+						},
+						Ports: []uint32{61001, 61002, 61003},
 					},
 
 					Properties: map[string]string{
@@ -918,7 +955,8 @@ var _ = Describe("Container pool", func() {
 			_, err := pool.Restore(snapshot)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Ω(fakeCN.Recovered).Should(ContainElement(string(restoredNetwork)))
+			Ω(fakeSubnetPool.RemoveCallCount()).Should(Equal(1))
+			Ω(fakeSubnetPool.RemoveArgsForCall(0)).Should(Equal(containerNetwork))
 		})
 
 		It("removes its ports from the pool", func() {
@@ -958,7 +996,7 @@ var _ = Describe("Container pool", func() {
 			disaster := errors.New("oh no!")
 
 			JustBeforeEach(func() {
-				fakeCN.RebuildError = disaster
+				fakeSubnetPool.RemoveReturns(disaster)
 			})
 
 			It("returns the error and releases the uid", func() {
@@ -981,7 +1019,10 @@ var _ = Describe("Container pool", func() {
 				Ω(err).Should(Equal(disaster))
 
 				Ω(fakeUIDPool.Released).Should(ContainElement(uint32(10000)))
-				Ω(fakeCN.Recovered).Should(ContainElement(string(restoredNetwork)))
+
+				Ω(fakeSubnetPool.ReleaseCallCount()).Should(Equal(1))
+				Ω(fakeSubnetPool.ReleaseArgsForCall(0)).Should(Equal(containerNetwork))
+
 				Ω(fakePortPool.Released).Should(ContainElement(uint32(61001)))
 				Ω(fakePortPool.Released).Should(ContainElement(uint32(61002)))
 				Ω(fakePortPool.Released).Should(ContainElement(uint32(61003)))
@@ -1177,6 +1218,7 @@ var _ = Describe("Container pool", func() {
 
 	Describe("destroying", func() {
 		var createdContainer *linux_container.LinuxContainer
+		var createdContainerNetwork *linux_backend.Network
 
 		BeforeEach(func() {
 			container, err := pool.Create(garden.ContainerSpec{})
@@ -1184,8 +1226,13 @@ var _ = Describe("Container pool", func() {
 
 			createdContainer = container.(*linux_container.LinuxContainer)
 
+			createdContainerNetwork = &linux_backend.Network{}
+			createdContainerNetwork.IP, createdContainerNetwork.Subnet, err = net.ParseCIDR("1.2.0.2/30")
+			Ω(err).ShouldNot(HaveOccurred())
+
 			createdContainer.Resources().AddPort(123)
 			createdContainer.Resources().AddPort(456)
+			createdContainer.Resources().Network = createdContainerNetwork
 		})
 
 		It("executes destroy.sh with the correct args and environment", func() {
@@ -1209,7 +1256,8 @@ var _ = Describe("Container pool", func() {
 
 			Ω(fakeUIDPool.Released).Should(ContainElement(uint32(10000)))
 
-			Ω(fakeCN.Released).Should(ContainElement("1.2.0.0/30"))
+			Ω(fakeSubnetPool.ReleaseCallCount()).Should(Equal(1))
+			Ω(fakeSubnetPool.ReleaseArgsForCall(0)).Should(Equal(createdContainerNetwork))
 		})
 
 		It("tears down filter chains", func() {
@@ -1259,9 +1307,10 @@ var _ = Describe("Container pool", func() {
 					Ω(fakeUIDPool.Released).ShouldNot(ContainElement(uint32(10000)))
 				})
 
-				It("releases the network", func() {
+				It("does not release the network", func() {
 					pool.Destroy(createdContainer)
-					Ω(fakeCN.Released).Should(Equal([]string{"1.2.0.0/30"}))
+
+					Ω(fakeSubnetPool.ReleaseCallCount()).Should(Equal(0))
 				})
 
 				It("does not tear down the filter", func() {
@@ -1307,11 +1356,10 @@ var _ = Describe("Container pool", func() {
 				Ω(fakeUIDPool.Released).Should(BeEmpty())
 			})
 
-			It("releases the network", func() {
+			It("does not release the network", func() {
 				err := pool.Destroy(createdContainer)
 				Ω(err).Should(HaveOccurred())
-
-				Ω(fakeCN.Released).Should(Equal([]string{"1.2.0.0/30"}))
+				Ω(fakeSubnetPool.ReleaseCallCount()).Should(Equal(0))
 			})
 
 			It("does not tear down the filter", func() {

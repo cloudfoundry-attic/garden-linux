@@ -1,7 +1,6 @@
 package linux_container
 
 import (
-	"encoding/json"
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
@@ -40,7 +39,7 @@ type LimitsSnapshot struct {
 type ResourcesSnapshot struct {
 	UserUID uint32
 	RootUID uint32
-	Network *json.RawMessage
+	Network *Network
 	Ports   []uint32
 }
 

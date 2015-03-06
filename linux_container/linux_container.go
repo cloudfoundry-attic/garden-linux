@@ -285,17 +285,17 @@ func (c *LinuxContainer) Snapshot(out io.Writer) error {
 	}
 
 	var err error
-	m, err := c.resources.Network.MarshalJSON()
-	if err != nil {
-		cLog.Error("failed-to-save", err, lager.Data{
-			"snapshot": snapshot,
-			"network":  c.resources.Network,
-		})
-		return err
-	}
+	//	m, err := c.resources.Network.MarshalJSON()
+	//	if err != nil {
+	//		cLog.Error("failed-to-save", err, lager.Data{
+	//			"snapshot": snapshot,
+	//			"network":  c.resources.Network,
+	//		})
+	//		return err
+	//	}
 
-	var rm json.RawMessage = m
-	snapshot.Resources.Network = &rm
+	//var rm json.RawMessage = m
+	//snapshot.Resources.Network = &rm
 
 	err = json.NewEncoder(out).Encode(snapshot)
 	if err != nil {
@@ -553,7 +553,6 @@ func (c *LinuxContainer) Info() (garden.ContainerInfo, error) {
 		MappedPorts:   mappedPorts,
 	}
 
-	c.Resources().Network.Info(&info)
 	info.ExternalIP = c.Resources().ExternalIP.String()
 
 	return info, nil
