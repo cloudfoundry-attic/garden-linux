@@ -4,7 +4,7 @@ package fake_graph_driver
 import (
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/rootfs_provider"
+	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/rootfs_provider"
 	"github.com/docker/docker/pkg/archive"
 )
 
@@ -12,7 +12,7 @@ type FakeGraphDriver struct {
 	StringStub        func() string
 	stringMutex       sync.RWMutex
 	stringArgsForCall []struct{}
-	stringReturns struct {
+	stringReturns     struct {
 		result1 string
 	}
 	CreateStub        func(id, parent string) error
@@ -58,13 +58,13 @@ type FakeGraphDriver struct {
 	StatusStub        func() [][2]string
 	statusMutex       sync.RWMutex
 	statusArgsForCall []struct{}
-	statusReturns struct {
+	statusReturns     struct {
 		result1 [][2]string
 	}
 	CleanupStub        func() error
 	cleanupMutex       sync.RWMutex
 	cleanupArgsForCall []struct{}
-	cleanupReturns struct {
+	cleanupReturns     struct {
 		result1 error
 	}
 	DiffStub        func(id, parent string) (archive.Archive, error)

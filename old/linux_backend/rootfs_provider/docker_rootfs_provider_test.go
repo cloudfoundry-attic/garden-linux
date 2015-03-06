@@ -4,9 +4,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/repository_fetcher/fake_repository_fetcher"
-	. "github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/rootfs_provider"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/rootfs_provider/fake_graph_driver"
+	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/repository_fetcher/fake_repository_fetcher"
+	. "github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/rootfs_provider"
+	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/rootfs_provider/fake_graph_driver"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/pivotal-golang/clock/fakeclock"
 	"github.com/pivotal-golang/lager/lagertest"

@@ -5,7 +5,7 @@ import (
 	"net/url"
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/rootfs_provider"
+	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/pivotal-golang/lager"
 )

@@ -9,7 +9,7 @@ import (
 	"github.com/pivotal-golang/clock"
 	"github.com/pivotal-golang/lager"
 
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_pool/repository_fetcher"
+	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/repository_fetcher"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 )
 
