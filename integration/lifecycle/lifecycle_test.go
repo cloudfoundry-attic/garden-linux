@@ -57,6 +57,9 @@ var _ = Describe("Creating a container", func() {
 		It("does not leave residual bridges", func() {
 			client = startGarden()
 
+			bridgePrefix := fmt.Sprintf("w%db-", GinkgoParallelNode())
+			Ω(allBridges()).ShouldNot(ContainSubstring(bridgePrefix))
+
 			handles := make([]string, 0)
 			for i := 0; i < 30; i++ {
 				c, err := client.Create(garden.ContainerSpec{})
@@ -65,7 +68,6 @@ var _ = Describe("Creating a container", func() {
 				handles = append(handles, c.Handle())
 			}
 
-			bridgePrefix := fmt.Sprintf("w%db-", GinkgoParallelNode())
 			Ω(allBridges()).Should(ContainSubstring(bridgePrefix))
 
 			wg := new(sync.WaitGroup)
@@ -85,7 +87,7 @@ var _ = Describe("Creating a container", func() {
 			Ω(errors).ShouldNot(Receive())
 			Ω(client.Containers(garden.Properties{})).Should(HaveLen(0)) // sanity check
 
-			Ω(allBridges()).ShouldNot(ContainSubstring(bridgePrefix))
+			Eventually(allBridges).ShouldNot(ContainSubstring(bridgePrefix))
 		})
 	})
 

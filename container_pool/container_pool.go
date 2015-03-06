@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"net/url"
 	"os"
 	"os/exec"
@@ -17,10 +18,11 @@ import (
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/pivotal-golang/lager"
 
+	"github.com/cloudfoundry-incubator/garden-linux/bridgemgr"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
 	"github.com/cloudfoundry-incubator/garden-linux/network"
-	"github.com/cloudfoundry-incubator/garden-linux/network/cnet"
 	"github.com/cloudfoundry-incubator/garden-linux/network/iptables"
+	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/cgroups_manager"
@@ -41,6 +43,20 @@ type FilterProvider interface {
 	ProvideFilter(containerId string) network.Filter
 }
 
+//go:generate counterfeiter -o fake_subnet_pool/FakeSubnetPool.go . SubnetPool
+type SubnetPool interface {
+	Acquire(networkRequest string) (*linux_backend.Network, error)
+	Release(*linux_backend.Network) error
+	Remove(*linux_backend.Network) error
+	Capacity() int
+}
+
+//go:generate counterfeiter -o fake_bridge_builder/FakeBridgeBuilder.go . BridgeBuilder
+type BridgeBuilder interface {
+	Create(name string) error
+	Destroy(name string) error
+}
+
 type LinuxContainerPool struct {
 	logger lager.Logger
 
@@ -54,10 +70,16 @@ type LinuxContainerPool struct {
 
 	rootfsProviders map[string]rootfs_provider.RootFSProvider
 
-	uidPool     uid_pool.UIDPool
-	cnBuilder   cnet.Builder
-	cnPersistor CNPersistor
-	portPool    linux_container.PortPool
+	uidPool    uid_pool.UIDPool
+	subnetPool SubnetPool
+
+	externalIP net.IP
+	mtu        int
+
+	portPool linux_container.PortPool
+
+	bridges       bridgemgr.BridgeManager
+	bridgeBuilder BridgeBuilder
 
 	filterProvider FilterProvider
 	defaultChain   iptables.Chain
@@ -75,8 +97,11 @@ func New(
 	sysconfig sysconfig.Config,
 	rootfsProviders map[string]rootfs_provider.RootFSProvider,
 	uidPool uid_pool.UIDPool,
-	cnBuilder cnet.Builder,
-	cnPersistor CNPersistor,
+	externalIP net.IP,
+	mtu int,
+	subnetPool SubnetPool,
+	bridges bridgemgr.BridgeManager,
+	bridgeBuilder BridgeBuilder,
 	filterProvider FilterProvider,
 	defaultChain iptables.Chain,
 	portPool linux_container.PortPool,
@@ -97,9 +122,15 @@ func New(
 		allowNetworks: allowNetworks,
 		denyNetworks:  denyNetworks,
 
-		uidPool:     uidPool,
-		cnBuilder:   cnBuilder,
-		cnPersistor: cnPersistor,
+		uidPool: uidPool,
+
+		externalIP: externalIP,
+		mtu:        mtu,
+
+		subnetPool: subnetPool,
+
+		bridges:       bridges,
+		bridgeBuilder: bridgeBuilder,
 
 		filterProvider: filterProvider,
 		defaultChain:   defaultChain,
@@ -119,7 +150,7 @@ func New(
 }
 
 func (p *LinuxContainerPool) MaxContainers() int {
-	maxNet := p.cnBuilder.Capacity()
+	maxNet := p.subnetPool.Capacity()
 	maxUid := p.uidPool.InitialSize()
 	if maxNet < maxUid {
 		return maxNet
@@ -198,18 +229,7 @@ func (p *LinuxContainerPool) pruneEntry(id string) {
 
 	pLog.Info("prune")
 
-	containerPath := path.Join(p.depotPath, id)
-	cn, err := p.cnPersistor.Recover(containerPath)
-	if err != nil {
-		pLog.Error("cnet-recovery-error", err)
-	} else {
-		err = p.cnBuilder.Dismantle(cn)
-		if err != nil {
-			pLog.Error("cnet-dismantle-error", err)
-		}
-	}
-
-	err = p.releaseSystemResources(pLog, id)
+	err := p.releaseSystemResources(pLog, id)
 	if err != nil {
 		pLog.Error("release-system-resources-error", err)
 	}
@@ -231,14 +251,6 @@ func (p *LinuxContainerPool) Create(spec garden.ContainerSpec) (c linux_backend.
 	defer cleanup(&err, func() {
 		p.releasePoolResources(resources)
 	})
-
-	err = p.cnPersistor.Persist(resources.Network, containerPath)
-	if err != nil {
-		if releaseErr := p.releaseSystemResources(pLog, id); releaseErr != nil {
-			pLog.Error("failed-to-release-system-resources", releaseErr)
-		}
-		return nil, err
-	}
 
 	rootFSEnv, err := p.acquireSystemResources(id, containerPath, spec.RootFSPath, resources, spec.BindMounts, pLog)
 	if err != nil {
@@ -315,17 +327,18 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 		}
 	}
 
-	state, err := p.cnBuilder.Rebuild(resources.Network)
-	if err != nil {
+	if err := p.subnetPool.Remove(resources.Network); err != nil {
 		p.releaseUIDs(resources.UserUID, resources.RootUID)
 		return nil, err
 	}
+
+	p.bridges.Rereserve(resources.Bridge, resources.Network.Subnet, id)
 
 	for _, port := range resources.Ports {
 		err = p.portPool.Remove(port)
 		if err != nil {
 			p.releaseUIDs(resources.UserUID, resources.RootUID)
-			p.cnBuilder.Dismantle(state)
+			p.subnetPool.Release(resources.Network)
 
 			for _, port := range resources.Ports {
 				p.portPool.Release(port)
@@ -358,9 +371,10 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 		linux_backend.NewResources(
 			resources.UserUID,
 			resources.RootUID,
-			state,
+			resources.Network,
+			resources.Bridge,
 			resources.Ports,
-			p.cnBuilder.ExternalIP(),
+			p.externalIP,
 		),
 		p.portPool,
 		p.runner,
@@ -389,21 +403,13 @@ func (p *LinuxContainerPool) Destroy(container linux_backend.Container) error {
 
 	pLog.Info("destroying")
 
-	linuxContainer := container.(*linux_container.LinuxContainer)
-	resources := linuxContainer.Resources()
-	if resources.Network != nil {
-		err := p.cnBuilder.Dismantle(resources.Network)
-		if err != nil {
-			return err
-		}
-		resources.Network = nil
-	}
-
 	err := p.releaseSystemResources(pLog, container.ID())
 	if err != nil {
 		return err
 	}
 
+	linuxContainer := container.(*linux_container.LinuxContainer)
+	resources := linuxContainer.Resources()
 	p.releasePoolResources(resources)
 
 	pLog.Info("destroyed")
@@ -474,6 +480,17 @@ func (p *LinuxContainerPool) writeBindMounts(containerPath string,
 	return nil
 }
 
+func (p *LinuxContainerPool) saveBridgeName(id string, bridgeName string) error {
+	bridgeNameFile := path.Join(p.depotPath, id, "bridge-name")
+
+	err := os.MkdirAll(path.Dir(bridgeNameFile), 0755)
+	if err != nil {
+		return err
+	}
+
+	return ioutil.WriteFile(bridgeNameFile, []byte(bridgeName), 0644)
+}
+
 func (p *LinuxContainerPool) saveRootFSProvider(id string, provider string) error {
 	providerFile := path.Join(p.depotPath, id, "rootfs-provider")
 
@@ -486,15 +503,14 @@ func (p *LinuxContainerPool) saveRootFSProvider(id string, provider string) erro
 }
 
 func (p *LinuxContainerPool) acquirePoolResources(spec garden.ContainerSpec, id string) (*linux_backend.Resources, error) {
-	var err error
-	resources := linux_backend.NewResources(0, 1, nil, nil, p.cnBuilder.ExternalIP())
+	resources := linux_backend.NewResources(0, 1, nil, "", nil, p.externalIP)
 
 	if err := p.acquireUID(resources, spec.Privileged); err != nil {
 		return nil, err
 	}
 
-	if resources.Network, err = p.cnBuilder.Build(spec.Network, &p.sysconfig, id); err != nil {
-		p.logger.Error("network-acquire-failed", err)
+	var err error
+	if resources.Network, err = p.subnetPool.Acquire(spec.Network); err != nil {
 		p.releasePoolResources(resources)
 		return nil, err
 	}
@@ -530,11 +546,13 @@ func (p *LinuxContainerPool) releasePoolResources(resources *linux_backend.Resou
 	p.releaseUIDs(resources.UserUID, resources.RootUID)
 
 	if resources.Network != nil {
-		p.cnBuilder.Dismantle(resources.Network)
+		p.subnetPool.Release(resources.Network)
 	}
 }
 
 func (p *LinuxContainerPool) acquireSystemResources(id, containerPath, rootFSPath string, resources *linux_backend.Resources, bindMounts []garden.BindMount, pLog lager.Logger) (process.Env, error) {
+	_ = os.MkdirAll(containerPath, 0755) //TODO: Untested line
+
 	rootfsURL, err := url.Parse(rootFSPath)
 	if err != nil {
 		pLog.Error("parse-rootfs-path-failed", err, lager.Data{
@@ -557,17 +575,44 @@ func (p *LinuxContainerPool) acquireSystemResources(id, containerPath, rootFSPat
 		return nil, err
 	}
 
+	if resources.Bridge, err = p.bridges.Reserve(resources.Network.Subnet, id); err != nil {
+		pLog.Error("reserve-bridge-failed", err, lager.Data{
+			"Id":     id,
+			"Subnet": resources.Network.Subnet,
+			"Bridge": resources.Bridge,
+		})
+
+		provider.CleanupRootFS(pLog, rootfsPath)
+		return nil, err
+	}
+
+	if err = p.saveBridgeName(id, resources.Bridge); err != nil {
+		pLog.Error("save-bridge-name-failed", err, lager.Data{
+			"Id":     id,
+			"Bridge": resources.Bridge,
+		})
+
+		provider.CleanupRootFS(pLog, rootfsPath)
+		return nil, err
+	}
+
 	createCmd := path.Join(p.binPath, "create.sh")
 	create := exec.Command(createCmd, containerPath)
+	suff, _ := resources.Network.Subnet.Mask.Size()
 	env := process.Env{
-		"id":          id,
-		"rootfs_path": rootfsPath,
-		"user_uid":    strconv.FormatUint(uint64(resources.UserUID), 10),
-		"root_uid":    strconv.FormatUint(uint64(resources.RootUID), 10),
-		"PATH":        os.Getenv("PATH"),
+		"id":                   id,
+		"rootfs_path":          rootfsPath,
+		"network_host_ip":      subnets.GatewayIP(resources.Network.Subnet).String(),
+		"network_container_ip": resources.Network.IP.String(),
+		"network_cidr_suffix":  strconv.Itoa(suff),
+		"network_cidr":         resources.Network.Subnet.String(),
+		"external_ip":          p.externalIP.String(),
+		"container_iface_mtu":  fmt.Sprintf("%d", p.mtu),
+		"bridge_iface":         resources.Bridge,
+		"user_uid":             strconv.FormatUint(uint64(resources.UserUID), 10),
+		"root_uid":             strconv.FormatUint(uint64(resources.RootUID), 10),
+		"PATH":                 os.Getenv("PATH"),
 	}
-	resources.Network.ConfigureEnvironment(env)
-	p.cnBuilder.ConfigureEnvironment(env)
 	create.Env = env.Array()
 
 	pRunner := logging.Runner{
@@ -627,6 +672,13 @@ func (p *LinuxContainerPool) releaseSystemResources(logger lager.Logger, id stri
 	pRunner := logging.Runner{
 		CommandRunner: p.runner,
 		Logger:        logger,
+	}
+
+	bridgeName, err := ioutil.ReadFile(path.Join(p.depotPath, id, "bridge-name"))
+	if err == nil {
+		if err := p.bridges.Release(string(bridgeName), id, p.bridgeBuilder); err != nil {
+			return err
+		}
 	}
 
 	provider, found := p.rootfsProviders[string(rootfsProvider)]

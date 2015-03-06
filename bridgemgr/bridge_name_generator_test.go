@@ -1,19 +1,18 @@
-package subnets_test
+package bridgemgr_test
 
 import (
-	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
-
+	"github.com/cloudfoundry-incubator/garden-linux/bridgemgr"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Bridge Name Generator", func() {
 	var (
-		generator subnets.BridgeNameGenerator
+		generator bridgemgr.BridgeNameGenerator
 	)
 
 	BeforeEach(func() {
-		generator = subnets.NewBridgeNameGenerator("prefix")
+		generator = bridgemgr.NewBridgeNameGenerator("prefix")
 	})
 
 	It("returns unique names each time it is called", func() {
@@ -34,7 +33,7 @@ var _ = Describe("Bridge Name Generator", func() {
 	})
 
 	It("allows single character prefixes", func() {
-		generator = subnets.NewBridgeNameGenerator("p")
+		generator = bridgemgr.NewBridgeNameGenerator("p")
 		name := generator.Generate()
 
 		Ω(name).Should(HavePrefix("pb-"))

@@ -4,11 +4,14 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"path/filepath"
 
 	"github.com/cloudfoundry-incubator/garden"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gbytes"
+	"github.com/onsi/gomega/gexec"
 )
 
 var _ = Describe("A container", func() {
@@ -26,6 +29,15 @@ var _ = Describe("A container", func() {
 		// pre-existing file for permissions testing
 		testFileName string
 	)
+
+	allBridges := func() []byte {
+		stdout := gbytes.NewBuffer()
+		cmd, err := gexec.Start(exec.Command("ip", "a"), stdout, GinkgoWriter)
+		Ω(err).ShouldNot(HaveOccurred())
+		cmd.Wait()
+
+		return stdout.Contents()
+	}
 
 	BeforeEach(func() {
 		privilegedContainer = false
@@ -58,6 +70,10 @@ var _ = Describe("A container", func() {
 			err := gardenClient.Destroy(container.Handle())
 			Ω(err).ShouldNot(HaveOccurred())
 		}
+
+		// sanity check that bridges were cleaned up
+		bridgePrefix := fmt.Sprintf("w%db-", GinkgoParallelNode())
+		Ω(allBridges()).ShouldNot(ContainSubstring(bridgePrefix))
 	})
 
 	Context("with an invalid source directory", func() {

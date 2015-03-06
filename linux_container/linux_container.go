@@ -16,6 +16,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/network"
+	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/cgroups_manager"
@@ -271,6 +272,8 @@ func (c *LinuxContainer) Snapshot(out io.Writer) error {
 		Resources: ResourcesSnapshot{
 			UserUID: c.resources.UserUID,
 			RootUID: c.resources.RootUID,
+			Network: c.resources.Network,
+			Bridge:  c.resources.Bridge,
 			Ports:   c.resources.Ports,
 		},
 
@@ -285,17 +288,6 @@ func (c *LinuxContainer) Snapshot(out io.Writer) error {
 	}
 
 	var err error
-	m, err := c.resources.Network.MarshalJSON()
-	if err != nil {
-		cLog.Error("failed-to-save", err, lager.Data{
-			"snapshot": snapshot,
-			"network":  c.resources.Network,
-		})
-		return err
-	}
-
-	var rm json.RawMessage = m
-	snapshot.Resources.Network = &rm
 
 	err = json.NewEncoder(out).Encode(snapshot)
 	if err != nil {
@@ -558,7 +550,8 @@ func (c *LinuxContainer) Info() (garden.ContainerInfo, error) {
 		MappedPorts:   mappedPorts,
 	}
 
-	c.Resources().Network.Info(&info)
+	info.ContainerIP = c.resources.Network.IP.String()
+	info.HostIP = subnets.GatewayIP(c.resources.Network.Subnet).String()
 	info.ExternalIP = c.Resources().ExternalIP.String()
 
 	return info, nil
