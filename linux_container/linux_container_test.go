@@ -2093,7 +2093,7 @@ var _ = Describe("Linux containers", func() {
 			Ω(properties).Should(Equal(garden.Properties{"property-name": "property-value"}))
 		})
 
-		It("returns a properties snapshot", func() {
+		FIt("returns a properties snapshot", func() {
 			err := container.SetProperty("some-property", "some-value")
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -2102,6 +2102,15 @@ var _ = Describe("Linux containers", func() {
 
 			err = container.SetProperty("some-property", "some-other-value")
 			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(properties["some-property"]).Should(Equal("some-value"))
+
+			err = container.RemoveProperty("some-property")
+			Ω(err).ShouldNot(HaveOccurred())
+
+			_, err = container.GetProperty("some-property")
+			Ω(err).Should(Equal(linux_container.UndefinedPropertyError{"some-property"}))
+			Ω(err).Should(MatchError("property does not exist: some-property"))
 
 			Ω(properties["some-property"]).Should(Equal("some-value"))
 		})
