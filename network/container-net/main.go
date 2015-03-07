@@ -7,7 +7,6 @@ import (
 
 	"github.com/cloudfoundry-incubator/cf-lager"
 	"github.com/cloudfoundry-incubator/garden-linux/network"
-	"github.com/cloudfoundry-incubator/garden-linux/network/cnet"
 	"github.com/pivotal-golang/lager"
 )
 
@@ -29,16 +28,16 @@ func main() {
 	var bridgeIfcName string
 	flag.StringVar(&bridgeIfcName, "bridgeIfcName", "", "the name of the subnet's bridge device to configure")
 
-	subnet := cnet.CidrVar{}
+	subnet := CidrVar{}
 	flag.Var(&subnet, "subnet", "the container's subnet")
 
-	gatewayIP := cnet.IPVar{}
+	gatewayIP := IPVar{}
 	flag.Var(&gatewayIP, "gatewayIP", "the gateway IP of the container's subnet")
 
-	containerIP := cnet.IPVar{}
+	containerIP := IPVar{}
 	flag.Var(&containerIP, "containerIP", "the IP of the container")
 
-	var mtu cnet.MtuVar = defaultMtuSize
+	var mtu MtuVar = defaultMtuSize
 	flag.Var(&mtu, "mtu", "the MTU size of the container-side device")
 
 	var containerPid int

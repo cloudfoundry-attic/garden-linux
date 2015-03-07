@@ -18,9 +18,9 @@ import (
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/pivotal-golang/lager"
 
+	"github.com/cloudfoundry-incubator/garden-linux/bridgemgr"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
 	"github.com/cloudfoundry-incubator/garden-linux/network"
-	"github.com/cloudfoundry-incubator/garden-linux/network/cnet"
 	"github.com/cloudfoundry-incubator/garden-linux/network/iptables"
 	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
@@ -48,12 +48,13 @@ type SubnetPool interface {
 	Acquire(networkRequest string) (*linux_backend.Network, error)
 	Release(*linux_backend.Network) error
 	Remove(*linux_backend.Network) error
+	Capacity() int
 }
 
 //go:generate counterfeiter -o fake_bridge_builder/FakeBridgeBuilder.go . BridgeBuilder
 type BridgeBuilder interface {
-	Create(name string)
-	Destroy()
+	Create(name string) error
+	Destroy(name string) error
 }
 
 type LinuxContainerPool struct {
@@ -75,11 +76,11 @@ type LinuxContainerPool struct {
 	externalIP net.IP
 	mtu        int
 
-	cnBuilder   cnet.Builder
-	cnPersistor CNPersistor
-	portPool    linux_container.PortPool
+	portPool linux_container.PortPool
 
-	bridgeBuilder  BridgeBuilder
+	bridges       bridgemgr.BridgeManager
+	bridgeBuilder BridgeBuilder
+
 	filterProvider FilterProvider
 	defaultChain   iptables.Chain
 
@@ -99,8 +100,7 @@ func New(
 	externalIP net.IP,
 	mtu int,
 	subnetPool SubnetPool,
-	cnBuilder cnet.Builder,
-	cnPersistor CNPersistor,
+	bridges bridgemgr.BridgeManager,
 	bridgeBuilder BridgeBuilder,
 	filterProvider FilterProvider,
 	defaultChain iptables.Chain,
@@ -127,11 +127,11 @@ func New(
 		externalIP: externalIP,
 		mtu:        mtu,
 
-		subnetPool:  subnetPool,
-		cnBuilder:   cnBuilder,
-		cnPersistor: cnPersistor,
+		subnetPool: subnetPool,
 
-		bridgeBuilder:  bridgeBuilder,
+		bridges:       bridges,
+		bridgeBuilder: bridgeBuilder,
+
 		filterProvider: filterProvider,
 		defaultChain:   defaultChain,
 
@@ -150,7 +150,7 @@ func New(
 }
 
 func (p *LinuxContainerPool) MaxContainers() int {
-	maxNet := p.cnBuilder.Capacity()
+	maxNet := p.subnetPool.Capacity()
 	maxUid := p.uidPool.InitialSize()
 	if maxNet < maxUid {
 		return maxNet
@@ -252,10 +252,6 @@ func (p *LinuxContainerPool) Create(spec garden.ContainerSpec) (c linux_backend.
 		p.releasePoolResources(resources)
 	})
 
-	err = os.MkdirAll(containerPath, 0755) //TODO: Untested line
-
-	p.bridgeBuilder.Create(resources.Network.Subnet.String())
-
 	rootFSEnv, err := p.acquireSystemResources(id, containerPath, spec.RootFSPath, resources, spec.BindMounts, pLog)
 	if err != nil {
 		return nil, err
@@ -336,6 +332,8 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 		return nil, err
 	}
 
+	p.bridges.Rereserve(resources.Bridge, resources.Network.Subnet, id)
+
 	for _, port := range resources.Ports {
 		err = p.portPool.Remove(port)
 		if err != nil {
@@ -373,9 +371,10 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 		linux_backend.NewResources(
 			resources.UserUID,
 			resources.RootUID,
-			nil,
+			resources.Network,
+			resources.Bridge,
 			resources.Ports,
-			p.cnBuilder.ExternalIP(),
+			p.externalIP,
 		),
 		p.portPool,
 		p.runner,
@@ -409,9 +408,7 @@ func (p *LinuxContainerPool) Destroy(container linux_backend.Container) error {
 		return err
 	}
 
-	p.bridgeBuilder.Destroy()
-
-	linuxContainer := container.(*linux_backend.LinuxContainer)
+	linuxContainer := container.(*linux_container.LinuxContainer)
 	resources := linuxContainer.Resources()
 	p.releasePoolResources(resources)
 
@@ -483,6 +480,17 @@ func (p *LinuxContainerPool) writeBindMounts(containerPath string,
 	return nil
 }
 
+func (p *LinuxContainerPool) saveBridgeName(id string, bridgeName string) error {
+	bridgeNameFile := path.Join(p.depotPath, id, "bridge-name")
+
+	err := os.MkdirAll(path.Dir(bridgeNameFile), 0755)
+	if err != nil {
+		return err
+	}
+
+	return ioutil.WriteFile(bridgeNameFile, []byte(bridgeName), 0644)
+}
+
 func (p *LinuxContainerPool) saveRootFSProvider(id string, provider string) error {
 	providerFile := path.Join(p.depotPath, id, "rootfs-provider")
 
@@ -495,7 +503,7 @@ func (p *LinuxContainerPool) saveRootFSProvider(id string, provider string) erro
 }
 
 func (p *LinuxContainerPool) acquirePoolResources(spec garden.ContainerSpec, id string) (*linux_backend.Resources, error) {
-	resources := linux_backend.NewResources(0, 1, nil, nil, p.cnBuilder.ExternalIP())
+	resources := linux_backend.NewResources(0, 1, nil, "", nil, p.externalIP)
 
 	if err := p.acquireUID(resources, spec.Privileged); err != nil {
 		return nil, err
@@ -506,11 +514,6 @@ func (p *LinuxContainerPool) acquirePoolResources(spec garden.ContainerSpec, id 
 		p.releasePoolResources(resources)
 		return nil, err
 	}
-	// if resources.Network, err = p.cnBuilder.Build(spec.Network, &p.sysconfig, id); err != nil {
-	// 	p.logger.Error("network-acquire-failed", err)
-	// 	p.releasePoolResources(resources)
-	// 	return nil, err
-	// }
 
 	return resources, nil
 }
@@ -548,6 +551,8 @@ func (p *LinuxContainerPool) releasePoolResources(resources *linux_backend.Resou
 }
 
 func (p *LinuxContainerPool) acquireSystemResources(id, containerPath, rootFSPath string, resources *linux_backend.Resources, bindMounts []garden.BindMount, pLog lager.Logger) (process.Env, error) {
+	_ = os.MkdirAll(containerPath, 0755) //TODO: Untested line
+
 	rootfsURL, err := url.Parse(rootFSPath)
 	if err != nil {
 		pLog.Error("parse-rootfs-path-failed", err, lager.Data{
@@ -570,6 +575,27 @@ func (p *LinuxContainerPool) acquireSystemResources(id, containerPath, rootFSPat
 		return nil, err
 	}
 
+	if resources.Bridge, err = p.bridges.Reserve(resources.Network.Subnet, id); err != nil {
+		pLog.Error("reserve-bridge-failed", err, lager.Data{
+			"Id":     id,
+			"Subnet": resources.Network.Subnet,
+			"Bridge": resources.Bridge,
+		})
+
+		provider.CleanupRootFS(pLog, rootfsPath)
+		return nil, err
+	}
+
+	if err = p.saveBridgeName(id, resources.Bridge); err != nil {
+		pLog.Error("save-bridge-name-failed", err, lager.Data{
+			"Id":     id,
+			"Bridge": resources.Bridge,
+		})
+
+		provider.CleanupRootFS(pLog, rootfsPath)
+		return nil, err
+	}
+
 	createCmd := path.Join(p.binPath, "create.sh")
 	create := exec.Command(createCmd, containerPath)
 	suff, _ := resources.Network.Subnet.Mask.Size()
@@ -582,7 +608,7 @@ func (p *LinuxContainerPool) acquireSystemResources(id, containerPath, rootFSPat
 		"network_cidr":         resources.Network.Subnet.String(),
 		"external_ip":          p.externalIP.String(),
 		"container_iface_mtu":  fmt.Sprintf("%d", p.mtu),
-		"bridge_iface":         "fishfinger",
+		"bridge_iface":         resources.Bridge,
 		"user_uid":             strconv.FormatUint(uint64(resources.UserUID), 10),
 		"root_uid":             strconv.FormatUint(uint64(resources.RootUID), 10),
 		"PATH":                 os.Getenv("PATH"),
@@ -646,6 +672,11 @@ func (p *LinuxContainerPool) releaseSystemResources(logger lager.Logger, id stri
 	pRunner := logging.Runner{
 		CommandRunner: p.runner,
 		Logger:        logger,
+	}
+
+	bridgeName, err := ioutil.ReadFile(path.Join(p.depotPath, id, "bridge-name"))
+	if err == nil {
+		p.bridges.Release(string(bridgeName), id, p.bridgeBuilder)
 	}
 
 	provider, found := p.rootfsProviders[string(rootfsProvider)]

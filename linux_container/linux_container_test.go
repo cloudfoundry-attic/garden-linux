@@ -89,10 +89,15 @@ var _ = Describe("Linux containers", func() {
 		err = ioutil.WriteFile(filepath.Join(containerDir, "run", "wshd.pid"), []byte("12345\n"), 0644)
 		Ω(err).ShouldNot(HaveOccurred())
 
+		_, subnet, err := net.ParseCIDR("2.3.4.0/30")
 		containerResources = linux_backend.NewResources(
 			1234,
 			1235,
-			&fakeNetworkResources{},
+			&linux_backend.Network{
+				IP:     net.ParseIP("1.2.3.4"),
+				Subnet: subnet,
+			},
+			"some-bridge",
 			[]uint32{},
 			nil,
 		)
@@ -217,13 +222,17 @@ var _ = Describe("Linux containers", func() {
 
 			Ω(snapshot.State).Should(Equal("active"))
 
-			nm := json.RawMessage(`"fakeNetMarshal"`)
+			_, subnet, err := net.ParseCIDR("2.3.4.0/30")
 			Ω(snapshot.Resources).Should(Equal(
 				linux_container.ResourcesSnapshot{
 					UserUID: containerResources.UserUID,
 					RootUID: containerResources.RootUID,
-					Network: &nm,
-					Ports:   containerResources.Ports,
+					Network: &linux_backend.Network{
+						IP:     net.ParseIP("1.2.3.4"),
+						Subnet: subnet,
+					},
+					Bridge: "some-bridge",
+					Ports:  containerResources.Ports,
 				},
 			))
 
@@ -2153,8 +2162,8 @@ var _ = Describe("Linux containers", func() {
 			info, err := container.Info()
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Ω(info.HostIP).Should(Equal("fakeHostIp"))
-			Ω(info.ContainerIP).Should(Equal("fakeContainerIp"))
+			Ω(info.HostIP).Should(Equal("2.3.4.2"))
+			Ω(info.ContainerIP).Should(Equal("1.2.3.4"))
 		})
 
 		It("returns the container's path", func() {
@@ -2378,31 +2387,4 @@ system 2
 
 func uint64ptr(n uint64) *uint64 {
 	return &n
-}
-
-type fakeNetworkResources struct{}
-
-func (f *fakeNetworkResources) MarshalJSON() ([]byte, error) {
-	return json.Marshal("fakeNetMarshal")
-}
-
-func (f *fakeNetworkResources) ConfigureEnvironment(process.Env) error {
-	return nil
-}
-
-func (f *fakeNetworkResources) Deconfigure() error {
-	return nil
-}
-
-func (f *fakeNetworkResources) Dismantle() error {
-	return nil
-}
-
-func (f *fakeNetworkResources) Info(i *garden.ContainerInfo) {
-	i.HostIP = "fakeHostIp"
-	i.ContainerIP = "fakeContainerIp"
-}
-
-func (f *fakeNetworkResources) String() string {
-	return "fake network resources"
 }

@@ -1,4 +1,4 @@
-package cnet
+package bridgemgr_test
 
 import (
 	. "github.com/onsi/ginkgo"
@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestNetwork(t *testing.T) {
+func TestBridgeManager(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Container Network suite")
+	RunSpecs(t, "Bridge Manager Suite")
 }

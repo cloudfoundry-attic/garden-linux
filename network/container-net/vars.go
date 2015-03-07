@@ -1,4 +1,4 @@
-package cnet
+package main
 
 import (
 	"fmt"

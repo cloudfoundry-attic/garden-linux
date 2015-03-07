@@ -1,4 +1,4 @@
-package subnets
+package bridgemgr
 
 import (
 	"strconv"
@@ -6,7 +6,6 @@ import (
 )
 
 //go:generate counterfeiter . BridgeNameGenerator
-
 type BridgeNameGenerator interface {
 	Generate() string
 }

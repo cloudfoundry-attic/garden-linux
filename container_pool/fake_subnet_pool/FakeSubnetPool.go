@@ -34,6 +34,12 @@ type FakeSubnetPool struct {
 	removeReturns struct {
 		result1 error
 	}
+	CapacityStub        func() int
+	capacityMutex       sync.RWMutex
+	capacityArgsForCall []struct{}
+	capacityReturns struct {
+		result1 int
+	}
 }
 
 func (fake *FakeSubnetPool) Acquire(networkRequest string) (*linux_backend.Network, error) {
@@ -130,6 +136,30 @@ func (fake *FakeSubnetPool) RemoveReturns(result1 error) {
 	fake.RemoveStub = nil
 	fake.removeReturns = struct {
 		result1 error
+	}{result1}
+}
+
+func (fake *FakeSubnetPool) Capacity() int {
+	fake.capacityMutex.Lock()
+	fake.capacityArgsForCall = append(fake.capacityArgsForCall, struct{}{})
+	fake.capacityMutex.Unlock()
+	if fake.CapacityStub != nil {
+		return fake.CapacityStub()
+	} else {
+		return fake.capacityReturns.result1
+	}
+}
+
+func (fake *FakeSubnetPool) CapacityCallCount() int {
+	fake.capacityMutex.RLock()
+	defer fake.capacityMutex.RUnlock()
+	return len(fake.capacityArgsForCall)
+}
+
+func (fake *FakeSubnetPool) CapacityReturns(result1 int) {
+	fake.CapacityStub = nil
+	fake.capacityReturns = struct {
+		result1 int
 	}{result1}
 }
 

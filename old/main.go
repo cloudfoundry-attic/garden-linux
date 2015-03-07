@@ -19,14 +19,15 @@ import (
 	_ "github.com/docker/docker/daemon/graphdriver/vfs"
 	"github.com/docker/docker/graph"
 	"github.com/docker/docker/registry"
+	"github.com/docker/libcontainer/netlink"
 	"github.com/pivotal-golang/clock"
 	"github.com/pivotal-golang/lager"
 
 	"github.com/cloudfoundry-incubator/cf-debug-server"
 	"github.com/cloudfoundry-incubator/cf-lager"
+	"github.com/cloudfoundry-incubator/garden-linux/bridgemgr"
 	"github.com/cloudfoundry-incubator/garden-linux/container_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/network"
-	"github.com/cloudfoundry-incubator/garden-linux/network/cnet"
 	"github.com/cloudfoundry-incubator/garden-linux/network/iptables"
 	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
@@ -125,6 +126,10 @@ var uidPoolSize = flag.Uint(
 	"size of the uid pool",
 )
 
+var networkPool = flag.String("networkPool",
+	DefaultNetworkPool,
+	"Pool of dynamically allocated container subnets")
+
 var denyNetworks = flag.String(
 	"denyNetworks",
 	"",
@@ -155,7 +160,11 @@ var insecureRegistries = flag.String(
 	"comma-separated list of docker registries to allow connection to even if they are not secure",
 )
 
-var tag = &cnet.Tag // flag defined in cnet/init.go
+var tag = flag.String(
+	"tag",
+	"",
+	"server-wide identifier used for 'global' configuration",
+)
 
 var dropsondeOrigin = flag.String(
 	"dropsondeOrigin",
@@ -191,7 +200,7 @@ var externalIP = flag.String(
 	"",
 	"IP address to use to reach container's mapped ports")
 
-func Main(builder cnet.Builder) {
+func Main() {
 
 	cf_debug_server.Run()
 
@@ -215,9 +224,9 @@ func Main(builder cnet.Builder) {
 
 	uidPool := uid_pool.New(uint32(*uidPoolStart), uint32(*uidPoolSize))
 
-	_, dynamicRange, _ := net.ParseCIDR(cnet.DefaultNetworkPool)
-	subnets, _ := subnets.NewSubnets(dynamicRange)
-	subnetPool := &MySubnetPool{subnets}
+	_, dynamicRange, _ := net.ParseCIDR(*networkPool)
+	s, _ := subnets.NewSubnets(dynamicRange)
+	subnetPool := &MySubnetPool{s}
 
 	// TODO: use /proc/sys/net/ipv4/ip_local_port_range by default (end + 1)
 	portPool := port_pool.New(uint32(*portPoolStart), uint32(*portPoolSize))
@@ -279,6 +288,8 @@ func Main(builder cnet.Builder) {
 		"docker": dockerRootFSProvider,
 	}
 
+	bridgeBuilder := &MyBridgeBuilder{}
+
 	filterProvider := &provider{
 		useKernelLogging: useKernelLogging,
 		chainPrefix:      config.IPTables.Filter.InstancePrefix,
@@ -310,8 +321,8 @@ func Main(builder cnet.Builder) {
 		parsedExternalIP,
 		*mtu,
 		subnetPool,
-		builder,
-		container_pool.NewCNPersistor(logger, builder),
+		bridgemgr.New("w"+config.Tag),
+		bridgeBuilder,
 		filterProvider,
 		iptables.NewGlobalChain(config.IPTables.Filter.DefaultChain, runner, logger.Session("global-chain")),
 		portPool,
@@ -436,10 +447,25 @@ func (c MySubnetPool) Release(n *linux_backend.Network) error {
 	return err
 }
 
+func (c MySubnetPool) Capacity() int {
+	return c.c.Capacity()
+}
+
 func suffixIfNeeded(spec string) string {
 	if !strings.Contains(spec, "/") {
 		spec = spec + "/30"
 	}
 
 	return spec
+}
+
+type MyBridgeBuilder struct {
+}
+
+func (m MyBridgeBuilder) Create(name string) error {
+	return nil
+}
+
+func (m MyBridgeBuilder) Destroy(name string) error {
+	return netlink.DeleteBridge(name)
 }

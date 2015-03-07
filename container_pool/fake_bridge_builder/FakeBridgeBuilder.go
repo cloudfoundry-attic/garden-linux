@@ -8,24 +8,34 @@ import (
 )
 
 type FakeBridgeBuilder struct {
-	CreateStub        func(name string)
+	CreateStub        func(name string) error
 	createMutex       sync.RWMutex
 	createArgsForCall []struct {
 		name string
 	}
-	DestroyStub        func()
+	createReturns struct {
+		result1 error
+	}
+	DestroyStub        func(name string) error
 	destroyMutex       sync.RWMutex
-	destroyArgsForCall []struct{}
+	destroyArgsForCall []struct {
+		name string
+	}
+	destroyReturns struct {
+		result1 error
+	}
 }
 
-func (fake *FakeBridgeBuilder) Create(name string) {
+func (fake *FakeBridgeBuilder) Create(name string) error {
 	fake.createMutex.Lock()
 	fake.createArgsForCall = append(fake.createArgsForCall, struct {
 		name string
 	}{name})
 	fake.createMutex.Unlock()
 	if fake.CreateStub != nil {
-		fake.CreateStub(name)
+		return fake.CreateStub(name)
+	} else {
+		return fake.createReturns.result1
 	}
 }
 
@@ -41,12 +51,23 @@ func (fake *FakeBridgeBuilder) CreateArgsForCall(i int) string {
 	return fake.createArgsForCall[i].name
 }
 
-func (fake *FakeBridgeBuilder) Destroy() {
+func (fake *FakeBridgeBuilder) CreateReturns(result1 error) {
+	fake.CreateStub = nil
+	fake.createReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeBridgeBuilder) Destroy(name string) error {
 	fake.destroyMutex.Lock()
-	fake.destroyArgsForCall = append(fake.destroyArgsForCall, struct{}{})
+	fake.destroyArgsForCall = append(fake.destroyArgsForCall, struct {
+		name string
+	}{name})
 	fake.destroyMutex.Unlock()
 	if fake.DestroyStub != nil {
-		fake.DestroyStub()
+		return fake.DestroyStub(name)
+	} else {
+		return fake.destroyReturns.result1
 	}
 }
 
@@ -54,6 +75,19 @@ func (fake *FakeBridgeBuilder) DestroyCallCount() int {
 	fake.destroyMutex.RLock()
 	defer fake.destroyMutex.RUnlock()
 	return len(fake.destroyArgsForCall)
+}
+
+func (fake *FakeBridgeBuilder) DestroyArgsForCall(i int) string {
+	fake.destroyMutex.RLock()
+	defer fake.destroyMutex.RUnlock()
+	return fake.destroyArgsForCall[i].name
+}
+
+func (fake *FakeBridgeBuilder) DestroyReturns(result1 error) {
+	fake.DestroyStub = nil
+	fake.destroyReturns = struct {
+		result1 error
+	}{result1}
 }
 
 var _ container_pool.BridgeBuilder = new(FakeBridgeBuilder)

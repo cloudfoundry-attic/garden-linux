@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"net"
@@ -18,10 +19,9 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/pivotal-golang/lager/lagertest"
 
+	"github.com/cloudfoundry-incubator/garden-linux/bridgemgr/fake_bridge_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/container_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/container_pool/fake_bridge_builder"
-	"github.com/cloudfoundry-incubator/garden-linux/container_pool/fake_cn_persistor"
-	"github.com/cloudfoundry-incubator/garden-linux/container_pool/fake_cnet"
 	"github.com/cloudfoundry-incubator/garden-linux/container_pool/fake_container_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/container_pool/fake_subnet_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
@@ -47,12 +47,11 @@ var _ = Describe("Container pool", func() {
 	var fakeRunner *fake_command_runner.FakeCommandRunner
 	var fakeUIDPool *fake_uid_pool.FakeUIDPool
 	var fakeSubnetPool *fake_subnet_pool.FakeSubnetPool
-	var fakeCN *fake_cnet.FakeBuilder
-	var fakeCNPersistor *fake_cn_persistor.FakeCNPersistor
 	var fakeQuotaManager *fake_quota_manager.FakeQuotaManager
 	var fakePortPool *fake_port_pool.FakePortPool
 	var defaultFakeRootFSProvider *fake_rootfs_provider.FakeRootFSProvider
 	var fakeRootFSProvider *fake_rootfs_provider.FakeRootFSProvider
+	var fakeBridges *fake_bridge_manager.FakeBridgeManager
 	var fakeBridgeBuilder *fake_bridge_builder.FakeBridgeBuilder
 	var fakeFilterProvider *fake_container_pool.FakeFilterProvider
 	var fakeFilter *fakes.FakeFilter
@@ -62,23 +61,21 @@ var _ = Describe("Container pool", func() {
 	var containerNetwork *linux_backend.Network
 
 	BeforeEach(func() {
-		_, ipNet, err := net.ParseCIDR("1.2.0.0/20")
-		Ω(err).ShouldNot(HaveOccurred())
-
 		fakeUIDPool = fake_uid_pool.New(10000)
 		fakeSubnetPool = new(fake_subnet_pool.FakeSubnetPool)
-		fakeCN = fake_cnet.New(ipNet)
 
-		fakeCNPersistor = new(fake_cn_persistor.FakeCNPersistor)
-		fakeCNPersistor.RecoverReturns(fakeCN.Build("", nil, "container id"))
-		Ω(err).ShouldNot(HaveOccurred())
-
+		var err error
 		containerNetwork = &linux_backend.Network{}
 		containerNetwork.IP, containerNetwork.Subnet, err = net.ParseCIDR("10.2.0.1/30")
 		Ω(err).ShouldNot(HaveOccurred())
 		fakeSubnetPool.AcquireReturns(containerNetwork, nil)
 
+		fakeBridges = new(fake_bridge_manager.FakeBridgeManager)
 		fakeBridgeBuilder = new(fake_bridge_builder.FakeBridgeBuilder)
+
+		fakeBridges.ReserveStub = func(n *net.IPNet, c string) (string, error) {
+			return fmt.Sprintf("bridge-for-%s-%s", n, c), nil
+		}
 
 		fakeFilter = new(fakes.FakeFilter)
 		fakeFilterProvider = new(fake_container_pool.FakeFilterProvider)
@@ -112,8 +109,7 @@ var _ = Describe("Container pool", func() {
 			net.ParseIP("1.2.3.4"),
 			345,
 			fakeSubnetPool,
-			fakeCN,
-			fakeCNPersistor,
+			fakeBridges,
 			fakeBridgeBuilder,
 			fakeFilterProvider,
 			iptables.NewGlobalChain("global-default-chain", fakeRunner, logger),
@@ -132,7 +128,7 @@ var _ = Describe("Container pool", func() {
 	Describe("MaxContainer", func() {
 		Context("when constrained by network pool size", func() {
 			BeforeEach(func() {
-				fakeCN.InitialPoolSize = 5
+				fakeSubnetPool.CapacityReturns(5)
 				fakeUIDPool.InitialPoolSize = 3000
 			})
 
@@ -142,7 +138,7 @@ var _ = Describe("Container pool", func() {
 		})
 		Context("when constrained by uid pool size", func() {
 			BeforeEach(func() {
-				fakeCN.InitialPoolSize = 666
+				fakeSubnetPool.CapacityReturns(666)
 				fakeUIDPool.InitialPoolSize = 42
 			})
 
@@ -278,6 +274,23 @@ var _ = Describe("Container pool", func() {
 			})
 		}
 
+		itReleasesAndDestroysTheBridge := func() {
+			It("releases and destroys the bridge", func() {
+				Ω(fakeBridges.ReleaseCallCount()).Should(Equal(1))
+				_, containerId := fakeBridges.ReserveArgsForCall(0)
+
+				Ω(fakeBridges.ReleaseCallCount()).Should(Equal(1))
+				bridgeName, containerId, destroyer := fakeBridges.ReleaseArgsForCall(0)
+				Ω(bridgeName).Should(Equal("bridge-for-10.2.0.0/30-" + containerId))
+				Ω(containerId).Should(Equal(containerId))
+
+				Ω(fakeBridgeBuilder.DestroyCallCount()).Should(Equal(0)) // only destroy if release calls destroyer
+
+				destroyer.Destroy(bridgeName)
+				Ω(fakeBridgeBuilder.DestroyCallCount()).Should(Equal(1))
+			})
+		}
+
 		It("returns containers with unique IDs", func() {
 			container1, err := pool.Create(garden.ContainerSpec{})
 			Ω(err).ShouldNot(HaveOccurred())
@@ -348,7 +361,7 @@ var _ = Describe("Container pool", func() {
 						Args: []string{path.Join(depotPath, container.ID())},
 						Env: []string{
 							"PATH=" + os.Getenv("PATH"),
-							"bridge_iface=fishfinger",
+							"bridge_iface=bridge-for-10.2.0.0/30-" + container.ID(),
 							"container_iface_mtu=345",
 							"external_ip=1.2.3.4",
 							"id=" + container.ID(),
@@ -376,7 +389,7 @@ var _ = Describe("Container pool", func() {
 						Args: []string{path.Join(depotPath, container.ID())},
 						Env: []string{
 							"PATH=" + os.Getenv("PATH"),
-							"bridge_iface=fishfinger",
+							"bridge_iface=bridge-for-10.2.0.0/30-" + container.ID(),
 							"container_iface_mtu=345",
 							"external_ip=1.2.3.4",
 							"id=" + container.ID(),
@@ -410,7 +423,7 @@ var _ = Describe("Container pool", func() {
 						Args: []string{path.Join(depotPath, container.ID())},
 						Env: []string{
 							"PATH=" + os.Getenv("PATH"),
-							"bridge_iface=fishfinger",
+							"bridge_iface=bridge-for-10.3.0.0/29-" + container.ID(),
 							"container_iface_mtu=345",
 							"external_ip=1.2.3.4",
 							"id=" + container.ID(),
@@ -468,46 +481,17 @@ var _ = Describe("Container pool", func() {
 				})
 			})
 
-			It("creates a bridge for the container", func() {
-				_, err := pool.Create(garden.ContainerSpec{
-					Network: "1.3.0.0/30",
-				})
-				Ω(err).ShouldNot(HaveOccurred())
+			PIt("handles bridge creation errors...", func() {})
+		})
 
-				Ω(fakeBridgeBuilder.CreateCallCount()).Should(Equal(1))
-			})
+		It("saves the bridge name to the depot", func() {
+			container, err := pool.Create(garden.ContainerSpec{})
+			Ω(err).ShouldNot(HaveOccurred())
 
-			PIt("reuses the same bridge name for containers in the same subnet", func() {
-				differentNetwork := &linux_backend.Network{}
-				_, differentNetwork.Subnet, _ = net.ParseCIDR("10.3.0.2/29")
-				fakeSubnetPool.AcquireReturns(differentNetwork, nil)
+			body, err := ioutil.ReadFile(path.Join(depotPath, container.ID(), "bridge-name"))
+			Ω(err).ShouldNot(HaveOccurred())
 
-				_, err := pool.Create(garden.ContainerSpec{Network: "1.3.0.0/30"})
-				Ω(err).ShouldNot(HaveOccurred())
-
-				_, err = pool.Create(garden.ContainerSpec{Network: "1.3.0.0/30"})
-				Ω(err).ShouldNot(HaveOccurred())
-
-				Ω(fakeBridgeBuilder.CreateCallCount()).Should(Equal(2))
-				Ω(fakeBridgeBuilder.CreateArgsForCall(0)).Should(Equal(fakeBridgeBuilder.CreateArgsForCall(1)))
-			})
-
-			It("creates a distinct bridge name for each subnet", func() {
-				differentNetwork := &linux_backend.Network{}
-				_, differentNetwork.Subnet, _ = net.ParseCIDR("10.3.0.2/29")
-				fakeSubnetPool.AcquireReturns(differentNetwork, nil)
-
-				_, err := pool.Create(garden.ContainerSpec{Network: "1.3.0.0/30"})
-				Ω(err).ShouldNot(HaveOccurred())
-
-				_, differentNetwork.Subnet, _ = net.ParseCIDR("10.4.0.2/29")
-				fakeSubnetPool.AcquireReturns(differentNetwork, nil)
-				_, err = pool.Create(garden.ContainerSpec{Network: "1.3.0.0/30"})
-				Ω(err).ShouldNot(HaveOccurred())
-
-				Ω(fakeBridgeBuilder.CreateCallCount()).Should(Equal(2))
-				Ω(fakeBridgeBuilder.CreateArgsForCall(0)).ShouldNot(Equal(fakeBridgeBuilder.CreateArgsForCall(1)))
-			})
+			Ω(string(body)).Should(Equal("bridge-for-10.2.0.0/30-" + container.ID()))
 		})
 
 		It("saves the determined rootfs provider to the depot", func() {
@@ -550,7 +534,7 @@ var _ = Describe("Container pool", func() {
 						Args: []string{path.Join(depotPath, container.ID())},
 						Env: []string{
 							"PATH=" + os.Getenv("PATH"),
-							"bridge_iface=fishfinger",
+							"bridge_iface=bridge-for-10.2.0.0/30-" + container.ID(),
 							"container_iface_mtu=345",
 							"external_ip=1.2.3.4",
 							"id=" + container.ID(),
@@ -624,6 +608,10 @@ var _ = Describe("Container pool", func() {
 
 				itReleasesTheUserIDs()
 				itReleasesTheIPBlock()
+
+				It("does not acquire a bridge", func() {
+					Ω(fakeBridges.ReserveCallCount()).Should(Equal(0))
+				})
 			})
 
 			Context("when its scheme is unknown", func() {
@@ -641,6 +629,10 @@ var _ = Describe("Container pool", func() {
 
 				itReleasesTheUserIDs()
 				itReleasesTheIPBlock()
+
+				It("does not acquire a bridge", func() {
+					Ω(fakeBridges.ReserveCallCount()).Should(Equal(0))
+				})
 			})
 
 			Context("when providing the mount point fails", func() {
@@ -662,6 +654,10 @@ var _ = Describe("Container pool", func() {
 				itReleasesTheUserIDs()
 				itReleasesTheIPBlock()
 
+				It("does not acquire a bridge", func() {
+					Ω(fakeBridges.ReserveCallCount()).Should(Equal(0))
+				})
+
 				It("does not execute create.sh", func() {
 					Ω(fakeRunner).ShouldNot(HaveExecutedSerially(
 						fake_command_runner.CommandSpec{
@@ -669,6 +665,35 @@ var _ = Describe("Container pool", func() {
 						},
 					))
 				})
+			})
+		})
+
+		Context("when acquiring the bridge fails", func() {
+			var err error
+			BeforeEach(func() {
+				fakeRootFSProvider.ProvideRootFSReturns("the-rootfs", nil, nil)
+				fakeBridges.ReserveReturns("", errors.New("o no"))
+				_, err = pool.Create(garden.ContainerSpec{
+					RootFSPath: "fake:///path/to/custom-rootfs",
+				})
+			})
+
+			It("does not execute create.sh", func() {
+				Ω(fakeRunner).ShouldNot(HaveExecutedSerially(
+					fake_command_runner.CommandSpec{
+						Path: "/root/path/create.sh",
+					},
+				))
+			})
+
+			It("cleans up the rootfs", func() {
+				Ω(fakeRootFSProvider.CleanupRootFSCallCount()).Should(Equal(1))
+				_, rootfsPath := fakeRootFSProvider.CleanupRootFSArgsForCall(0)
+				Ω(rootfsPath).Should(Equal("the-rootfs"))
+			})
+
+			It("returns an error", func() {
+				Ω(err).Should(HaveOccurred())
 			})
 		})
 
@@ -870,6 +895,7 @@ var _ = Describe("Container pool", func() {
 			itReleasesTheIPBlock()
 			itDeletesTheContainerDirectory()
 			itCleansUpTheRootfs()
+			itReleasesAndDestroysTheBridge()
 		})
 
 		Context("when saving the rootfs provider fails", func() {
@@ -942,11 +968,9 @@ var _ = Describe("Container pool", func() {
 					Resources: linux_container.ResourcesSnapshot{
 						UserUID: 10000,
 						RootUID: rootUID,
-						Network: linux_container.NetworkSnapshot{
-							IP:     containerNetwork.IP,
-							Subnet: containerNetwork.Subnet.String(),
-						},
-						Ports: []uint32{61001, 61002, 61003},
+						Network: containerNetwork,
+						Bridge:  "some-bridge",
+						Ports:   []uint32{61001, 61002, 61003},
 					},
 
 					Properties: map[string]string{
@@ -975,6 +999,9 @@ var _ = Describe("Container pool", func() {
 				"some-restored-event",
 				"some-other-restored-event",
 			}))
+
+			Ω(linuxContainer.Resources().Network).Should(Equal(containerNetwork))
+			Ω(linuxContainer.Resources().Bridge).Should(Equal("some-bridge"))
 		})
 
 		It("removes its UID from the pool", func() {
@@ -1012,6 +1039,20 @@ var _ = Describe("Container pool", func() {
 			Ω(fakePortPool.Removed).Should(ContainElement(uint32(61001)))
 			Ω(fakePortPool.Removed).Should(ContainElement(uint32(61002)))
 			Ω(fakePortPool.Removed).Should(ContainElement(uint32(61003)))
+		})
+
+		It("reacquires the bridge for the subnet from the pool", func() {
+			_, err := pool.Restore(snapshot)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(fakeBridges.RereserveCallCount()).Should(Equal(1))
+			bridgeName, subnet, containerId := fakeBridges.RereserveArgsForCall(0)
+			Ω(bridgeName).Should(Equal("some-bridge"))
+			Ω(subnet.String()).Should(Equal("2.3.4.0/29"))
+			Ω(containerId).Should(Equal("some-restored-id"))
+		})
+
+		PIt("when reacquiring the bridge fails", func() {
 		})
 
 		Context("when decoding the snapshot fails", func() {
@@ -1095,22 +1136,19 @@ var _ = Describe("Container pool", func() {
 				err := os.MkdirAll(path.Join(depotPath, "container-1"), 0755)
 				Ω(err).ShouldNot(HaveOccurred())
 
-				err = createJsonFile(path.Join(depotPath, "container-1", "cnetConfig.json"))
-				Ω(err).ShouldNot(HaveOccurred())
-
 				err = os.MkdirAll(path.Join(depotPath, "container-2"), 0755)
-				Ω(err).ShouldNot(HaveOccurred())
-
-				err = createJsonFile(path.Join(depotPath, "container-2", "cnetConfig.json"))
 				Ω(err).ShouldNot(HaveOccurred())
 
 				err = os.MkdirAll(path.Join(depotPath, "container-3"), 0755)
 				Ω(err).ShouldNot(HaveOccurred())
 
-				err = createJsonFile(path.Join(depotPath, "container-3", "cnetConfig.json"))
+				err = os.MkdirAll(path.Join(depotPath, "tmp"), 0755)
 				Ω(err).ShouldNot(HaveOccurred())
 
-				err = os.MkdirAll(path.Join(depotPath, "tmp"), 0755)
+				err = ioutil.WriteFile(path.Join(depotPath, "container-1", "bridge-name"), []byte("fake-bridge-1"), 0644)
+				Ω(err).ShouldNot(HaveOccurred())
+
+				err = ioutil.WriteFile(path.Join(depotPath, "container-2", "bridge-name"), []byte("fake-bridge-2"), 0644)
 				Ω(err).ShouldNot(HaveOccurred())
 
 				err = ioutil.WriteFile(path.Join(depotPath, "container-1", "rootfs-provider"), []byte("fake"), 0644)
@@ -1141,7 +1179,6 @@ var _ = Describe("Container pool", func() {
 						Args: []string{path.Join(depotPath, "container-3")},
 					},
 				))
-
 			})
 
 			Context("after destroying it", func() {
@@ -1169,6 +1206,37 @@ var _ = Describe("Container pool", func() {
 					_, id3 := defaultFakeRootFSProvider.CleanupRootFSArgsForCall(0)
 					Ω(id3).Should(Equal("container-3"))
 				})
+
+				It("releases the bridge", func() {
+					err := pool.Prune(map[string]bool{})
+					Ω(err).ShouldNot(HaveOccurred())
+
+					Ω(fakeBridges.ReleaseCallCount()).Should(Equal(2))
+
+					bridge, containerId, _ := fakeBridges.ReleaseArgsForCall(0)
+					Ω(bridge).Should(Equal("fake-bridge-1"))
+					Ω(containerId).Should(Equal("container-1"))
+
+					bridge, containerId, _ = fakeBridges.ReleaseArgsForCall(1)
+					Ω(bridge).Should(Equal("fake-bridge-2"))
+					Ω(containerId).Should(Equal("container-2"))
+				})
+
+				It("deletes the bridge if it is now unused", func() {
+					err := pool.Prune(map[string]bool{})
+					Ω(err).ShouldNot(HaveOccurred())
+
+					Ω(fakeBridges.ReleaseCallCount()).Should(Equal(2))
+					_, _, destroyer := fakeBridges.ReleaseArgsForCall(1)
+
+					Ω(fakeBridgeBuilder.DestroyCallCount()).Should(Equal(0))
+					destroyer.Destroy("fake-bridge-2")
+					Ω(fakeBridgeBuilder.DestroyCallCount()).Should(Equal(1))
+				})
+			})
+
+			Context("when a container does not declare a bridge name", func() {
+				PIt("does nothing much", func() {})
 			})
 
 			Context("when a container does not declare a rootfs provider", func() {
@@ -1225,7 +1293,6 @@ var _ = Describe("Container pool", func() {
 							Args: []string{path.Join(depotPath, "container-2")},
 						},
 					))
-
 				})
 
 				It("is not cleaned up", func() {
@@ -1235,6 +1302,13 @@ var _ = Describe("Container pool", func() {
 					Ω(fakeRootFSProvider.CleanupRootFSCallCount()).Should(Equal(1))
 					_, prunedId := fakeRootFSProvider.CleanupRootFSArgsForCall(0)
 					Ω(prunedId).ShouldNot(Equal("container-2"))
+				})
+
+				It("does not release the bridge", func() {
+					err := pool.Prune(map[string]bool{"container-2": true})
+					Ω(err).ShouldNot(HaveOccurred())
+
+					Ω(fakeBridges.ReleaseCallCount()).Should(Equal(1))
 				})
 			})
 
@@ -1264,21 +1338,19 @@ var _ = Describe("Container pool", func() {
 
 	Describe("destroying", func() {
 		var createdContainer *linux_container.LinuxContainer
-		var createdContainerNetwork *linux_backend.Network
 
 		BeforeEach(func() {
+			fakeBridges.ReserveStub = func(*net.IPNet, string) (string, error) {
+				return "the-bridge", nil
+			}
+
 			container, err := pool.Create(garden.ContainerSpec{})
 			Ω(err).ShouldNot(HaveOccurred())
 
 			createdContainer = container.(*linux_container.LinuxContainer)
 
-			createdContainerNetwork = &linux_backend.Network{}
-			createdContainerNetwork.IP, createdContainerNetwork.Subnet, err = net.ParseCIDR("1.2.0.2/30")
-			Ω(err).ShouldNot(HaveOccurred())
-
 			createdContainer.Resources().AddPort(123)
 			createdContainer.Resources().AddPort(456)
-			createdContainer.Resources().Network = createdContainerNetwork
 		})
 
 		It("executes destroy.sh with the correct args and environment", func() {
@@ -1303,14 +1375,35 @@ var _ = Describe("Container pool", func() {
 			Ω(fakeUIDPool.Released).Should(ContainElement(uint32(10000)))
 
 			Ω(fakeSubnetPool.ReleaseCallCount()).Should(Equal(1))
-			Ω(fakeSubnetPool.ReleaseArgsForCall(0)).Should(Equal(createdContainerNetwork))
+			Ω(fakeSubnetPool.ReleaseArgsForCall(0)).Should(Equal(createdContainer.Resources().Network))
 		})
 
-		It("deletes the container's bridge", func() {
-			err := pool.Destroy(createdContainer)
-			Ω(err).ShouldNot(HaveOccurred())
+		Describe("bridge cleanup", func() {
+			It("releases the bridge from the pool", func() {
+				err := pool.Destroy(createdContainer)
+				Ω(err).ShouldNot(HaveOccurred())
 
-			Ω(fakeBridgeBuilder.DestroyCallCount()).Should(Equal(1))
+				Ω(fakeBridges.ReleaseCallCount()).Should(Equal(1))
+				bridgeName, containerId, _ := fakeBridges.ReleaseArgsForCall(0)
+
+				Ω(bridgeName).Should(Equal("the-bridge"))
+				Ω(containerId).Should(Equal(createdContainer.ID()))
+			})
+
+			It("destroys the bridge if it is no longer used", func() {
+				err := pool.Destroy(createdContainer)
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Ω(fakeBridges.ReleaseCallCount()).Should(Equal(1))
+				_, _, destroyer := fakeBridges.ReleaseArgsForCall(0)
+				Ω(fakeBridgeBuilder.DestroyCallCount()).Should(Equal(0))
+
+				destroyer.Destroy("foo")
+				Ω(fakeBridgeBuilder.DestroyCallCount()).Should(Equal(1))
+				Ω(fakeBridgeBuilder.DestroyArgsForCall(0)).Should(Equal("foo"))
+			})
+
+			PIt("handles errors properly...", func() {})
 		})
 
 		It("tears down filter chains", func() {
@@ -1422,20 +1515,3 @@ var _ = Describe("Container pool", func() {
 		})
 	})
 })
-
-func createJsonFile(name string) error {
-	f, err := os.Create(name)
-	if err != nil {
-		return err
-	}
-
-	b := []byte("{}")
-	rm := json.RawMessage(b)
-	fp := container_pool.RawCN{&rm}
-	err = json.NewEncoder(f).Encode(fp)
-	if err != nil {
-		return err
-	}
-
-	return f.Close()
-}

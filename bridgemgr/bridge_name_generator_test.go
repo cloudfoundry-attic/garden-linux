@@ -1,4 +1,4 @@
-package subnets_test
+package bridgemgr_test
 
 import (
 	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"

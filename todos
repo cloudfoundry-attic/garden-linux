@@ -1,0 +1,6 @@
+* finish up error handling logic in cpool
+* create bridge in code rather than during container creation (consider locking vs. optimism)
+* make subnetPool implement container_pool.SubnetPool
+* move bridgebuilder out of main.go
+* consider fixing up packages (e.g. do subnet/bridge/filter need to be under 'network'?)
+* see if we can use a Resources interface to avoid cast to LinuxContainer
