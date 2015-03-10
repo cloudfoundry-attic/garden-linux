@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"net"
 	"sync"
-
-	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
 )
 
 type Destroyer interface {
@@ -27,7 +25,7 @@ type BridgeManager interface {
 }
 
 type mgr struct {
-	names subnets.BridgeNameGenerator
+	names BridgeNameGenerator
 
 	mu           sync.Mutex
 	owners       map[string][]string // bridgeName -> []containerId

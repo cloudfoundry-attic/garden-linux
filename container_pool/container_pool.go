@@ -676,7 +676,9 @@ func (p *LinuxContainerPool) releaseSystemResources(logger lager.Logger, id stri
 
 	bridgeName, err := ioutil.ReadFile(path.Join(p.depotPath, id, "bridge-name"))
 	if err == nil {
-		p.bridges.Release(string(bridgeName), id, p.bridgeBuilder)
+		if err := p.bridges.Release(string(bridgeName), id, p.bridgeBuilder); err != nil {
+			return err
+		}
 	}
 
 	provider, found := p.rootfsProviders[string(rootfsProvider)]

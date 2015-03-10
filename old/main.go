@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/cloudfoundry/gunk/command_runner"
@@ -466,6 +467,11 @@ func (m MyBridgeBuilder) Create(name string) error {
 	return nil
 }
 
+var mu *sync.Mutex = new(sync.Mutex)
+
 func (m MyBridgeBuilder) Destroy(name string) error {
+	mu.Lock()
+	defer mu.Unlock()
+
 	return netlink.DeleteBridge(name)
 }
