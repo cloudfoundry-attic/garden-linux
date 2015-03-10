@@ -1,6 +1,12 @@
+* re-order LinxuContainerPool.releaseSystemResources so that rootfs provider logic doesn't span release bridge
+* Bridge manager Release should propagate error from destroying bridge
+* Combine bridge manager and bridge builder
+* Bridge builder should return errors
+* GC old bridges
+* Move bridge manager into network folder
 * finish up error handling logic in cpool
 * create bridge in code rather than during container creation (consider locking vs. optimism)
 * make subnetPool implement container_pool.SubnetPool
 * move bridgebuilder out of main.go
-* consider fixing up packages (e.g. do subnet/bridge/filter need to be under 'network'?)
+* move MySubnetPool out of old/main.go
 * see if we can use a Resources interface to avoid cast to LinuxContainer
