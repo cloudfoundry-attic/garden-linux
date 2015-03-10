@@ -455,6 +455,39 @@ func (c *LinuxContainer) Properties() garden.Properties {
 	return c.properties
 }
 
+func (c *LinuxContainer) Metrics() (garden.Metrics, error) {
+	cLog := c.logger.Session("metrics")
+	return c.getMetrics(cLog)
+}
+
+func (c *LinuxContainer) getMetrics(cLog lager.Logger) (garden.Metrics, error) {
+	diskStat, err := c.quotaManager.GetUsage(cLog, c.resources.UserUID)
+	if err != nil {
+		return garden.Metrics{}, err
+	}
+
+	cpuStat, err := c.cgroupsManager.Get("cpuacct", "cpuacct.stat")
+	if err != nil {
+		return garden.Metrics{}, err
+	}
+
+	cpuUsage, err := c.cgroupsManager.Get("cpuacct", "cpuacct.usage")
+	if err != nil {
+		return garden.Metrics{}, err
+	}
+
+	memoryStat, err := c.cgroupsManager.Get("memory", "memory.stat")
+	if err != nil {
+		return garden.Metrics{}, err
+	}
+
+	return garden.Metrics{
+		MemoryStat: parseMemoryStat(memoryStat),
+		CPUStat:    parseCPUStat(cpuUsage, cpuStat),
+		DiskStat:   diskStat,
+	}, nil
+}
+
 func (c *LinuxContainer) GetProperties() (garden.Properties, error) {
 	return c.Properties(), nil
 }
@@ -503,22 +536,7 @@ func (c *LinuxContainer) RemoveProperty(key string) error {
 func (c *LinuxContainer) Info() (garden.ContainerInfo, error) {
 	cLog := c.logger.Session("info")
 
-	memoryStat, err := c.cgroupsManager.Get("memory", "memory.stat")
-	if err != nil {
-		return garden.ContainerInfo{}, err
-	}
-
-	cpuUsage, err := c.cgroupsManager.Get("cpuacct", "cpuacct.usage")
-	if err != nil {
-		return garden.ContainerInfo{}, err
-	}
-
-	cpuStat, err := c.cgroupsManager.Get("cpuacct", "cpuacct.stat")
-	if err != nil {
-		return garden.ContainerInfo{}, err
-	}
-
-	diskStat, err := c.quotaManager.GetUsage(cLog, c.resources.UserUID)
+	metrics, err := c.getMetrics(cLog)
 	if err != nil {
 		return garden.ContainerInfo{}, err
 	}
@@ -547,9 +565,9 @@ func (c *LinuxContainer) Info() (garden.ContainerInfo, error) {
 		Properties:    c.Properties(),
 		ContainerPath: c.path,
 		ProcessIDs:    processIDs,
-		MemoryStat:    parseMemoryStat(memoryStat),
-		CPUStat:       parseCPUStat(cpuUsage, cpuStat),
-		DiskStat:      diskStat,
+		MemoryStat:    metrics.MemoryStat,
+		CPUStat:       metrics.CPUStat,
+		DiskStat:      metrics.DiskStat,
 		MappedPorts:   mappedPorts,
 	}
 

@@ -40,6 +40,16 @@ var _ = Describe("A container with properties", func() {
 		})
 	})
 
+	Describe("getting container metrics without getting info", func() {
+		It("can list metrics", func() {
+			metrics, err := container.Metrics()
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(metrics).Should(BeAssignableToTypeOf(garden.Metrics{}))
+			Ω(metrics).ShouldNot(Equal(garden.Metrics{}))
+		})
+	})
+
 	Describe("getting container properties without getting info", func() {
 		It("can list properties", func() {
 			err := container.SetProperty("bar", "baz")
