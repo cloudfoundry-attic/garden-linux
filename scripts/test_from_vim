@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+
+ARGS=$@
+if grep -q integration <(echo "$ARGS"); then
+  scripts/remote-fly $ARGS
+else
+  ginkgo -r -race $ARGS
+fi
+
