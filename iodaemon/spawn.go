@@ -94,28 +94,34 @@ func spawn(
 
 	childProcessTerminated := make(chan bool)
 
-	go terminateWhenDone(childProcessTerminated, success)
-
 	// Loop accepting and processing connections from the caller.
-	for {
-		conn, err := acceptConnection(listener, stdoutR, stderrR, statusR)
-		if err != nil {
-			fatal(err)
-			return
-		}
+	startAccpetingConnections := func() {
 
-		if !childProcessStarted {
-			err = startChildProcess(cmd, errStream, notifyStream, statusW, childProcessTerminated)
+		for {
+			conn, err := acceptConnection(listener, stdoutR, stderrR, statusR)
 			if err != nil {
 				fatal(err)
 				return
 			}
-			errStream.Close()
-			childProcessStarted = true
-		}
 
-		processLinkRequests(conn, stdinW, cmd, withTty)
+			if !childProcessStarted {
+				err = startChildProcess(cmd, errStream, notifyStream, statusW, childProcessTerminated)
+				if err != nil {
+					fatal(err)
+					return
+				}
+				errStream.Close()
+				childProcessStarted = true
+			}
+
+			processLinkRequests(conn, stdinW, cmd, withTty)
+		}
 	}
+
+	go startAccpetingConnections()
+
+	<-childProcessTerminated
+	success()
 }
 
 func startChildProcess(cmd *exec.Cmd, errStream, notifyStream io.WriteCloser, statusW *os.File, done chan bool) error {
@@ -138,11 +144,6 @@ func startChildProcess(cmd *exec.Cmd, errStream, notifyStream io.WriteCloser, st
 	}()
 
 	return nil
-}
-
-func terminateWhenDone(done chan bool, success func()) {
-	<-done
-	success()
 }
 
 func notify(notifyStream io.Writer, message string) {
