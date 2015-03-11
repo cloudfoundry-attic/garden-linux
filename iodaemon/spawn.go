@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	debugPkg "runtime/debug"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
@@ -43,11 +44,6 @@ func spawn(
 			listener.Close()
 		}
 		terminate(1)
-	}
-
-	success := func() {
-		listener.Close()
-		terminate(0)
 	}
 
 	if debug {
@@ -90,12 +86,11 @@ func spawn(
 
 	notify(notifyStream, "ready")
 
+	childProcessStarted := make(chan bool)
 	childProcessTerminated := make(chan bool)
 	connectionAccepted := make(chan bool)
 
-	// Loop accepting and processing connections from the caller.
 	startAccpetingConnections := func() {
-
 		for {
 			conn, err := acceptConnection(listener, stdoutR, stderrR, statusR)
 			if err != nil {
@@ -103,7 +98,11 @@ func spawn(
 				return
 			}
 
-			connectionAccepted <- true
+			var once sync.Once
+			once.Do(func() {
+				connectionAccepted <- true
+				<-childProcessStarted
+			})
 
 			processLinkRequests(conn, stdinW, cmd, withTty)
 		}
@@ -112,7 +111,7 @@ func spawn(
 	startChildProcessOnConnection := func() {
 		<-connectionAccepted
 
-		err = startChildProcess(cmd, errStream, notifyStream, statusW, childProcessTerminated)
+		err = startChildProcess(cmd, errStream, notifyStream, statusW, childProcessStarted, childProcessTerminated)
 		if err != nil {
 			fatal(err)
 			return
@@ -124,10 +123,12 @@ func spawn(
 	go startChildProcessOnConnection()
 
 	<-childProcessTerminated
-	success()
+
+	listener.Close()
+	terminate(0)
 }
 
-func startChildProcess(cmd *exec.Cmd, errStream, notifyStream io.WriteCloser, statusW *os.File, done chan bool) error {
+func startChildProcess(cmd *exec.Cmd, errStream, notifyStream io.WriteCloser, statusW *os.File, started, done chan bool) error {
 	err := cmd.Start()
 	if err != nil {
 		return err
@@ -135,6 +136,8 @@ func startChildProcess(cmd *exec.Cmd, errStream, notifyStream io.WriteCloser, st
 
 	notify(notifyStream, "active")
 	notifyStream.Close()
+
+	started <- true
 
 	cmd.Wait()
 
