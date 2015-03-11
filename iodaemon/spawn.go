@@ -90,9 +90,8 @@ func spawn(
 
 	notify(notifyStream, "ready")
 
-	childProcessStarted := false
-
 	childProcessTerminated := make(chan bool)
+	connectionAccepted := make(chan bool)
 
 	// Loop accepting and processing connections from the caller.
 	startAccpetingConnections := func() {
@@ -104,21 +103,25 @@ func spawn(
 				return
 			}
 
-			if !childProcessStarted {
-				err = startChildProcess(cmd, errStream, notifyStream, statusW, childProcessTerminated)
-				if err != nil {
-					fatal(err)
-					return
-				}
-				errStream.Close()
-				childProcessStarted = true
-			}
+			connectionAccepted <- true
 
 			processLinkRequests(conn, stdinW, cmd, withTty)
 		}
 	}
 
+	startChildProcessOnConnection := func() {
+		<-connectionAccepted
+
+		err = startChildProcess(cmd, errStream, notifyStream, statusW, childProcessTerminated)
+		if err != nil {
+			fatal(err)
+			return
+		}
+		errStream.Close()
+	}
+
 	go startAccpetingConnections()
+	go startChildProcessOnConnection()
 
 	<-childProcessTerminated
 	success()
@@ -133,15 +136,13 @@ func startChildProcess(cmd *exec.Cmd, errStream, notifyStream io.WriteCloser, st
 	notify(notifyStream, "active")
 	notifyStream.Close()
 
-	go func() {
-		cmd.Wait()
+	cmd.Wait()
 
-		if cmd.ProcessState != nil {
-			fmt.Fprintf(statusW, "%d\n", cmd.ProcessState.Sys().(syscall.WaitStatus).ExitStatus())
-		}
+	if cmd.ProcessState != nil {
+		fmt.Fprintf(statusW, "%d\n", cmd.ProcessState.Sys().(syscall.WaitStatus).ExitStatus())
+	}
 
-		done <- true
-	}()
+	done <- true
 
 	return nil
 }
