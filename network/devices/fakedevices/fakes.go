@@ -111,7 +111,7 @@ type FakeBridge struct {
 
 	AddReturns error
 
-	DeleteCalledWith []*net.Interface
+	DeleteCalledWith []string
 
 	DeleteReturns error
 }
@@ -129,7 +129,7 @@ func (f *FakeBridge) Add(bridge, slave *net.Interface) error {
 	return f.AddReturns
 }
 
-func (f *FakeBridge) Delete(bridge *net.Interface) error {
+func (f *FakeBridge) Delete(bridge string) error {
 	f.DeleteCalledWith = append(f.DeleteCalledWith, bridge)
 	return f.DeleteReturns
 }

@@ -12,7 +12,7 @@ type Deconfigurer struct {
 	}
 
 	BridgeDeleter interface {
-		Delete(bridge *net.Interface) error
+		Delete(name string) error
 	}
 }
 
@@ -33,9 +33,5 @@ func (d *Deconfigurer) DeconfigureBridge(log lager.Logger, bridgeIfc string) err
 }
 
 func (d *Deconfigurer) deleteBridge(name string) error {
-	if intf, found, err := d.Finder.InterfaceByName(name); err != nil || !found {
-		return err
-	} else {
-		return d.BridgeDeleter.Delete(intf)
-	}
+	return d.BridgeDeleter.Delete(name)
 }

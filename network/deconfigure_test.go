@@ -44,19 +44,6 @@ var _ = Describe("Deconfigurer", func() {
 			})
 		})
 
-		Context("when looking up the bridge interface fails", func() {
-			BeforeEach(func() {
-				fakeLink.InterfaceByNameFunc = func(name string) (*net.Interface, bool, error) {
-					return nil, true, errors.New("o no")
-				}
-			})
-
-			It("returns an appropriate error", func() {
-				err := deconfigurer.DeconfigureBridge(log, "bar")
-				Ω(err).Should(MatchError(&network.DeleteLinkError{Cause: errors.New("o no"), Role: "bridge", Name: "bar"}))
-			})
-		})
-
 		Context("when the bridge exists", func() {
 			BeforeEach(func() {
 				fakeLink.InterfaceByNameFunc = func(name string) (*net.Interface, bool, error) {
@@ -66,7 +53,7 @@ var _ = Describe("Deconfigurer", func() {
 
 			It("destroys the bridge", func() {
 				Ω(deconfigurer.DeconfigureBridge(log, "thebridge")).Should(Succeed())
-				Ω(fakeBridgeDeleter.DeleteCalledWith).Should(ContainElement(&net.Interface{Name: "thebridge"}))
+				Ω(fakeBridgeDeleter.DeleteCalledWith).Should(ContainElement("thebridge"))
 			})
 		})
 
