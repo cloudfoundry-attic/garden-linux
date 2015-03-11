@@ -32,10 +32,22 @@ func spawn(
 	notifyStream io.WriteCloser,
 	errStream io.WriteCloser,
 ) {
+	var listener net.Listener
+
 	fatal := func(err error) {
-		debugPkg.PrintStack()
+		if debug {
+			debugPkg.PrintStack()
+		}
 		fmt.Fprintln(errStream, "fatal: "+err.Error())
+		if listener != nil {
+			listener.Close()
+		}
 		terminate(1)
+	}
+
+	success := func() {
+		listener.Close()
+		terminate(0)
 	}
 
 	if debug {
@@ -82,7 +94,7 @@ func spawn(
 
 	childProcessTerminated := make(chan bool)
 
-	go terminateWhenDone(childProcessTerminated, terminate)
+	go terminateWhenDone(childProcessTerminated, success)
 
 	// Loop accepting and processing connections from the caller.
 	for {
@@ -128,9 +140,9 @@ func startChildProcess(cmd *exec.Cmd, errStream, notifyStream io.WriteCloser, st
 	return nil
 }
 
-func terminateWhenDone(done chan bool, terminate func(int)) {
+func terminateWhenDone(done chan bool, success func()) {
 	<-done
-	terminate(0)
+	success()
 }
 
 func notify(notifyStream io.Writer, message string) {

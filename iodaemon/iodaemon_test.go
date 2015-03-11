@@ -1,6 +1,7 @@
 package main
 
 import (
+	"sync"
 	"time"
 
 	"io/ioutil"
@@ -41,10 +42,14 @@ var _ = Describe("Iodaemon", func() {
 
 		socketPath = filepath.Join(tmpdir, "iodaemon.sock")
 
+		var once sync.Once
 		done = make(chan struct{})
 		terminate = func(exitStatus int) {
-			close(done)
+			once.Do(func() {
+				close(done)
+			})
 		}
+
 		fakeOut = wc{
 			bytes.NewBuffer([]byte{}),
 		}
@@ -54,8 +59,15 @@ var _ = Describe("Iodaemon", func() {
 	})
 
 	AfterEach(func() {
+		defer os.RemoveAll(tmpdir)
+
+		By("waiting for iodeamon to terminate")
 		Eventually(done).Should(BeClosed())
-		os.RemoveAll(tmpdir)
+
+		By("tidying up the socket file")
+		if _, err := os.Stat(socketPath); !os.IsNotExist(err) {
+			Fail("socket file not cleaned up")
+		}
 	})
 
 	Context("spawning a process", func() {
