@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/cloudfoundry/gunk/command_runner"
+	"time"
 )
 
 // Kills a process by invoking ./bin/wsh in the given container path using
@@ -18,15 +19,14 @@ type NamespacedSignaller struct {
 }
 
 func (n *NamespacedSignaller) Signal(signal os.Signal) error {
-	pidfile, err := os.Open(n.PidFilePath)
+	pidFile, err := openPIDFile(n.PidFilePath)
 	if err != nil {
-		return fmt.Errorf("namespaced-signaller: can't read pidfile: %v", err)
+		return err
 	}
-
-	defer pidfile.Close()
+	defer pidFile.Close()
 
 	var pid int
-	_, err = fmt.Fscanf(pidfile, "%d", &pid)
+	_, err = fmt.Fscanf(pidFile, "%d", &pid)
 	if err != nil {
 		return fmt.Errorf("namespaced-signaller: can't read pidfile: %v", err)
 	}
@@ -34,4 +34,19 @@ func (n *NamespacedSignaller) Signal(signal os.Signal) error {
 	return n.Runner.Run(exec.Command(filepath.Join(n.ContainerPath, "bin/wsh"),
 		"--socket", filepath.Join(n.ContainerPath, "run/wshd.sock"),
 		"kill", fmt.Sprintf("-%d", signal), fmt.Sprintf("%d", pid)))
+}
+
+func openPIDFile(pidFileName string) (*os.File, error) {
+	var err error
+
+	for i := 0; i < 100; i++ { // 10 seconds
+		var pidFile *os.File
+		pidFile, err = os.Open(pidFileName)
+		if err == nil {
+			return pidFile, nil
+		}
+		time.Sleep(time.Millisecond * 100)
+	}
+
+	return nil, fmt.Errorf("linux_backend: namespaced-signaller can't open PID file: %s", err)
 }

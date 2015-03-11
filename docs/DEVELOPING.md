@@ -83,7 +83,7 @@ cannot be opened list the filename in question.
 In general, we prefer the following format for error messages:
 
 ```
-{package where occur occured}: {attempted behaviour and any additional helpful information}: {underlying error if applicable helpful}
+{package where error occured}: {attempted behaviour and any additional helpful information}: {underlying error if applicable helpful}
 ```
 
 For example, the following error from the `link` package follows these

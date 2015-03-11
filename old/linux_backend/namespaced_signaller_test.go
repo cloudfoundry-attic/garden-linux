@@ -49,7 +49,7 @@ var _ = Describe("Namespaced Signaller", func() {
 			PidFilePath:   "/does/not/exist",
 		}
 
-		Ω(signaller.Signal(os.Kill)).Should(MatchError("namespaced-signaller: can't read pidfile: open /does/not/exist: no such file or directory"))
+		Ω(signaller.Signal(os.Kill)).Should(MatchError("linux_backend: namespaced-signaller can't open PID file: open /does/not/exist: no such file or directory"))
 	})
 
 	It("returns an appropriate error when the pidfile does not contain a number", func() {
