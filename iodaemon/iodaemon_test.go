@@ -45,6 +45,7 @@ var _ = Describe("Iodaemon", func() {
 		terminate = func(exitStatus int) {
 			close(done)
 		}
+
 		fakeOut = wc{
 			bytes.NewBuffer([]byte{}),
 		}
@@ -54,7 +55,14 @@ var _ = Describe("Iodaemon", func() {
 	})
 
 	AfterEach(func() {
+		By("terminating iodeamon")
 		Eventually(done).Should(BeClosed())
+
+		By("tidying up the socket file")
+		if _, err := os.Stat(socketPath); !os.IsNotExist(err) {
+			Fail("socket file not cleaned up")
+		}
+
 		os.RemoveAll(tmpdir)
 	})
 
@@ -63,7 +71,7 @@ var _ = Describe("Iodaemon", func() {
 			go spawn(socketPath, args, time.Second, false, 0, 0, false, terminate, fakeOut, fakeErr)
 		}
 
-		It("reports back stdout", func() {
+		FIt("reports back stdout", func() {
 			spawnProcess("echo", "hello")
 
 			_, linkStdout, _, err := createLink(socketPath)
