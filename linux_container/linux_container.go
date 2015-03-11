@@ -457,10 +457,7 @@ func (c *LinuxContainer) Properties() garden.Properties {
 
 func (c *LinuxContainer) Metrics() (garden.Metrics, error) {
 	cLog := c.logger.Session("metrics")
-	return c.getMetrics(cLog)
-}
 
-func (c *LinuxContainer) getMetrics(cLog lager.Logger) (garden.Metrics, error) {
 	diskStat, err := c.quotaManager.GetUsage(cLog, c.resources.UserUID)
 	if err != nil {
 		return garden.Metrics{}, err
@@ -534,13 +531,6 @@ func (c *LinuxContainer) RemoveProperty(key string) error {
 }
 
 func (c *LinuxContainer) Info() (garden.ContainerInfo, error) {
-	cLog := c.logger.Session("info")
-
-	metrics, err := c.getMetrics(cLog)
-	if err != nil {
-		return garden.ContainerInfo{}, err
-	}
-
 	mappedPorts := []garden.PortMapping{}
 
 	c.netInsMutex.RLock()
@@ -565,9 +555,6 @@ func (c *LinuxContainer) Info() (garden.ContainerInfo, error) {
 		Properties:    c.Properties(),
 		ContainerPath: c.path,
 		ProcessIDs:    processIDs,
-		MemoryStat:    metrics.MemoryStat,
-		CPUStat:       metrics.CPUStat,
-		DiskStat:      metrics.DiskStat,
 		MappedPorts:   mappedPorts,
 	}
 
