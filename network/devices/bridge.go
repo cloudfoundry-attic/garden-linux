@@ -3,9 +3,13 @@ package devices
 import (
 	"fmt"
 	"net"
+	"sync"
 
 	"github.com/docker/libcontainer/netlink"
 )
+
+// netlink is not thread-safe, all calls to netlink should be guarded by this mutex
+var netlinkMu *sync.Mutex = new(sync.Mutex)
 
 type Bridge struct{}
 
@@ -31,5 +35,8 @@ func (Bridge) Add(bridge, slave *net.Interface) error {
 }
 
 func (Bridge) Delete(bridge *net.Interface) error {
+	netlinkMu.Lock()
+	defer netlinkMu.Unlock()
+
 	return netlink.DeleteBridge(bridge.Name)
 }

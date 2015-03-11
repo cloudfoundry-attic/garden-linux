@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
@@ -40,6 +41,51 @@ var _ = Describe("Creating a container", func() {
 				_, err = client.Create(garden.ContainerSpec{Privileged: false, Network: "10.2.0.0/30"})
 				Ω(err).Should(MatchError("the requested subnet (10.2.0.0/30) overlaps an existing subnet (10.2.0.0/29)"))
 			})
+		})
+	})
+
+	Describe("concurrently destroying", func() {
+		allBridges := func() []byte {
+			stdout := gbytes.NewBuffer()
+			cmd, err := gexec.Start(exec.Command("ip", "a"), stdout, GinkgoWriter)
+			Ω(err).ShouldNot(HaveOccurred())
+			cmd.Wait()
+
+			return stdout.Contents()
+		}
+
+		It("does not leave residual bridges", func() {
+			client = startGarden()
+
+			handles := make([]string, 0)
+			for i := 0; i < 30; i++ {
+				c, err := client.Create(garden.ContainerSpec{})
+				Ω(err).ShouldNot(HaveOccurred())
+
+				handles = append(handles, c.Handle())
+			}
+
+			bridgePrefix := fmt.Sprintf("w%db-", GinkgoParallelNode())
+			Ω(allBridges()).Should(ContainSubstring(bridgePrefix))
+
+			wg := new(sync.WaitGroup)
+			errors := make(chan error, 50)
+			for _, h := range handles {
+				wg.Add(1)
+				go func(h string) {
+					if err := client.Destroy(h); err != nil {
+						errors <- err
+					}
+					wg.Done()
+				}(h)
+			}
+
+			wg.Wait()
+
+			Ω(errors).ShouldNot(Receive())
+			Ω(client.Containers(garden.Properties{})).Should(HaveLen(0)) // sanity check
+
+			Ω(allBridges()).ShouldNot(ContainSubstring(bridgePrefix))
 		})
 	})
 
