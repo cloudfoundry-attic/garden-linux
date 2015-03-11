@@ -39,6 +39,7 @@ var _ = Describe("A container", func() {
 	})
 
 	JustBeforeEach(func() {
+		gardenClient = startGarden()
 		container, containerCreateErr = gardenClient.Create(
 			garden.ContainerSpec{
 				Privileged: privilegedContainer,

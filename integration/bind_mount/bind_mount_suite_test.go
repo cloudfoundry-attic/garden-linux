@@ -56,18 +56,28 @@ func TestBindMount(t *testing.T) {
 		return []byte(gardenPath)
 	}, func(gardenPath []byte) {
 		gardenBin = string(gardenPath)
-		gardenClient = startGarden()
+	})
+
+	AfterEach(func() {
+		ensureGardenRunning()
+		gardenProcess.Signal(syscall.SIGTERM)
+		Eventually(gardenProcess.Wait(), 10).Should(Receive())
 	})
 
 	SynchronizedAfterSuite(func() {
-		gardenProcess.Signal(syscall.SIGQUIT)
-		Eventually(gardenProcess.Wait(), 10).Should(Receive())
 	}, func() {
 		gexec.CleanupBuildArtifacts()
 	})
 
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "BindMount Suite")
+}
+
+func ensureGardenRunning() {
+	if err := gardenClient.Ping(); err != nil {
+		gardenClient = startGarden()
+	}
+	Ω(gardenClient.Ping()).ShouldNot(HaveOccurred())
 }
 
 func containerIP(ctr garden.Container) string {

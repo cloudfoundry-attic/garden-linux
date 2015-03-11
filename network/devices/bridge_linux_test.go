@@ -99,7 +99,7 @@ var _ = Describe("Bridge Management", func() {
 				Ω(interfaceNames()).Should(ContainElement(name))
 
 				// delete
-				Ω(b.Delete(br)).Should(Succeed())
+				Ω(b.Delete(br.Name)).Should(Succeed())
 
 				// should be gone
 				Eventually(interfaceNames).ShouldNot(ContainElement(name))
@@ -108,7 +108,7 @@ var _ = Describe("Bridge Management", func() {
 
 		Context("when the bridge does not exists", func() {
 			It("it returns an error", func() {
-				Ω(b.Delete(&net.Interface{Name: "something"})).ShouldNot(Succeed())
+				Ω(b.Delete("something")).ShouldNot(Succeed())
 			})
 		})
 	})
