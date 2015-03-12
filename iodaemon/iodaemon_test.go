@@ -198,7 +198,7 @@ var _ = Describe("Iodaemon", func() {
 
 			Ω(done).ShouldNot(BeClosed())
 			l.Close() //bash will normally terminate when it receives EOF on stdin
-			Eventually(done).Should(BeClosed())
+			Eventually(done, "2s").Should(BeClosed())
 		})
 
 		It("sends stdin to child", func() {
