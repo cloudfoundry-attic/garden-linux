@@ -36,6 +36,39 @@ type ContainerPool interface {
 	MaxContainers() int
 }
 
+type ContainerRepository interface {
+	All() []Container
+	Add(Container)
+	FindByHandle(string) (Container, bool)
+	Delete(Container)
+}
+
+type InMemoryContainerRepository struct {
+	store map[string]Container
+}
+
+func (cr *InMemoryContainerRepository) All() []Container {
+	all := []Container{}
+	for _, container := range cr.store {
+		all = append(all, container)
+	}
+	return all
+}
+
+func (cr *InMemoryContainerRepository) Add(container Container) {
+	cr.store[container.Handle()] = container
+}
+
+func (cr *InMemoryContainerRepository) FindByHandle(handle string) (Container, bool) {
+	// Yep, you actually can't inline these...
+	container, ok := cr.store[handle]
+	return container, ok
+}
+
+func (cr *InMemoryContainerRepository) Delete(container Container) {
+	delete(cr.store, container.Handle())
+}
+
 type LinuxBackend struct {
 	logger lager.Logger
 
@@ -43,7 +76,7 @@ type LinuxBackend struct {
 	systemInfo    system_info.Provider
 	snapshotsPath string
 
-	containers      map[string]Container
+	containerRepo   ContainerRepository
 	containersMutex *sync.RWMutex
 }
 
@@ -71,7 +104,9 @@ func New(logger lager.Logger, containerPool ContainerPool, systemInfo system_inf
 		systemInfo:    systemInfo,
 		snapshotsPath: snapshotsPath,
 
-		containers:      make(map[string]Container),
+		containerRepo: &InMemoryContainerRepository{
+			store: map[string]Container{},
+		},
 		containersMutex: new(sync.RWMutex),
 	}
 }
@@ -97,7 +132,7 @@ func (b *LinuxBackend) Start() error {
 	keep := map[string]bool{}
 
 	b.containersMutex.RLock()
-	containers := b.containers
+	containers := b.containerRepo.All()
 	b.containersMutex.RUnlock()
 
 	for _, container := range containers {
@@ -132,7 +167,7 @@ func (b *LinuxBackend) Capacity() (garden.Capacity, error) {
 func (b *LinuxBackend) Create(spec garden.ContainerSpec) (garden.Container, error) {
 	if spec.Handle != "" {
 		b.containersMutex.RLock()
-		_, exists := b.containers[spec.Handle]
+		_, exists := b.containerRepo.FindByHandle(spec.Handle)
 		b.containersMutex.RUnlock()
 
 		if exists {
@@ -151,7 +186,7 @@ func (b *LinuxBackend) Create(spec garden.ContainerSpec) (garden.Container, erro
 	}
 
 	b.containersMutex.Lock()
-	b.containers[container.Handle()] = container
+	b.containerRepo.Add(container)
 	b.containersMutex.Unlock()
 
 	return container, nil
@@ -159,7 +194,7 @@ func (b *LinuxBackend) Create(spec garden.ContainerSpec) (garden.Container, erro
 
 func (b *LinuxBackend) Destroy(handle string) error {
 	b.containersMutex.RLock()
-	container, found := b.containers[handle]
+	container, found := b.containerRepo.FindByHandle(handle)
 	b.containersMutex.RUnlock()
 
 	if !found {
@@ -172,7 +207,7 @@ func (b *LinuxBackend) Destroy(handle string) error {
 	}
 
 	b.containersMutex.Lock()
-	delete(b.containers, container.Handle())
+	b.containerRepo.Delete(container)
 	b.containersMutex.Unlock()
 
 	return nil
@@ -182,7 +217,7 @@ func (b *LinuxBackend) Containers(filter garden.Properties) (containers []garden
 	b.containersMutex.RLock()
 	defer b.containersMutex.RUnlock()
 
-	for _, container := range b.containers {
+	for _, container := range b.containerRepo.All() {
 		if containerHasProperties(container, filter) {
 			containers = append(containers, container)
 		}
@@ -195,7 +230,7 @@ func (b *LinuxBackend) Lookup(handle string) (garden.Container, error) {
 	b.containersMutex.RLock()
 	defer b.containersMutex.RUnlock()
 
-	container, found := b.containers[handle]
+	container, found := b.containerRepo.FindByHandle(handle)
 	if !found {
 		return nil, garden.ContainerNotFoundError{handle}
 	}
@@ -211,7 +246,7 @@ func (b *LinuxBackend) Stop() {
 	b.containersMutex.RLock()
 	defer b.containersMutex.RUnlock()
 
-	for _, container := range b.containers {
+	for _, container := range b.containerRepo.All() {
 		container.Cleanup()
 		err := b.saveSnapshot(container)
 		if err != nil {
@@ -284,7 +319,7 @@ func (b *LinuxBackend) restore(snapshot io.Reader) (garden.Container, error) {
 	}
 
 	b.containersMutex.Lock()
-	b.containers[container.Handle()] = container
+	b.containerRepo.Add(container)
 	b.containersMutex.Unlock()
 
 	return container, nil
