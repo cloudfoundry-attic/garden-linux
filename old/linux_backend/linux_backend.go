@@ -13,6 +13,7 @@ import (
 	"github.com/pivotal-golang/lager"
 )
 
+//go:generate counterfeiter . Container
 type Container interface {
 	ID() string
 	Properties() garden.Properties
@@ -35,6 +36,7 @@ type ContainerPool interface {
 	MaxContainers() int
 }
 
+//go:generate counterfeiter . ContainerRepository
 type ContainerRepository interface {
 	All() []Container
 	Add(Container)
@@ -195,6 +197,30 @@ func (b *LinuxBackend) Lookup(handle string) (garden.Container, error) {
 	}
 
 	return container, nil
+}
+
+func (b *LinuxBackend) BulkInfo(handles []string) (map[string]garden.ContainerInfoEntry, error) {
+	containers := b.containerRepo.All()
+	infos := make(map[string]garden.ContainerInfoEntry)
+	for _, container := range containers {
+		if contains(handles, container.Handle()) {
+			info, err := container.Info()
+			infos[container.Handle()] = garden.ContainerInfoEntry{
+				Info: info,
+				Err:  err,
+			}
+		}
+	}
+	return infos, nil
+}
+
+func contains(handles []string, handle string) bool {
+	for _, e := range handles {
+		if e == handle {
+			return true
+		}
+	}
+	return false
 }
 
 func (b *LinuxBackend) GraceTime(container garden.Container) time.Duration {

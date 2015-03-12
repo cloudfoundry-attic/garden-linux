@@ -15,6 +15,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/container_pool/fake_container_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_repository"
+	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/fakes"
 	"github.com/cloudfoundry-incubator/garden-linux/old/system_info/fake_system_info"
 )
 
@@ -473,6 +474,106 @@ var _ = Describe("Destroy", func() {
 			foundContainer, err := linuxBackend.Lookup(container.Handle())
 			Ω(err).ShouldNot(HaveOccurred())
 			Ω(foundContainer).Should(Equal(container))
+		})
+	})
+})
+
+var _ = Describe("BulkInfo", func() {
+	var fakeContainerPool *fake_container_pool.FakeContainerPool
+	var linuxBackend *linux_backend.LinuxBackend
+	var fakeContainerRepository *fakes.FakeContainerRepository
+
+	newContainer := func(handle string) *fakes.FakeContainer {
+		fakeContainer := &fakes.FakeContainer{}
+		fakeContainer.HandleReturns(handle)
+		fakeContainer.InfoReturns(
+			garden.ContainerInfo{
+				HostIP: "hostip for " + handle,
+			},
+			nil,
+		)
+		return fakeContainer
+	}
+
+	container1 := newContainer("handle1")
+	container2 := newContainer("handle2")
+	handles := []string{"handle1", "handle2"}
+
+	BeforeEach(func() {
+		fakeContainerPool = fake_container_pool.New()
+		fakeSystemInfo := fake_system_info.NewFakeProvider()
+		fakeContainerRepository = &fakes.FakeContainerRepository{}
+		linuxBackend = linux_backend.New(
+			logger,
+			fakeContainerPool,
+			fakeContainerRepository,
+			fakeSystemInfo,
+			"",
+		)
+		fakeContainerRepository.AllReturns(
+			[]linux_backend.Container{
+				container1,
+				container2,
+			},
+		)
+	})
+
+	It("returns info about containers", func() {
+		bulkInfo, err := linuxBackend.BulkInfo(handles)
+		Ω(err).ShouldNot(HaveOccurred())
+
+		Ω(bulkInfo).Should(Equal(map[string]garden.ContainerInfoEntry{
+			container1.Handle(): garden.ContainerInfoEntry{
+				Info: garden.ContainerInfo{
+					HostIP: "hostip for handle1",
+				},
+			},
+			container2.Handle(): garden.ContainerInfoEntry{
+				Info: garden.ContainerInfo{
+					HostIP: "hostip for handle2",
+				},
+			},
+		}))
+	})
+
+	Context("when not all of the handles in the system are requested", func() {
+		handles := []string{"handle2"}
+
+		It("returns info about the specified containers", func() {
+			bulkInfo, err := linuxBackend.BulkInfo(handles)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(bulkInfo).Should(Equal(map[string]garden.ContainerInfoEntry{
+				container2.Handle(): garden.ContainerInfoEntry{
+					Info: garden.ContainerInfo{
+						HostIP: "hostip for handle2",
+					},
+				},
+			}))
+		})
+	})
+
+	Context("when getting one of the infos for a container fails", func() {
+		handles := []string{"handle1", "handle2"}
+
+		BeforeEach(func() {
+			container2.InfoReturns(garden.ContainerInfo{}, errors.New("Oh no!"))
+		})
+
+		It("returns the err for the failed container", func() {
+			bulkInfo, err := linuxBackend.BulkInfo(handles)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(bulkInfo).Should(Equal(map[string]garden.ContainerInfoEntry{
+				container1.Handle(): garden.ContainerInfoEntry{
+					Info: garden.ContainerInfo{
+						HostIP: "hostip for handle1",
+					},
+				},
+				container2.Handle(): garden.ContainerInfoEntry{
+					Err: errors.New("Oh no!"),
+				},
+			}))
 		})
 	})
 })
