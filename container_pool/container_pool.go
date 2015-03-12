@@ -53,7 +53,6 @@ type SubnetPool interface {
 
 //go:generate counterfeiter -o fake_bridge_builder/FakeBridgeBuilder.go . BridgeBuilder
 type BridgeBuilder interface {
-	Create(name string) error
 	Destroy(name string) error
 }
 

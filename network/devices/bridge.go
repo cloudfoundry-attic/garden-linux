@@ -34,7 +34,7 @@ func (Bridge) Add(bridge, slave *net.Interface) error {
 	return netlink.AddToBridge(slave, bridge)
 }
 
-func (Bridge) Delete(bridge string) error {
+func (Bridge) Destroy(bridge string) error {
 	netlinkMu.Lock()
 	defer netlinkMu.Unlock()
 

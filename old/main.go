@@ -10,7 +10,6 @@ import (
 	"os/signal"
 	"runtime"
 	"strings"
-	"sync"
 	"syscall"
 
 	"github.com/cloudfoundry/gunk/command_runner"
@@ -20,7 +19,6 @@ import (
 	_ "github.com/docker/docker/daemon/graphdriver/vfs"
 	"github.com/docker/docker/graph"
 	"github.com/docker/docker/registry"
-	"github.com/docker/libcontainer/netlink"
 	"github.com/pivotal-golang/clock"
 	"github.com/pivotal-golang/lager"
 
@@ -29,6 +27,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/bridgemgr"
 	"github.com/cloudfoundry-incubator/garden-linux/container_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/network"
+	"github.com/cloudfoundry-incubator/garden-linux/network/devices"
 	"github.com/cloudfoundry-incubator/garden-linux/network/iptables"
 	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
@@ -289,8 +288,6 @@ func Main() {
 		"docker": dockerRootFSProvider,
 	}
 
-	bridgeBuilder := &MyBridgeBuilder{}
-
 	filterProvider := &provider{
 		useKernelLogging: useKernelLogging,
 		chainPrefix:      config.IPTables.Filter.InstancePrefix,
@@ -323,7 +320,7 @@ func Main() {
 		*mtu,
 		subnetPool,
 		bridgemgr.New("w"+config.Tag),
-		bridgeBuilder,
+		&devices.Bridge{},
 		filterProvider,
 		iptables.NewGlobalChain(config.IPTables.Filter.DefaultChain, runner, logger.Session("global-chain")),
 		portPool,
@@ -458,20 +455,4 @@ func suffixIfNeeded(spec string) string {
 	}
 
 	return spec
-}
-
-type MyBridgeBuilder struct {
-}
-
-func (m MyBridgeBuilder) Create(name string) error {
-	return nil
-}
-
-var mu *sync.Mutex = new(sync.Mutex)
-
-func (m MyBridgeBuilder) Destroy(name string) error {
-	mu.Lock()
-	defer mu.Unlock()
-
-	return netlink.DeleteBridge(name)
 }

@@ -89,7 +89,7 @@ var _ = Describe("Bridge Management", func() {
 		})
 	})
 
-	Describe("Delete", func() {
+	Describe("Destroy", func() {
 		Context("when the bridge exists", func() {
 			It("deletes it", func() {
 				br, err := b.Create(name, ip, subnet)
@@ -99,7 +99,7 @@ var _ = Describe("Bridge Management", func() {
 				Ω(interfaceNames()).Should(ContainElement(name))
 
 				// delete
-				Ω(b.Delete(br.Name)).Should(Succeed())
+				Ω(b.Destroy(br.Name)).Should(Succeed())
 
 				// should be gone
 				Eventually(interfaceNames).ShouldNot(ContainElement(name))
@@ -108,7 +108,7 @@ var _ = Describe("Bridge Management", func() {
 
 		Context("when the bridge does not exists", func() {
 			It("it returns an error", func() {
-				Ω(b.Delete("something")).ShouldNot(Succeed())
+				Ω(b.Destroy("something")).ShouldNot(Succeed())
 			})
 		})
 	})

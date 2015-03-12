@@ -8,14 +8,6 @@ import (
 )
 
 type FakeBridgeBuilder struct {
-	CreateStub        func(name string) error
-	createMutex       sync.RWMutex
-	createArgsForCall []struct {
-		name string
-	}
-	createReturns struct {
-		result1 error
-	}
 	DestroyStub        func(name string) error
 	destroyMutex       sync.RWMutex
 	destroyArgsForCall []struct {
@@ -24,38 +16,6 @@ type FakeBridgeBuilder struct {
 	destroyReturns struct {
 		result1 error
 	}
-}
-
-func (fake *FakeBridgeBuilder) Create(name string) error {
-	fake.createMutex.Lock()
-	fake.createArgsForCall = append(fake.createArgsForCall, struct {
-		name string
-	}{name})
-	fake.createMutex.Unlock()
-	if fake.CreateStub != nil {
-		return fake.CreateStub(name)
-	} else {
-		return fake.createReturns.result1
-	}
-}
-
-func (fake *FakeBridgeBuilder) CreateCallCount() int {
-	fake.createMutex.RLock()
-	defer fake.createMutex.RUnlock()
-	return len(fake.createArgsForCall)
-}
-
-func (fake *FakeBridgeBuilder) CreateArgsForCall(i int) string {
-	fake.createMutex.RLock()
-	defer fake.createMutex.RUnlock()
-	return fake.createArgsForCall[i].name
-}
-
-func (fake *FakeBridgeBuilder) CreateReturns(result1 error) {
-	fake.CreateStub = nil
-	fake.createReturns = struct {
-		result1 error
-	}{result1}
 }
 
 func (fake *FakeBridgeBuilder) Destroy(name string) error {

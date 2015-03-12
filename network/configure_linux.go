@@ -12,10 +12,3 @@ func NewConfigurer(log lager.Logger) *Configurer {
 		Logger: log,
 	}
 }
-
-func NewDeconfigurer() *Deconfigurer {
-	return &Deconfigurer{
-		Finder:        devices.Link{},
-		BridgeDeleter: devices.Bridge{},
-	}
-}
