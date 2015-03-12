@@ -11,8 +11,6 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
 )
 
-//go:generate counterfeiter . Subnets
-
 // Subnets provides a means of allocating subnets and associated IP addresses.
 type Subnets interface {
 	// Allocates an IP address and associates it with a subnet. The subnet is selected by the given SubnetSelector.

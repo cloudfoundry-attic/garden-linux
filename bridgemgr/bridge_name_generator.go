@@ -5,7 +5,6 @@ import (
 	"time"
 )
 
-//go:generate counterfeiter . BridgeNameGenerator
 type BridgeNameGenerator interface {
 	Generate() string
 }
