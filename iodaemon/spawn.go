@@ -84,7 +84,8 @@ func spawn(
 		return
 	}
 
-	acceptor := func() (net.Conn, error) {
+	acceptConn := func() (net.Conn, error) {
+		notify(notifyStream, "ready")
 		conn, err := acceptConnection(listener, stdoutR, stderrR, statusR)
 		if err != nil {
 			fatal(err)
@@ -93,17 +94,9 @@ func spawn(
 		return conn, nil
 	}
 
-	processConnection := func(conn net.Conn) {
+	processConn := func(conn net.Conn) {
 		processLinkRequests(conn, stdinW, cmd, withTty)
 	}
-
-	notify(notifyStream, "ready")
-
-	childStarted := make(chan bool)
-	childTerminated := make(chan bool)
-	connectionAccepted := make(chan bool)
-
-	go acceptConnections(acceptor, connectionAccepted, childStarted, processConnection)
 
 	startChild := func() error {
 		err := cmd.Start()
@@ -124,34 +117,38 @@ func spawn(
 		}
 	}
 
-	<-connectionAccepted
-	go runChildProcess(startChild, waitForChild, childStarted, childTerminated)
+	initChild, childStarted, childEnded := make(chan bool), make(chan bool), make(chan bool)
 
-	<-childTerminated
+	go acceptConnections(acceptConn, initChild, childStarted, processConn)
+
+	<-initChild
+	go runChildProcess(startChild, waitForChild, childStarted, childEnded)
+
+	<-childEnded
 	errStream.Close()
 	listener.Close()
 	terminate(0)
 }
 
-func acceptConnections(acceptor func() (net.Conn, error), connectionAccepted, childStarted chan bool,
-	processConnection func(net.Conn)) {
+func acceptConnections(acceptConn func() (net.Conn, error), initChild, childStarted chan bool,
+	processConn func(net.Conn)) {
 	var once sync.Once
 	for {
-		conn, err := acceptor()
+		conn, err := acceptConn()
 		if err != nil {
 			return
 		}
 
 		once.Do(func() {
-			connectionAccepted <- true
+			initChild <- true
 			<-childStarted
 		})
 
-		processConnection(conn)
+		processConn(conn)
 	}
 }
 
-func runChildProcess(startChild func() error, waitForChild func(), childStarted, childTerminated chan bool) {
+func runChildProcess(startChild func() error, waitForChild func(), childStarted, childEnded chan bool) {
 	err := startChild()
 	if err != nil {
 		return
@@ -159,7 +156,7 @@ func runChildProcess(startChild func() error, waitForChild func(), childStarted,
 	childStarted <- true
 
 	waitForChild()
-	childTerminated <- true
+	childEnded <- true
 }
 
 func notify(notifyStream io.Writer, message string) {
