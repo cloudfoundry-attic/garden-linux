@@ -437,7 +437,27 @@ var _ = Describe("Container pool", func() {
 						},
 					},
 				))
+			})
 
+			It("creates the container directory", func() {
+				container, err := pool.Create(garden.ContainerSpec{})
+				Ω(err).Should(Succeed())
+
+				containerDir := path.Join(depotPath, container.ID())
+				_, err = os.Stat(containerDir)
+				Ω(err).ShouldNot(HaveOccurred())
+			})
+
+			Context("when creating the container directory fails", func() {
+				JustBeforeEach(func() {
+					Ω(os.Remove(depotPath)).Should(Succeed())
+					ioutil.WriteFile(depotPath, []byte(""), 0755)
+				})
+
+				It("returns an error", func() {
+					_, err := pool.Create(garden.ContainerSpec{})
+					Ω(err).Should(MatchError(HavePrefix("containerpool: creating container directory")))
+				})
 			})
 
 			It("allocates the requested Network", func() {

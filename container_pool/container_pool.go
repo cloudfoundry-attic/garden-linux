@@ -486,23 +486,11 @@ func (p *LinuxContainerPool) writeBindMounts(containerPath string,
 
 func (p *LinuxContainerPool) saveBridgeName(id string, bridgeName string) error {
 	bridgeNameFile := path.Join(p.depotPath, id, "bridge-name")
-
-	err := os.MkdirAll(path.Dir(bridgeNameFile), 0755)
-	if err != nil {
-		return err
-	}
-
 	return ioutil.WriteFile(bridgeNameFile, []byte(bridgeName), 0644)
 }
 
 func (p *LinuxContainerPool) saveRootFSProvider(id string, provider string) error {
 	providerFile := path.Join(p.depotPath, id, "rootfs-provider")
-
-	err := os.MkdirAll(path.Dir(providerFile), 0755)
-	if err != nil {
-		return err
-	}
-
 	return ioutil.WriteFile(providerFile, []byte(provider), 0644)
 }
 
@@ -555,7 +543,9 @@ func (p *LinuxContainerPool) releasePoolResources(resources *linux_backend.Resou
 }
 
 func (p *LinuxContainerPool) acquireSystemResources(id, containerPath, rootFSPath string, resources *linux_backend.Resources, bindMounts []garden.BindMount, pLog lager.Logger) (process.Env, error) {
-	_ = os.MkdirAll(containerPath, 0755) //TODO: Untested line
+	if err := os.MkdirAll(containerPath, 0755); err != nil {
+		return nil, fmt.Errorf("containerpool: creating container directory: %v", err)
+	}
 
 	rootfsURL, err := url.Parse(rootFSPath)
 	if err != nil {
