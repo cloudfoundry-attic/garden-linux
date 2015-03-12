@@ -4,8 +4,7 @@ import (
 	"errors"
 	"net"
 
-	"github.com/cloudfoundry-incubator/garden-linux/bridgemgr"
-
+	"github.com/cloudfoundry-incubator/garden-linux/network/bridgemgr"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
