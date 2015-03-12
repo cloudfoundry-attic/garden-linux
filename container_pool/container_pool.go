@@ -664,14 +664,19 @@ func (p *LinuxContainerPool) tryReleaseSystemResources(logger lager.Logger, id s
 }
 
 func (p *LinuxContainerPool) releaseSystemResources(logger lager.Logger, id string) error {
+	pRunner := logging.Runner{
+		CommandRunner: p.runner,
+		Logger:        logger,
+	}
+
 	rootfsProvider, err := ioutil.ReadFile(path.Join(p.depotPath, id, "rootfs-provider"))
 	if err != nil {
 		rootfsProvider = []byte("")
 	}
 
-	pRunner := logging.Runner{
-		CommandRunner: p.runner,
-		Logger:        logger,
+	provider, found := p.rootfsProviders[string(rootfsProvider)]
+	if !found {
+		return ErrUnknownRootFSProvider
 	}
 
 	bridgeName, err := ioutil.ReadFile(path.Join(p.depotPath, id, "bridge-name"))
@@ -679,11 +684,6 @@ func (p *LinuxContainerPool) releaseSystemResources(logger lager.Logger, id stri
 		if err := p.bridges.Release(string(bridgeName), id, p.bridgeBuilder); err != nil {
 			return err
 		}
-	}
-
-	provider, found := p.rootfsProviders[string(rootfsProvider)]
-	if !found {
-		return ErrUnknownRootFSProvider
 	}
 
 	destroy := exec.Command(path.Join(p.binPath, "destroy.sh"), path.Join(p.depotPath, id))
