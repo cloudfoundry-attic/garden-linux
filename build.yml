@@ -1,5 +1,7 @@
 ---
 image: docker:///cloudfoundry/warden-ci
 
+platform: linux
+
 run:
   path: garden-linux/scripts/concourse-test
