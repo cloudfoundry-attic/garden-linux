@@ -108,19 +108,9 @@ func spawn(
 		}
 	}
 
-	startChildProcessOnConnection := func() {
-		<-connectionAccepted
-
-		err = startChildProcess(cmd, errStream, notifyStream, statusW, childProcessStarted, childProcessTerminated)
-		if err != nil {
-			fatal(err)
-			return
-		}
-		errStream.Close()
-	}
-
 	go acceptConnections()
-	go startChildProcessOnConnection()
+	<-connectionAccepted
+	go runChildProcess(cmd, errStream, notifyStream, statusW, childProcessStarted, childProcessTerminated, fatal)
 
 	<-childProcessTerminated
 
@@ -128,26 +118,25 @@ func spawn(
 	terminate(0)
 }
 
-func startChildProcess(cmd *exec.Cmd, errStream, notifyStream io.WriteCloser, statusW *os.File, started, done chan bool) error {
-	err := cmd.Start()
-	if err != nil {
-		return err
-	}
+func runChildProcess(cmd *exec.Cmd, errStream, notifyStream io.WriteCloser, statusW *os.File, childProcessStarted, childProcessTerminated chan bool, fatal func(error)) {
+	defer errStream.Close()
 
-	notify(notifyStream, "active")
-	notifyStream.Close()
+    err := cmd.Start()
+    if err != nil {
+		fatal(err)
+        return
+    }
 
-	started <- true
+    notify(notifyStream, "active")
+    notifyStream.Close()
 
-	cmd.Wait()
+    childProcessStarted <- true
 
-	if cmd.ProcessState != nil {
-		fmt.Fprintf(statusW, "%d\n", cmd.ProcessState.Sys().(syscall.WaitStatus).ExitStatus())
-	}
-
-	done <- true
-
-	return nil
+    cmd.Wait()
+    if cmd.ProcessState != nil {
+        fmt.Fprintf(statusW, "%d\n", cmd.ProcessState.Sys().(syscall.WaitStatus).ExitStatus())
+    }
+    childProcessTerminated <- true
 }
 
 func notify(notifyStream io.Writer, message string) {
