@@ -169,6 +169,7 @@ int msg_dir_import(msg__dir_t *d, const char *dir) {
 void msg_request_init(msg_request_t *req) {
   memset(req, 0, sizeof(*req));
   req->version = MSG_VERSION;
+  req->type = MSG_TYPE_REQ;
 }
 
 void msg_response_init(msg_response_t *res) {

@@ -12,7 +12,9 @@ typedef struct msg__array_s msg__array_t;
 typedef struct msg__rlimit_s msg__rlimit_t;
 typedef struct msg__user_s msg__user_t;
 typedef struct msg__dir_s msg__dir_t;
+typedef union msg_u msg_t;
 typedef struct msg_request_s msg_request_t;
+typedef struct msg_signal_s msg_signal_t;
 typedef struct msg_response_s msg_response_t;
 
 struct msg__array_s {

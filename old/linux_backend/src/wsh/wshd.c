@@ -535,7 +535,7 @@ err:
 
 int child_accept(wshd_t *w) {
   int rv, fd;
-  msg_request_t req;
+  msg_t msg;
 
   rv = accept(w->fd, NULL, NULL);
   if (rv == -1) {
@@ -547,7 +547,7 @@ int child_accept(wshd_t *w) {
 
   fcntl_mix_cloexec(fd);
 
-  rv = un_recv_fds(fd, (char *)&req, sizeof(req), NULL, 0);
+  rv = un_recv_fds(fd, (char *)&msg, sizeof(msg), NULL, 0);
   if (rv < 0) {
     perror("recvmsg");
     exit(255);
@@ -558,12 +558,14 @@ int child_accept(wshd_t *w) {
     return 0;
   }
 
-  assert(rv == sizeof(req));
+  assert(rv == sizeof(msg));
+  
+  assert(msg.req.type == MSG_TYPE_REQ);
 
-  if (req.tty) {
-    return child_handle_interactive(fd, w, &req);
+  if (msg.req.tty) {
+    return child_handle_interactive(fd, w, &(msg.req));
   } else {
-    return child_handle_noninteractive(fd, w, &req);
+    return child_handle_noninteractive(fd, w, &(msg.req));
   }
 }
 
