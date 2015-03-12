@@ -28,6 +28,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/network"
 	"github.com/cloudfoundry-incubator/garden-linux/network/fakes"
 	"github.com/cloudfoundry-incubator/garden-linux/network/iptables"
+	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/port_pool/fake_port_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/quota_manager/fake_quota_manager"
@@ -460,14 +461,78 @@ var _ = Describe("Container pool", func() {
 				})
 			})
 
-			It("allocates the requested Network", func() {
-				_, err := pool.Create(garden.ContainerSpec{
-					Network: "1.3.0.0/30",
+			Describe("allocating the requested network", func() {
+				itShouldAcquire := func(subnet subnets.SubnetSelector, ip subnets.IPSelector) {
+					Ω(fakeSubnetPool.AcquireCallCount()).Should(Equal(1))
+					s, i := fakeSubnetPool.AcquireArgsForCall(0)
+
+					Ω(s).Should(Equal(subnet))
+					Ω(i).Should(Equal(ip))
+				}
+
+				Context("when the network string is empty", func() {
+					It("allocates a dynamic subnet and ip", func() {
+						_, err := pool.Create(garden.ContainerSpec{Network: ""})
+						Ω(err).ShouldNot(HaveOccurred())
+
+						itShouldAcquire(subnets.DynamicSubnetSelector, subnets.DynamicIPSelector)
+					})
 				})
 
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(fakeSubnetPool.AcquireCallCount()).Should(Equal(1))
-				Ω(fakeSubnetPool.AcquireArgsForCall(0)).Should(Equal("1.3.0.0/30"))
+				Context("when the network parameter is not empty", func() {
+					Context("when it contains a prefix length", func() {
+						It("statically allocates the requested subnet ", func() {
+							_, err := pool.Create(garden.ContainerSpec{Network: "1.2.3.0/30"})
+							Ω(err).ShouldNot(HaveOccurred())
+
+							_, sn, _ := net.ParseCIDR("1.2.3.0/30")
+							itShouldAcquire(subnets.StaticSubnetSelector{sn}, subnets.DynamicIPSelector)
+						})
+					})
+
+					Context("when it does not contain a prefix length", func() {
+						It("statically allocates the requested Network from Subnets as a /30", func() {
+							_, err := pool.Create(garden.ContainerSpec{Network: "1.2.3.0"})
+							Ω(err).ShouldNot(HaveOccurred())
+
+							_, sn, _ := net.ParseCIDR("1.2.3.0/30")
+							itShouldAcquire(subnets.StaticSubnetSelector{sn}, subnets.DynamicIPSelector)
+						})
+					})
+
+					Context("when the network parameter has non-zero host bits", func() {
+						It("statically allocates an IP address based on the network parameter", func() {
+							_, err := pool.Create(garden.ContainerSpec{Network: "1.2.3.1/20"})
+							Ω(err).ShouldNot(HaveOccurred())
+
+							_, sn, _ := net.ParseCIDR("1.2.3.0/20")
+							itShouldAcquire(subnets.StaticSubnetSelector{sn}, subnets.StaticIPSelector{net.ParseIP("1.2.3.1")})
+						})
+					})
+
+					Context("when the network parameter has zero host bits", func() {
+						It("dynamically allocates an IP address", func() {
+							_, err := pool.Create(garden.ContainerSpec{Network: "1.2.3.0/24"})
+							Ω(err).ShouldNot(HaveOccurred())
+
+							_, sn, _ := net.ParseCIDR("1.2.3.0/24")
+							itShouldAcquire(subnets.StaticSubnetSelector{sn}, subnets.DynamicIPSelector)
+						})
+					})
+
+					Context("when an invalid network string is passed", func() {
+						It("returns an error", func() {
+							_, err := pool.Create(garden.ContainerSpec{Network: "not a network"})
+							Ω(err).Should(MatchError("create container: invalid network spec: invalid CIDR address: not a network/30"))
+						})
+
+						It("does not acquire any resources", func() {
+							Ω(fakeUIDPool.Acquired).Should(HaveLen(0))
+							Ω(fakePortPool.Acquired).Should(HaveLen(0))
+							Ω(fakeSubnetPool.AcquireCallCount()).Should(Equal(0))
+						})
+					})
+				})
 			})
 
 			Context("when allocation of the specified Network fails", func() {

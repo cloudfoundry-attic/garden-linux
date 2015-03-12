@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
@@ -45,7 +46,7 @@ type FilterProvider interface {
 
 //go:generate counterfeiter -o fake_subnet_pool/FakeSubnetPool.go . SubnetPool
 type SubnetPool interface {
-	Acquire(networkRequest string) (*linux_backend.Network, error)
+	Acquire(subnet subnets.SubnetSelector, ip subnets.IPSelector) (*linux_backend.Network, error)
 	Release(*linux_backend.Network) error
 	Remove(*linux_backend.Network) error
 	Capacity() int
@@ -496,12 +497,16 @@ func (p *LinuxContainerPool) saveRootFSProvider(id string, provider string) erro
 func (p *LinuxContainerPool) acquirePoolResources(spec garden.ContainerSpec, id string) (*linux_backend.Resources, error) {
 	resources := linux_backend.NewResources(0, 1, nil, "", nil, p.externalIP)
 
+	subnet, ip, err := parseNetworkSpec(spec.Network)
+	if err != nil {
+		return nil, fmt.Errorf("create container: invalid network spec: %v", err)
+	}
+
 	if err := p.acquireUID(resources, spec.Privileged); err != nil {
 		return nil, err
 	}
 
-	var err error
-	if resources.Network, err = p.subnetPool.Acquire(spec.Network); err != nil {
+	if resources.Network, err = p.subnetPool.Acquire(subnet, ip); err != nil {
 		p.releasePoolResources(resources)
 		return nil, err
 	}
@@ -704,4 +709,52 @@ func cleanup(err *error, undo func()) {
 	if *err != nil {
 		undo()
 	}
+}
+
+func parseNetworkSpec(spec string) (subnets.SubnetSelector, subnets.IPSelector, error) {
+	var ipSelector subnets.IPSelector = subnets.DynamicIPSelector
+	var subnetSelector subnets.SubnetSelector = subnets.DynamicSubnetSelector
+
+	if spec != "" {
+		specifiedIP, ipn, err := net.ParseCIDR(suffixIfNeeded(spec))
+		if err != nil {
+			return nil, nil, err
+		}
+
+		subnetSelector = subnets.StaticSubnetSelector{ipn}
+
+		if !specifiedIP.Equal(subnets.NetworkIP(ipn)) {
+			ipSelector = subnets.StaticIPSelector{specifiedIP}
+		}
+	}
+
+	return subnetSelector, ipSelector, nil
+}
+
+func oldParseNetwork(spec string) (subnets.IPSelector, subnets.SubnetSelector, error) {
+	var ipSelector subnets.IPSelector = subnets.DynamicIPSelector
+	var subnetSelector subnets.SubnetSelector = subnets.DynamicSubnetSelector
+
+	if spec != "" {
+		specifiedIP, ipn, err := net.ParseCIDR(suffixIfNeeded(spec))
+		if err != nil {
+			return nil, nil, err
+		}
+
+		subnetSelector = subnets.StaticSubnetSelector{ipn}
+
+		if !specifiedIP.Equal(subnets.NetworkIP(ipn)) {
+			ipSelector = subnets.StaticIPSelector{specifiedIP}
+		}
+	}
+
+	return ipSelector, subnetSelector, nil
+}
+
+func suffixIfNeeded(spec string) string {
+	if !strings.Contains(spec, "/") {
+		spec = spec + "/30"
+	}
+
+	return spec
 }

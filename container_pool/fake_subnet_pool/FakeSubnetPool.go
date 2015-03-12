@@ -5,14 +5,16 @@ import (
 	"sync"
 
 	"github.com/cloudfoundry-incubator/garden-linux/container_pool"
+	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
 )
 
 type FakeSubnetPool struct {
-	AcquireStub        func(networkRequest string) (*linux_backend.Network, error)
+	AcquireStub        func(subnet subnets.SubnetSelector, ip subnets.IPSelector) (*linux_backend.Network, error)
 	acquireMutex       sync.RWMutex
 	acquireArgsForCall []struct {
-		networkRequest string
+		subnet subnets.SubnetSelector
+		ip     subnets.IPSelector
 	}
 	acquireReturns struct {
 		result1 *linux_backend.Network
@@ -42,14 +44,15 @@ type FakeSubnetPool struct {
 	}
 }
 
-func (fake *FakeSubnetPool) Acquire(networkRequest string) (*linux_backend.Network, error) {
+func (fake *FakeSubnetPool) Acquire(subnet subnets.SubnetSelector, ip subnets.IPSelector) (*linux_backend.Network, error) {
 	fake.acquireMutex.Lock()
 	fake.acquireArgsForCall = append(fake.acquireArgsForCall, struct {
-		networkRequest string
-	}{networkRequest})
+		subnet subnets.SubnetSelector
+		ip     subnets.IPSelector
+	}{subnet, ip})
 	fake.acquireMutex.Unlock()
 	if fake.AcquireStub != nil {
-		return fake.AcquireStub(networkRequest)
+		return fake.AcquireStub(subnet, ip)
 	} else {
 		return fake.acquireReturns.result1, fake.acquireReturns.result2
 	}
@@ -61,10 +64,10 @@ func (fake *FakeSubnetPool) AcquireCallCount() int {
 	return len(fake.acquireArgsForCall)
 }
 
-func (fake *FakeSubnetPool) AcquireArgsForCall(i int) string {
+func (fake *FakeSubnetPool) AcquireArgsForCall(i int) (subnets.SubnetSelector, subnets.IPSelector) {
 	fake.acquireMutex.RLock()
 	defer fake.acquireMutex.RUnlock()
-	return fake.acquireArgsForCall[i].networkRequest
+	return fake.acquireArgsForCall[i].subnet, fake.acquireArgsForCall[i].ip
 }
 
 func (fake *FakeSubnetPool) AcquireReturns(result1 *linux_backend.Network, result2 error) {
