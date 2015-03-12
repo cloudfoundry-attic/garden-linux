@@ -52,6 +52,8 @@ struct msg_s {
 
 struct msg_signal_s {
     MSG_S_HEAD
+    int signal;
+    int pid;
 };
 
 struct msg_request_s {

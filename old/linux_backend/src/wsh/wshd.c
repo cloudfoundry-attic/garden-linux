@@ -533,6 +533,10 @@ err:
   return 0;
 }
 
+int child_handle_signal(int fd, wshd_t *w, msg_signal_t *sig) {
+    return kill(sig->pid, sig->signal);
+}
+
 int child_accept(wshd_t *w) {
   int rv, fd;
   msg_t msg;
@@ -559,13 +563,21 @@ int child_accept(wshd_t *w) {
   }
 
   assert(rv == sizeof(msg));
-  
-  assert(msg.req.type == MSG_TYPE_REQ);
+  switch (msg.req.type) {
+    case MSG_TYPE_REQ:
+        if (msg.req.tty) {
+            return child_handle_interactive(fd, w, &(msg.req));
+        } else {
+            return child_handle_noninteractive(fd, w, &(msg.req));
+        }
 
-  if (msg.req.tty) {
-    return child_handle_interactive(fd, w, &(msg.req));
-  } else {
-    return child_handle_noninteractive(fd, w, &(msg.req));
+    case MSG_TYPE_SIG:
+        assert(msg.req.type != MSG_TYPE_REQ);
+        return child_handle_signal(fd, w, &(msg.sig));
+
+    default:
+        assert(0);
+        break;
   }
 }
 
