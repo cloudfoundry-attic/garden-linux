@@ -83,6 +83,22 @@ var _ = Describe("Iodaemon", func() {
 			Eventually(linkStdout).Should(gbytes.Say("hello\n"))
 		})
 
+		It("supports re-linking to an iodaemon instance", func() {
+			spawnProcess("bash")
+
+			l, _, _, err := createLink(socketPath)
+			Ω(err).ShouldNot(HaveOccurred())
+			err = l.Writer.TerminateConnection()
+			Ω(err).ShouldNot(HaveOccurred())
+
+			m, _, _, err := createLink(socketPath)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(done).ShouldNot(BeClosed())
+			m.Write([]byte("exit\n"))
+			Eventually(done).Should(BeClosed())
+		})
+
 		It("reports back stderr", func() {
 			spawnProcess("bash", "-c", "echo error 1>&2")
 
