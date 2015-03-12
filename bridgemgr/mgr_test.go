@@ -125,6 +125,10 @@ var _ = Describe("BridgeNamePool", func() {
 	})
 
 	Describe("rereserving", func() {
+		It("returns an error if the bridge name is empty", func() {
+			Ω(mgr.Rereserve("", subnet1, "some-id")).Should(MatchError("bridgemgr: re-reserving bridge: bridge name must not be empty"))
+		})
+
 		Context("when a bridge name is rereserved", func() {
 			It("returns an error if the reacquired subnet is already assigned to another bridge name", func() {
 				name, err := mgr.Reserve(subnet1, "")

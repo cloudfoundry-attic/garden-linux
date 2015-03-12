@@ -1,6 +1,7 @@
 package bridgemgr
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"sync"
@@ -83,6 +84,10 @@ func (m *mgr) Release(bridgeName string, containerId string, destroyer Destroyer
 func (m *mgr) Rereserve(bridgeName string, subnet *net.IPNet, containerId string) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	if bridgeName == "" {
+		return errors.New("bridgemgr: re-reserving bridge: bridge name must not be empty")
+	}
 
 	if sn, present := m.bridgeSubnet[bridgeName]; present && sn != subnet.String() {
 		return fmt.Errorf("bridgepool: reacquired bridge name '%s' has already been acquired for subnet %s", bridgeName, sn)
