@@ -84,12 +84,6 @@ func spawn(
 		return
 	}
 
-	notify(notifyStream, "ready")
-
-	childStarted := make(chan bool)
-	childTerminated := make(chan bool)
-	connectionAccepted := make(chan bool)
-
 	acceptor := func() (net.Conn, error) {
 		conn, err := acceptConnection(listener, stdoutR, stderrR, statusR)
 		if err != nil {
@@ -103,18 +97,44 @@ func spawn(
 		processLinkRequests(conn, stdinW, cmd, withTty)
 	}
 
+	notify(notifyStream, "ready")
+
+	childStarted := make(chan bool)
+	childTerminated := make(chan bool)
+	connectionAccepted := make(chan bool)
+
 	go acceptConnections(acceptor, connectionAccepted, childStarted, processConnection)
 
+	startChild := func() error {
+		err := cmd.Start()
+		if err != nil {
+			fatal(err)
+			return err
+		}
+
+		notify(notifyStream, "active")
+		notifyStream.Close()
+		return nil
+	}
+
+	waitForChild := func() {
+		cmd.Wait()
+		if cmd.ProcessState != nil {
+			fmt.Fprintf(statusW, "%d\n", cmd.ProcessState.Sys().(syscall.WaitStatus).ExitStatus())
+		}
+	}
+
 	<-connectionAccepted
-	go runChildProcess(cmd, notifyStream, statusW, childStarted, childTerminated, fatal)
+	go runChildProcess(startChild, waitForChild, childStarted, childTerminated)
+
 	<-childTerminated
 	errStream.Close()
-
 	listener.Close()
 	terminate(0)
 }
 
-func acceptConnections(acceptor func() (net.Conn, error), connectionAccepted, childStarted chan bool, processConnection func(net.Conn)) {
+func acceptConnections(acceptor func() (net.Conn, error), connectionAccepted, childStarted chan bool,
+	processConnection func(net.Conn)) {
 	var once sync.Once
 	for {
 		conn, err := acceptor()
@@ -131,24 +151,14 @@ func acceptConnections(acceptor func() (net.Conn, error), connectionAccepted, ch
 	}
 }
 
-func runChildProcess(cmd *exec.Cmd, notifyStream io.WriteCloser, statusW *os.File,
-	childStarted, childTerminated chan bool, fatal func(error)) {
-
-	err := cmd.Start()
+func runChildProcess(startChild func() error, waitForChild func(), childStarted, childTerminated chan bool) {
+	err := startChild()
 	if err != nil {
-		fatal(err)
 		return
 	}
-
-	notify(notifyStream, "active")
-	notifyStream.Close()
-
 	childStarted <- true
 
-	cmd.Wait()
-	if cmd.ProcessState != nil {
-		fmt.Fprintf(statusW, "%d\n", cmd.ProcessState.Sys().(syscall.WaitStatus).ExitStatus())
-	}
+	waitForChild()
 	childTerminated <- true
 }
 
