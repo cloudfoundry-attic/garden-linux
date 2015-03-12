@@ -7,8 +7,8 @@ import (
 )
 
 type Network struct {
-	IP     net.IP
 	Subnet *net.IPNet
+	IP     net.IP
 }
 
 func (n *Network) MarshalJSON() ([]byte, error) {

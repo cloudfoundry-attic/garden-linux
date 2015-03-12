@@ -225,8 +225,7 @@ func Main() {
 	uidPool := uid_pool.New(uint32(*uidPoolStart), uint32(*uidPoolSize))
 
 	_, dynamicRange, _ := net.ParseCIDR(*networkPool)
-	s, _ := subnets.NewSubnets(dynamicRange)
-	subnetPool := &MySubnetPool{s}
+	subnetPool, _ := subnets.NewSubnets(dynamicRange)
 
 	// TODO: use /proc/sys/net/ipv4/ip_local_port_range by default (end + 1)
 	portPool := port_pool.New(uint32(*portPoolStart), uint32(*portPoolSize))
@@ -405,54 +404,4 @@ type provider struct {
 
 func (p *provider) ProvideFilter(containerId string) network.Filter {
 	return network.NewFilter(iptables.NewLoggingChain(p.chainPrefix+containerId, p.useKernelLogging, p.runner, p.log.Session(containerId).Session("filter")))
-}
-
-type MySubnetPool struct {
-	c subnets.Subnets
-}
-
-func (c MySubnetPool) Acquire(spec string) (*linux_backend.Network, error) {
-	var ipSelector subnets.IPSelector = subnets.DynamicIPSelector
-	var subnetSelector subnets.SubnetSelector = subnets.DynamicSubnetSelector
-
-	if spec != "" {
-		specifiedIP, ipn, err := net.ParseCIDR(suffixIfNeeded(spec))
-		if err != nil {
-			return nil, err
-		}
-
-		subnetSelector = subnets.StaticSubnetSelector{ipn}
-
-		if !specifiedIP.Equal(subnets.NetworkIP(ipn)) {
-			ipSelector = subnets.StaticIPSelector{specifiedIP}
-		}
-	}
-
-	subnet, containerIP, _, err := c.c.Allocate(subnetSelector, ipSelector)
-	if err != nil {
-		return nil, err
-	}
-
-	return &linux_backend.Network{IP: containerIP, Subnet: subnet}, nil
-}
-
-func (c MySubnetPool) Remove(n *linux_backend.Network) error {
-	return c.c.Recover(n.Subnet, n.IP)
-}
-
-func (c MySubnetPool) Release(n *linux_backend.Network) error {
-	_, err := c.c.Release(n.Subnet, n.IP)
-	return err
-}
-
-func (c MySubnetPool) Capacity() int {
-	return c.c.Capacity()
-}
-
-func suffixIfNeeded(spec string) string {
-	if !strings.Contains(spec, "/") {
-		spec = spec + "/30"
-	}
-
-	return spec
 }
