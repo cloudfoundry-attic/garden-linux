@@ -90,7 +90,7 @@ func spawn(
 	childProcessTerminated := make(chan bool)
 	connectionAccepted := make(chan bool)
 
-	startAcceptingConnections := func() {
+	acceptConnections := func() {
 		var once sync.Once
 		for {
 			conn, err := acceptConnection(listener, stdoutR, stderrR, statusR)
@@ -119,7 +119,7 @@ func spawn(
 		errStream.Close()
 	}
 
-	go startAcceptingConnections()
+	go acceptConnections()
 	go startChildProcessOnConnection()
 
 	<-childProcessTerminated
