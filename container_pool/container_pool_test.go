@@ -1484,7 +1484,7 @@ var _ = Describe("Container pool", func() {
 					releaseErr := errors.New("jam in the bridge")
 					fakeBridges.ReleaseReturns(releaseErr)
 					err := pool.Destroy(createdContainer)
-					Ω(err).Should(MatchError(releaseErr))
+					Ω(err).Should(MatchError("containerpool: release bridge the-bridge: jam in the bridge"))
 				})
 			})
 		})

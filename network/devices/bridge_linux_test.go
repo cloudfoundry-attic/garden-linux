@@ -106,9 +106,9 @@ var _ = Describe("Bridge Management", func() {
 			})
 		})
 
-		Context("when the bridge does not exists", func() {
-			It("it returns an error", func() {
-				Ω(b.Destroy("something")).ShouldNot(Succeed())
+		Context("when the bridge does not exist", func() {
+			It("does not return an error (because Destroy should be idempotent)", func() {
+				Ω(b.Destroy("something")).Should(Succeed())
 			})
 		})
 	})
