@@ -327,12 +327,16 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 		}
 	}
 
-	if err := p.subnetPool.Remove(resources.Network); err != nil {
+	if err = p.subnetPool.Remove(resources.Network); err != nil {
 		p.releaseUIDs(resources.UserUID, resources.RootUID)
 		return nil, err
 	}
 
-	p.bridges.Rereserve(resources.Bridge, resources.Network.Subnet, id)
+	if err = p.bridges.Rereserve(resources.Bridge, resources.Network.Subnet, id); err != nil {
+		p.releaseUIDs(resources.UserUID, resources.RootUID)
+		p.subnetPool.Release(resources.Network)
+		return nil, err
+	}
 
 	for _, port := range resources.Ports {
 		err = p.portPool.Remove(port)
@@ -668,7 +672,6 @@ func (p *LinuxContainerPool) releaseSystemResources(logger lager.Logger, id stri
 		CommandRunner: p.runner,
 		Logger:        logger,
 	}
-
 	rootfsProvider, err := ioutil.ReadFile(path.Join(p.depotPath, id, "rootfs-provider"))
 	if err != nil {
 		rootfsProvider = []byte("")

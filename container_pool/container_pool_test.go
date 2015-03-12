@@ -480,8 +480,6 @@ var _ = Describe("Container pool", func() {
 					Ω(fakeSubnetPool.ReleaseCallCount()).Should(Equal(0))
 				})
 			})
-
-			PIt("handles bridge creation errors...", func() {})
 		})
 
 		It("saves the bridge name to the depot", func() {
@@ -938,6 +936,7 @@ var _ = Describe("Container pool", func() {
 
 		var containerNetwork *linux_backend.Network
 		var rootUID uint32
+		var bridgeName string
 
 		BeforeEach(func() {
 			rootUID = 10001
@@ -949,6 +948,8 @@ var _ = Describe("Container pool", func() {
 				Subnet: subnet,
 				IP:     net.ParseIP("1.2.3.4"),
 			}
+
+			bridgeName = "some-bridge"
 		})
 
 		JustBeforeEach(func() {
@@ -969,7 +970,7 @@ var _ = Describe("Container pool", func() {
 						UserUID: 10000,
 						RootUID: rootUID,
 						Network: containerNetwork,
-						Bridge:  "some-bridge",
+						Bridge:  bridgeName,
 						Ports:   []uint32{61001, 61002, 61003},
 					},
 
@@ -1041,7 +1042,7 @@ var _ = Describe("Container pool", func() {
 			Ω(fakePortPool.Removed).Should(ContainElement(uint32(61003)))
 		})
 
-		It("reacquires the bridge for the subnet from the pool", func() {
+		It("rereserves the bridge for the subnet from the pool", func() {
 			_, err := pool.Restore(snapshot)
 			Ω(err).ShouldNot(HaveOccurred())
 
@@ -1052,7 +1053,26 @@ var _ = Describe("Container pool", func() {
 			Ω(containerId).Should(Equal("some-restored-id"))
 		})
 
-		PIt("when reacquiring the bridge fails", func() {
+		Context("when rereserving the bridge fails", func() {
+			var err error
+
+			JustBeforeEach(func() {
+				fakeBridges.RereserveReturns(errors.New("boom"))
+				_, err = pool.Restore(snapshot)
+			})
+
+			It("returns the error", func() {
+				Ω(err).Should(HaveOccurred())
+			})
+
+			It("returns the UID to the pool", func() {
+				Ω(fakeUIDPool.Released).Should(ContainElement(uint32(10000)))
+			})
+
+			It("returns the subnet to the pool", func() {
+				Ω(fakeSubnetPool.ReleaseCallCount()).Should(Equal(1))
+				Ω(fakeSubnetPool.ReleaseArgsForCall(0)).Should(Equal(containerNetwork))
+			})
 		})
 
 		Context("when decoding the snapshot fails", func() {
@@ -1236,7 +1256,12 @@ var _ = Describe("Container pool", func() {
 			})
 
 			Context("when a container does not declare a bridge name", func() {
-				PIt("does nothing much", func() {})
+				It("does nothing much", func() {
+					err := pool.Prune(map[string]bool{"container-1": true, "container-2": true})
+					Ω(err).ShouldNot(HaveOccurred())
+
+					Ω(fakeBridges.ReleaseCallCount()).Should(Equal(0))
+				})
 			})
 
 			Context("when a container does not declare a rootfs provider", func() {
@@ -1403,7 +1428,14 @@ var _ = Describe("Container pool", func() {
 				Ω(fakeBridgeBuilder.DestroyArgsForCall(0)).Should(Equal("foo"))
 			})
 
-			PIt("handles errors properly...", func() {})
+			Context("when the releasing the bridge fails", func() {
+				It("returns the error", func() {
+					releaseErr := errors.New("jam in the bridge")
+					fakeBridges.ReleaseReturns(releaseErr)
+					err := pool.Destroy(createdContainer)
+					Ω(err).Should(MatchError(releaseErr))
+				})
+			})
 		})
 
 		It("tears down filter chains", func() {
