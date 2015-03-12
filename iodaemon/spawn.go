@@ -86,57 +86,59 @@ func spawn(
 
 	notify(notifyStream, "ready")
 
-	childProcessStarted := make(chan bool)
-	childProcessTerminated := make(chan bool)
+	childStarted := make(chan bool)
+	childTerminated := make(chan bool)
 	connectionAccepted := make(chan bool)
 
-	acceptConnections := func() {
-		var once sync.Once
-		for {
-			conn, err := acceptConnection(listener, stdoutR, stderrR, statusR)
-			if err != nil {
-				fatal(err)
-				return
-			}
+	go acceptConnections(listener, cmd, stdinW, stdoutR, stderrR, statusR, withTty, connectionAccepted, childStarted, fatal)
 
-			once.Do(func() {
-				connectionAccepted <- true
-				<-childProcessStarted
-			})
-
-			processLinkRequests(conn, stdinW, cmd, withTty)
-		}
-	}
-
-	go acceptConnections()
 	<-connectionAccepted
-	go runChildProcess(cmd, errStream, notifyStream, statusW, childProcessStarted, childProcessTerminated, fatal)
-
-	<-childProcessTerminated
+	go runChildProcess(cmd, errStream, notifyStream, statusW, childStarted, childTerminated, fatal)
+	<-childTerminated
 
 	listener.Close()
 	terminate(0)
 }
 
-func runChildProcess(cmd *exec.Cmd, errStream, notifyStream io.WriteCloser, statusW *os.File, childProcessStarted, childProcessTerminated chan bool, fatal func(error)) {
+func acceptConnections(listener net.Listener, cmd *exec.Cmd, stdinW, stdoutR, stderrR, statusR *os.File,
+	withTty bool, connectionAccepted, childStarted chan bool, fatal func(error)) {
+	var once sync.Once
+	for {
+		conn, err := acceptConnection(listener, stdoutR, stderrR, statusR)
+		if err != nil {
+			fatal(err)
+			return
+		}
+
+		once.Do(func() {
+			connectionAccepted <- true
+			<-childStarted
+		})
+
+		processLinkRequests(conn, stdinW, cmd, withTty)
+	}
+}
+
+func runChildProcess(cmd *exec.Cmd, errStream, notifyStream io.WriteCloser, statusW *os.File,
+	childStarted, childTerminated chan bool, fatal func(error)) {
 	defer errStream.Close()
 
-    err := cmd.Start()
-    if err != nil {
+	err := cmd.Start()
+	if err != nil {
 		fatal(err)
-        return
-    }
+		return
+	}
 
-    notify(notifyStream, "active")
-    notifyStream.Close()
+	notify(notifyStream, "active")
+	notifyStream.Close()
 
-    childProcessStarted <- true
+	childStarted <- true
 
-    cmd.Wait()
-    if cmd.ProcessState != nil {
-        fmt.Fprintf(statusW, "%d\n", cmd.ProcessState.Sys().(syscall.WaitStatus).ExitStatus())
-    }
-    childProcessTerminated <- true
+	cmd.Wait()
+	if cmd.ProcessState != nil {
+		fmt.Fprintf(statusW, "%d\n", cmd.ProcessState.Sys().(syscall.WaitStatus).ExitStatus())
+	}
+	childTerminated <- true
 }
 
 func notify(notifyStream io.Writer, message string) {
