@@ -34,9 +34,20 @@ func (Bridge) Add(bridge, slave *net.Interface) error {
 	return netlink.AddToBridge(slave, bridge)
 }
 
-func (Bridge) Delete(bridge string) error {
+func (Bridge) Destroy(bridge string) error {
 	netlinkMu.Lock()
 	defer netlinkMu.Unlock()
 
-	return netlink.DeleteBridge(bridge)
+	intfs, err := net.Interfaces()
+	if err != nil {
+		return err
+	}
+
+	for _, i := range intfs {
+		if i.Name == bridge {
+			return netlink.DeleteBridge(bridge)
+		}
+	}
+
+	return nil
 }

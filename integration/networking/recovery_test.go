@@ -2,9 +2,7 @@ package networking_test
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
-	"path"
 	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden"
@@ -66,24 +64,6 @@ var _ = Describe("Networking recovery", func() {
 
 				Ω(client.Destroy(ctr1.Handle())).Should(Succeed())
 				Ω(client.Destroy(ctr2.Handle())).Should(Succeed())
-			})
-
-			It("the subnet's bridge no longer exists", func() {
-				cmd := exec.Command("ip", "a")
-				Ω(cmd.CombinedOutput()).ShouldNot(ContainSubstring(bridgeEvidence))
-			})
-		})
-
-		Context("when garden is killed, a persisted container network is deleted, and garden is restarted", func() {
-			BeforeEach(func() {
-				gardenProcess.Signal(syscall.SIGKILL)
-				Eventually(gardenProcess.Wait(), "10s").Should(Receive())
-
-				err := os.Remove(path.Join(ctr2Path, "cnetConfig.json"))
-				Ω(err).ShouldNot(HaveOccurred())
-
-				client = startGarden()
-				Ω(client.Ping()).ShouldNot(HaveOccurred())
 			})
 
 			It("the subnet's bridge no longer exists", func() {

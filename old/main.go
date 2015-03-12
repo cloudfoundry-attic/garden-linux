@@ -3,6 +3,8 @@ package old
 import (
 	"bytes"
 	"flag"
+	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -11,6 +13,7 @@ import (
 	"syscall"
 
 	"github.com/cloudfoundry/gunk/command_runner"
+	"github.com/cloudfoundry/gunk/localip"
 	"github.com/docker/docker/daemon/graphdriver"
 	_ "github.com/docker/docker/daemon/graphdriver/aufs"
 	_ "github.com/docker/docker/daemon/graphdriver/vfs"
@@ -23,8 +26,10 @@ import (
 	"github.com/cloudfoundry-incubator/cf-lager"
 	"github.com/cloudfoundry-incubator/garden-linux/container_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/network"
-	"github.com/cloudfoundry-incubator/garden-linux/network/cnet"
+	"github.com/cloudfoundry-incubator/garden-linux/network/bridgemgr"
+	"github.com/cloudfoundry-incubator/garden-linux/network/devices"
 	"github.com/cloudfoundry-incubator/garden-linux/network/iptables"
+	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/port_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/quota_manager"
@@ -36,6 +41,11 @@ import (
 	"github.com/cloudfoundry-incubator/garden/server"
 	"github.com/cloudfoundry/dropsonde"
 	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
+)
+
+const (
+	DefaultNetworkPool = "10.254.0.0/22"
+	DefaultMTUSize     = 1500
 )
 
 var listenNetwork = flag.String(
@@ -116,6 +126,10 @@ var uidPoolSize = flag.Uint(
 	"size of the uid pool",
 )
 
+var networkPool = flag.String("networkPool",
+	DefaultNetworkPool,
+	"Pool of dynamically allocated container subnets")
+
 var denyNetworks = flag.String(
 	"denyNetworks",
 	"",
@@ -146,7 +160,11 @@ var insecureRegistries = flag.String(
 	"comma-separated list of docker registries to allow connection to even if they are not secure",
 )
 
-var tag = &cnet.Tag // flag defined in cnet/init.go
+var tag = flag.String(
+	"tag",
+	"",
+	"server-wide identifier used for 'global' configuration",
+)
 
 var dropsondeOrigin = flag.String(
 	"dropsondeOrigin",
@@ -172,7 +190,17 @@ var iptablesLogMethod = flag.String(
 	"type of iptable logging to use, one of 'kernel' or 'nflog' (default: kernel)",
 )
 
-func Main(builder cnet.Builder) {
+var mtu = flag.Int(
+	"mtu",
+	DefaultMTUSize,
+	"MTU size for container network interfaces")
+
+var externalIP = flag.String(
+	"externalIP",
+	"",
+	"IP address to use to reach container's mapped ports")
+
+func Main() {
 
 	cf_debug_server.Run()
 
@@ -195,6 +223,9 @@ func Main(builder cnet.Builder) {
 	}
 
 	uidPool := uid_pool.New(uint32(*uidPoolStart), uint32(*uidPoolSize))
+
+	_, dynamicRange, _ := net.ParseCIDR(*networkPool)
+	subnetPool, _ := subnets.NewSubnets(dynamicRange)
 
 	// TODO: use /proc/sys/net/ipv4/ip_local_port_range by default (end + 1)
 	portPool := port_pool.New(uint32(*portPoolStart), uint32(*portPoolSize))
@@ -263,6 +294,20 @@ func Main(builder cnet.Builder) {
 		log:              logger,
 	}
 
+	if *externalIP == "" {
+		ip, err := localip.LocalIP()
+		if err != nil {
+			panic("couldn't determine local IP to use for -externalIP parameter. You can use the -externalIP flag to pass an external IP")
+		}
+
+		externalIP = &ip
+	}
+
+	parsedExternalIP := net.ParseIP(*externalIP)
+	if parsedExternalIP == nil {
+		panic(fmt.Sprintf("Value of -externalIP %s could not be converted to an IP", *externalIP))
+	}
+
 	pool := container_pool.New(
 		logger,
 		*binPath,
@@ -270,8 +315,10 @@ func Main(builder cnet.Builder) {
 		config,
 		rootFSProviders,
 		uidPool,
-		builder,
-		container_pool.NewCNPersistor(logger, builder),
+		parsedExternalIP,
+		*mtu,
+		subnetPool,
+		bridgemgr.New("w"+config.Tag, &devices.Bridge{}),
 		filterProvider,
 		iptables.NewGlobalChain(config.IPTables.Filter.DefaultChain, runner, logger.Session("global-chain")),
 		portPool,

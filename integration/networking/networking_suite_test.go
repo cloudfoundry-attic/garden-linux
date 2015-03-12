@@ -56,6 +56,13 @@ func restartGarden(argv ...string) {
 	startGarden(argv...)
 }
 
+func ensureGardenRunning() {
+	if err := client.Ping(); err != nil {
+		client = startGarden()
+	}
+	Ω(client.Ping()).ShouldNot(HaveOccurred())
+}
+
 func TestNetworking(t *testing.T) {
 	if rootFSPath == "" {
 		log.Println("GARDEN_TEST_ROOTFS undefined; skipping")
@@ -104,6 +111,7 @@ func TestNetworking(t *testing.T) {
 	})
 
 	AfterEach(func() {
+		ensureGardenRunning()
 		gardenProcess.Signal(syscall.SIGQUIT)
 		Eventually(gardenProcess.Wait(), "10s").Should(Receive())
 	})

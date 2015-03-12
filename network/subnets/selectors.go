@@ -70,7 +70,7 @@ func (s StaticIPSelector) SelectIP(subnet *net.IPNet, existing []net.IP) (net.IP
 
 	for _, e := range existing {
 		if e.Equal(s.IP) {
-			return nil, ErrIPAlreadyAllocated
+			return nil, ErrIPAlreadyAcquired
 		}
 	}
 

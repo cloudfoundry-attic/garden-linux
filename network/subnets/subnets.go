@@ -7,9 +7,9 @@ import (
 	"math"
 	"net"
 	"sync"
-)
 
-//go:generate counterfeiter . Subnets
+	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
+)
 
 // Subnets provides a means of allocating subnets and associated IP addresses.
 type Subnets interface {
@@ -18,18 +18,18 @@ type Subnets interface {
 	// Returns a subnet, an IP address, and a boolean which is true if and only if this is the
 	// first IP address to be associated with this subnet.
 	// If either selector fails, an error is returned.
-	Allocate(SubnetSelector, IPSelector) (*net.IPNet, net.IP, bool, error)
+	Acquire(SubnetSelector, IPSelector) (*linux_backend.Network, error)
 
 	// Releases an IP address associated with an allocated subnet. If the subnet has no other IP
 	// addresses associated with it, it is deallocated.
 	// Returns a boolean which is true if and only if the subnet was deallocated.
 	// Returns an error if the given combination is not already in the pool.
-	Release(*net.IPNet, net.IP) (bool, error)
+	Release(*linux_backend.Network) error
 
-	// Recovers an IP address so it appears to be associated with the given subnet.
-	Recover(*net.IPNet, net.IP) error
+	// Remove an IP address so it appears to be associated with the given subnet.
+	Remove(*linux_backend.Network) error
 
-	// Returns the number of /30 subnets which can be Allocated by a DynamicSubnetSelector.
+	// Returns the number of /30 subnets which can be Acquired by a DynamicSubnetSelector.
 	Capacity() int
 }
 
@@ -64,63 +64,65 @@ func NewSubnets(ipNet *net.IPNet) (Subnets, error) {
 	return &pool{dynamicRange: ipNet, allocated: make(map[string][]net.IP)}, nil
 }
 
-// Allocate uses the given subnet and IP selectors to request a subnet, container IP address combination
+// Acquire uses the given subnet and IP selectors to request a subnet, container IP address combination
 // from the pool.
-func (p *pool) Allocate(sn SubnetSelector, i IPSelector) (subnet *net.IPNet, ip net.IP, first bool, err error) {
+func (p *pool) Acquire(sn SubnetSelector, i IPSelector) (network *linux_backend.Network, err error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	if subnet, err = sn.SelectSubnet(p.dynamicRange, existingSubnets(p.allocated)); err != nil {
-		return nil, nil, false, err
+	network = &linux_backend.Network{}
+	if network.Subnet, err = sn.SelectSubnet(p.dynamicRange, existingSubnets(p.allocated)); err != nil {
+		return nil, err
 	}
 
-	ips, found := p.allocated[subnet.String()]
-	existingIPs := append(ips, NetworkIP(subnet), GatewayIP(subnet), BroadcastIP(subnet))
-	if ip, err = i.SelectIP(subnet, existingIPs); err != nil {
-		return nil, nil, false, err
+	ips := p.allocated[network.Subnet.String()]
+	existingIPs := append(ips, NetworkIP(network.Subnet), GatewayIP(network.Subnet), BroadcastIP(network.Subnet))
+	if network.IP, err = i.SelectIP(network.Subnet, existingIPs); err != nil {
+		return nil, err
 	}
 
-	p.allocated[subnet.String()] = append(ips, ip)
-	return subnet, ip, !found, nil
+	p.allocated[network.Subnet.String()] = append(ips, network.IP)
+	return network, nil
 }
 
 // Recover re-allocates a given subnet and ip address combination in the pool. It returns
 // an error if the combination is already allocated.
-func (p *pool) Recover(subnet *net.IPNet, ip net.IP) error {
+func (p *pool) Remove(network *linux_backend.Network) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	if ip == nil {
+	if network.IP == nil {
 		return ErrIpCannotBeNil
 	}
 
-	for _, existing := range p.allocated[subnet.String()] {
-		if existing.Equal(ip) {
+	for _, existing := range p.allocated[network.Subnet.String()] {
+		if existing.Equal(network.IP) {
 			return ErrOverlapsExistingSubnet
 		}
 	}
 
-	p.allocated[subnet.String()] = append(p.allocated[subnet.String()], ip)
+	p.allocated[network.Subnet.String()] = append(p.allocated[network.Subnet.String()], network.IP)
 	return nil
 }
 
-func (p *pool) Release(subnet *net.IPNet, containerIP net.IP) (bool, error) {
+func (p *pool) Release(network *linux_backend.Network) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	subnetString := subnet.String()
+	subnetString := network.Subnet.String()
 	ips := p.allocated[subnetString]
 
-	if i, found := indexOf(ips, containerIP); found {
+	if i, found := indexOf(ips, network.IP); found {
 		if reducedIps, empty := removeIPAtIndex(ips, i); empty {
 			delete(p.allocated, subnetString)
-			return true, nil
 		} else {
 			p.allocated[subnetString] = reducedIps
-			return false, nil
 		}
+
+		return nil
 	}
-	return false, ErrReleasedUnallocatedSubnet
+
+	return ErrReleasedUnallocatedSubnet
 }
 
 // Capacity returns the number of /30 subnets that can be allocated

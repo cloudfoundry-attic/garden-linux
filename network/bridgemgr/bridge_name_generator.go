@@ -1,11 +1,9 @@
-package subnets
+package bridgemgr
 
 import (
 	"strconv"
 	"time"
 )
-
-//go:generate counterfeiter . BridgeNameGenerator
 
 type BridgeNameGenerator interface {
 	Generate() string
