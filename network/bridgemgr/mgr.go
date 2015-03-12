@@ -22,11 +22,12 @@ type BridgeManager interface {
 
 	// Release releases a reservation made by a particular container.
 	// If this is the last reservation, the passed destroyers Destroy method is called.
-	Release(bridgeName string, containerId string, destroyer Destroyer) error
+	Release(bridgeName string, containerId string) error
 }
 
 type mgr struct {
-	names BridgeNameGenerator
+	names     BridgeNameGenerator
+	destroyer Destroyer
 
 	mu           sync.Mutex
 	owners       map[string][]string // bridgeName -> []containerId
@@ -34,9 +35,11 @@ type mgr struct {
 	subnetBridge map[string]string   // subnet -> bridgeName
 }
 
-func New(prefix string) BridgeManager {
+func New(prefix string, destroyer Destroyer) BridgeManager {
 	return &mgr{
-		names:        NewBridgeNameGenerator(prefix),
+		names:     NewBridgeNameGenerator(prefix),
+		destroyer: destroyer,
+
 		owners:       make(map[string][]string),
 		bridgeSubnet: make(map[string]string),
 		subnetBridge: make(map[string]string),
@@ -60,7 +63,7 @@ func (m *mgr) Reserve(subnet *net.IPNet, containerId string) (string, error) {
 	return name, nil
 }
 
-func (m *mgr) Release(bridgeName string, containerId string, destroyer Destroyer) error {
+func (m *mgr) Release(bridgeName string, containerId string) error {
 	m.mu.Lock()
 	m.owners[bridgeName] = remove(m.owners[bridgeName], containerId)
 
@@ -75,7 +78,7 @@ func (m *mgr) Release(bridgeName string, containerId string, destroyer Destroyer
 	m.mu.Unlock()
 
 	if shouldDelete {
-		return destroyer.Destroy(bridgeName)
+		return m.destroyer.Destroy(bridgeName)
 	}
 
 	return nil

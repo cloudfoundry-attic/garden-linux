@@ -20,7 +20,6 @@ import (
 	"github.com/pivotal-golang/lager/lagertest"
 
 	"github.com/cloudfoundry-incubator/garden-linux/container_pool"
-	"github.com/cloudfoundry-incubator/garden-linux/container_pool/fake_bridge_builder"
 	"github.com/cloudfoundry-incubator/garden-linux/container_pool/fake_container_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/container_pool/fake_subnet_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
@@ -53,7 +52,6 @@ var _ = Describe("Container pool", func() {
 	var defaultFakeRootFSProvider *fake_rootfs_provider.FakeRootFSProvider
 	var fakeRootFSProvider *fake_rootfs_provider.FakeRootFSProvider
 	var fakeBridges *fake_bridge_manager.FakeBridgeManager
-	var fakeBridgeBuilder *fake_bridge_builder.FakeBridgeBuilder
 	var fakeFilterProvider *fake_container_pool.FakeFilterProvider
 	var fakeFilter *fakes.FakeFilter
 	var pool *container_pool.LinuxContainerPool
@@ -72,7 +70,6 @@ var _ = Describe("Container pool", func() {
 		fakeSubnetPool.AcquireReturns(containerNetwork, nil)
 
 		fakeBridges = new(fake_bridge_manager.FakeBridgeManager)
-		fakeBridgeBuilder = new(fake_bridge_builder.FakeBridgeBuilder)
 
 		fakeBridges.ReserveStub = func(n *net.IPNet, c string) (string, error) {
 			return fmt.Sprintf("bridge-for-%s-%s", n, c), nil
@@ -111,7 +108,6 @@ var _ = Describe("Container pool", func() {
 			345,
 			fakeSubnetPool,
 			fakeBridges,
-			fakeBridgeBuilder,
 			fakeFilterProvider,
 			iptables.NewGlobalChain("global-default-chain", fakeRunner, logger),
 			fakePortPool,
@@ -276,19 +272,14 @@ var _ = Describe("Container pool", func() {
 		}
 
 		itReleasesAndDestroysTheBridge := func() {
-			It("releases and destroys the bridge", func() {
+			It("releases the bridge", func() {
 				Ω(fakeBridges.ReleaseCallCount()).Should(Equal(1))
 				_, containerId := fakeBridges.ReserveArgsForCall(0)
 
 				Ω(fakeBridges.ReleaseCallCount()).Should(Equal(1))
-				bridgeName, containerId, destroyer := fakeBridges.ReleaseArgsForCall(0)
+				bridgeName, containerId := fakeBridges.ReleaseArgsForCall(0)
 				Ω(bridgeName).Should(Equal("bridge-for-10.2.0.0/30-" + containerId))
 				Ω(containerId).Should(Equal(containerId))
-
-				Ω(fakeBridgeBuilder.DestroyCallCount()).Should(Equal(0)) // only destroy if release calls destroyer
-
-				destroyer.Destroy(bridgeName)
-				Ω(fakeBridgeBuilder.DestroyCallCount()).Should(Equal(1))
 			})
 		}
 
@@ -1318,25 +1309,13 @@ var _ = Describe("Container pool", func() {
 
 					Ω(fakeBridges.ReleaseCallCount()).Should(Equal(2))
 
-					bridge, containerId, _ := fakeBridges.ReleaseArgsForCall(0)
+					bridge, containerId := fakeBridges.ReleaseArgsForCall(0)
 					Ω(bridge).Should(Equal("fake-bridge-1"))
 					Ω(containerId).Should(Equal("container-1"))
 
-					bridge, containerId, _ = fakeBridges.ReleaseArgsForCall(1)
+					bridge, containerId = fakeBridges.ReleaseArgsForCall(1)
 					Ω(bridge).Should(Equal("fake-bridge-2"))
 					Ω(containerId).Should(Equal("container-2"))
-				})
-
-				It("deletes the bridge if it is now unused", func() {
-					err := pool.Prune(map[string]bool{})
-					Ω(err).ShouldNot(HaveOccurred())
-
-					Ω(fakeBridges.ReleaseCallCount()).Should(Equal(2))
-					_, _, destroyer := fakeBridges.ReleaseArgsForCall(1)
-
-					Ω(fakeBridgeBuilder.DestroyCallCount()).Should(Equal(0))
-					destroyer.Destroy("fake-bridge-2")
-					Ω(fakeBridgeBuilder.DestroyCallCount()).Should(Equal(1))
 				})
 			})
 
@@ -1494,23 +1473,10 @@ var _ = Describe("Container pool", func() {
 				Ω(err).ShouldNot(HaveOccurred())
 
 				Ω(fakeBridges.ReleaseCallCount()).Should(Equal(1))
-				bridgeName, containerId, _ := fakeBridges.ReleaseArgsForCall(0)
+				bridgeName, containerId := fakeBridges.ReleaseArgsForCall(0)
 
 				Ω(bridgeName).Should(Equal("the-bridge"))
 				Ω(containerId).Should(Equal(createdContainer.ID()))
-			})
-
-			It("destroys the bridge if it is no longer used", func() {
-				err := pool.Destroy(createdContainer)
-				Ω(err).ShouldNot(HaveOccurred())
-
-				Ω(fakeBridges.ReleaseCallCount()).Should(Equal(1))
-				_, _, destroyer := fakeBridges.ReleaseArgsForCall(0)
-				Ω(fakeBridgeBuilder.DestroyCallCount()).Should(Equal(0))
-
-				destroyer.Destroy("foo")
-				Ω(fakeBridgeBuilder.DestroyCallCount()).Should(Equal(1))
-				Ω(fakeBridgeBuilder.DestroyArgsForCall(0)).Should(Equal("foo"))
 			})
 
 			Context("when the releasing the bridge fails", func() {

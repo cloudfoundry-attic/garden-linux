@@ -52,11 +52,6 @@ type SubnetPool interface {
 	Capacity() int
 }
 
-//go:generate counterfeiter -o fake_bridge_builder/FakeBridgeBuilder.go . BridgeBuilder
-type BridgeBuilder interface {
-	Destroy(name string) error
-}
-
 type LinuxContainerPool struct {
 	logger lager.Logger
 
@@ -78,8 +73,7 @@ type LinuxContainerPool struct {
 
 	portPool linux_container.PortPool
 
-	bridges       bridgemgr.BridgeManager
-	bridgeBuilder BridgeBuilder
+	bridges bridgemgr.BridgeManager
 
 	filterProvider FilterProvider
 	defaultChain   iptables.Chain
@@ -101,7 +95,6 @@ func New(
 	mtu int,
 	subnetPool SubnetPool,
 	bridges bridgemgr.BridgeManager,
-	bridgeBuilder BridgeBuilder,
 	filterProvider FilterProvider,
 	defaultChain iptables.Chain,
 	portPool linux_container.PortPool,
@@ -129,8 +122,7 @@ func New(
 
 		subnetPool: subnetPool,
 
-		bridges:       bridges,
-		bridgeBuilder: bridgeBuilder,
+		bridges: bridges,
 
 		filterProvider: filterProvider,
 		defaultChain:   defaultChain,
@@ -678,7 +670,7 @@ func (p *LinuxContainerPool) releaseSystemResources(logger lager.Logger, id stri
 
 	bridgeName, err := ioutil.ReadFile(path.Join(p.depotPath, id, "bridge-name"))
 	if err == nil {
-		if err := p.bridges.Release(string(bridgeName), id, p.bridgeBuilder); err != nil {
+		if err := p.bridges.Release(string(bridgeName), id); err != nil {
 			return err
 		}
 	}

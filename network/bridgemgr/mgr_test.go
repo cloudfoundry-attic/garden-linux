@@ -20,9 +20,8 @@ var _ = Describe("BridgeNamePool", func() {
 		_, subnet1, _ = net.ParseCIDR("1.2.3.4/30")
 		_, subnet2, _ = net.ParseCIDR("1.2.3.4/29")
 
-		mgr = bridgemgr.New("pr")
-
 		fakeDestroyer = &destroyer{}
+		mgr = bridgemgr.New("pr", fakeDestroyer)
 	})
 
 	Describe("reserving", func() {
@@ -71,7 +70,7 @@ var _ = Describe("BridgeNamePool", func() {
 					name, err = mgr.Reserve(subnet1, "container2")
 					Ω(err).ShouldNot(HaveOccurred())
 
-					Ω(mgr.Release(name, "container1", fakeDestroyer)).Should(Succeed())
+					Ω(mgr.Release(name, "container1")).Should(Succeed())
 				})
 
 				It("reuses the existing bridge name on the next Reserve", func() {
@@ -92,7 +91,7 @@ var _ = Describe("BridgeNamePool", func() {
 					name, err = mgr.Reserve(subnet1, "container1")
 					Ω(err).ShouldNot(HaveOccurred())
 
-					Ω(mgr.Release(name, "container1", fakeDestroyer)).Should(Succeed())
+					Ω(mgr.Release(name, "container1")).Should(Succeed())
 				})
 
 				It("assigns a new bridge name on the next Reserve", func() {
@@ -102,21 +101,21 @@ var _ = Describe("BridgeNamePool", func() {
 				})
 
 				It("destroys the bridge with the passed destroyer", func() {
-					Ω(mgr.Release("some-bridge", "container1", fakeDestroyer)).Should(Succeed())
+					Ω(mgr.Release("some-bridge", "container1")).Should(Succeed())
 					Ω(fakeDestroyer.Destroyed).Should(ContainElement("some-bridge"))
 				})
 
 				Context("when the destroyer returns an error", func() {
 					It("returns an error", func() {
 						fakeDestroyer.DestroyReturns = errors.New("bboom ")
-						Ω(mgr.Release("some-bridge", "container1", fakeDestroyer)).ShouldNot(Succeed())
+						Ω(mgr.Release("some-bridge", "container1")).ShouldNot(Succeed())
 					})
 				})
 			})
 
 			Context("and it has not previously been acquired (e.g. when releasing an unknown bridge during recovery)", func() {
 				It("destroys the bridge with the passed destroyer", func() {
-					Ω(mgr.Release("some-bridge", "container1", fakeDestroyer)).Should(Succeed())
+					Ω(mgr.Release("some-bridge", "container1")).Should(Succeed())
 					Ω(fakeDestroyer.Destroyed).Should(ContainElement("some-bridge"))
 				})
 			})
@@ -151,7 +150,7 @@ var _ = Describe("BridgeNamePool", func() {
 
 					Context("when it is released", func() {
 						It("does not destroy the bridge, since the reacquired container is still using it", func() {
-							Ω(mgr.Release("my-bridge", "another-container", fakeDestroyer)).Should(Succeed())
+							Ω(mgr.Release("my-bridge", "another-container")).Should(Succeed())
 							Ω(fakeDestroyer.Destroyed).ShouldNot(ContainElement("my-bridge"))
 						})
 					})
@@ -159,7 +158,7 @@ var _ = Describe("BridgeNamePool", func() {
 
 				Context("when it is released", func() {
 					It("destroys the bridge with the passed destroyer", func() {
-						Ω(mgr.Release("my-bridge", "my-container", fakeDestroyer)).Should(Succeed())
+						Ω(mgr.Release("my-bridge", "my-container")).Should(Succeed())
 						Ω(fakeDestroyer.Destroyed).Should(ContainElement("my-bridge"))
 					})
 				})

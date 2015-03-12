@@ -29,12 +29,11 @@ type FakeBridgeManager struct {
 	rereserveReturns struct {
 		result1 error
 	}
-	ReleaseStub        func(bridgeName string, containerId string, destroyer bridgemgr.Destroyer) error
+	ReleaseStub        func(bridgeName string, containerId string) error
 	releaseMutex       sync.RWMutex
 	releaseArgsForCall []struct {
 		bridgeName  string
 		containerId string
-		destroyer   bridgemgr.Destroyer
 	}
 	releaseReturns struct {
 		result1 error
@@ -109,16 +108,15 @@ func (fake *FakeBridgeManager) RereserveReturns(result1 error) {
 	}{result1}
 }
 
-func (fake *FakeBridgeManager) Release(bridgeName string, containerId string, destroyer bridgemgr.Destroyer) error {
+func (fake *FakeBridgeManager) Release(bridgeName string, containerId string) error {
 	fake.releaseMutex.Lock()
 	fake.releaseArgsForCall = append(fake.releaseArgsForCall, struct {
 		bridgeName  string
 		containerId string
-		destroyer   bridgemgr.Destroyer
-	}{bridgeName, containerId, destroyer})
+	}{bridgeName, containerId})
 	fake.releaseMutex.Unlock()
 	if fake.ReleaseStub != nil {
-		return fake.ReleaseStub(bridgeName, containerId, destroyer)
+		return fake.ReleaseStub(bridgeName, containerId)
 	} else {
 		return fake.releaseReturns.result1
 	}
@@ -130,10 +128,10 @@ func (fake *FakeBridgeManager) ReleaseCallCount() int {
 	return len(fake.releaseArgsForCall)
 }
 
-func (fake *FakeBridgeManager) ReleaseArgsForCall(i int) (string, string, bridgemgr.Destroyer) {
+func (fake *FakeBridgeManager) ReleaseArgsForCall(i int) (string, string) {
 	fake.releaseMutex.RLock()
 	defer fake.releaseMutex.RUnlock()
-	return fake.releaseArgsForCall[i].bridgeName, fake.releaseArgsForCall[i].containerId, fake.releaseArgsForCall[i].destroyer
+	return fake.releaseArgsForCall[i].bridgeName, fake.releaseArgsForCall[i].containerId
 }
 
 func (fake *FakeBridgeManager) ReleaseReturns(result1 error) {
