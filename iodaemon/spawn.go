@@ -97,8 +97,9 @@ func spawn(
 	go acceptConnections(listener, stdoutR, stderrR, statusR, connectionAccepted, childStarted, fatal, processConnection)
 
 	<-connectionAccepted
-	go runChildProcess(cmd, errStream, notifyStream, statusW, childStarted, childTerminated, fatal)
+	go runChildProcess(cmd, notifyStream, statusW, childStarted, childTerminated, fatal)
 	<-childTerminated
+	errStream.Close()
 
 	listener.Close()
 	terminate(0)
@@ -123,9 +124,8 @@ func acceptConnections(listener net.Listener, stdoutR, stderrR, statusR *os.File
 	}
 }
 
-func runChildProcess(cmd *exec.Cmd, errStream, notifyStream io.WriteCloser, statusW *os.File,
+func runChildProcess(cmd *exec.Cmd, notifyStream io.WriteCloser, statusW *os.File,
 	childStarted, childTerminated chan bool, fatal func(error)) {
-	defer errStream.Close()
 
 	err := cmd.Start()
 	if err != nil {
