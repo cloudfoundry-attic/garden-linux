@@ -36,14 +36,35 @@ struct msg__dir_s {
   char path[1024];
 };
 
+enum msg_type_e {
+    MSG_TYPE_REQ,
+    MSG_TYPE_SIG
+};
+
+#define MSG_S_HEAD int version; \
+    enum msg_type_e type;
+
+struct msg_s {
+    MSG_S_HEAD
+};
+
+struct msg_signal_s {
+    MSG_S_HEAD
+};
+
 struct msg_request_s {
-  int version;
+  MSG_S_HEAD
   int tty;
   msg__array_t arg;
   msg__array_t env;
   msg__rlimit_t rlim;
   msg__user_t user;
   msg__dir_t dir;
+};
+
+union msg_u {
+    struct msg_request_s req;
+    struct msg_signal_s sig;
 };
 
 struct msg_response_s {
