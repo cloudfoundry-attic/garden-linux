@@ -45,9 +45,13 @@ type ContainerRepository interface {
 
 type InMemoryContainerRepository struct {
 	store map[string]Container
+	mutex *sync.RWMutex
 }
 
 func (cr *InMemoryContainerRepository) All() []Container {
+	cr.mutex.RLock()
+	defer cr.mutex.RUnlock()
+
 	all := []Container{}
 	for _, container := range cr.store {
 		all = append(all, container)
@@ -56,16 +60,25 @@ func (cr *InMemoryContainerRepository) All() []Container {
 }
 
 func (cr *InMemoryContainerRepository) Add(container Container) {
+	cr.mutex.Lock()
+	defer cr.mutex.Unlock()
+
 	cr.store[container.Handle()] = container
 }
 
 func (cr *InMemoryContainerRepository) FindByHandle(handle string) (Container, bool) {
+	cr.mutex.RLock()
+	defer cr.mutex.RUnlock()
+
 	// Yep, you actually can't inline these...
 	container, ok := cr.store[handle]
 	return container, ok
 }
 
 func (cr *InMemoryContainerRepository) Delete(container Container) {
+	cr.mutex.Lock()
+	defer cr.mutex.Unlock()
+
 	delete(cr.store, container.Handle())
 }
 
@@ -76,8 +89,7 @@ type LinuxBackend struct {
 	systemInfo    system_info.Provider
 	snapshotsPath string
 
-	containerRepo   ContainerRepository
-	containersMutex *sync.RWMutex
+	containerRepo ContainerRepository
 }
 
 type HandleExistsError struct {
@@ -106,8 +118,8 @@ func New(logger lager.Logger, containerPool ContainerPool, systemInfo system_inf
 
 		containerRepo: &InMemoryContainerRepository{
 			store: map[string]Container{},
+			mutex: &sync.RWMutex{},
 		},
-		containersMutex: new(sync.RWMutex),
 	}
 }
 
@@ -131,9 +143,7 @@ func (b *LinuxBackend) Start() error {
 
 	keep := map[string]bool{}
 
-	b.containersMutex.RLock()
 	containers := b.containerRepo.All()
-	b.containersMutex.RUnlock()
 
 	for _, container := range containers {
 		keep[container.ID()] = true
@@ -166,9 +176,7 @@ func (b *LinuxBackend) Capacity() (garden.Capacity, error) {
 
 func (b *LinuxBackend) Create(spec garden.ContainerSpec) (garden.Container, error) {
 	if spec.Handle != "" {
-		b.containersMutex.RLock()
 		_, exists := b.containerRepo.FindByHandle(spec.Handle)
-		b.containersMutex.RUnlock()
 
 		if exists {
 			return nil, HandleExistsError{Handle: spec.Handle}
@@ -185,17 +193,13 @@ func (b *LinuxBackend) Create(spec garden.ContainerSpec) (garden.Container, erro
 		return nil, err
 	}
 
-	b.containersMutex.Lock()
 	b.containerRepo.Add(container)
-	b.containersMutex.Unlock()
 
 	return container, nil
 }
 
 func (b *LinuxBackend) Destroy(handle string) error {
-	b.containersMutex.RLock()
 	container, found := b.containerRepo.FindByHandle(handle)
-	b.containersMutex.RUnlock()
 
 	if !found {
 		return garden.ContainerNotFoundError{handle}
@@ -206,17 +210,12 @@ func (b *LinuxBackend) Destroy(handle string) error {
 		return err
 	}
 
-	b.containersMutex.Lock()
 	b.containerRepo.Delete(container)
-	b.containersMutex.Unlock()
 
 	return nil
 }
 
 func (b *LinuxBackend) Containers(filter garden.Properties) (containers []garden.Container, err error) {
-	b.containersMutex.RLock()
-	defer b.containersMutex.RUnlock()
-
 	for _, container := range b.containerRepo.All() {
 		if containerHasProperties(container, filter) {
 			containers = append(containers, container)
@@ -227,9 +226,6 @@ func (b *LinuxBackend) Containers(filter garden.Properties) (containers []garden
 }
 
 func (b *LinuxBackend) Lookup(handle string) (garden.Container, error) {
-	b.containersMutex.RLock()
-	defer b.containersMutex.RUnlock()
-
 	container, found := b.containerRepo.FindByHandle(handle)
 	if !found {
 		return nil, garden.ContainerNotFoundError{handle}
@@ -243,9 +239,6 @@ func (b *LinuxBackend) GraceTime(container garden.Container) time.Duration {
 }
 
 func (b *LinuxBackend) Stop() {
-	b.containersMutex.RLock()
-	defer b.containersMutex.RUnlock()
-
 	for _, container := range b.containerRepo.All() {
 		container.Cleanup()
 		err := b.saveSnapshot(container)
@@ -317,11 +310,7 @@ func (b *LinuxBackend) restore(snapshot io.Reader) (garden.Container, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	b.containersMutex.Lock()
 	b.containerRepo.Add(container)
-	b.containersMutex.Unlock()
-
 	return container, nil
 }
 
