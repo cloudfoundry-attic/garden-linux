@@ -74,7 +74,7 @@ func (m *mgr) Release(bridgeName string, containerId string, destroyer Destroyer
 	m.mu.Unlock()
 
 	if shouldDelete {
-		destroyer.Destroy(bridgeName)
+		return destroyer.Destroy(bridgeName)
 	}
 
 	return nil

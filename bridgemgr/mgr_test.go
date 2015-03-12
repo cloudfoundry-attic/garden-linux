@@ -1,6 +1,7 @@
 package bridgemgr_test
 
 import (
+	"errors"
 	"net"
 
 	"github.com/cloudfoundry-incubator/garden-linux/bridgemgr"
@@ -100,6 +101,18 @@ var _ = Describe("BridgeNamePool", func() {
 					Ω(err).ShouldNot(HaveOccurred())
 					Ω(newName).ShouldNot(Equal(name))
 				})
+
+				It("destroys the bridge with the passed destroyer", func() {
+					Ω(mgr.Release("some-bridge", "container1", fakeDestroyer)).Should(Succeed())
+					Ω(fakeDestroyer.Destroyed).Should(ContainElement("some-bridge"))
+				})
+
+				Context("when the destroyer returns an error", func() {
+					It("returns an error", func() {
+						fakeDestroyer.DestroyReturns = errors.New("bboom ")
+						Ω(mgr.Release("some-bridge", "container1", fakeDestroyer)).ShouldNot(Succeed())
+					})
+				})
 			})
 
 			Context("and it has not previously been acquired (e.g. when releasing an unknown bridge during recovery)", func() {
@@ -153,10 +166,11 @@ var _ = Describe("BridgeNamePool", func() {
 })
 
 type destroyer struct {
-	Destroyed []string
+	Destroyed      []string
+	DestroyReturns error
 }
 
 func (d *destroyer) Destroy(name string) error {
 	d.Destroyed = append(d.Destroyed, name)
-	return nil
+	return d.DestroyReturns
 }
