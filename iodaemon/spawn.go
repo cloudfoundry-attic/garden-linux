@@ -91,14 +91,19 @@ func spawn(
 	connectionAccepted := make(chan bool)
 
 	acceptor := func() (net.Conn, error) {
-		return acceptConnection(listener, stdoutR, stderrR, statusR)
+		conn, err := acceptConnection(listener, stdoutR, stderrR, statusR)
+		if err != nil {
+			fatal(err)
+			return nil, err
+		}
+		return conn, nil
 	}
 
 	processConnection := func(conn net.Conn) {
 		processLinkRequests(conn, stdinW, cmd, withTty)
 	}
 
-	go acceptConnections(acceptor, connectionAccepted, childStarted, fatal, processConnection)
+	go acceptConnections(acceptor, connectionAccepted, childStarted, processConnection)
 
 	<-connectionAccepted
 	go runChildProcess(cmd, notifyStream, statusW, childStarted, childTerminated, fatal)
@@ -109,12 +114,11 @@ func spawn(
 	terminate(0)
 }
 
-func acceptConnections(acceptor func() (net.Conn, error), connectionAccepted, childStarted chan bool, fatal func(error), processConnection func(net.Conn)) {
+func acceptConnections(acceptor func() (net.Conn, error), connectionAccepted, childStarted chan bool, processConnection func(net.Conn)) {
 	var once sync.Once
 	for {
 		conn, err := acceptor()
 		if err != nil {
-			fatal(err)
 			return
 		}
 
