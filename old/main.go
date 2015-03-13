@@ -164,7 +164,7 @@ var insecureRegistries = flag.String(
 var tag = flag.String(
 	"tag",
 	"",
-	"server-wide identifier used for 'global' configuration",
+	"server-wide identifier used for 'global' configuration, must be less than 3 character long",
 )
 
 var dropsondeOrigin = flag.String(
@@ -221,6 +221,13 @@ func Main() {
 
 	if *overlaysPath == "" {
 		missing("-overlays")
+	}
+
+	if len(*tag) > 2 {
+		println("-tag parameter must be less than 3 characters long")
+		println()
+		flag.Usage()
+		return
 	}
 
 	uidPool := uid_pool.New(uint32(*uidPoolStart), uint32(*uidPoolSize))
@@ -319,7 +326,7 @@ func Main() {
 		parsedExternalIP,
 		*mtu,
 		subnetPool,
-		bridgemgr.New("w"+config.Tag, &devices.Bridge{}),
+		bridgemgr.New("w"+config.Tag+"b-", &devices.Bridge{}),
 		filterProvider,
 		iptables.NewGlobalChain(config.IPTables.Filter.DefaultChain, runner, logger.Session("global-chain")),
 		portPool,

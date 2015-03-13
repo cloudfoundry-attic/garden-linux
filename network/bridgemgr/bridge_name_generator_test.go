@@ -12,7 +12,7 @@ var _ = Describe("Bridge Name Generator", func() {
 	)
 
 	BeforeEach(func() {
-		generator = bridgemgr.NewBridgeNameGenerator("prefix")
+		generator = bridgemgr.NewBridgeNameGenerator("pr-")
 	})
 
 	It("returns unique names each time it is called", func() {
@@ -26,22 +26,16 @@ var _ = Describe("Bridge Name Generator", func() {
 		Ω(generatedNames).Should(HaveLen(100))
 	})
 
-	It("includes the truncated prefix and b- at the start of the name", func() {
+	It("includes the entire prefix as part of the name", func() {
 		name := generator.Generate()
-
-		Ω(name).Should(HavePrefix("prb-"))
+		Ω(name).Should(HavePrefix("pr-"))
 	})
 
-	It("allows single character prefixes", func() {
-		generator = bridgemgr.NewBridgeNameGenerator("p")
+	It("returns names that are exactly 15 characters", func() {
 		name := generator.Generate()
+		Ω(name).Should(HaveLen(15))
 
-		Ω(name).Should(HavePrefix("pb-"))
-	})
-
-	It("returns names that are exactly 15 bytes", func() {
-		name := generator.Generate()
-
+		name = bridgemgr.NewBridgeNameGenerator("p").Generate()
 		Ω(name).Should(HaveLen(15))
 	})
 })
