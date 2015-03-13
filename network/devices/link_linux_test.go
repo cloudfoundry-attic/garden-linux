@@ -157,4 +157,13 @@ var _ = Describe("Link Management", func() {
 			})
 		})
 	})
+
+	Describe("List", func() {
+		It("lists all the interfaces", func() {
+			names, err := l.List()
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(names).Should(ContainElement(name))
+		})
+	})
 })

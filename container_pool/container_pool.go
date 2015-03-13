@@ -212,6 +212,10 @@ func (p *LinuxContainerPool) Prune(keep map[string]bool) error {
 		p.pruneEntry(id)
 	}
 
+	if err := p.bridges.Prune(); err != nil {
+		p.logger.Error("prune-bridges", err)
+	}
+
 	return nil
 }
 

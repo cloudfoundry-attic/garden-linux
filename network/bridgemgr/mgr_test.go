@@ -13,6 +13,7 @@ var _ = Describe("BridgeNamePool", func() {
 	var subnet1 *net.IPNet
 	var subnet2 *net.IPNet
 	var fakeDestroyer *destroyer
+	var fakeLister *lister
 
 	var mgr bridgemgr.BridgeManager
 
@@ -20,8 +21,9 @@ var _ = Describe("BridgeNamePool", func() {
 		_, subnet1, _ = net.ParseCIDR("1.2.3.4/30")
 		_, subnet2, _ = net.ParseCIDR("1.2.3.4/29")
 
+		fakeLister = &lister{}
 		fakeDestroyer = &destroyer{}
-		mgr = bridgemgr.New("pr", fakeDestroyer)
+		mgr = bridgemgr.New("pr", fakeDestroyer, fakeLister)
 	})
 
 	Describe("reserving", func() {
@@ -165,7 +167,55 @@ var _ = Describe("BridgeNamePool", func() {
 			})
 		})
 	})
+
+	Describe("pruning", func() {
+		Context("when listing bridges fails", func() {
+			BeforeEach(func() {
+				fakeLister.ListReturns = errors.New("o no")
+			})
+
+			It("returns a wrapped error", func() {
+				Ω(mgr.Prune()).Should(MatchError("bridgemgr: pruning bridges: o no"))
+			})
+		})
+
+		Context("when there are no bridges", func() {
+			It("does not destroy any bridges", func() {
+				Ω(mgr.Prune()).Should(Succeed())
+				Ω(fakeDestroyer.Destroyed).Should(HaveLen(0))
+			})
+		})
+
+		Context("when there are multiple bridges", func() {
+			BeforeEach(func() {
+				fakeLister.Bridges = []string{"doesnotmatch", "pr-123", "pr-234"}
+				mgr.Rereserve("pr-234", subnet1, "somecontainerid")
+				Ω(mgr.Prune()).Should(Succeed())
+			})
+
+			It("destroys bridges with the prefix", func() {
+				Ω(fakeDestroyer.Destroyed).Should(ContainElement("pr-123"))
+			})
+
+			It("does not destroy bridges without the prefix", func() {
+				Ω(fakeDestroyer.Destroyed).ShouldNot(ContainElement("doesnotmatch"))
+			})
+
+			It("does not destroy bridges which are reserved", func() {
+				Ω(fakeDestroyer.Destroyed).ShouldNot(ContainElement("pr-234"))
+			})
+		})
+	})
 })
+
+type lister struct {
+	Bridges     []string
+	ListReturns error
+}
+
+func (l *lister) List() ([]string, error) {
+	return l.Bridges, l.ListReturns
+}
 
 type destroyer struct {
 	Destroyed      []string

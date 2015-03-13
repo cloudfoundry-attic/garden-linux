@@ -38,6 +38,12 @@ type FakeBridgeManager struct {
 	releaseReturns struct {
 		result1 error
 	}
+	PruneStub        func() error
+	pruneMutex       sync.RWMutex
+	pruneArgsForCall []struct{}
+	pruneReturns     struct {
+		result1 error
+	}
 }
 
 func (fake *FakeBridgeManager) Reserve(subnet *net.IPNet, containerId string) (string, error) {
@@ -137,6 +143,30 @@ func (fake *FakeBridgeManager) ReleaseArgsForCall(i int) (string, string) {
 func (fake *FakeBridgeManager) ReleaseReturns(result1 error) {
 	fake.ReleaseStub = nil
 	fake.releaseReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeBridgeManager) Prune() error {
+	fake.pruneMutex.Lock()
+	fake.pruneArgsForCall = append(fake.pruneArgsForCall, struct{}{})
+	fake.pruneMutex.Unlock()
+	if fake.PruneStub != nil {
+		return fake.PruneStub()
+	} else {
+		return fake.pruneReturns.result1
+	}
+}
+
+func (fake *FakeBridgeManager) PruneCallCount() int {
+	fake.pruneMutex.RLock()
+	defer fake.pruneMutex.RUnlock()
+	return len(fake.pruneArgsForCall)
+}
+
+func (fake *FakeBridgeManager) PruneReturns(result1 error) {
+	fake.PruneStub = nil
+	fake.pruneReturns = struct {
 		result1 error
 	}{result1}
 }

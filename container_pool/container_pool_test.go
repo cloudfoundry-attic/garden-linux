@@ -1422,6 +1422,13 @@ var _ = Describe("Container pool", func() {
 					Ω(fakeRootFSProvider.CleanupRootFSCallCount()).Should(Equal(0))
 				})
 			})
+
+			It("prunes any remaining bridges", func() {
+				err := pool.Prune(map[string]bool{})
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Ω(fakeBridges.PruneCallCount()).Should(Equal(1))
+			})
 		})
 	})
 

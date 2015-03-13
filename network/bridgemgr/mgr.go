@@ -4,11 +4,16 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"strings"
 	"sync"
 )
 
 type Destroyer interface {
 	Destroy(name string) error
+}
+
+type Lister interface {
+	List() ([]string, error)
 }
 
 //go:generate counterfeiter -o fake_bridge_manager/FakeBridgeManager.go . BridgeManager
@@ -23,11 +28,16 @@ type BridgeManager interface {
 	// Release releases a reservation made by a particular container.
 	// If this is the last reservation, the passed destroyers Destroy method is called.
 	Release(bridgeName string, containerId string) error
+
+	// Prune deletes all bridges starting with prefix, that are unknown.
+	Prune() error
 }
 
 type mgr struct {
+	prefix    string
 	names     BridgeNameGenerator
 	destroyer Destroyer
+	lister    Lister
 
 	mu           sync.Mutex
 	owners       map[string][]string // bridgeName -> []containerId
@@ -35,10 +45,12 @@ type mgr struct {
 	subnetBridge map[string]string   // subnet -> bridgeName
 }
 
-func New(prefix string, destroyer Destroyer) BridgeManager {
+func New(prefix string, destroyer Destroyer, lister Lister) BridgeManager {
 	return &mgr{
+		prefix:    prefix,
 		names:     NewBridgeNameGenerator(prefix),
 		destroyer: destroyer,
+		lister:    lister,
 
 		owners:       make(map[string][]string),
 		bridgeSubnet: make(map[string]string),
@@ -93,7 +105,7 @@ func (m *mgr) Rereserve(bridgeName string, subnet *net.IPNet, containerId string
 	}
 
 	if sn, present := m.bridgeSubnet[bridgeName]; present && sn != subnet.String() {
-		return fmt.Errorf("bridgepool: reacquired bridge name '%s' has already been acquired for subnet %s", bridgeName, sn)
+		return fmt.Errorf("bridgemgr: reacquired bridge name '%s' has already been acquired for subnet %s", bridgeName, sn)
 	}
 
 	m.subnetBridge[subnet.String()] = bridgeName
@@ -101,6 +113,30 @@ func (m *mgr) Rereserve(bridgeName string, subnet *net.IPNet, containerId string
 	m.bridgeSubnet[bridgeName] = subnet.String()
 
 	return nil
+}
+
+func (m *mgr) Prune() error {
+	list, err := m.lister.List()
+	if err != nil {
+		return fmt.Errorf("bridgemgr: pruning bridges: %v", err)
+	}
+
+	for _, b := range list {
+		if !strings.HasPrefix(b, m.prefix) {
+			continue
+		}
+
+		if !m.isReserved(b) {
+			m.destroyer.Destroy(b)
+		}
+	}
+
+	return nil
+}
+
+func (m *mgr) isReserved(r string) bool {
+	_, ok := m.bridgeSubnet[r]
+	return ok
 }
 
 func remove(a []string, b string) []string {

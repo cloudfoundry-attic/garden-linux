@@ -326,7 +326,7 @@ func Main() {
 		parsedExternalIP,
 		*mtu,
 		subnetPool,
-		bridgemgr.New("w"+config.Tag+"b-", &devices.Bridge{}),
+		bridgemgr.New("w"+config.Tag+"b-", &devices.Bridge{}, &devices.Link{}),
 		filterProvider,
 		iptables.NewGlobalChain(config.IPTables.Filter.DefaultChain, runner, logger.Session("global-chain")),
 		portPool,

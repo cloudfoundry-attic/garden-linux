@@ -44,6 +44,19 @@ func (Link) InterfaceByName(name string) (*net.Interface, bool, error) {
 	return nil, false, nil
 }
 
+func (Link) List() (names []string, err error) {
+	intfs, err := net.Interfaces()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, i := range intfs {
+		names = append(names, i.Name)
+	}
+
+	return names, nil
+}
+
 func errF(err error) error {
 	if err == nil {
 		return err
