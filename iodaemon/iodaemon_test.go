@@ -1,7 +1,6 @@
 package main
 
 import (
-	"sync"
 	"time"
 
 	"io/ioutil"
@@ -42,12 +41,9 @@ var _ = Describe("Iodaemon", func() {
 
 		socketPath = filepath.Join(tmpdir, "iodaemon.sock")
 
-		var once sync.Once
 		done = make(chan struct{})
 		terminate = func(exitStatus int) {
-			once.Do(func() {
-				close(done)
-			})
+			close(done)
 		}
 
 		fakeOut = wc{

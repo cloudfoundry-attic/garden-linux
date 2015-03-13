@@ -84,12 +84,17 @@ func spawn(
 		return
 	}
 
-	acceptConn := func() (net.Conn, error) {
+	acceptConn := func(stopAccepting chan bool) (net.Conn, error) {
 		notify(notifyStream, "ready")
 		conn, err := acceptConnection(listener, stdoutR, stderrR, statusR)
 		if err != nil {
-			fatal(err)
-			return nil, err
+			select {
+			case <-stopAccepting:
+				return nil, err
+			default:
+				fatal(err)
+				return nil, err
+			}
 		}
 		return conn, nil
 	}
@@ -117,24 +122,25 @@ func spawn(
 		}
 	}
 
-	initChild, childStarted, childEnded := make(chan bool), make(chan bool), make(chan bool)
+	initChild, childStarted, childEnded, stopAccepting := make(chan bool), make(chan bool), make(chan bool), make(chan bool)
 
-	go acceptConnections(acceptConn, initChild, childStarted, processConn)
+	go acceptConnections(acceptConn, initChild, childStarted, stopAccepting, processConn)
 
 	<-initChild
 	go runChildProcess(startChild, waitForChild, childStarted, childEnded)
 
 	<-childEnded
 	errStream.Close()
+	close(stopAccepting)
 	listener.Close()
 	terminate(0)
 }
 
-func acceptConnections(acceptConn func() (net.Conn, error), initChild, childStarted chan bool,
+func acceptConnections(acceptConn func(chan bool) (net.Conn, error), initChild, childStarted, stopAccepting chan bool,
 	processConn func(net.Conn)) {
 	var once sync.Once
 	for {
-		conn, err := acceptConn()
+		conn, err := acceptConn(stopAccepting)
 		if err != nil {
 			return
 		}
