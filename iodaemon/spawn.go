@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	debugPkg "runtime/debug"
 	"strconv"
+	"sync"
 	"syscall"
 	"time"
 
@@ -28,7 +29,7 @@ func spawn(
 	windowColumns int,
 	windowRows int,
 	debug bool,
-	terminate func(int),
+	terminate chan int,
 	notifyStream io.WriteCloser,
 	errStream io.WriteCloser,
 ) {
@@ -42,12 +43,7 @@ func spawn(
 		if listener != nil {
 			listener.Close()
 		}
-		terminate(1)
-	}
-
-	success := func() {
-		listener.Close()
-		terminate(0)
+		terminate <- 1
 	}
 
 	if debug {
@@ -88,61 +84,85 @@ func spawn(
 		return
 	}
 
-	notify(notifyStream, "ready")
-
-	childProcessStarted := false
-
-	childProcessTerminated := make(chan bool)
-
-	go terminateWhenDone(childProcessTerminated, success)
-
-	// Loop accepting and processing connections from the caller.
-	for {
+	acceptConn := func(stopAccepting chan bool) (net.Conn, error) {
+		notify(notifyStream, "ready")
 		conn, err := acceptConnection(listener, stdoutR, stderrR, statusR)
 		if err != nil {
-			fatal(err)
-			return
-		}
-
-		if !childProcessStarted {
-			err = startChildProcess(cmd, errStream, notifyStream, statusW, childProcessTerminated)
-			if err != nil {
+			select {
+			case <-stopAccepting:
+				return nil, err
+			default:
 				fatal(err)
-				return
+				return nil, err
 			}
-			errStream.Close()
-			childProcessStarted = true
 		}
+		return conn, nil
+	}
 
+	processConn := func(conn net.Conn) {
 		processLinkRequests(conn, stdinW, cmd, withTty)
 	}
-}
 
-func startChildProcess(cmd *exec.Cmd, errStream, notifyStream io.WriteCloser, statusW *os.File, done chan bool) error {
-	err := cmd.Start()
-	if err != nil {
-		return err
+	startChild := func() error {
+		err := cmd.Start()
+		if err != nil {
+			fatal(err)
+			return err
+		}
+
+		notify(notifyStream, "active")
+		notifyStream.Close()
+		return nil
 	}
 
-	notify(notifyStream, "active")
-	notifyStream.Close()
-
-	go func() {
+	waitForChild := func() {
 		cmd.Wait()
-
 		if cmd.ProcessState != nil {
 			fmt.Fprintf(statusW, "%d\n", cmd.ProcessState.Sys().(syscall.WaitStatus).ExitStatus())
 		}
+	}
 
-		done <- true
-	}()
+	initChild, childStarted, childEnded, stopAccepting := make(chan bool), make(chan bool), make(chan bool), make(chan bool)
 
-	return nil
+	go acceptConnections(acceptConn, initChild, childStarted, stopAccepting, processConn)
+
+	<-initChild
+	go runChildProcess(startChild, waitForChild, childStarted, childEnded)
+
+	<-childEnded
+	errStream.Close()
+	close(stopAccepting)
+	listener.Close()
+	terminate <- 0
 }
 
-func terminateWhenDone(done chan bool, success func()) {
-	<-done
-	success()
+func acceptConnections(acceptConn func(chan bool) (net.Conn, error), initChild, childStarted, stopAccepting chan bool,
+	processConn func(net.Conn)) {
+	var once sync.Once
+	for {
+		conn, err := acceptConn(stopAccepting)
+		if err != nil {
+			return
+		}
+
+		once.Do(func() {
+			initChild <- true
+			<-childStarted
+		})
+
+		processConn(conn)
+	}
+}
+
+func runChildProcess(startChild func() error, waitForChild func(), childStarted, childEnded chan bool) {
+	err := startChild()
+	if err != nil {
+		return
+	}
+	childStarted <- true
+
+	waitForChild()
+	childEnded <- true
 }
 
 func notify(notifyStream io.Writer, message string) {

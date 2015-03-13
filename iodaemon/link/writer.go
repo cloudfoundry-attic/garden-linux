@@ -17,11 +17,16 @@ type WindowSize struct {
 }
 
 type Writer struct {
-	enc *gob.Encoder
+	conn net.Conn
+	enc  *gob.Encoder
 }
 
 func NewWriter(conn net.Conn) *Writer {
-	return &Writer{enc: gob.NewEncoder(conn)}
+	return &Writer{conn: conn, enc: gob.NewEncoder(conn)}
+}
+
+func (w *Writer) TerminateConnection() error {
+	return w.conn.Close()
 }
 
 func (w *Writer) Write(d []byte) (int, error) {

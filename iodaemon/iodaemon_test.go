@@ -1,7 +1,6 @@
 package main
 
 import (
-	"sync"
 	"time"
 
 	"io/ioutil"
@@ -29,8 +28,7 @@ var _ = Describe("Iodaemon", func() {
 	var (
 		socketPath string
 		tmpdir     string
-		done       chan struct{}
-		terminate  func(int)
+		terminate  chan int
 		fakeOut    wc
 		fakeErr    wc
 	)
@@ -42,13 +40,7 @@ var _ = Describe("Iodaemon", func() {
 
 		socketPath = filepath.Join(tmpdir, "iodaemon.sock")
 
-		var once sync.Once
-		done = make(chan struct{})
-		terminate = func(exitStatus int) {
-			once.Do(func() {
-				close(done)
-			})
-		}
+		terminate = make(chan int, 1)
 
 		fakeOut = wc{
 			bytes.NewBuffer([]byte{}),
@@ -62,7 +54,7 @@ var _ = Describe("Iodaemon", func() {
 		defer os.RemoveAll(tmpdir)
 
 		By("waiting for iodeamon to terminate")
-		Eventually(done).Should(BeClosed())
+		Eventually(terminate).Should(Receive(Equal(0)))
 
 		By("tidying up the socket file")
 		if _, err := os.Stat(socketPath); !os.IsNotExist(err) {
@@ -81,6 +73,20 @@ var _ = Describe("Iodaemon", func() {
 			_, linkStdout, _, err := createLink(socketPath)
 			Ω(err).ShouldNot(HaveOccurred())
 			Eventually(linkStdout).Should(gbytes.Say("hello\n"))
+		})
+
+		It("supports re-linking to an iodaemon instance", func() {
+			spawnProcess("bash")
+
+			l, _, _, err := createLink(socketPath)
+			Ω(err).ShouldNot(HaveOccurred())
+			err = l.Writer.TerminateConnection()
+			Ω(err).ShouldNot(HaveOccurred())
+
+			m, _, _, err := createLink(socketPath)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			m.Write([]byte("exit\n"))
 		})
 
 		It("reports back stderr", func() {
@@ -109,9 +115,7 @@ var _ = Describe("Iodaemon", func() {
 			l, _, _, err := createLink(socketPath)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Ω(done).ShouldNot(BeClosed())
 			l.Write([]byte("exit\n"))
-			Eventually(done).Should(BeClosed())
 		})
 
 		It("closes stdin when the link is closed", func() {
@@ -120,9 +124,7 @@ var _ = Describe("Iodaemon", func() {
 			l, _, _, err := createLink(socketPath)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Ω(done).ShouldNot(BeClosed())
 			l.Close() //bash will normally terminate when it receives EOF on stdin
-			Eventually(done).Should(BeClosed())
 		})
 
 		Context("when there is an existing socket file", func() {
@@ -169,9 +171,7 @@ var _ = Describe("Iodaemon", func() {
 			l, _, _, err := createLink(socketPath)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Ω(done).ShouldNot(BeClosed())
 			l.Write([]byte("exit\n"))
-			Eventually(done).Should(BeClosed())
 		})
 
 		It("closes stdin when the link is closed", func() {
@@ -180,9 +180,7 @@ var _ = Describe("Iodaemon", func() {
 			l, _, _, err := createLink(socketPath)
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Ω(done).ShouldNot(BeClosed())
 			l.Close() //bash will normally terminate when it receives EOF on stdin
-			Eventually(done).Should(BeClosed())
 		})
 
 		It("sends stdin to child", func() {
