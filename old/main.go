@@ -31,6 +31,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/network/iptables"
 	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
+	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/container_repository"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/port_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/quota_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/repository_fetcher"
@@ -330,7 +331,7 @@ func Main() {
 
 	systemInfo := system_info.NewProvider(*depotPath)
 
-	backend := linux_backend.New(logger, pool, systemInfo, *snapshotsPath)
+	backend := linux_backend.New(logger, pool, container_repository.New(), systemInfo, *snapshotsPath)
 
 	err = backend.Setup()
 	if err != nil {

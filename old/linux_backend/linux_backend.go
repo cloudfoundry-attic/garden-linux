@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
-	"sync"
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
@@ -69,7 +68,13 @@ func (e FailedToSnapshotError) Error() string {
 	return fmt.Sprintf("failed to save snapshot: %s", e.OriginalError)
 }
 
-func New(logger lager.Logger, containerPool ContainerPool, systemInfo system_info.Provider, snapshotsPath string) *LinuxBackend {
+func New(
+	logger lager.Logger,
+	containerPool ContainerPool,
+	containerRepo ContainerRepository,
+	systemInfo system_info.Provider,
+	snapshotsPath string,
+) *LinuxBackend {
 	return &LinuxBackend{
 		logger: logger.Session("backend"),
 
@@ -77,10 +82,7 @@ func New(logger lager.Logger, containerPool ContainerPool, systemInfo system_inf
 		systemInfo:    systemInfo,
 		snapshotsPath: snapshotsPath,
 
-		containerRepo: &InMemoryContainerRepository{
-			store: map[string]Container{},
-			mutex: &sync.RWMutex{},
-		},
+		containerRepo: containerRepo,
 	}
 }
 
