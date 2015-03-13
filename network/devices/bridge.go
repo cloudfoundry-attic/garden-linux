@@ -16,6 +16,9 @@ type Bridge struct{}
 // Create creates a bridge device and returns the interface.
 // If the device already exists, returns the existing interface.
 func (Bridge) Create(name string, ip net.IP, subnet *net.IPNet) (intf *net.Interface, err error) {
+	netlinkMu.Lock()
+	defer netlinkMu.Unlock()
+
 	if err := netlink.NetworkLinkAdd(name, "bridge"); err != nil && err.Error() != "file exists" {
 		return nil, fmt.Errorf("devices: create bridge: %v", err)
 	}
@@ -31,6 +34,9 @@ func (Bridge) Create(name string, ip net.IP, subnet *net.IPNet) (intf *net.Inter
 }
 
 func (Bridge) Add(bridge, slave *net.Interface) error {
+	netlinkMu.Lock()
+	defer netlinkMu.Unlock()
+
 	return netlink.AddToBridge(slave, bridge)
 }
 

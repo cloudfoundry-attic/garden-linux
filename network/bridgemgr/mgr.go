@@ -6,9 +6,12 @@ import (
 	"net"
 	"strings"
 	"sync"
+
+	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
 )
 
-type Destroyer interface {
+type Builder interface {
+	Create(name string, ip net.IP, subnet *net.IPNet) (intf *net.Interface, err error)
 	Destroy(name string) error
 }
 
@@ -34,10 +37,10 @@ type BridgeManager interface {
 }
 
 type mgr struct {
-	prefix    string
-	names     BridgeNameGenerator
-	destroyer Destroyer
-	lister    Lister
+	prefix  string
+	names   BridgeNameGenerator
+	builder Builder
+	lister  Lister
 
 	mu           sync.Mutex
 	owners       map[string][]string // bridgeName -> []containerId
@@ -45,12 +48,12 @@ type mgr struct {
 	subnetBridge map[string]string   // subnet -> bridgeName
 }
 
-func New(prefix string, destroyer Destroyer, lister Lister) BridgeManager {
+func New(prefix string, builder Builder, lister Lister) BridgeManager {
 	return &mgr{
-		prefix:    prefix,
-		names:     NewBridgeNameGenerator(prefix),
-		destroyer: destroyer,
-		lister:    lister,
+		prefix:  prefix,
+		names:   NewBridgeNameGenerator(prefix),
+		builder: builder,
+		lister:  lister,
 
 		owners:       make(map[string][]string),
 		bridgeSubnet: make(map[string]string),
@@ -66,6 +69,9 @@ func (m *mgr) Reserve(subnet *net.IPNet, containerId string) (string, error) {
 
 	if !present {
 		name = m.names.Generate()
+		if _, err := m.builder.Create(name, subnets.GatewayIP(subnet), subnet); err != nil {
+			return "", err
+		}
 		m.subnetBridge[subnet.String()] = name
 		m.bridgeSubnet[name] = subnet.String()
 	}
@@ -90,7 +96,7 @@ func (m *mgr) Release(bridgeName string, containerId string) error {
 	m.mu.Unlock()
 
 	if shouldDelete {
-		return m.destroyer.Destroy(bridgeName)
+		return m.builder.Destroy(bridgeName)
 	}
 
 	return nil
@@ -127,7 +133,7 @@ func (m *mgr) Prune() error {
 		}
 
 		if !m.isReserved(b) {
-			m.destroyer.Destroy(b)
+			m.builder.Destroy(b)
 		}
 	}
 

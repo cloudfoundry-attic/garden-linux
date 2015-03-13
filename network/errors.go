@@ -36,16 +36,16 @@ func (err SetNsFailedError) Error() string {
 	return fmtErr("failed to move interface %v in to pid namespace %d: %v", err.Intf, err.Pid, err.Cause)
 }
 
-// BridgeCreationError is returned if an error occurs while creating a bridge
-type BridgeCreationError struct {
+// BridgeDetectionError is returned if an error occurs while creating a bridge
+type BridgeDetectionError struct {
 	Cause  error
 	Name   string
 	IP     net.IP
 	Subnet *net.IPNet
 }
 
-func (err BridgeCreationError) Error() string {
-	return fmtErr("failed to create bridge with name '%s', IP '%s', subnet '%s': %v", err.Name, err.IP, err.Subnet, err.Cause)
+func (err BridgeDetectionError) Error() string {
+	return fmtErr("failed to find bridge with name '%s', IP '%s', subnet '%s': %v", err.Name, err.IP, err.Subnet, err.Cause)
 }
 
 // AddToBridgeError is returned if an error occurs while adding an interface to a bridge

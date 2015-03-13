@@ -74,17 +74,9 @@ func (c *Configurer) configureBridgeIntf(log lager.Logger, name string, ip net.I
 
 	log.Debug("find")
 	bridge, bridgeExists, err := c.Link.InterfaceByName(name)
-	if err != nil {
+	if err != nil || !bridgeExists {
 		log.Error("find", err)
-		return nil, &BridgeCreationError{errors.New("look up existing bridge"), name, ip, subnet}
-	}
-
-	if !bridgeExists {
-		log.Debug("create")
-		if bridge, err = c.Bridge.Create(name, ip, subnet); err != nil {
-			log.Error("create", err)
-			return nil, &BridgeCreationError{err, name, ip, subnet}
-		}
+		return nil, &BridgeDetectionError{errors.New("look up existing bridge"), name, ip, subnet}
 	}
 
 	log.Debug("bring-up")

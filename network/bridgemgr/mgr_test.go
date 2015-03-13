@@ -12,7 +12,7 @@ import (
 var _ = Describe("BridgeNamePool", func() {
 	var subnet1 *net.IPNet
 	var subnet2 *net.IPNet
-	var fakeDestroyer *destroyer
+	var fakeBuilder *builder
 	var fakeLister *lister
 
 	var mgr bridgemgr.BridgeManager
@@ -21,9 +21,9 @@ var _ = Describe("BridgeNamePool", func() {
 		_, subnet1, _ = net.ParseCIDR("1.2.3.4/30")
 		_, subnet2, _ = net.ParseCIDR("1.2.3.4/29")
 
+		fakeBuilder = &builder{}
 		fakeLister = &lister{}
-		fakeDestroyer = &destroyer{}
-		mgr = bridgemgr.New("pr", fakeDestroyer, fakeLister)
+		mgr = bridgemgr.New("pr", fakeBuilder, fakeLister)
 	})
 
 	Describe("reserving", func() {
@@ -33,6 +33,36 @@ var _ = Describe("BridgeNamePool", func() {
 
 				Ω(err).ShouldNot(HaveOccurred())
 				Ω(name).Should(MatchRegexp("^pr"))
+			})
+
+			It("creates the bridge", func() {
+				name, err := mgr.Reserve(subnet1, "container-name")
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(fakeBuilder.CreatedBridges).Should(ContainElement(createParams{
+					name:   name,
+					subnet: subnet1,
+					ip:     net.ParseIP("1.2.3.6"),
+				}))
+			})
+
+			Context("when creating the bridge fails", func() {
+				BeforeEach(func() {
+					fakeBuilder.CreateReturns = errors.New("Bananas")
+				})
+
+				It("returns the error", func() {
+					_, err := mgr.Reserve(subnet1, "container1")
+					Ω(err).Should(HaveOccurred())
+				})
+
+				Context("when the same subnet is acquired later", func() {
+					It("retries the creation", func() {
+						mgr.Reserve(subnet1, "container1")
+						mgr.Reserve(subnet1, "container1")
+
+						Ω(fakeBuilder.CreatedBridges).Should(HaveLen(2))
+					})
+				})
 			})
 		})
 
@@ -45,6 +75,7 @@ var _ = Describe("BridgeNamePool", func() {
 				Ω(err).ShouldNot(HaveOccurred())
 
 				Ω(name2).Should(Equal(name1))
+				Ω(fakeBuilder.CreatedBridges).Should(HaveLen(1))
 			})
 		})
 
@@ -57,6 +88,7 @@ var _ = Describe("BridgeNamePool", func() {
 				Ω(err).ShouldNot(HaveOccurred())
 
 				Ω(name2).ShouldNot(Equal(name1))
+				Ω(fakeBuilder.CreatedBridges).Should(HaveLen(2))
 			})
 		})
 	})
@@ -82,7 +114,7 @@ var _ = Describe("BridgeNamePool", func() {
 				})
 
 				It("does not destroy the bridge", func() {
-					Ω(fakeDestroyer.Destroyed).ShouldNot(ContainElement(name))
+					Ω(fakeBuilder.Destroyed).ShouldNot(ContainElement(name))
 				})
 			})
 
@@ -104,12 +136,12 @@ var _ = Describe("BridgeNamePool", func() {
 
 				It("destroys the bridge with the passed destroyer", func() {
 					Ω(mgr.Release("some-bridge", "container1")).Should(Succeed())
-					Ω(fakeDestroyer.Destroyed).Should(ContainElement("some-bridge"))
+					Ω(fakeBuilder.Destroyed).Should(ContainElement("some-bridge"))
 				})
 
 				Context("when the destroyer returns an error", func() {
 					It("returns an error", func() {
-						fakeDestroyer.DestroyReturns = errors.New("bboom ")
+						fakeBuilder.DestroyReturns = errors.New("bboom ")
 						Ω(mgr.Release("some-bridge", "container1")).ShouldNot(Succeed())
 					})
 				})
@@ -118,7 +150,7 @@ var _ = Describe("BridgeNamePool", func() {
 			Context("and it has not previously been acquired (e.g. when releasing an unknown bridge during recovery)", func() {
 				It("destroys the bridge with the passed destroyer", func() {
 					Ω(mgr.Release("some-bridge", "container1")).Should(Succeed())
-					Ω(fakeDestroyer.Destroyed).Should(ContainElement("some-bridge"))
+					Ω(fakeBuilder.Destroyed).Should(ContainElement("some-bridge"))
 				})
 			})
 		})
@@ -153,7 +185,7 @@ var _ = Describe("BridgeNamePool", func() {
 					Context("when it is released", func() {
 						It("does not destroy the bridge, since the reacquired container is still using it", func() {
 							Ω(mgr.Release("my-bridge", "another-container")).Should(Succeed())
-							Ω(fakeDestroyer.Destroyed).ShouldNot(ContainElement("my-bridge"))
+							Ω(fakeBuilder.Destroyed).ShouldNot(ContainElement("my-bridge"))
 						})
 					})
 				})
@@ -161,7 +193,7 @@ var _ = Describe("BridgeNamePool", func() {
 				Context("when it is released", func() {
 					It("destroys the bridge with the passed destroyer", func() {
 						Ω(mgr.Release("my-bridge", "my-container")).Should(Succeed())
-						Ω(fakeDestroyer.Destroyed).Should(ContainElement("my-bridge"))
+						Ω(fakeBuilder.Destroyed).Should(ContainElement("my-bridge"))
 					})
 				})
 			})
@@ -182,7 +214,7 @@ var _ = Describe("BridgeNamePool", func() {
 		Context("when there are no bridges", func() {
 			It("does not destroy any bridges", func() {
 				Ω(mgr.Prune()).Should(Succeed())
-				Ω(fakeDestroyer.Destroyed).Should(HaveLen(0))
+				Ω(fakeBuilder.Destroyed).Should(HaveLen(0))
 			})
 		})
 
@@ -194,19 +226,47 @@ var _ = Describe("BridgeNamePool", func() {
 			})
 
 			It("destroys bridges with the prefix", func() {
-				Ω(fakeDestroyer.Destroyed).Should(ContainElement("pr-123"))
+				Ω(fakeBuilder.Destroyed).Should(ContainElement("pr-123"))
 			})
 
 			It("does not destroy bridges without the prefix", func() {
-				Ω(fakeDestroyer.Destroyed).ShouldNot(ContainElement("doesnotmatch"))
+				Ω(fakeBuilder.Destroyed).ShouldNot(ContainElement("doesnotmatch"))
 			})
 
 			It("does not destroy bridges which are reserved", func() {
-				Ω(fakeDestroyer.Destroyed).ShouldNot(ContainElement("pr-234"))
+				Ω(fakeBuilder.Destroyed).ShouldNot(ContainElement("pr-234"))
 			})
 		})
 	})
 })
+
+type builder struct {
+	CreatedBridges []createParams
+	CreateReturns  error
+	Destroyed      []string
+	DestroyReturns error
+}
+
+type createParams struct {
+	name   string
+	subnet *net.IPNet
+	ip     net.IP
+}
+
+func (c *builder) Create(name string, ip net.IP, subnet *net.IPNet) (*net.Interface, error) {
+	c.CreatedBridges = append(c.CreatedBridges, createParams{
+		name:   name,
+		subnet: subnet,
+		ip:     ip,
+	})
+
+	return nil, c.CreateReturns
+}
+
+func (d *builder) Destroy(name string) error {
+	d.Destroyed = append(d.Destroyed, name)
+	return d.DestroyReturns
+}
 
 type lister struct {
 	Bridges     []string
@@ -215,14 +275,4 @@ type lister struct {
 
 func (l *lister) List() ([]string, error) {
 	return l.Bridges, l.ListReturns
-}
-
-type destroyer struct {
-	Destroyed      []string
-	DestroyReturns error
-}
-
-func (d *destroyer) Destroy(name string) error {
-	d.Destroyed = append(d.Destroyed, name)
-	return d.DestroyReturns
 }
