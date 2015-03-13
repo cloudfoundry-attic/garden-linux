@@ -155,6 +155,7 @@ func (b *LinuxBackend) Create(spec garden.ContainerSpec) (garden.Container, erro
 
 	err = container.Start()
 	if err != nil {
+		b.containerPool.Destroy(container)
 		return nil, err
 	}
 

@@ -346,6 +346,20 @@ var _ = Describe("Create", func() {
 		Ω(container.(*fake_container_pool.FakeContainer).Started).Should(BeTrue())
 	})
 
+	Context("when starting the container fails", func() {
+		It("destroys the container", func() {
+			var setupContainer *fake_container_pool.FakeContainer
+			fakeContainerPool.ContainerSetup = func(c *fake_container_pool.FakeContainer) {
+				c.StartError = errors.New("insufficient banana")
+				setupContainer = c
+			}
+
+			_, err := linuxBackend.Create(garden.ContainerSpec{})
+			Ω(err).Should(HaveOccurred())
+			Ω(fakeContainerPool.DestroyedContainers).Should(ContainElement(setupContainer))
+		})
+	})
+
 	It("registers the container", func() {
 		container, err := linuxBackend.Create(garden.ContainerSpec{})
 		Ω(err).ShouldNot(HaveOccurred())

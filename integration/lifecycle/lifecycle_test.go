@@ -91,6 +91,25 @@ var _ = Describe("Creating a container", func() {
 		})
 	})
 
+	Context("when the container fails to start", func() {
+		It("does not leave resources around", func() {
+			client = startGarden()
+			client.Create(garden.ContainerSpec{
+				BindMounts: []garden.BindMount{{
+					SrcPath: "fictional",
+					DstPath: "whereami",
+				}},
+			})
+
+			depotDir := filepath.Join(
+				os.TempDir(),
+				fmt.Sprintf("test-garden-%d", GinkgoParallelNode()),
+				"containers",
+			)
+			Ω(ioutil.ReadDir(depotDir)).Should(HaveLen(0))
+		})
+	})
+
 	Context("when the container is created succesfully", func() {
 		var container garden.Container
 
