@@ -55,9 +55,14 @@ func main() {
 			usage()
 		}
 
-		spawn(args[1], args[2:], *timeout, *tty, *windowColumns, *windowRows, *debug, func(exitStatus int) {
-			os.Exit(exitStatus)
-		}, os.Stdout, os.Stderr)
+		terminate := make(chan int, 1)
+		go func() {
+			os.Exit(<-terminate)
+		}()
+
+		spawn(args[1], args[2:], *timeout, *tty, *windowColumns, *windowRows, *debug, terminate, os.Stdout, os.Stderr)
+		//block & allow goroutine to handle the exit
+		select {}
 
 	default:
 		usage()

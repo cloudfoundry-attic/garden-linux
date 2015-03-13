@@ -29,7 +29,7 @@ func spawn(
 	windowColumns int,
 	windowRows int,
 	debug bool,
-	terminate func(int),
+	terminate chan int,
 	notifyStream io.WriteCloser,
 	errStream io.WriteCloser,
 ) {
@@ -43,7 +43,7 @@ func spawn(
 		if listener != nil {
 			listener.Close()
 		}
-		terminate(1)
+		terminate <- 1
 	}
 
 	if debug {
@@ -133,7 +133,7 @@ func spawn(
 	errStream.Close()
 	close(stopAccepting)
 	listener.Close()
-	terminate(0)
+	terminate <- 0
 }
 
 func acceptConnections(acceptConn func(chan bool) (net.Conn, error), initChild, childStarted, stopAccepting chan bool,
