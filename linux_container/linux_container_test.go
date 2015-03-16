@@ -286,6 +286,7 @@ var _ = Describe("Linux containers", func() {
 				// oom exits immediately since it's faked out; should see event,
 				// and it should show up in the snapshot
 				Eventually(container.Events).Should(ContainElement("out of memory"))
+				Eventually(container.State).Should(Equal(linux_container.StateStopped))
 
 				err = container.LimitDisk(diskLimits)
 				Ω(err).ShouldNot(HaveOccurred())
