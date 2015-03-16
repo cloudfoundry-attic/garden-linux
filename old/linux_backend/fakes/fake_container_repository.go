@@ -11,7 +11,7 @@ type FakeContainerRepository struct {
 	AllStub        func() []linux_backend.Container
 	allMutex       sync.RWMutex
 	allArgsForCall []struct{}
-	allReturns struct {
+	allReturns     struct {
 		result1 []linux_backend.Container
 	}
 	AddStub        func(linux_backend.Container)
