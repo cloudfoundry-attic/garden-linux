@@ -101,7 +101,7 @@ var _ = Describe("When nested", func() {
 		Ω(err).ShouldNot(HaveOccurred())
 
 		nestedGardenAddress := fmt.Sprintf("%s:7778", info.ContainerIP)
-		Eventually(nestedServerOutput).Should(gbytes.Say("garden-linux.started"))
+		Eventually(nestedServerOutput, "30s").Should(gbytes.Say("garden-linux.started"))
 
 		return container, nestedGardenAddress
 	}
@@ -123,7 +123,7 @@ var _ = Describe("When nested", func() {
 		}, garden.ProcessIO{Stdout: nestedOutput, Stderr: nestedOutput})
 		Ω(err).ShouldNot(HaveOccurred())
 
-		Eventually(nestedOutput).Should(gbytes.Say("I am nested!"))
+		Eventually(nestedOutput, "30s").Should(gbytes.Say("I am nested!"))
 	})
 
 	It("returns helpful error message when depot directory fstype cannot be nested", func() {
