@@ -70,14 +70,28 @@ var _ = Describe("Creating a container", func() {
 
 			Ω(allBridges()).Should(ContainSubstring(bridgePrefix))
 
+			retry := func(fn func() error) error {
+				var err error
+				for retry := 0; retry < 3; retry++ {
+					err = fn()
+					if err == nil {
+						break
+					}
+				}
+				return err
+			}
+
 			wg := new(sync.WaitGroup)
 			errors := make(chan error, 50)
 			for _, h := range handles {
 				wg.Add(1)
 				go func(h string) {
-					if err := client.Destroy(h); err != nil {
+					err := retry(func() error { return client.Destroy(h) })
+
+					if err != nil {
 						errors <- err
 					}
+
 					wg.Done()
 				}(h)
 			}
