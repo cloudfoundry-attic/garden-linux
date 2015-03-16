@@ -3,6 +3,7 @@ package main_test
 import (
 	"os"
 	"os/exec"
+	"syscall"
 
 	linkpkg "github.com/cloudfoundry-incubator/garden-linux/iodaemon/link"
 	. "github.com/onsi/ginkgo"
@@ -86,5 +87,29 @@ var _ = Describe("Iodaemon integration tests", func() {
 			Eventually(spawnS).Should(gbytes.Say("active\n"))
 			Eventually(spawnS).Should(gexec.Exit(0))
 		}
+	})
+
+	It("can be killed via a signal", func() {
+		spawnS, err := gexec.Start(exec.Command(
+			iodaemon,
+			"spawn",
+			socketPath,
+			"bash",
+		), GinkgoWriter, GinkgoWriter)
+		Ω(err).ShouldNot(HaveOccurred())
+
+		Eventually(spawnS).Should(gbytes.Say("ready\n"))
+
+		lk, err := linkpkg.Create(socketPath, GinkgoWriter, GinkgoWriter)
+		Ω(err).ShouldNot(HaveOccurred())
+
+		lk.Signal(syscall.SIGTERM)
+		processExitCode, err := lk.Wait()
+		Ω(err).ShouldNot(HaveOccurred())
+
+		Ω(processExitCode).ShouldNot(Equal(0))
+
+		Eventually(spawnS).Should(gbytes.Say("active\n"))
+		Eventually(spawnS).Should(gexec.Exit(0))
 	})
 })

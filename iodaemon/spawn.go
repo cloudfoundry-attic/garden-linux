@@ -247,6 +247,8 @@ func processLinkRequests(conn net.Conn, stdinW *os.File, cmd *exec.Cmd, withTty 
 				conn.Close()
 				break
 			}
+		} else if input.Signal != 0 {
+			cmd.Process.Signal(input.Signal)
 		} else {
 			_, err := stdinW.Write(input.Data)
 			if err != nil {
