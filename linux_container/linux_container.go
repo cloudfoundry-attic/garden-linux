@@ -15,13 +15,13 @@ import (
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/network"
 	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/bandwidth_manager"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/cgroups_manager"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/quota_manager"
+	"github.com/cloudfoundry-incubator/garden-linux/old/bandwidth_manager"
+	"github.com/cloudfoundry-incubator/garden-linux/old/cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/logging"
+	"github.com/cloudfoundry-incubator/garden-linux/old/quota_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/cloudfoundry-incubator/garden-linux/process_tracker"
 	"github.com/cloudfoundry/gunk/command_runner"
@@ -520,6 +520,19 @@ func (c *LinuxContainer) RemoveProperty(key string) error {
 	delete(c.properties, key)
 
 	return nil
+}
+
+func (c *LinuxContainer) HasProperties(properties garden.Properties) bool {
+	c.propertiesMutex.RLock()
+	defer c.propertiesMutex.RUnlock()
+
+	for k, v := range properties {
+		if value, ok := c.properties[k]; !ok || (ok && value != v) {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (c *LinuxContainer) Info() (garden.ContainerInfo, error) {

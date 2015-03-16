@@ -41,7 +41,7 @@ type FakeBridgeManager struct {
 	PruneStub        func() error
 	pruneMutex       sync.RWMutex
 	pruneArgsForCall []struct{}
-	pruneReturns     struct {
+	pruneReturns struct {
 		result1 error
 	}
 }

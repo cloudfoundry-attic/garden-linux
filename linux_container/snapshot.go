@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 )
 
 type ContainerSnapshot struct {

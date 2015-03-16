@@ -8,7 +8,7 @@ import (
 	"net"
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 )
 
 // Subnets provides a means of allocating subnets and associated IP addresses.

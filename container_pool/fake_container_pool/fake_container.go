@@ -42,8 +42,21 @@ func (c *FakeContainer) Handle() string {
 	return c.Spec.Handle
 }
 
-func (c *FakeContainer) Properties() garden.Properties {
-	return c.Spec.Properties
+func (c *FakeContainer) HasProperties(ps garden.Properties) bool {
+	containerProps := c.Spec.Properties
+
+	for key, val := range ps {
+		cval, ok := containerProps[key]
+		if !ok {
+			return false
+		}
+
+		if cval != val {
+			return false
+		}
+	}
+
+	return true
 }
 
 func (c *FakeContainer) Start() error {

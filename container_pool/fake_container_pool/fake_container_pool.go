@@ -5,7 +5,7 @@ import (
 	"io"
 
 	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/nu7hatch/gouuid"
 )
 

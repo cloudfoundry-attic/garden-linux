@@ -21,13 +21,13 @@ import (
 	"github.com/pivotal-golang/lager/lagertest"
 
 	"github.com/cloudfoundry-incubator/garden"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
 	networkFakes "github.com/cloudfoundry-incubator/garden-linux/network/fakes"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/bandwidth_manager/fake_bandwidth_manager"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/cgroups_manager/fake_cgroups_manager"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/port_pool/fake_port_pool"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/quota_manager/fake_quota_manager"
+	"github.com/cloudfoundry-incubator/garden-linux/old/bandwidth_manager/fake_bandwidth_manager"
+	"github.com/cloudfoundry-incubator/garden-linux/old/cgroups_manager/fake_cgroups_manager"
+	"github.com/cloudfoundry-incubator/garden-linux/old/port_pool/fake_port_pool"
+	"github.com/cloudfoundry-incubator/garden-linux/old/quota_manager/fake_quota_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/cloudfoundry-incubator/garden-linux/process_tracker"
 	"github.com/cloudfoundry-incubator/garden-linux/process_tracker/fake_process_tracker"
@@ -2040,6 +2040,21 @@ var _ = Describe("Linux containers", func() {
 				value, err := container.GetProperty("property-name")
 				Ω(err).ShouldNot(HaveOccurred())
 				Ω(value).Should(Equal("property-value"))
+			})
+
+			It("can test for a set of properties", func() {
+				Ω(container.HasProperties(garden.Properties{
+					"other-property": "property-value",
+				})).Should(BeFalse())
+
+				Ω(container.HasProperties(garden.Properties{
+					"property-name":  "property-value",
+					"other-property": "property-value",
+				})).Should(BeFalse())
+
+				Ω(container.HasProperties(garden.Properties{
+					"property-name": "property-value",
+				})).Should(BeTrue())
 			})
 
 			It("returns an error when the property is undefined", func() {

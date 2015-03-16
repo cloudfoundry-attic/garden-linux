@@ -5,8 +5,8 @@ import (
 	"sync"
 
 	"github.com/cloudfoundry-incubator/garden-linux/container_pool"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
 )
 
 type FakeSubnetPool struct {

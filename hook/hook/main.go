@@ -5,7 +5,7 @@ import (
 	"path"
 
 	"github.com/cloudfoundry-incubator/garden-linux/hook"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/old/logging"
 	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
 	"github.com/pivotal-golang/lager"

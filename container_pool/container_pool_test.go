@@ -22,19 +22,19 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/container_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/container_pool/fake_container_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/container_pool/fake_subnet_pool"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
 	"github.com/cloudfoundry-incubator/garden-linux/network"
 	"github.com/cloudfoundry-incubator/garden-linux/network/bridgemgr/fake_bridge_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/network/fakes"
 	"github.com/cloudfoundry-incubator/garden-linux/network/iptables"
 	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/port_pool/fake_port_pool"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/quota_manager/fake_quota_manager"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/rootfs_provider"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/rootfs_provider/fake_rootfs_provider"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend/uid_pool/fake_uid_pool"
+	"github.com/cloudfoundry-incubator/garden-linux/old/port_pool/fake_port_pool"
+	"github.com/cloudfoundry-incubator/garden-linux/old/quota_manager/fake_quota_manager"
+	"github.com/cloudfoundry-incubator/garden-linux/old/rootfs_provider"
+	"github.com/cloudfoundry-incubator/garden-linux/old/rootfs_provider/fake_rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
+	"github.com/cloudfoundry-incubator/garden-linux/old/uid_pool/fake_uid_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 
 	"github.com/cloudfoundry-incubator/garden"
@@ -312,7 +312,7 @@ var _ = Describe("Container pool", func() {
 			})
 			Ω(err).ShouldNot(HaveOccurred())
 
-			Ω(container.Properties()).Should(Equal(properties))
+			Ω(container.GetProperties()).Should(Equal(properties))
 		})
 
 		It("sets up iptable filters for the container", func() {
@@ -1066,7 +1066,7 @@ var _ = Describe("Container pool", func() {
 			Ω(container.ID()).Should(Equal("some-restored-id"))
 			Ω(container.Handle()).Should(Equal("some-restored-handle"))
 			Ω(container.GraceTime()).Should(Equal(1 * time.Second))
-			Ω(container.Properties()).Should(Equal(garden.Properties(map[string]string{
+			Ω(container.GetProperties()).Should(Equal(garden.Properties(map[string]string{
 				"foo": "bar",
 			})))
 

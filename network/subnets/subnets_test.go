@@ -4,8 +4,8 @@ import (
 	"net"
 	"runtime"
 
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
-	"github.com/cloudfoundry-incubator/garden-linux/old/linux_backend"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
