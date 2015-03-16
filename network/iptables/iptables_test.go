@@ -45,7 +45,7 @@ var _ = Describe("Iptables", func() {
 						},
 						fake_command_runner.CommandSpec{
 							Path: "/sbin/iptables",
-							Args: []string{"-w", "-A", "foo-bar-baz-log", "-m", "conntrack", "--ctstate", "NEW,UNTRACKED,INVALID", "--protocol", "tcp", "--jump", "NFLOG", "--nflog-prefix", "logPrefix ", "--nflog-group", "1"},
+							Args: []string{"-w", "-A", "foo-bar-baz-log", "-m", "conntrack", "--ctstate", "NEW,UNTRACKED,INVALID", "--protocol", "tcp", "--jump", "NFLOG", "--nflog-prefix", "logPrefix", "--nflog-group", "1"},
 						},
 						fake_command_runner.CommandSpec{
 							Path: "/sbin/iptables",
@@ -77,7 +77,7 @@ var _ = Describe("Iptables", func() {
 						fake_command_runner.CommandSpec{
 							Path: "/sbin/iptables",
 							Args: []string{"-w", "-A", "foo-bar-baz-log", "-m", "conntrack", "--ctstate", "NEW,UNTRACKED,INVALID", "--protocol", "tcp",
-								"--jump", "LOG", "--log-prefix", "logPrefix "},
+								"--jump", "LOG", "--log-prefix", "logPrefix"},
 						},
 						fake_command_runner.CommandSpec{
 							Path: "/sbin/iptables",
@@ -133,7 +133,7 @@ var _ = Describe("Iptables", func() {
 				fakeRunner.WhenRunning(
 					fake_command_runner.CommandSpec{
 						Path: "/sbin/iptables",
-						Args: []string{"-w", "-A", "foo-bar-baz-log", "-m", "conntrack", "--ctstate", "NEW,UNTRACKED,INVALID", "--protocol", "tcp", "--jump", "LOG", "--log-prefix", "logPrefix "},
+						Args: []string{"-w", "-A", "foo-bar-baz-log", "-m", "conntrack", "--ctstate", "NEW,UNTRACKED,INVALID", "--protocol", "tcp", "--jump", "LOG", "--log-prefix", "logPrefix"},
 					},
 					func(cmd *exec.Cmd) error {
 						return someError

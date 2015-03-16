@@ -34,6 +34,8 @@ var _ = Describe("Net In/Out", func() {
 		allowRange       string
 	)
 
+	const containerHandle = "6e4ea858-6b31-4243-5dcc-093cfb83952d"
+
 	BeforeEach(func() {
 		denyRange = ""
 		allowRange = ""
@@ -53,7 +55,7 @@ var _ = Describe("Net In/Out", func() {
 		client = startGarden(gardenArgs...)
 
 		var err error
-		container, err = client.Create(garden.ContainerSpec{Network: containerNetwork, Privileged: privileged})
+		container, err = client.Create(garden.ContainerSpec{Network: containerNetwork, Privileged: privileged, Handle: containerHandle})
 		Ω(err).ShouldNot(HaveOccurred())
 
 		Ω(container.StreamIn("bin/", tgzReader(netdogBin))).Should(Succeed())

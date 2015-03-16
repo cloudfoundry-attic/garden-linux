@@ -85,9 +85,9 @@ func (ch *chain) Setup(logPrefix string) error {
 
 func (ch *chain) buildLogParams(logPrefix string) []string {
 	if ch.useKernelLogging {
-		return []string{"--jump", "LOG", "--log-prefix", fmt.Sprintf("%s ", logPrefix)}
+		return []string{"--jump", "LOG", "--log-prefix", logPrefix}
 	} else {
-		return []string{"--jump", "NFLOG", "--nflog-prefix", fmt.Sprintf("%s ", logPrefix), "--nflog-group", "1"}
+		return []string{"--jump", "NFLOG", "--nflog-prefix", logPrefix, "--nflog-group", "1"}
 	}
 }
 
