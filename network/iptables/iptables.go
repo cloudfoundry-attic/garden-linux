@@ -34,8 +34,9 @@ func NewLoggingChain(name string, useKernelLogging bool, runner command_runner.C
 
 //go:generate counterfeiter . Chain
 type Chain interface {
-	// Create the actual iptable chains in the underlying system
-	Setup() error
+	// Create the actual iptable chains in the underlying system.
+	// logPrefix defines the log prefix used for logging this chain.
+	Setup(logPrefix string) error
 
 	// Destroy the actual iptable chains in the underlying system
 	TearDown() error
@@ -57,7 +58,7 @@ type chain struct {
 	logger           lager.Logger
 }
 
-func (ch *chain) Setup() error {
+func (ch *chain) Setup(logPrefix string) error {
 	if ch.logChainName == "" {
 		// we still use net.sh to set up global non-logging chains
 		panic("cannot set up chains without associated log chains")
@@ -69,11 +70,7 @@ func (ch *chain) Setup() error {
 		return fmt.Errorf("iptables: log chain setup: %v", err)
 	}
 
-	logParams := []string{"--jump", "LOG", "--log-prefix", fmt.Sprintf("%s ", ch.name)}
-	if !ch.useKernelLogging {
-		logParams = []string{"--jump", "NFLOG", "--nflog-prefix", fmt.Sprintf("%s ", ch.name), "--nflog-group", "1"}
-	}
-
+	logParams := ch.buildLogParams(logPrefix)
 	appendFlags := []string{"-w", "-A", ch.logChainName, "-m", "conntrack", "--ctstate", "NEW,UNTRACKED,INVALID", "--protocol", "tcp"}
 	if err := ch.runner.Run(exec.Command("/sbin/iptables", append(appendFlags, logParams...)...)); err != nil {
 		return fmt.Errorf("iptables: log chain setup: %v", err)
@@ -84,6 +81,14 @@ func (ch *chain) Setup() error {
 	}
 
 	return nil
+}
+
+func (ch *chain) buildLogParams(logPrefix string) []string {
+	if ch.useKernelLogging {
+		return []string{"--jump", "LOG", "--log-prefix", fmt.Sprintf("%s ", logPrefix)}
+	} else {
+		return []string{"--jump", "NFLOG", "--nflog-prefix", fmt.Sprintf("%s ", logPrefix), "--nflog-group", "1"}
+	}
 }
 
 func (ch *chain) TearDown() error {

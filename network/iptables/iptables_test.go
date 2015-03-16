@@ -29,7 +29,7 @@ var _ = Describe("Iptables", func() {
 		Describe("Setup", func() {
 			Context("when kernel logging is not enabled", func() {
 				It("creates the log chain using iptables", func() {
-					Ω(subject.Setup()).Should(Succeed())
+					Ω(subject.Setup("logPrefix")).Should(Succeed())
 					Ω(fakeRunner).Should(HaveExecutedSerially(
 						fake_command_runner.CommandSpec{
 							Path: "/sbin/iptables",
@@ -45,7 +45,7 @@ var _ = Describe("Iptables", func() {
 						},
 						fake_command_runner.CommandSpec{
 							Path: "/sbin/iptables",
-							Args: []string{"-w", "-A", "foo-bar-baz-log", "-m", "conntrack", "--ctstate", "NEW,UNTRACKED,INVALID", "--protocol", "tcp", "--jump", "NFLOG", "--nflog-prefix", "foo-bar-baz ", "--nflog-group", "1"},
+							Args: []string{"-w", "-A", "foo-bar-baz-log", "-m", "conntrack", "--ctstate", "NEW,UNTRACKED,INVALID", "--protocol", "tcp", "--jump", "NFLOG", "--nflog-prefix", "logPrefix ", "--nflog-group", "1"},
 						},
 						fake_command_runner.CommandSpec{
 							Path: "/sbin/iptables",
@@ -60,7 +60,7 @@ var _ = Describe("Iptables", func() {
 				})
 
 				It("creates the log chain using iptables", func() {
-					Ω(subject.Setup()).Should(Succeed())
+					Ω(subject.Setup("logPrefix")).Should(Succeed())
 					Ω(fakeRunner).Should(HaveExecutedSerially(
 						fake_command_runner.CommandSpec{
 							Path: "/sbin/iptables",
@@ -77,7 +77,7 @@ var _ = Describe("Iptables", func() {
 						fake_command_runner.CommandSpec{
 							Path: "/sbin/iptables",
 							Args: []string{"-w", "-A", "foo-bar-baz-log", "-m", "conntrack", "--ctstate", "NEW,UNTRACKED,INVALID", "--protocol", "tcp",
-								"--jump", "LOG", "--log-prefix", "foo-bar-baz "},
+								"--jump", "LOG", "--log-prefix", "logPrefix "},
 						},
 						fake_command_runner.CommandSpec{
 							Path: "/sbin/iptables",
@@ -97,7 +97,7 @@ var _ = Describe("Iptables", func() {
 						return someError
 					})
 
-				Ω(subject.Setup()).Should(Succeed())
+				Ω(subject.Setup("logPrefix")).Should(Succeed())
 			})
 
 			It("ignores failures to delete", func() {
@@ -111,7 +111,7 @@ var _ = Describe("Iptables", func() {
 						return someError
 					})
 
-				Ω(subject.Setup()).Should(Succeed())
+				Ω(subject.Setup("logPrefix")).Should(Succeed())
 			})
 
 			It("returns any error returned when the table is created", func() {
@@ -125,7 +125,7 @@ var _ = Describe("Iptables", func() {
 						return someError
 					})
 
-				Ω(subject.Setup()).Should(MatchError("iptables: log chain setup: y"))
+				Ω(subject.Setup("logPrefix")).Should(MatchError("iptables: log chain setup: y"))
 			})
 
 			It("returns any error returned when the logging rule is added", func() {
@@ -133,13 +133,13 @@ var _ = Describe("Iptables", func() {
 				fakeRunner.WhenRunning(
 					fake_command_runner.CommandSpec{
 						Path: "/sbin/iptables",
-						Args: []string{"-w", "-A", "foo-bar-baz-log", "-m", "conntrack", "--ctstate", "NEW,UNTRACKED,INVALID", "--protocol", "tcp", "--jump", "LOG", "--log-prefix", "foo-bar-baz "},
+						Args: []string{"-w", "-A", "foo-bar-baz-log", "-m", "conntrack", "--ctstate", "NEW,UNTRACKED,INVALID", "--protocol", "tcp", "--jump", "LOG", "--log-prefix", "logPrefix "},
 					},
 					func(cmd *exec.Cmd) error {
 						return someError
 					})
 
-				Ω(subject.Setup()).Should(MatchError("iptables: log chain setup: y"))
+				Ω(subject.Setup("logPrefix")).Should(MatchError("iptables: log chain setup: y"))
 			})
 
 			It("returns any error returned when the RETURN rule is added", func() {
@@ -153,7 +153,7 @@ var _ = Describe("Iptables", func() {
 						return someError
 					})
 
-				Ω(subject.Setup()).Should(MatchError("iptables: log chain setup: y"))
+				Ω(subject.Setup("logPrefix")).Should(MatchError("iptables: log chain setup: y"))
 			})
 		})
 

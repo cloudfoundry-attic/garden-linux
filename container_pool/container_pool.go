@@ -248,7 +248,9 @@ func (p *LinuxContainerPool) Create(spec garden.ContainerSpec) (c linux_backend.
 		p.releasePoolResources(resources)
 	})
 
-	rootFSEnv, err := p.acquireSystemResources(id, containerPath, spec.RootFSPath, resources, spec.BindMounts, pLog)
+	handle := getHandle(spec.Handle, id)
+
+	rootFSEnv, err := p.acquireSystemResources(id, handle, containerPath, spec.RootFSPath, resources, spec.BindMounts, pLog)
 	if err != nil {
 		return nil, err
 	}
@@ -267,7 +269,7 @@ func (p *LinuxContainerPool) Create(spec garden.ContainerSpec) (c linux_backend.
 	return linux_container.NewLinuxContainer(
 		pLog,
 		id,
-		getHandle(spec.Handle, id),
+		handle,
 		containerPath,
 		spec.Properties,
 		spec.GraceTime,
@@ -542,7 +544,7 @@ func (p *LinuxContainerPool) releasePoolResources(resources *linux_backend.Resou
 	}
 }
 
-func (p *LinuxContainerPool) acquireSystemResources(id, containerPath, rootFSPath string, resources *linux_backend.Resources, bindMounts []garden.BindMount, pLog lager.Logger) (process.Env, error) {
+func (p *LinuxContainerPool) acquireSystemResources(id, handle, containerPath, rootFSPath string, resources *linux_backend.Resources, bindMounts []garden.BindMount, pLog lager.Logger) (process.Env, error) {
 	if err := os.MkdirAll(containerPath, 0755); err != nil {
 		return nil, fmt.Errorf("containerpool: creating container directory: %v", err)
 	}
@@ -642,7 +644,7 @@ func (p *LinuxContainerPool) acquireSystemResources(id, containerPath, rootFSPat
 		return nil, err
 	}
 
-	if err = p.filterProvider.ProvideFilter(id).Setup(); err != nil {
+	if err = p.filterProvider.ProvideFilter(id).Setup(handle); err != nil {
 		p.logger.Error("set-up-filter-failed", err)
 		return nil, fmt.Errorf("container_pool: set up filter: %v", err)
 	}

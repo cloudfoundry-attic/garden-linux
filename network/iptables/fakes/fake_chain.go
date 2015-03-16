@@ -10,16 +10,18 @@ import (
 )
 
 type FakeChain struct {
-	SetupStub        func() error
+	SetupStub        func(logPrefix string) error
 	setupMutex       sync.RWMutex
-	setupArgsForCall []struct{}
+	setupArgsForCall []struct {
+		logPrefix string
+	}
 	setupReturns struct {
 		result1 error
 	}
 	TearDownStub        func() error
 	tearDownMutex       sync.RWMutex
 	tearDownArgsForCall []struct{}
-	tearDownReturns struct {
+	tearDownReturns     struct {
 		result1 error
 	}
 	AppendRuleStub        func(source string, destination string, jump iptables.Action) error
@@ -74,12 +76,14 @@ type FakeChain struct {
 	}
 }
 
-func (fake *FakeChain) Setup() error {
+func (fake *FakeChain) Setup(logPrefix string) error {
 	fake.setupMutex.Lock()
-	fake.setupArgsForCall = append(fake.setupArgsForCall, struct{}{})
+	fake.setupArgsForCall = append(fake.setupArgsForCall, struct {
+		logPrefix string
+	}{logPrefix})
 	fake.setupMutex.Unlock()
 	if fake.SetupStub != nil {
-		return fake.SetupStub()
+		return fake.SetupStub(logPrefix)
 	} else {
 		return fake.setupReturns.result1
 	}
@@ -89,6 +93,12 @@ func (fake *FakeChain) SetupCallCount() int {
 	fake.setupMutex.RLock()
 	defer fake.setupMutex.RUnlock()
 	return len(fake.setupArgsForCall)
+}
+
+func (fake *FakeChain) SetupArgsForCall(i int) string {
+	fake.setupMutex.RLock()
+	defer fake.setupMutex.RUnlock()
+	return fake.setupArgsForCall[i].logPrefix
 }
 
 func (fake *FakeChain) SetupReturns(result1 error) {

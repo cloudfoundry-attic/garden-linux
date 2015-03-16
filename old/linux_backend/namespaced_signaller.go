@@ -6,8 +6,9 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/cloudfoundry/gunk/command_runner"
 	"time"
+
+	"github.com/cloudfoundry/gunk/command_runner"
 )
 
 // Kills a process by invoking ./bin/wsh in the given container path using

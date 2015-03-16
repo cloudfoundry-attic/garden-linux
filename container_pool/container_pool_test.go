@@ -322,6 +322,7 @@ var _ = Describe("Container pool", func() {
 			Ω(fakeFilterProvider.ProvideFilterCallCount()).Should(BeNumerically(">", 0))
 			Ω(fakeFilterProvider.ProvideFilterArgsForCall(0)).Should(Equal(container.Handle()))
 			Ω(fakeFilter.SetupCallCount()).Should(Equal(1))
+			Ω(fakeFilter.SetupArgsForCall(0)).Should(Equal(container.Handle()))
 		})
 
 		Context("when setting up iptables fails", func() {

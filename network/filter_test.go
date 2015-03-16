@@ -24,14 +24,15 @@ var _ = Describe("Filter", func() {
 
 	Context("Setup", func() {
 		It("sets up the chain", func() {
-			Ω(filter.Setup()).Should(Succeed())
+			Ω(filter.Setup("logPrefix")).Should(Succeed())
 			Ω(fakeChain.SetupCallCount()).Should(Equal(1))
+			Ω(fakeChain.SetupArgsForCall(0)).Should(Equal("logPrefix"))
 		})
 
 		Context("when chain setup returns an error", func() {
 			It("Setup wraps the error and returns it", func() {
 				fakeChain.SetupReturns(errors.New("x"))
-				err := filter.Setup()
+				err := filter.Setup("logPrefix")
 				Ω(err).Should(MatchError("network: log chain setup: x"))
 			})
 		})

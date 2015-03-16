@@ -9,18 +9,20 @@ import (
 )
 
 type FakeFilter struct {
-	SetupStub        func() error
+	SetupStub        func(logPrefix string) error
 	setupMutex       sync.RWMutex
-	setupArgsForCall []struct{}
+	setupArgsForCall []struct {
+		logPrefix string
+	}
 	setupReturns struct {
 		result1 error
 	}
 	TearDownStub        func()
 	tearDownMutex       sync.RWMutex
 	tearDownArgsForCall []struct{}
-	NetOutStub        func(garden.NetOutRule) error
-	netOutMutex       sync.RWMutex
-	netOutArgsForCall []struct {
+	NetOutStub          func(garden.NetOutRule) error
+	netOutMutex         sync.RWMutex
+	netOutArgsForCall   []struct {
 		arg1 garden.NetOutRule
 	}
 	netOutReturns struct {
@@ -28,12 +30,14 @@ type FakeFilter struct {
 	}
 }
 
-func (fake *FakeFilter) Setup() error {
+func (fake *FakeFilter) Setup(logPrefix string) error {
 	fake.setupMutex.Lock()
-	fake.setupArgsForCall = append(fake.setupArgsForCall, struct{}{})
+	fake.setupArgsForCall = append(fake.setupArgsForCall, struct {
+		logPrefix string
+	}{logPrefix})
 	fake.setupMutex.Unlock()
 	if fake.SetupStub != nil {
-		return fake.SetupStub()
+		return fake.SetupStub(logPrefix)
 	} else {
 		return fake.setupReturns.result1
 	}
@@ -43,6 +47,12 @@ func (fake *FakeFilter) SetupCallCount() int {
 	fake.setupMutex.RLock()
 	defer fake.setupMutex.RUnlock()
 	return len(fake.setupArgsForCall)
+}
+
+func (fake *FakeFilter) SetupArgsForCall(i int) string {
+	fake.setupMutex.RLock()
+	defer fake.setupMutex.RUnlock()
+	return fake.setupArgsForCall[i].logPrefix
 }
 
 func (fake *FakeFilter) SetupReturns(result1 error) {

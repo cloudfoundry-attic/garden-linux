@@ -10,7 +10,7 @@ import (
 //go:generate counterfeiter . Filter
 
 type Filter interface {
-	Setup() error
+	Setup(logPrefix string) error
 	TearDown()
 	NetOut(garden.NetOutRule) error
 }
@@ -23,8 +23,8 @@ func NewFilter(instanceChain iptables.Chain) Filter {
 	return &filter{instanceChain}
 }
 
-func (fltr *filter) Setup() error {
-	if err := fltr.chain.Setup(); err != nil {
+func (fltr *filter) Setup(logPrefix string) error {
+	if err := fltr.chain.Setup(logPrefix); err != nil {
 		return fmt.Errorf("network: log chain setup: %v", err)
 	}
 	return nil
