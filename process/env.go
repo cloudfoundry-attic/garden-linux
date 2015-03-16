@@ -14,19 +14,19 @@ func NewEnv(array []string) (Env, error) {
 
 	for _, str := range array {
 		if str == "" {
-			return nil, errors.New("malformed environment: empty string")
+			return nil, errors.New("process: malformed environment: empty string")
 		}
 
-		tokens := strings.Split(str, "=")
+		tokens := strings.SplitN(str, "=", 2)
 
 		if len(tokens) != 2 {
-			return nil, fmt.Errorf("malformed environment: invalid format (not key=value): %q", str)
+			return nil, fmt.Errorf("process: malformed environment: invalid format (not key=value): %q", str)
 		}
 
 		key, value := tokens[0], tokens[1]
 
 		if key == "" {
-			return nil, fmt.Errorf("malformed environment: empty key: %q", str)
+			return nil, fmt.Errorf("process: malformed environment: empty key: %q", str)
 		}
 
 		env[key] = value

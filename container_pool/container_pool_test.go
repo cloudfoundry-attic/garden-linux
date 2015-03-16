@@ -639,10 +639,10 @@ var _ = Describe("Container pool", func() {
 			It("returns an error if the supplied environment is invalid", func() {
 				_, err := pool.Create(garden.ContainerSpec{
 					Env: []string{
-						"var1=spec=value1",
+						"hello",
 					},
 				})
-				Ω(err).Should(MatchError(HavePrefix("malformed environment")))
+				Ω(err).Should(MatchError(HavePrefix("process: malformed environment")))
 			})
 
 			It("merges the env vars associated with the rootfs with those in the spec", func() {

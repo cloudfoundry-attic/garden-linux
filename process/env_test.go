@@ -98,32 +98,43 @@ var _ = Describe("Environment", func() {
 			))
 		})
 
+		It("supports using the '=' character in environment variable values", func() {
+			env, err := process.NewEnv([]string{
+				"KEY1==",
+				"KEY2=atend=",
+				"KEY3==atbeginning",
+				"KEY4=in=middle",
+				"KEY5=multiple=equal=signs",
+			})
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(env.Array()).Should(ConsistOf(
+				"KEY1==",
+				"KEY2=atend=",
+				"KEY3==atbeginning",
+				"KEY4=in=middle",
+				"KEY5=multiple=equal=signs",
+			))
+		})
+
 		Context("when the array is malformed", func() {
 			It("returns an error when the array contains an empty string", func() {
 				env, err := process.NewEnv([]string{""})
 
-				Ω(err).Should(MatchError("malformed environment: empty string"))
+				Ω(err).Should(MatchError("process: malformed environment: empty string"))
 				Ω(env).Should(BeNil())
 			})
 
 			It("returns an error when the array contains an element with an empty key", func() {
 				env, err := process.NewEnv([]string{"=value"})
 
-				Ω(err).Should(MatchError(`malformed environment: empty key: "=value"`))
-				Ω(env).Should(BeNil())
-			})
-
-			It("returns an error when the array contains an element with too many equals signs", func() {
-				env, err := process.NewEnv([]string{"key=value="})
-
-				Ω(err).Should(MatchError(`malformed environment: invalid format (not key=value): "key=value="`))
+				Ω(err).Should(MatchError(`process: malformed environment: empty key: "=value"`))
 				Ω(env).Should(BeNil())
 			})
 
 			It("returns an error when the array contains an element without an equals sign", func() {
 				env, err := process.NewEnv([]string{"x"})
 
-				Ω(err).Should(MatchError(`malformed environment: invalid format (not key=value): "x"`))
+				Ω(err).Should(MatchError(`process: malformed environment: invalid format (not key=value): "x"`))
 				Ω(env).Should(BeNil())
 			})
 		})

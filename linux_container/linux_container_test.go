@@ -1035,9 +1035,9 @@ var _ = Describe("Linux containers", func() {
 		It("should return an error when an environment variable is malformed", func() {
 			_, err := container.Run(garden.ProcessSpec{
 				Path: "/some/script",
-				Env:  []string{"a=="},
+				Env:  []string{"a"},
 			}, garden.ProcessIO{})
-			Ω(err).Should(MatchError(HavePrefix("malformed environment")))
+			Ω(err).Should(MatchError(HavePrefix("process: malformed environment")))
 		})
 
 		It("runs the script with environment variables", func() {
