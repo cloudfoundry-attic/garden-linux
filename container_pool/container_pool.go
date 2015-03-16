@@ -37,7 +37,6 @@ import (
 )
 
 var ErrUnknownRootFSProvider = errors.New("unknown rootfs provider")
-var ErrNetworkHostbitsNonZero = errors.New("network host bits non-zero")
 
 //go:generate counterfeiter -o fake_container_pool/FakeFilterProvider.go . FilterProvider
 type FilterProvider interface {
