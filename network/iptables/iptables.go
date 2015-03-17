@@ -7,6 +7,8 @@ import (
 	"os/exec"
 	"strings"
 
+	"sync"
+
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/pivotal-golang/lager"
@@ -51,6 +53,7 @@ type Chain interface {
 }
 
 type chain struct {
+	mu               sync.Mutex
 	name             string
 	logChainName     string
 	useKernelLogging bool
@@ -59,6 +62,9 @@ type chain struct {
 }
 
 func (ch *chain) Setup(logPrefix string) error {
+	ch.mu.Lock()
+	defer ch.mu.Unlock()
+
 	if ch.logChainName == "" {
 		// we still use net.sh to set up global non-logging chains
 		panic("cannot set up chains without associated log chains")
