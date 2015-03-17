@@ -67,6 +67,7 @@ int un_connect(const char *path) {
 }
 
 int un_send_fds(int fd, char *data, int datalen, int *fds, int fdslen) {
+  fprintf(stdout, "un_send_fds: Sending the message\n");
   struct msghdr mh;
   struct cmsghdr *cmh = NULL;
   char buf[2048];

@@ -31,6 +31,8 @@
 
 typedef struct wshd_s wshd_t;
 
+static FILE *log_f;
+
 struct wshd_s {
   /* Path to directory where server socket is placed */
   char run_path[256];
@@ -534,10 +536,21 @@ err:
 }
 
 int child_handle_signal(int fd, wshd_t *w, msg_signal_t *sig) {
-    return kill(sig->pid, sig->signal);
+  int rv;
+
+  rv = kill(sig->pid, sig->signal);
+
+  msg_response_t res;
+  msg_response_init(&res);
+  res.version = 12;
+  un_send_fds(fd, (char *)&res, sizeof(res), NULL, 0);
+
+  fprintf(log_f, "Received signal: sig->signal = %d, sig->pid = %d.\n", sig->signal, sig->pid);
+  return rv;
 }
 
 int child_accept(wshd_t *w) {
+  log_f = fopen("/tmp/wshd_log", "a+");
   int rv, fd;
   msg_t msg;
 
@@ -562,23 +575,31 @@ int child_accept(wshd_t *w) {
     return 0;
   }
 
+  fprintf(log_f, "seeing request message type\n");
+  fprintf(log_f, "msg.req.type = %d\n", msg.req.type);
   assert(rv == sizeof(msg));
   switch (msg.req.type) {
     case MSG_TYPE_REQ:
+        fprintf(log_f, "Received a request message\n");
         if (msg.req.tty) {
-            return child_handle_interactive(fd, w, &(msg.req));
+            rv = child_handle_interactive(fd, w, &(msg.req));
         } else {
-            return child_handle_noninteractive(fd, w, &(msg.req));
+            rv = child_handle_noninteractive(fd, w, &(msg.req));
         }
+        break;
 
     case MSG_TYPE_SIG:
-        assert(msg.req.type != MSG_TYPE_REQ);
-        return child_handle_signal(fd, w, &(msg.sig));
-
-    default:
-        assert(0);
+        fprintf(log_f, "Received a signal message\n");
+        rv = child_handle_signal(fd, w, &(msg.sig));
         break;
+
+    // default:
+    //     assert(0);
+    //     break;
   }
+
+  fclose(log_f);
+  return rv;
 }
 
 void child_handle_sigchld(wshd_t *w) {

@@ -166,6 +166,14 @@ int msg_dir_import(msg__dir_t *d, const char *dir) {
   return 0;
 }
 
+
+void msg_signal_init(msg_signal_t *sig)
+{
+  memset(sig, 0, sizeof(*sig));
+  sig->version = MSG_VERSION;
+  sig->type = MSG_TYPE_SIG;
+}
+
 void msg_request_init(msg_request_t *req) {
   memset(req, 0, sizeof(*req));
   req->version = MSG_VERSION;

@@ -4,6 +4,10 @@ package wshd_test
 
 import (
 	"fmt"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	. "github.com/onsi/gomega/gbytes"
+	. "github.com/onsi/gomega/gexec"
 	"io"
 	"io/ioutil"
 	"net"
@@ -12,11 +16,7 @@ import (
 	"path"
 	"path/filepath"
 	"syscall"
-
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
-	. "github.com/onsi/gomega/gbytes"
-	. "github.com/onsi/gomega/gexec"
+	"time"
 )
 
 var _ = Describe("Running wshd", func() {
@@ -403,7 +403,7 @@ setup_fs
 		})
 	})
 
-	Context("when running without specifying a --pidfile", func() {
+	FContext("when running without specifying a --pidfile", func() {
 		It("should exit cleanly with the correct status", func() {
 			pwd := exec.Command(wsh, "--socket", socketPath, "--dir", "/usr", "/bin/sh", "-c", "exit 3")
 
@@ -425,6 +425,19 @@ setup_fs
 		Ω(err).ShouldNot(HaveOccurred())
 
 		Eventually(trapSession).Should(Say("caught sigchld"))
+	})
+
+	FIt("translates a SIGUSR2 to a SIGTERM and signals child prcoess", func() {
+		trap := exec.Command(wsh, "--socket", socketPath, "--dir", "/usr", "/bin/sh", "-c", "trap 'echo caught sigterm' SIGTERM; sleep 5;")
+
+		trapSession, err := Start(trap, GinkgoWriter, GinkgoWriter)
+		Ω(err).ShouldNot(HaveOccurred())
+
+		trapSession.Command.Process.Signal(syscall.SIGUSR2)
+
+		time.Sleep(time.Second)
+
+		Eventually(trapSession).Should(Say("caught sigterm"))
 	})
 
 	Context("when running a command as a user", func() {

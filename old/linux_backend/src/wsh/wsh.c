@@ -359,13 +359,47 @@ void loop_noninteractive(const char* pidfile, int fd) {
   pump_loop(pidfile, &p, fds[4], fds[3], pp, 3);
 }
 
+static int un_fd;
+
+void relay_sigusr2_as_sigterm(int sig_no) {
+  int rv;
+  if (sig_no == SIGUSR2) {
+    if (un_fd == 0) {
+      fprintf(stderr, "relay_sigusr2_as_sigterm: Unable to relay the signal because the socket is not yet initialized\n");
+      return;
+    }
+    if (pid == 0) {
+      fprintf(stderr, "relay_sigusr2_as_sigterm: Unable to relay the signal because the child process is not yet initialized\n");
+      return;
+    }
+
+    msg_t msg;
+    msg_signal_init(&msg.sig);
+    msg.sig.pid = pid;
+    fprintf(stdout, "receieved signal SIGUSR2\n");
+
+    msg.sig.signal = SIGTERM;
+    assert((&msg)->sig.signal  == SIGTERM);
+
+    un_send_fds(un_fd, (char *)&msg, sizeof(msg), NULL, 0);
+
+    fprintf(stdout, "awaiting response from wshd\n");
+    msg_response_t res;
+    rv = un_recv_fds(un_fd, (char *)&res, sizeof(res), NULL, 0);
+    fprintf(stdout, "rv = %d\n", rv);
+    fprintf(stdout, "received response from wshd\n");
+    fprintf(stdout, "signo = %d\n", res.version);
+  } else
+    fprintf(stdout, "receieved other signal");
+}
+
 int main(int argc, char **argv) {
   wsh_t *w;
   int rv;
-  int fd;
   msg_request_t req;
 
   signal(SIGPIPE, SIG_IGN);
+  signal(SIGUSR2, relay_sigusr2_as_sigterm);
 
   w = calloc(1, sizeof(*w));
   assert(w != NULL);
@@ -388,7 +422,7 @@ int main(int argc, char **argv) {
     exit(255);
   }
 
-  fd = rv;
+  un_fd = rv;
 
   msg_request_init(&req);
 
@@ -424,16 +458,16 @@ int main(int argc, char **argv) {
     exit(255);
   }
 
-  rv = un_send_fds(fd, (char *)&req, sizeof(req), NULL, 0);
+  rv = un_send_fds(un_fd, (char *)&req, sizeof(req), NULL, 0);
   if (rv <= 0) {
     perror("sendmsg");
     exit(255);
   }
 
   if (req.tty) {
-    loop_interactive(w->pid_file, fd);
+    loop_interactive(w->pid_file, un_fd);
   } else {
-    loop_noninteractive(w->pid_file, fd);
+    loop_noninteractive(w->pid_file, un_fd);
   }
 
   perror("unreachable");

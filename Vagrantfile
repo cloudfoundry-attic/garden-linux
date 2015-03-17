@@ -32,10 +32,10 @@ Vagrant.configure("2") do |config|
     chef.add_recipe "garden::rootfs"
     chef.add_recipe "garden::dev"
 
-    chef.json = {
-      go: {
-        version: "1.3.1",
-      },
-    }
+    # chef.json = {
+    #   go: {
+    #     version: "1.3.1",
+    #   },
+    # }
   end
 end
