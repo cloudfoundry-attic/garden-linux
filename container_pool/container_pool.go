@@ -247,6 +247,8 @@ func (p *LinuxContainerPool) Create(spec garden.ContainerSpec) (c linux_backend.
 		p.releasePoolResources(resources)
 	})
 
+	pLog.Info("acquired-pool-resources")
+
 	handle := getHandle(spec.Handle, id)
 
 	rootFSEnv, err := p.acquireSystemResources(id, handle, containerPath, spec.RootFSPath, resources, spec.BindMounts, pLog)

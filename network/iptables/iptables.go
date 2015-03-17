@@ -75,16 +75,19 @@ func (ch *chain) Setup(logPrefix string) error {
 	if err := ch.runner.Run(exec.Command("/sbin/iptables", "-w", "-N", ch.logChainName)); err != nil {
 		return fmt.Errorf("iptables: log chain setup: %v", err)
 	}
+	ch.logger.Debug("log-chain-created")
 
 	logParams := ch.buildLogParams(logPrefix)
 	appendFlags := []string{"-w", "-A", ch.logChainName, "-m", "conntrack", "--ctstate", "NEW,UNTRACKED,INVALID", "--protocol", "tcp"}
 	if err := ch.runner.Run(exec.Command("/sbin/iptables", append(appendFlags, logParams...)...)); err != nil {
 		return fmt.Errorf("iptables: log chain setup: %v", err)
 	}
+	ch.logger.Debug("log-chain-conntrack-set-up")
 
 	if err := ch.runner.Run(exec.Command("/sbin/iptables", "-w", "-A", ch.logChainName, "--jump", "RETURN")); err != nil {
 		return fmt.Errorf("iptables: log chain setup: %v", err)
 	}
+	ch.logger.Debug("log-chain-setup-finished")
 
 	return nil
 }
@@ -245,6 +248,7 @@ func (ch *chain) prependSingleRule(r singleRule) error {
 	if err := ch.runner.Run(cmd); err != nil {
 		return fmt.Errorf("iptables: %v, %v", err, stderr.String())
 	}
+	ch.logger.Debug("prependSingleRule-finished")
 
 	return nil
 }
