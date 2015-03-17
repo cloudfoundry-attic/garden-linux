@@ -612,7 +612,7 @@ func (p *LinuxContainerPool) acquireSystemResources(id, handle, containerPath, r
 
 	pRunner := logging.Runner{
 		CommandRunner: p.runner,
-		Logger:        p.logger,
+		Logger:        pLog.Session("create-script"),
 	}
 
 	err = pRunner.Run(create)
@@ -643,10 +643,14 @@ func (p *LinuxContainerPool) acquireSystemResources(id, handle, containerPath, r
 		return nil, err
 	}
 
+	filterLog := pLog.Session("setup-filter")
+
+	filterLog.Debug("starting")
 	if err = p.filterProvider.ProvideFilter(id).Setup(handle); err != nil {
 		p.logger.Error("set-up-filter-failed", err)
 		return nil, fmt.Errorf("container_pool: set up filter: %v", err)
 	}
+	filterLog.Debug("finished")
 
 	return rootFSEnvVars, nil
 }
