@@ -28,8 +28,8 @@
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden",
-			"Comment": "go-wshd-705-g9d6cd67",
-			"Rev": "9d6cd67320d4908e91c22738edf8d6b47a261bdb"
+			"Comment": "go-wshd-706-g78ab3b8",
+			"Rev": "78ab3b8284fe2b2e8a8dbb4a0fec612ae6c64e25"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry/dropsonde",
