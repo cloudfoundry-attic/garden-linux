@@ -1,9 +1,10 @@
 package rootfs_provider_test
 
 import (
+	"net/url"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"net/url"
 
 	"testing"
 )

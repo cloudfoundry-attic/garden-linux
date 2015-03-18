@@ -2,11 +2,11 @@ package measurements_test
 
 import (
 	"runtime"
+	"strconv"
 
 	"github.com/cloudfoundry-incubator/garden"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"strconv"
 )
 
 const (
