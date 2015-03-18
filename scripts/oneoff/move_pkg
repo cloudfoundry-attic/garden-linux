@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+
+set -e +x
+
+echo "Sanity check"
+#git reset --hard
+#go generate ./...
+#ginkgo -r
+
+for target_pkg in uid_pool; do
+
+        echo "renaming $target_pkg"
+
+        git mv old{/linux_backend,}/$target_pkg
+
+        for i in $(find . -iname '*.go'); 
+        do 
+                sed -i '' "s!linux_backend/$target_pkg!$target_pkg!g" $i;
+        done
+
+        go fmt ./...
+
+        go generate ./...
+        ginkgo -r 
+done
