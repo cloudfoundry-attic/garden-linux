@@ -2,6 +2,7 @@ package linux_backend_test
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
@@ -530,6 +531,98 @@ var _ = Describe("LinuxBackend", func() {
 						},
 					},
 					container2.Handle(): garden.ContainerInfoEntry{
+						Err: errors.New("Oh no!"),
+					},
+				}))
+			})
+		})
+	})
+
+	Describe("BulkMetrics", func() {
+		newContainer := func(n uint64) *fakes.FakeContainer {
+			fakeContainer := &fakes.FakeContainer{}
+			fakeContainer.HandleReturns(fmt.Sprintf("handle%d", n))
+			fakeContainer.MetricsReturns(
+				garden.Metrics{
+					DiskStat: garden.ContainerDiskStat{
+						InodesUsed: n,
+					},
+				},
+				nil,
+			)
+			return fakeContainer
+		}
+
+		container1 := newContainer(1)
+		container2 := newContainer(2)
+		handles := []string{"handle1", "handle2"}
+
+		BeforeEach(func() {
+			containerRepo.Add(container1)
+			containerRepo.Add(container2)
+		})
+
+		It("returns info about containers", func() {
+			bulkMetrics, err := linuxBackend.BulkMetrics(handles)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(bulkMetrics).Should(Equal(map[string]garden.ContainerMetricsEntry{
+				container1.Handle(): garden.ContainerMetricsEntry{
+					Metrics: garden.Metrics{
+						DiskStat: garden.ContainerDiskStat{
+							InodesUsed: 1,
+						},
+					},
+				},
+				container2.Handle(): garden.ContainerMetricsEntry{
+					Metrics: garden.Metrics{
+						DiskStat: garden.ContainerDiskStat{
+							InodesUsed: 2,
+						},
+					},
+				},
+			}))
+		})
+
+		Context("when not all of the handles in the system are requested", func() {
+			handles := []string{"handle2"}
+
+			It("returns info about the specified containers", func() {
+				bulkMetrics, err := linuxBackend.BulkMetrics(handles)
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Ω(bulkMetrics).Should(Equal(map[string]garden.ContainerMetricsEntry{
+					container2.Handle(): garden.ContainerMetricsEntry{
+						Metrics: garden.Metrics{
+							DiskStat: garden.ContainerDiskStat{
+								InodesUsed: 2,
+							},
+						},
+					},
+				}))
+			})
+		})
+
+		Context("when getting one of the infos for a container fails", func() {
+			handles := []string{"handle1", "handle2"}
+
+			BeforeEach(func() {
+				container2.MetricsReturns(garden.Metrics{}, errors.New("Oh no!"))
+			})
+
+			It("returns the err for the failed container", func() {
+				bulkMetrics, err := linuxBackend.BulkMetrics(handles)
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Ω(bulkMetrics).Should(Equal(map[string]garden.ContainerMetricsEntry{
+					container1.Handle(): garden.ContainerMetricsEntry{
+						Metrics: garden.Metrics{
+							DiskStat: garden.ContainerDiskStat{
+								InodesUsed: 1,
+							},
+						},
+					},
+					container2.Handle(): garden.ContainerMetricsEntry{
 						Err: errors.New("Oh no!"),
 					},
 				}))

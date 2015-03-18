@@ -14,26 +14,36 @@ var _ = Describe("Container information", func() {
 	})
 
 	Describe("for many containers", func() {
+		handles := []string{"handle1", "handle2"}
+		BeforeEach(func() {
+			_, err := client.Create(garden.ContainerSpec{
+				Handle: "handle1",
+			})
+			Ω(err).ShouldNot(HaveOccurred())
+			_, err = client.Create(garden.ContainerSpec{
+				Handle: "handle2",
+			})
+			Ω(err).ShouldNot(HaveOccurred())
+		})
 
 		Describe(".BulkInfo", func() {
-			handles := []string{"handle1", "handle2"}
-			BeforeEach(func() {
-				_, err := client.Create(garden.ContainerSpec{
-					Handle: "handle1",
-				})
-				Ω(err).ShouldNot(HaveOccurred())
-				_, err = client.Create(garden.ContainerSpec{
-					Handle: "handle2",
-				})
-				Ω(err).ShouldNot(HaveOccurred())
-			})
-
 			It("returns container info for the specified handles", func() {
 				bulkInfo, err := client.BulkInfo(handles)
 				Ω(err).ShouldNot(HaveOccurred())
 				Ω(bulkInfo).Should(HaveLen(2))
 				for _, containerInfoEntry := range bulkInfo {
 					Ω(containerInfoEntry.Err).ShouldNot(HaveOccurred())
+				}
+			})
+		})
+
+		Describe(".BulkMetrics", func() {
+			It("returns container metrics for the specified handles", func() {
+				bulkInfo, err := client.BulkMetrics(handles)
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(bulkInfo).Should(HaveLen(2))
+				for _, containerMetricsEntry := range bulkInfo {
+					Ω(containerMetricsEntry.Err).ShouldNot(HaveOccurred())
 				}
 			})
 		})

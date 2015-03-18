@@ -199,6 +199,21 @@ func (b *LinuxBackend) BulkInfo(handles []string) (map[string]garden.ContainerIn
 	return infos, nil
 }
 
+func (b *LinuxBackend) BulkMetrics(handles []string) (map[string]garden.ContainerMetricsEntry, error) {
+	containers := b.containerRepo.Query(withHandles(handles))
+
+	metrics := make(map[string]garden.ContainerMetricsEntry)
+	for _, container := range containers {
+		metric, err := container.Metrics()
+		metrics[container.Handle()] = garden.ContainerMetricsEntry{
+			Metrics: metric,
+			Err:     err,
+		}
+	}
+
+	return metrics, nil
+}
+
 func (b *LinuxBackend) GraceTime(container garden.Container) time.Duration {
 	return container.(Container).GraceTime()
 }
