@@ -2,6 +2,7 @@ package linux_container_test
 
 import (
 	"errors"
+	"io/ioutil"
 	"math"
 	"net"
 	"os/exec"
@@ -26,6 +27,13 @@ import (
 )
 
 var _ = Describe("Linux containers", func() {
+	var fakeCgroups *fake_cgroups_manager.FakeCgroupsManager
+	var fakeQuotaManager *fake_quota_manager.FakeQuotaManager
+	var fakeBandwidthManager *fake_bandwidth_manager.FakeBandwidthManager
+	var fakeRunner *fake_command_runner.FakeCommandRunner
+	var containerResources *linux_backend.Resources
+	var container *linux_container.LinuxContainer
+	var containerDir string
 
 	BeforeEach(func() {
 		fakeRunner = fake_command_runner.New()
@@ -34,6 +42,10 @@ var _ = Describe("Linux containers", func() {
 
 		fakeQuotaManager = fake_quota_manager.New()
 		fakeBandwidthManager = fake_bandwidth_manager.New()
+
+		var err error
+		containerDir, err = ioutil.TempDir("", "depot")
+		Ω(err).ShouldNot(HaveOccurred())
 
 		_, subnet, _ := net.ParseCIDR("2.3.4.0/30")
 		containerResources = linux_backend.NewResources(

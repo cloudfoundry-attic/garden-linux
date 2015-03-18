@@ -23,6 +23,10 @@ import (
 )
 
 var _ = Describe("Linux containers", func() {
+	var fakeCgroups *fake_cgroups_manager.FakeCgroupsManager
+	var fakeQuotaManager *fake_quota_manager.FakeQuotaManager
+	var container *linux_container.LinuxContainer
+	var containerDir string
 
 	BeforeEach(func() {
 		fakeCgroups = fake_cgroups_manager.New("/cgroups", "some-id")
