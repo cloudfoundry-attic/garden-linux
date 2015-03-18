@@ -1,10 +1,11 @@
 package devices_test
 
 import (
+	"net"
+
 	"github.com/docker/libcontainer/netlink"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"net"
 
 	"testing"
 )

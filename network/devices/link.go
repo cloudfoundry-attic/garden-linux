@@ -10,26 +10,44 @@ import (
 type Link struct{}
 
 func (Link) AddIP(intf *net.Interface, ip net.IP, subnet *net.IPNet) error {
+	netlinkMu.Lock()
+	defer netlinkMu.Unlock()
+
 	return errF(netlink.NetworkLinkAddIp(intf, ip, subnet))
 }
 
 func (Link) AddDefaultGW(intf *net.Interface, ip net.IP) error {
+	netlinkMu.Lock()
+	defer netlinkMu.Unlock()
+
 	return errF(netlink.AddDefaultGw(ip.String(), intf.Name))
 }
 
 func (Link) SetUp(intf *net.Interface) error {
+	netlinkMu.Lock()
+	defer netlinkMu.Unlock()
+
 	return errF(netlink.NetworkLinkUp(intf))
 }
 
 func (Link) SetMTU(intf *net.Interface, mtu int) error {
+	netlinkMu.Lock()
+	defer netlinkMu.Unlock()
+
 	return errF(netlink.NetworkSetMTU(intf, mtu))
 }
 
 func (Link) SetNs(intf *net.Interface, ns int) error {
+	netlinkMu.Lock()
+	defer netlinkMu.Unlock()
+
 	return errF(netlink.NetworkSetNsPid(intf, ns))
 }
 
 func (Link) InterfaceByName(name string) (*net.Interface, bool, error) {
+	netlinkMu.Lock()
+	defer netlinkMu.Unlock()
+
 	intfs, err := net.Interfaces()
 	if err != nil {
 		return nil, false, errF(err)
@@ -45,6 +63,9 @@ func (Link) InterfaceByName(name string) (*net.Interface, bool, error) {
 }
 
 func (Link) List() (names []string, err error) {
+	netlinkMu.Lock()
+	defer netlinkMu.Unlock()
+
 	intfs, err := net.Interfaces()
 	if err != nil {
 		return nil, err

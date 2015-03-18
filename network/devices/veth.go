@@ -10,6 +10,9 @@ import (
 type VethCreator struct{}
 
 func (VethCreator) Create(hostIfcName, containerIfcName string) (host, container *net.Interface, err error) {
+	netlinkMu.Lock()
+	defer netlinkMu.Unlock()
+
 	if err := netlink.NetworkCreateVethPair(hostIfcName, containerIfcName, 1); err != nil {
 		return nil, nil, fmt.Errorf("devices: create veth pair: %v", err)
 	}
