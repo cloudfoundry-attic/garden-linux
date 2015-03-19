@@ -25,26 +25,28 @@ Extend `$GOPATH` and `$PATH`:
 
 ## Install Concourse and Fly
 
-- Install concourse following the instructions at [Concourse.ci](http://concourse.ci)
-- Install fly as follows:
-
-```
-go get github.com/concourse/fly
-```
+- Install concourse following the instructions at
+  [Concourse.ci](http://concourse.ci)
+- Install fly by downloading the `fly` executable from the root page of your
+  deployed concourse. It is a link in the bottom right corner. Make sure to add
+	`fly` to your `$PATH`
 
 ## Run the Integration Tests
 
-To test under `fly` run
+To test under your local concourse install 
 
 ```bash
 scripts/garden-fly
 ```
 
-in the repository root.
+To run tests on CI do
 
-`garden-fly` provides the necessary parameters to `fly` which uses `build.yml`
-and runs `scripts/concourse-test` on an existing Concourse instance which must
-already be running locally in a virtual machine.
+```bash
+scripts/remote-fly
+```
+
+you will need to specify the `GARDEN_REMOTE_ATC_URL` environment variable for
+this to work.
 
 ## Coding Conventions
 
