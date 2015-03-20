@@ -98,7 +98,7 @@ var _ = Describe("Networking recovery", func() {
 			It("a container can still reach external networks", func() {
 				sender, err := ctr1.Run(garden.ProcessSpec{
 					Path: "sh",
-					Args: []string{"-c", "nc -w4 8.8.8.8 53"},
+					Args: []string{"-c", "nc -w1 8.8.8.8 53"},
 				}, garden.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
 				Ω(err).ShouldNot(HaveOccurred())
 

@@ -132,61 +132,12 @@ var _ = Describe("IP settings", func() {
 			Ω(out).Should(ContainSubstring(" 0% packet loss"))
 			Ω(err).ShouldNot(HaveOccurred())
 		})
-
-		It("can reach external networks", func() {
-			sender, err := container1.Run(garden.ProcessSpec{
-				Path: "sh",
-				Args: []string{"-c", fmt.Sprintf("nc -w4 %s 80", externalIP)},
-			}, garden.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
-			Ω(err).ShouldNot(HaveOccurred())
-
-			Ω(sender.Wait()).Should(Equal(0))
-		})
 	})
 
 	Describe("another container on the same subnet", func() {
 		BeforeEach(func() {
 			containerNetwork1 = fmt.Sprintf("10.%d.0.0/24", GinkgoParallelNode())
 			containerNetwork2 = containerNetwork1
-		})
-
-		It("can reach the first container", func() {
-			info1, err := container1.Info()
-			Ω(err).ShouldNot(HaveOccurred())
-
-			listener, err := container1.Run(garden.ProcessSpec{
-				Path: "sh",
-				Args: []string{"-c", "echo hi | nc -l -p 8080"},
-			}, garden.ProcessIO{})
-			Ω(err).ShouldNot(HaveOccurred())
-
-			sender, err := container2.Run(garden.ProcessSpec{
-				Path: "sh",
-				Args: []string{"-c", fmt.Sprintf("echo hello | nc -w1 %s 8080", info1.ContainerIP)},
-			}, garden.ProcessIO{})
-			Ω(err).ShouldNot(HaveOccurred())
-
-			Ω(sender.Wait()).Should(Equal(0))
-			Ω(listener.Wait()).Should(Equal(0))
-		})
-
-		It("can be reached from the host", func() {
-			info2, ierr := container2.Info()
-			Ω(ierr).ShouldNot(HaveOccurred())
-
-			out, err := exec.Command("/bin/ping", "-c 2", info2.ContainerIP).Output()
-			Ω(err).ShouldNot(HaveOccurred())
-			Ω(out).Should(ContainSubstring(" 0% packet loss"))
-		})
-
-		It("can reach external networks", func() {
-			sender, err := container2.Run(garden.ProcessSpec{
-				Path: "sh",
-				Args: []string{"-c", fmt.Sprintf("nc -w4 %s 80", externalIP)},
-			}, garden.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
-			Ω(err).ShouldNot(HaveOccurred())
-
-			Ω(sender.Wait()).Should(Equal(0))
 		})
 
 		Describe("concurrently creating and destroying containers with the same IP", func() {
@@ -257,10 +208,9 @@ var _ = Describe("IP settings", func() {
 				It("can still reach external networks", func() {
 					sender, err := container2.Run(garden.ProcessSpec{
 						Path: "sh",
-						Args: []string{"-c", fmt.Sprintf("nc -w4 %s 80", externalIP)},
+						Args: []string{"-c", fmt.Sprintf("echo hello | nc -w4 %s 80", externalIP)},
 					}, garden.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
 					Ω(err).ShouldNot(HaveOccurred())
-
 					Ω(sender.Wait()).Should(Equal(0))
 				})
 
@@ -288,16 +238,6 @@ var _ = Describe("IP settings", func() {
 				AfterEach(func() {
 					err := client.Destroy(container3.Handle())
 					Ω(err).ShouldNot(HaveOccurred())
-				})
-
-				It("can reach external networks", func() {
-					sender, err := container3.Run(garden.ProcessSpec{
-						Path: "sh",
-						Args: []string{"-c", fmt.Sprintf("nc -w4 %s 80", externalIP)},
-					}, garden.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
-					Ω(err).ShouldNot(HaveOccurred())
-
-					Ω(sender.Wait()).Should(Equal(0))
 				})
 
 				It("can reach the second container", func() {

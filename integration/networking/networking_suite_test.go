@@ -6,6 +6,7 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/exec"
 	"strconv"
 	"syscall"
 
@@ -24,7 +25,6 @@ var rootFSPath = os.Getenv("GARDEN_TEST_ROOTFS")
 var graphPath = os.Getenv("GARDEN_TEST_GRAPHPATH")
 
 var gardenBin string
-var netdogBin string
 
 var gardenRunner *runner.Runner
 var gardenProcess ifrit.Process
@@ -48,14 +48,6 @@ func startGarden(argv ...string) garden.Client {
 	return gardenRunner.NewClient()
 }
 
-func restartGarden(argv ...string) {
-	Ω(client.Ping()).Should(Succeed(), "tried to restart garden while it was not running")
-	gardenProcess.Signal(syscall.SIGTERM)
-	Eventually(gardenProcess.Wait(), "10s").Should(Receive())
-
-	startGarden(argv...)
-}
-
 func ensureGardenRunning() {
 	if err := client.Ping(); err != nil {
 		client = startGarden()
@@ -71,7 +63,6 @@ func TestNetworking(t *testing.T) {
 
 	var beforeSuite struct {
 		GardenPath    string
-		NetdogPath    string
 		ExampleDotCom net.IP
 	}
 
@@ -79,18 +70,6 @@ func TestNetworking(t *testing.T) {
 		var err error
 		beforeSuite.GardenPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux", "-a", "-race", "-tags", "daemon")
 		Ω(err).ShouldNot(HaveOccurred())
-
-		oldCgo := os.Getenv("CGO_ENABLED")
-
-		os.Setenv("CGO_ENABLED", "0")
-		beforeSuite.NetdogPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/integration/networking/netdog", "-a", "-installsuffix", "cgo")
-		Ω(err).ShouldNot(HaveOccurred())
-
-		if oldCgo == "" {
-			os.Unsetenv("CGO_ENABLED")
-		} else {
-			os.Setenv("CGO_ENABLED", oldCgo)
-		}
 
 		ips, err := net.LookupIP("www.example.com")
 		Ω(err).ShouldNot(HaveOccurred())
@@ -106,7 +85,6 @@ func TestNetworking(t *testing.T) {
 		Ω(err).ShouldNot(HaveOccurred())
 
 		gardenBin = beforeSuite.GardenPath
-		netdogBin = beforeSuite.NetdogPath
 		externalIP = beforeSuite.ExampleDotCom
 	})
 
@@ -137,4 +115,21 @@ func hostIfName(container garden.Container) string {
 
 func ifNamePrefix(container garden.Container) string {
 	return "w" + strconv.Itoa(GinkgoParallelNode()) + container.Handle()
+}
+
+func dumpIP() {
+	cmd := exec.Command("ip", "a")
+	op, err := cmd.CombinedOutput()
+	Ω(err).ShouldNot(HaveOccurred())
+	fmt.Println("IP status:\n", string(op))
+
+	cmd = exec.Command("iptables", "--verbose", "--exact", "--numeric", "--list")
+	op, err = cmd.CombinedOutput()
+	Ω(err).ShouldNot(HaveOccurred())
+	fmt.Println("IP tables chains:\n", string(op))
+
+	cmd = exec.Command("iptables", "--list-rules")
+	op, err = cmd.CombinedOutput()
+	Ω(err).ShouldNot(HaveOccurred())
+	fmt.Println("IP tables rules:\n", string(op))
 }
