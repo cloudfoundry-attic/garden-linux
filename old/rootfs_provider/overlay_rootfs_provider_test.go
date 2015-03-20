@@ -2,7 +2,9 @@ package rootfs_provider_test
 
 import (
 	"errors"
+	"os"
 	"os/exec"
+	"syscall"
 
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
@@ -13,7 +15,7 @@ import (
 	. "github.com/cloudfoundry-incubator/garden-linux/old/rootfs_provider"
 )
 
-var _ = Describe("OverlayRootfsProvider", func() {
+var _ = FDescribe("OverlayRootfsProvider", func() {
 	var (
 		fakeRunner *fake_command_runner.FakeCommandRunner
 
@@ -88,37 +90,44 @@ var _ = Describe("OverlayRootfsProvider", func() {
 	})
 
 	Describe("CleanupRootFS", func() {
-		It("executes overlay.sh cleanup for the id's path", func() {
-			err := provider.CleanupRootFS(logger, "some-id")
-			Ω(err).ShouldNot(HaveOccurred())
 
-			Ω(fakeRunner).Should(HaveExecutedSerially(
-				fake_command_runner.CommandSpec{
-					Path: "/some/bin/path/overlay.sh",
-					Args: []string{"cleanup", "/some/overlays/path/some-id"},
-				},
-			))
-
-		})
-
-		Context("when overlay.sh fails", func() {
-			disaster := errors.New("oh no!")
-
+		Context("when the root fs been mounted", func() {
 			BeforeEach(func() {
-				fakeRunner.WhenRunning(
-					fake_command_runner.CommandSpec{
-						Path: "/some/bin/path/overlay.sh",
-						Args: []string{"cleanup", "/some/overlays/path/some-id"},
-					},
-					func(*exec.Cmd) error {
-						return disaster
-					},
-				)
+				provider = NewOverlay("/some/bin/path", "/tmp/some/overlays/path", "/some/default/rootfs", fakeRunner)
+				err := os.MkdirAll("/tmp/some/overlays/path", os.ModePerm)
+				Ω(err).ShouldNot(HaveOccurred())
+				err = os.MkdirAll("/tmp/mount_me", os.ModePerm)
+				Ω(err).ShouldNot(HaveOccurred())
+
+				err = syscall.Mount("/tmp/mount_me", "/tmp/some/overlays/path", "overlayfs", 0, "-n")
+				Ω(err).ShouldNot(HaveOccurred())
 			})
 
-			It("returns the error", func() {
+			AfterEach(func() {
+				os.RemoveAll("/tmp/some/overlays/path")
+			})
+
+			It("removes the container path", func() {
 				err := provider.CleanupRootFS(logger, "some-id")
-				Ω(err).Should(Equal(disaster))
+				Ω(err).ShouldNot(HaveOccurred())
+				if _, err := os.Open("/tmp/some/overlays/path"); !os.IsNotExist(err) {
+					Fail("did not remove the container path")
+				}
+			})
+
+			PContext("when CleanupRootFS fails", func() {
+				BeforeEach(func() {
+					os.Mkdir("/tmp/some/overlays/path/locked_down", 0)
+				})
+
+				AfterEach(func() {
+					os.Chmod("/tmp/some/overlays/path", os.ModePerm)
+				})
+
+				It("returns the error", func() {
+					err := provider.CleanupRootFS(logger, "some-id")
+					Ω(err).Should(HaveOccurred())
+				})
 			})
 		})
 	})

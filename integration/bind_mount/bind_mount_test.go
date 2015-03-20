@@ -153,7 +153,7 @@ var _ = Describe("A container", func() {
 					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, false)
 				})
 
-				It("is successfully created with correct privileges for root in container", func() {
+				FIt("is successfully created with correct privileges for root in container", func() {
 					Ω(containerCreateErr).ShouldNot(HaveOccurred())
 					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, true)
 				})

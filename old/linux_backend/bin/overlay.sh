@@ -82,27 +82,6 @@ function setup_fs() {
   fi
 }
 
-function rootfs_mountpoints() {
-  cat /proc/mounts | grep $rootfs_path | awk '{print $2}'
-}
-
-function teardown_fs() {
-  for i in $(seq 480); do
-    local mountpoints=$(rootfs_mountpoints)
-    if [ -z "$mountpoints" ] || umount $mountpoints; then
-      if rm -rf $container_path; then
-        return 0
-      fi
-    fi
-
-    sleep 0.5
-  done
-
-  return 1
-}
-
 if [ "$action" = "create" ]; then
   setup_fs
-else
-  teardown_fs
 fi
