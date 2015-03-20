@@ -378,6 +378,42 @@ var _ = Describe("Creating a container", func() {
 				})
 			})
 
+			Measure("it should stream stdout and stderr efficiently", func(b Benchmarker) {
+				b.Time("(baseline) streaming 50M of stdout to /dev/null", func() {
+					stdout := gbytes.NewBuffer()
+					stderr := gbytes.NewBuffer()
+
+					_, err := container.Run(garden.ProcessSpec{
+						Path: "sh",
+						Args: []string{"-c", "tr '\\0' 'a' < /dev/zero | dd count=50 bs=1M of=/dev/null; echo done"},
+					}, garden.ProcessIO{
+						Stdout: stdout,
+						Stderr: stderr,
+					})
+					Ω(err).ShouldNot(HaveOccurred())
+
+					Eventually(stdout, "2s").Should(gbytes.Say("done\n"))
+				})
+
+				time := b.Time("streaming 50M of data via garden", func() {
+					stdout := gbytes.NewBuffer()
+					stderr := gbytes.NewBuffer()
+
+					_, err := container.Run(garden.ProcessSpec{
+						Path: "sh",
+						Args: []string{"-c", "tr '\\0' 'a' < /dev/zero | dd count=50 bs=1M; echo done"},
+					}, garden.ProcessIO{
+						Stdout: stdout,
+						Stderr: stderr,
+					})
+					Ω(err).ShouldNot(HaveOccurred())
+
+					Eventually(stdout, "2s").Should(gbytes.Say("done\n"))
+				})
+
+				Ω(time.Seconds()).Should(BeNumerically("<", 1))
+			}, 10)
+
 			It("streams output back and reports the exit status", func() {
 				stdout := gbytes.NewBuffer()
 				stderr := gbytes.NewBuffer()

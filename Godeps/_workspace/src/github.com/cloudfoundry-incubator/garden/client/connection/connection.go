@@ -188,19 +188,7 @@ func (c *connection) Run(handle string, spec garden.ProcessSpec, processIO garde
 		return nil, err
 	}
 
-	decoder := json.NewDecoder(br)
-
-	firstResponse := &transport.ProcessPayload{}
-	err = decoder.Decode(firstResponse)
-	if err != nil {
-		return nil, err
-	}
-
-	p := newProcess(firstResponse.ProcessID, conn)
-
-	go p.streamPayloads(decoder, processIO)
-
-	return p, nil
+	return c.streamProcess(handle, processIO, conn, br)
 }
 
 func (c *connection) Attach(handle string, processID uint32, processIO garden.ProcessIO) (garden.Process, error) {
@@ -216,16 +204,24 @@ func (c *connection) Attach(handle string, processID uint32, processIO garden.Pr
 		nil,
 		"",
 	)
-
 	if err != nil {
 		return nil, err
 	}
 
-	decoder := json.NewDecoder(br)
+	return c.streamProcess(handle, processIO, conn, br)
+}
 
-	p := newProcess(processID, conn)
+func (c *connection) streamProcess(handle string, processIO garden.ProcessIO, to net.Conn, from *bufio.Reader) (garden.Process, error) {
+	decoder := json.NewDecoder(from)
 
-	go p.streamPayloads(decoder, processIO)
+	firstResponse := &transport.ProcessPayload{}
+	err := decoder.Decode(firstResponse)
+	if err != nil {
+		return nil, err
+	}
+
+	p := newProcess(firstResponse.ProcessID, to)
+	go p.streamPayloads(decoder, c.newIOStream(handle, firstResponse.ProcessID, firstResponse.StreamID), processIO)
 
 	return p, nil
 }

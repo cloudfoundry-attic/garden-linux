@@ -933,7 +933,10 @@ var _ = Describe("Connection", func() {
 	})
 
 	Describe("Running", func() {
-		var spec garden.ProcessSpec
+		var (
+			spec         garden.ProcessSpec
+			stdInContent chan string
+		)
 
 		Context("when streaming succeeds to completion", func() {
 			BeforeEach(func() {
@@ -944,6 +947,7 @@ var _ = Describe("Connection", func() {
 					Privileged: true,
 					Limits:     resourceLimits,
 				}
+				stdInContent = make(chan string)
 
 				server.AppendHandlers(
 					ghttp.CombineHandlers(
@@ -959,9 +963,10 @@ var _ = Describe("Connection", func() {
 
 							decoder := json.NewDecoder(br)
 
-							transport.WriteMessage(conn, map[string]interface{}{"process_id": 42})
-							transport.WriteMessage(conn, map[string]interface{}{"process_id": 42, "source": transport.Stdout, "data": "stdout data"})
-							transport.WriteMessage(conn, map[string]interface{}{"process_id": 42, "source": transport.Stderr, "data": "stderr data"})
+							transport.WriteMessage(conn, map[string]interface{}{
+								"process_id": 42,
+								"stream_id":  123,
+							})
 
 							var payload map[string]interface{}
 							err = decoder.Decode(&payload)
@@ -972,12 +977,7 @@ var _ = Describe("Connection", func() {
 								"source":     float64(transport.Stdin),
 								"data":       "stdin data",
 							}))
-
-							transport.WriteMessage(conn, map[string]interface{}{
-								"process_id": 42,
-								"source":     transport.Stdout,
-								"data":       fmt.Sprintf("roundtripped %s", payload["data"]),
-							})
+							stdInContent <- payload["data"].(string)
 
 							transport.WriteMessage(conn, map[string]interface{}{
 								"process_id":  42,
@@ -985,6 +985,13 @@ var _ = Describe("Connection", func() {
 							})
 						},
 					),
+					stdoutStream("foo-handle", 42, 123, func(conn net.Conn) {
+						conn.Write([]byte("stdout data"))
+						conn.Write([]byte(fmt.Sprintf("roundtripped %s", <-stdInContent)))
+					}),
+					stderrStream("foo-handle", 42, 123, func(conn net.Conn) {
+						conn.Write([]byte("stderr data"))
+					}),
 				)
 			})
 
@@ -1009,6 +1016,22 @@ var _ = Describe("Connection", func() {
 				Ω(err).ShouldNot(HaveOccurred())
 				Ω(status).Should(Equal(3))
 			})
+
+			It("finishes streaming stdout and stderr before returning from .Wait", func() {
+				stdout := gbytes.NewBuffer()
+				stderr := gbytes.NewBuffer()
+
+				process, err := connection.Run("foo-handle", spec, garden.ProcessIO{
+					Stdin:  bytes.NewBufferString("stdin data"),
+					Stdout: stdout,
+					Stderr: stderr,
+				})
+				Ω(err).ShouldNot(HaveOccurred())
+
+				process.Wait()
+				Ω(stdout).Should(gbytes.Say("roundtripped stdin data"))
+				Ω(stderr).Should(gbytes.Say("stderr data"))
+			})
 		})
 
 		Context("when the process is terminated", func() {
@@ -1028,6 +1051,7 @@ var _ = Describe("Connection", func() {
 
 							transport.WriteMessage(conn, map[string]interface{}{
 								"process_id": 42,
+								"stream_id":  123,
 							})
 
 							var payload map[string]interface{}
@@ -1045,6 +1069,11 @@ var _ = Describe("Connection", func() {
 							})
 						},
 					),
+					stdoutStream("foo-handle", 42, 123, func(conn net.Conn) {
+						conn.Write([]byte("stdout data"))
+						conn.Write([]byte(fmt.Sprintf("roundtripped %s", <-stdInContent)))
+					}),
+					emptyStderrStream("foo-handle", 42, 123),
 				)
 			})
 
@@ -1080,6 +1109,7 @@ var _ = Describe("Connection", func() {
 
 							transport.WriteMessage(conn, map[string]interface{}{
 								"process_id": 42,
+								"stream_id":  123,
 							})
 
 							var payload map[string]interface{}
@@ -1097,6 +1127,8 @@ var _ = Describe("Connection", func() {
 							})
 						},
 					),
+					emptyStdoutStream("foo-handle", 42, 123),
+					emptyStderrStream("foo-handle", 42, 123),
 				)
 			})
 
@@ -1145,13 +1177,17 @@ var _ = Describe("Connection", func() {
 
 							transport.WriteMessage(conn, map[string]interface{}{
 								"process_id": 42,
+								"stream_id":  123,
 							})
 
-							var payload map[string]interface{}
-							err = decoder.Decode(&payload)
-							Ω(err).ShouldNot(HaveOccurred())
+							// the stdin data may come in before or after the tty message
+							Eventually(func() interface{} {
+								var payload map[string]interface{}
+								err = decoder.Decode(&payload)
+								Ω(err).ShouldNot(HaveOccurred())
 
-							Ω(payload).Should(Equal(map[string]interface{}{
+								return payload
+							}).Should(Equal(map[string]interface{}{
 								"process_id": float64(42),
 								"tty": map[string]interface{}{
 									"window_size": map[string]interface{}{
@@ -1167,6 +1203,8 @@ var _ = Describe("Connection", func() {
 							})
 						},
 					),
+					emptyStdoutStream("foo-handle", 42, 123),
+					emptyStderrStream("foo-handle", 42, 123),
 				)
 			})
 
@@ -1209,19 +1247,12 @@ var _ = Describe("Connection", func() {
 
 							transport.WriteMessage(conn, map[string]interface{}{
 								"process_id": 42,
-							})
-							transport.WriteMessage(conn, map[string]interface{}{
-								"process_id": 42,
-								"source":     transport.Stdout,
-								"data":       "stdout data",
-							})
-							transport.WriteMessage(conn, map[string]interface{}{
-								"process_id": 42,
-								"source":     transport.Stderr,
-								"data":       "stderr data",
+								"stream_id":  123,
 							})
 						},
 					),
+					emptyStdoutStream("foo-handle", 42, 123),
+					emptyStderrStream("foo-handle", 42, 123),
 				)
 			})
 
@@ -1248,12 +1279,8 @@ var _ = Describe("Connection", func() {
 						ghttp.VerifyRequest("POST", "/containers/foo-handle/processes"),
 						ghttp.RespondWith(200, marshalProto(map[string]interface{}{
 							"process_id": 42,
+							"stream_id":  123,
 						},
-							map[string]interface{}{
-								"process_id": 42,
-								"source":     transport.Stdout,
-								"data":       "stdout data",
-							},
 							map[string]interface{}{
 								"process_id": 42,
 								"source":     transport.Stderr,
@@ -1265,6 +1292,8 @@ var _ = Describe("Connection", func() {
 							},
 						)),
 					),
+					emptyStdoutStream("foo-handle", 42, 123),
+					emptyStderrStream("foo-handle", 42, 123),
 				)
 			})
 
@@ -1289,6 +1318,7 @@ var _ = Describe("Connection", func() {
 	Describe("Attaching", func() {
 		Context("when streaming succeeds to completion", func() {
 			BeforeEach(func() {
+				expectedRoundtrip := make(chan string)
 				server.AppendHandlers(
 					ghttp.CombineHandlers(
 						ghttp.VerifyRequest("GET", "/containers/foo-handle/processes/42"),
@@ -1302,14 +1332,7 @@ var _ = Describe("Connection", func() {
 
 							transport.WriteMessage(conn, map[string]interface{}{
 								"process_id": 42,
-								"source":     transport.Stdout,
-								"data":       "stdout data",
-							})
-
-							transport.WriteMessage(conn, map[string]interface{}{
-								"process_id": 42,
-								"source":     transport.Stderr,
-								"data":       "stderr data",
+								"stream_id":  123,
 							})
 
 							var payload map[string]interface{}
@@ -1321,12 +1344,7 @@ var _ = Describe("Connection", func() {
 								"source":     float64(transport.Stdin),
 								"data":       "stdin data",
 							}))
-
-							transport.WriteMessage(conn, map[string]interface{}{
-								"process_id": 42,
-								"source":     transport.Stdout,
-								"data":       fmt.Sprintf("roundtripped %s", payload["data"]),
-							})
+							expectedRoundtrip <- payload["data"].(string)
 
 							transport.WriteMessage(conn, map[string]interface{}{
 								"process_id":  42,
@@ -1334,6 +1352,13 @@ var _ = Describe("Connection", func() {
 							})
 						},
 					),
+					stdoutStream("foo-handle", 42, 123, func(conn net.Conn) {
+						conn.Write([]byte("stdout data"))
+						conn.Write([]byte(fmt.Sprintf("roundtripped %s", <-expectedRoundtrip)))
+					}),
+					stderrStream("foo-handle", 42, 123, func(conn net.Conn) {
+						conn.Write([]byte("stderr data"))
+					}),
 				)
 			})
 
@@ -1358,6 +1383,24 @@ var _ = Describe("Connection", func() {
 				Ω(err).ShouldNot(HaveOccurred())
 				Ω(status).Should(Equal(3))
 			})
+
+			It("finishes streaming stdout and stderr before returning from .Wait", func() {
+				stdout := gbytes.NewBuffer()
+				stderr := gbytes.NewBuffer()
+
+				process, err := connection.Attach("foo-handle", 42, garden.ProcessIO{
+					Stdin:  bytes.NewBufferString("stdin data"),
+					Stdout: stdout,
+					Stderr: stderr,
+				})
+
+				Ω(err).ShouldNot(HaveOccurred())
+
+				process.Wait()
+				Ω(stdout).Should(gbytes.Say("roundtripped stdin data"))
+				Ω(stderr).Should(gbytes.Say("stderr data"))
+			})
+
 		})
 
 		Context("when an error occurs while reading the given stdin stream", func() {
@@ -1372,8 +1415,13 @@ var _ = Describe("Connection", func() {
 
 							conn, br, err := w.(http.Hijacker).Hijack()
 							Ω(err).ShouldNot(HaveOccurred())
-
 							defer conn.Close()
+
+							transport.WriteMessage(conn, map[string]interface{}{
+								"process_id": 42,
+								"stream_id":  123,
+							})
+
 							decoder := json.NewDecoder(br)
 
 							var payload map[string]interface{}
@@ -1393,6 +1441,8 @@ var _ = Describe("Connection", func() {
 							close(finishedReq)
 						},
 					),
+					emptyStdoutStream("foo-handle", 42, 123),
+					emptyStderrStream("foo-handle", 42, 123),
 				)
 
 				stdinR, stdinW := io.Pipe()
@@ -1416,7 +1466,11 @@ var _ = Describe("Connection", func() {
 						ghttp.VerifyRequest("GET", "/containers/foo-handle/processes/42"),
 						ghttp.RespondWith(200, marshalProto(map[string]interface{}{
 							"process_id": 42,
+							"stream_id":  123,
 						},
+							map[string]interface{}{
+								"process_id": 42,
+							},
 							map[string]interface{}{
 								"process_id": 42,
 								"source":     transport.Stdout,
@@ -1433,6 +1487,8 @@ var _ = Describe("Connection", func() {
 							},
 						)),
 					),
+					emptyStdoutStream("foo-handle", 42, 123),
+					emptyStderrStream("foo-handle", 42, 123),
 				)
 			})
 
@@ -1465,6 +1521,11 @@ var _ = Describe("Connection", func() {
 
 							transport.WriteMessage(conn, map[string]interface{}{
 								"process_id": 42,
+								"stream_id":  123,
+							})
+
+							transport.WriteMessage(conn, map[string]interface{}{
+								"process_id": 42,
 								"source":     transport.Stdout,
 								"data":       "stdout data",
 							})
@@ -1476,6 +1537,8 @@ var _ = Describe("Connection", func() {
 							})
 						},
 					),
+					emptyStdoutStream("foo-handle", 42, 123),
+					emptyStderrStream("foo-handle", 42, 123),
 				)
 			})
 
@@ -1516,4 +1579,42 @@ func marshalProto(messages ...interface{}) string {
 	}
 
 	return result.String()
+}
+
+func emptyStdoutStream(handle string, processid, attachid int) http.HandlerFunc {
+	return stdoutStream(handle, processid, attachid, func(net.Conn) {})
+}
+
+func emptyStderrStream(handle string, processid, attachid int) http.HandlerFunc {
+	return stderrStream(handle, processid, attachid, func(net.Conn) {})
+}
+
+func stderrStream(handle string, processid, attachid int, fn func(net.Conn)) http.HandlerFunc {
+	return stream(handle, "stderr", processid, attachid, fn)
+}
+
+func stdoutStream(handle string, processid, attachid int, fn func(net.Conn)) http.HandlerFunc {
+	return stream(handle, "stdout", processid, attachid, fn)
+}
+
+func stream(handle string, route string, processid, attachid int, fn func(net.Conn)) http.HandlerFunc {
+	return ghttp.CombineHandlers(
+		ghttp.VerifyRequest("GET",
+			fmt.Sprintf("/containers/%s/processes/%d/attaches/%d/%s",
+				handle,
+				processid,
+				attachid,
+				route,
+			)),
+
+		func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+
+			conn, _, err := w.(http.Hijacker).Hijack()
+			Ω(err).ShouldNot(HaveOccurred())
+			defer conn.Close()
+
+			fn(conn)
+		},
+	)
 }
