@@ -1,0 +1,9 @@
+#!/bin/bash
+set -e -x -u
+
+docker run --privileged \
+           -t -i \
+           -v $GOPATH:/root/go \
+           -w /root/go/src/github.com/cloudfoundry-incubator/garden-linux \
+           cloudfoundry/warden-ci \
+           ./scripts/drone-test "$@"
