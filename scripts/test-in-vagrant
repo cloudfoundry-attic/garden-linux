@@ -2,4 +2,4 @@
 set -e -x -u
 
 vagrant up
-vagrant ssh -c 'cd /go/src/github.com/cloudfoundry-incubator/garden-linux; sudo env PATH=$PATH GOPATH=/go GARDEN_TEST_ROOTFS=/opt/warden/rootfs ./scripts/test'
+vagrant ssh -c 'sudo chroot warden; cd /go/src/github.com/cloudfoundry-incubator/garden-linux; sudo env PATH=$PATH:/usr/local/go/bin GOPATH=/go GARDEN_TEST_ROOTFS=/opt/warden/rootfs ./scripts/test'

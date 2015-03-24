@@ -1,0 +1,18 @@
+#excert from https://github.com/CpuID/packer-ubuntu-virtualbox
+
+iso_output_dir="output-virtualbox-iso"
+latest_ubuntu_ovf_filename=$(find "${iso_output_dir}" -type f -name "*.ovf" -print0 | xargs -0 ls -1t | head -n 1)
+if [ -z "${latest_ubuntu_ovf_filename}" ]; then
+  echo "Error - We cannot find any OVF files in the directory '${iso_output_dir}'. Cannot proceed."
+  exit 1
+fi
+
+echo "Using OVF Filename '${latest_ubuntu_ovf_filename}'."
+
+# Substitute our OVF filename in packer JSON.
+cp garden_template.json garden.json
+perl -pi -e "s|UBUNTU_OVF_FILENAME|${latest_ubuntu_ovf_filename}|g" garden.json
+
+# Run packer.
+packer build docker.json
+packer build garden.json

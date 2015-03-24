@@ -1,0 +1,45 @@
+{
+  "builders": [
+    {
+      "type": "virtualbox-ovf",
+      "source_path": "output-virtualbox-iso/packer-virtualbox-iso-1427197455.ovf",
+      "ssh_username": "vagrant",
+      "ssh_password": "vagrant",
+      "ssh_wait_timeout": "60s",
+      "shutdown_command": "echo 'packer' | sudo -S shutdown -P now",
+      "virtualbox_version_file": ".vbox_version"
+    }
+  ],
+  "provisioners": [
+    {
+      "type": "file",
+      "source": "./warden-ci.tar",
+      "destination": "/tmp/warden-ci.tar",
+      "only": ["virtualbox-ovf"]
+    },
+    {
+      "inline": [
+        "sudo apt-get install -y --force-yes wget",
+        "# Installing vagrant keys",
+        "mkdir ~/.ssh",
+        "chmod 700 ~/.ssh",
+        "cd ~/.ssh",
+        "wget --no-check-certificate 'https://raw.github.com/mitchellh/vagrant/master/keys/vagrant.pub' -O authorized_keys",
+        "chmod 600 ~/.ssh/authorized_keys",
+        "chown -R vagrant ~/.ssh",
+        "mkdir ~/warden",
+        "sudo tar -xf /tmp/warden-ci.tar -C ~/warden"
+      ],
+      "only": ["virtualbox-ovf"],
+      "type": "shell"
+    }
+  ],
+  "post-processors": [
+    {
+      "type": "vagrant",
+      "only": ["virtualbox-ovf"],
+      "output": "garden-linux.box",
+      "vagrantfile_template": "./Vagrantfile.template"
+    }
+  ]
+}

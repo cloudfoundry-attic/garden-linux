@@ -1,0 +1,9 @@
+{
+  "builders": [
+    {
+      "type": "docker",
+      "image": "cloudfoundry/warden-ci",
+      "export_path": "warden-ci.tar"
+    }
+  ]
+}
