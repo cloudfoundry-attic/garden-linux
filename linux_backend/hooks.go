@@ -2,16 +2,18 @@ package linux_backend
 
 import (
 	"encoding/json"
+	"os"
 	"os/exec"
 
 	"github.com/cloudfoundry-incubator/garden-linux/hook"
+	"github.com/cloudfoundry-incubator/garden-linux/process"
 )
 
 type Config struct {
 	Network json.RawMessage `json:"network"`
 }
 
-func RegisterHooks(hs hook.HookSet, runner Runner) {
+func RegisterHooks(hs hook.HookSet, runner Runner, config process.Env, container ContainerInitializer) {
 	hs.Register(hook.PARENT_BEFORE_CLONE, func() {
 		must(runner.Run(exec.Command("./hook-parent-before-clone.sh")))
 	})
@@ -20,12 +22,15 @@ func RegisterHooks(hs hook.HookSet, runner Runner) {
 		must(runner.Run(exec.Command("./hook-parent-after-clone.sh")))
 	})
 
-	hs.Register(hook.CHILD_BEFORE_PIVOT, func() {
-		must(runner.Run(exec.Command("./hook-child-before-pivot.sh")))
-	})
-
 	hs.Register(hook.CHILD_AFTER_PIVOT, func() {
-		must(runner.Run(exec.Command("./hook-child-after-pivot.sh")))
+		must(container.SetHostname(config["id"]))
+		must(container.MountProc())
+		must(container.MountTmp())
+
+		// Temporary until /etc/seed functionality removed
+		if _, err := os.Stat("/etc/seed"); err == nil {
+			must(exec.Command("/bin/sh", "-c", ". /etc/seed").Run())
+		}
 	})
 }
 

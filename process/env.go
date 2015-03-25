@@ -3,6 +3,7 @@ package process
 import (
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"sort"
 	"strings"
 )
@@ -65,4 +66,19 @@ func (env Env) Array() []string {
 
 func (env Env) String() string {
 	return fmt.Sprintf("%#v", env)
+}
+
+func EnvFromFile(filePath string) (Env, error) {
+	f, err := ioutil.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("process: EnvFromFile: %s", err)
+	}
+	lines := strings.Split(strings.TrimSpace(string(f)), "\n")
+	nonEmptyLines := []string{}
+	for _, line := range lines {
+		if line != "" {
+			nonEmptyLines = append(nonEmptyLines, line)
+		}
+	}
+	return NewEnv(nonEmptyLines)
 }

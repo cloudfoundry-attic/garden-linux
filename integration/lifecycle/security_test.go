@@ -43,6 +43,16 @@ var _ = Describe("Security", func() {
 		})
 	})
 
+	Describe("not relying on /bin/sh on user-supplied root FS", func() {
+		It("can run rootFS that does not contain /bin/sh", func() {
+			client = startGarden()
+			_, err := client.Create(garden.ContainerSpec{
+				RootFSPath: "docker:///cloudfoundry/no-sh",
+			})
+			Ω(err).ShouldNot(HaveOccurred())
+		})
+	})
+
 	Describe("Denying access to network ranges", func() {
 		var (
 			blockedListener   garden.Container

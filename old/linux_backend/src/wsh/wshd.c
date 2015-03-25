@@ -743,9 +743,6 @@ int child_run(void *data) {
   rv = barrier_wait(&w->barrier_parent);
   assert(rv == 0);
 
-  rv = hook(w->lib_path, "child-before-pivot");
-  assert(rv == 0);
-
   /* Prepare lib path for pivot */
   strcpy(pivoted_lib_path, "/tmp/garden-host");
   pivoted_lib_path_len = strlen(pivoted_lib_path);

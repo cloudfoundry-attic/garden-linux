@@ -75,11 +75,8 @@ popd > /dev/null
 
 # Add fuse group and device, so fuse can work inside the container
 mknod -m 666 $rootfs_path/dev/fuse c 10 229
-chroot $rootfs_path env -i /bin/sh -l <<-EOS
-  set -e
-  chown $root_uid:$root_uid /dev/fuse
-  chmod ugo+rw /dev/fuse
-EOS
+chown $root_uid:$root_uid $rootfs_path/dev/fuse
+chmod ugo+rw $rootfs_path/dev/fuse
 
 cat > $rootfs_path/etc/hostname <<-EOS
 $id

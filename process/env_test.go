@@ -4,6 +4,9 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
+	"os"
+	"path/filepath"
+
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 )
 
@@ -72,6 +75,40 @@ var _ = Describe("Environment", func() {
 		})
 	})
 
+	Describe("reading from file", func() {
+		It("constructs the Env from a file", func() {
+			cwd, err := os.Getwd()
+			Ω(err).ShouldNot(HaveOccurred())
+			pathToTestFile := filepath.Join(cwd, "test-assets", "sample")
+			result, err := process.EnvFromFile(pathToTestFile)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			Ω(result).Should(Equal(process.Env{
+				"key1": "value1",
+				"key2": "value2",
+				"key3": "value=3",
+			}))
+		})
+
+		Context("when reading a bad file path", func() {
+			It("returns an error", func() {
+				_, err := process.EnvFromFile("/nosuch")
+				Ω(err).Should(MatchError(MatchRegexp("process: EnvFromFile: .* no such file .*")))
+			})
+		})
+
+		Context("when the file is empty", func() {
+			It("returns an empty env", func() {
+				cwd, err := os.Getwd()
+				Ω(err).ShouldNot(HaveOccurred())
+				pathToTestFile := filepath.Join(cwd, "test-assets", "empty")
+				result, err := process.EnvFromFile(pathToTestFile)
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(result).Should(Equal(process.Env{}))
+			})
+		})
+	})
+
 	Context("when using the constructor", func() {
 		It("can be constructed from an array", func() {
 			env, err := process.NewEnv([]string{
@@ -114,6 +151,15 @@ var _ = Describe("Environment", func() {
 				"KEY4=in=middle",
 				"KEY5=multiple=equal=signs",
 			))
+		})
+
+		Context("when the array is empty", func() {
+			It("returns an empty env", func() {
+				env, err := process.NewEnv([]string{})
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Ω(env).Should(Equal(process.Env{}))
+			})
 		})
 
 		Context("when the array is malformed", func() {
