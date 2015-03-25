@@ -61,14 +61,12 @@ var _ = Describe("Creating a container", func() {
 			Ω(allBridges()).ShouldNot(ContainSubstring(bridgePrefix))
 
 			handles := make([]string, 0)
-			for i := 0; i < 30; i++ {
+			for i := 0; i < 5; i++ {
 				c, err := client.Create(garden.ContainerSpec{})
 				Ω(err).ShouldNot(HaveOccurred())
 
 				handles = append(handles, c.Handle())
 			}
-
-			Ω(allBridges()).Should(ContainSubstring(bridgePrefix))
 
 			retry := func(fn func() error) error {
 				var err error
@@ -481,7 +479,7 @@ var _ = Describe("Creating a container", func() {
 			})
 
 			It("collects the process's full output, even if it exits quickly after", func() {
-				for i := 0; i < 500; i++ {
+				for i := 0; i < 100; i++ {
 					stdout := gbytes.NewBuffer()
 
 					process, err := container.Run(garden.ProcessSpec{
