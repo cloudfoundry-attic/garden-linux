@@ -147,12 +147,7 @@ var _ = Describe("IP settings", func() {
 
 			Context("the second container", func() {
 				It("can still reach external networks", func() {
-					sender, err := container2.Run(garden.ProcessSpec{
-						Path: "sh",
-						Args: []string{"-c", fmt.Sprintf("echo hello | nc -w4 %s 80", externalIP)},
-					}, garden.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
-					Ω(err).ShouldNot(HaveOccurred())
-					Ω(sender.Wait()).Should(Equal(0))
+					Ω(checkInternet(container2)).Should(Succeed())
 				})
 
 				It("can still be reached from the host", func() {
@@ -191,13 +186,8 @@ var _ = Describe("IP settings", func() {
 					}, garden.ProcessIO{})
 					Ω(err).ShouldNot(HaveOccurred())
 
-					sender, err := container3.Run(garden.ProcessSpec{
-						Path: "sh",
-						Args: []string{"-c", fmt.Sprintf("echo hello | nc -w1 %s 8080", info2.ContainerIP)},
-					}, garden.ProcessIO{})
-					Ω(err).ShouldNot(HaveOccurred())
+					Ω(checkConnection(container3, info2.ContainerIP, 8080)).Should(Succeed())
 
-					Ω(sender.Wait()).Should(Equal(0))
 					Ω(listener.Wait()).Should(Equal(0))
 				})
 
@@ -264,9 +254,6 @@ func checkHostAccess(container garden.Container, permitted bool) {
 	info1, ierr := container.Info()
 	Ω(ierr).ShouldNot(HaveOccurred())
 
-	stdout := gbytes.NewBuffer()
-	stderr := gbytes.NewBuffer()
-
 	listener, err := net.Listen("tcp", fmt.Sprintf("%s:0", info1.HostIP))
 	Ω(err).ShouldNot(HaveOccurred())
 	defer listener.Close()
@@ -278,22 +265,13 @@ func checkHostAccess(container garden.Container, permitted bool) {
 
 	go (&http.Server{Handler: mux}).Serve(listener)
 
-	process, err := container.Run(garden.ProcessSpec{
-		Path: "sh",
-		Args: []string{"-c", fmt.Sprintf("(echo 'GET /test HTTP/1.1'; echo 'Host: foo.com'; echo) | nc %s %s", info1.HostIP, strings.Split(listener.Addr().String(), ":")[1])},
-	}, garden.ProcessIO{
-		Stdout: stdout,
-		Stderr: stderr,
-	})
+	port, err := strconv.Atoi(strings.Split(listener.Addr().String(), ":")[1])
 	Ω(err).ShouldNot(HaveOccurred())
-
-	rc, err := process.Wait()
-	Ω(err).ShouldNot(HaveOccurred())
+	err = checkConnection(container, info1.HostIP, port)
 
 	if permitted {
-		Ω(rc).Should(Equal(0))
-		Ω(stdout.Contents()).Should(ContainSubstring("Hello"))
+		Ω(err).ShouldNot(HaveOccurred())
 	} else {
-		Ω(rc).Should(Equal(1))
+		Ω(err).Should(HaveOccurred())
 	}
 }

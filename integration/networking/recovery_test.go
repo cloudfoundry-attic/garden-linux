@@ -15,7 +15,6 @@ var _ = Describe("Networking recovery", func() {
 		var (
 			ctr1           garden.Container
 			ctr2           garden.Container
-			ctr2Path       string
 			bridgeEvidence string
 		)
 		BeforeEach(func() {
@@ -27,9 +26,6 @@ var _ = Describe("Networking recovery", func() {
 			Ω(err).ShouldNot(HaveOccurred())
 			ctr2, err = client.Create(garden.ContainerSpec{Network: containerNetwork})
 			Ω(err).ShouldNot(HaveOccurred())
-			info2, err := ctr2.Info()
-			Ω(err).ShouldNot(HaveOccurred())
-			ctr2Path = info2.ContainerPath
 
 			bridgeEvidence = fmt.Sprintf("inet 10.%d.0.254/24 scope global w%db-", GinkgoParallelNode(), GinkgoParallelNode())
 			cmd := exec.Command("ip", "a")
@@ -96,13 +92,7 @@ var _ = Describe("Networking recovery", func() {
 			})
 
 			It("a container can still reach external networks", func() {
-				sender, err := ctr1.Run(garden.ProcessSpec{
-					Path: "sh",
-					Args: []string{"-c", "nc -w1 8.8.8.8 53"},
-				}, garden.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
-				Ω(err).ShouldNot(HaveOccurred())
-
-				Ω(sender.Wait()).Should(Equal(0))
+				Ω(checkInternet(ctr1)).Should(Succeed())
 			})
 		})
 	})

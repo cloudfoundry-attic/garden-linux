@@ -55,6 +55,31 @@ func ensureGardenRunning() {
 	Ω(client.Ping()).ShouldNot(HaveOccurred())
 }
 
+func checkConnection(container garden.Container, ip string, port int) error {
+	process, err := container.Run(garden.ProcessSpec{
+		Path: "sh",
+		Args: []string{"-c", fmt.Sprintf("echo hello | nc -w1 %s %d", ip, port)},
+	}, garden.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
+	if err != nil {
+		return err
+	}
+
+	exitCode, err := process.Wait()
+	if err != nil {
+		return err
+	}
+
+	if exitCode == 0 {
+		return nil
+	} else {
+		return fmt.Errorf("Request failed. Process exited with code %d", exitCode)
+	}
+}
+
+func checkInternet(container garden.Container) error {
+	return checkConnection(container, externalIP.String(), 80)
+}
+
 func TestNetworking(t *testing.T) {
 	if rootFSPath == "" {
 		log.Println("GARDEN_TEST_ROOTFS undefined; skipping")

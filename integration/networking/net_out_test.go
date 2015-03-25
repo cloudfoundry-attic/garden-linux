@@ -74,23 +74,13 @@ var _ = Describe("Net Out", func() {
 		BeforeEach(func() {
 			ByAllowingTCP = func() {
 				By("allowing outbound tcp traffic", func() {
-					process, _ := runInContainer(
-						container,
-						fmt.Sprintf("(echo 'GET / HTTP/1.1'; echo 'Host: example.com'; echo) | nc -w5 %s 80", externalIP),
-					)
-
-					Ω(process.Wait()).Should(Equal(0))
+					Ω(checkInternet(container)).Should(Succeed())
 				})
 			}
 
 			ByRejectingTCP = func() {
 				By("rejecting outbound tcp traffic", func() {
-					process, _ := runInContainer(
-						container,
-						fmt.Sprintf("(echo 'GET / HTTP/1.1'; echo 'Host: example.com'; echo) | nc -w5 %s 80", externalIP),
-					)
-
-					Ω(process.Wait()).Should(Equal(1))
+					Ω(checkInternet(container)).Should(HaveOccurred())
 				})
 			}
 		})
@@ -182,19 +172,9 @@ var _ = Describe("Net Out", func() {
 			return info.ContainerIP
 		}
 
-		ByAllowingTCP := func(data ...string) {
+		ByAllowingTCP := func() {
 			By("allowing tcp traffic to it", func() {
-				msg := "hello"
-				if len(data) > 0 {
-					msg = data[0]
-				}
-
-				process, _ := runInContainer(
-					container,
-					fmt.Sprintf("echo "+msg+" | nc -w 1 %s %d", targetIP(otherContainer), tcpPort),
-				)
-
-				Ω(process.Wait()).Should(Equal(0))
+				Ω(checkConnection(container, targetIP(otherContainer), tcpPort)).Should(Succeed())
 			})
 		}
 
