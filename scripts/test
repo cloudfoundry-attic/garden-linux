@@ -19,7 +19,7 @@ export GOBIN=/tmp/gobin
 export PATH=$GOBIN:$PATH
 go install github.com/onsi/ginkgo/ginkgo
 
-ginkgo -r -p -race -cover -keepGoing -randomizeAllSpecs "$@"
+ginkgo -r -p -race -cover -keepGoing -randomizeAllSpecs -slowSpecThreshold=15 "$@"
 
 # don't leak coveralls token
 set +x

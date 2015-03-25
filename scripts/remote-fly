@@ -12,5 +12,5 @@ fi
 # GARDEN_REMOTE_ATC_URL is set
 
 echo "Using GARDEN_REMOTE_ATC_URL..."
-echo "fly --privileged $*"
-ATC_URL=$GARDEN_REMOTE_ATC_URL fly --privileged $* | sed -e 's/\\n/\'$'\n/g'
+echo "fly --privileged -- -slowSpecThreshold=15 $*"
+ATC_URL=$GARDEN_REMOTE_ATC_URL fly --privileged -- -slowSpecThreshold=15 $* | sed -e 's/\\n/\'$'\n/g'
