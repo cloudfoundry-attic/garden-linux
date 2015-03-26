@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"syscall"
 	"time"
 )
@@ -32,28 +33,20 @@ type WshMsg struct {
 
 func runWsh() {
 	// argument parsing
-	socket := flag.String("socket", "run/wshd.sock", "socket to talk to wshd over")
+	socketFilePath := flag.String("socket", "run/wshd.sock", "socket to talk to wshd over")
 	flag.String("user", "", "")
 	flag.String("env", "", "")
 	flag.String("pidfile", "", "")
 	flag.String("dir", "", "")
 	flag.Parse()
 
-	cmd := exec.Command("sh", "-c", fmt.Sprintf("pwd; ls -l %s;", filepath.Dir(*socket)))
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	must(cmd.Run())
-
 	// connect to the socket
-	fmt.Printf("Connecting to socket %s\n", *socket)
-	conn, err := net.Dial("unix", *socket)
+	conn, err := net.Dial("unix", *socketFilePath)
 	if err != nil {
-		panic(fmt.Sprintf("Unable to open socket: %s", *socket))
+		panic(fmt.Sprintf("Unable to open socket: %s", *socketFilePath))
 	}
 
 	// write arguments to socket
-	fmt.Print(flag.Args())
-	fmt.Print("\n")
 	msg, err := json.Marshal(&WshMsg{
 		Path: flag.Args()[0],
 		Args: flag.Args()[1:],
@@ -80,7 +73,6 @@ func runWsh() {
 	if err != nil {
 		panic(fmt.Errorf("failed to parse unix rights: %s", err))
 	}
-	fmt.Println("Received fds")
 
 	contStdin := os.NewFile(uintptr(fds[0]), "/dev/stdin")
 	contStdout := os.NewFile(uintptr(fds[1]), "/dev/stdout")
@@ -91,13 +83,14 @@ func runWsh() {
 	go io.Copy(contStdin, os.Stdin)
 	go io.Copy(os.Stdout, contStdout)
 	go io.Copy(os.Stderr, contStderr)
-	fmt.Println("Io.Copies are started")
 
 	// wait for exit code
 	buffer := make([]byte, 1024)
-	exitCodeFile.Read(buffer)
-
+	bytes, err := exitCodeFile.Read(buffer)
 	time.Sleep(2 * time.Second)
+	code, err := strconv.Atoi(string(buffer[:bytes]))
+	must(err)
+	os.Exit(code)
 }
 
 func parent() {
@@ -110,7 +103,7 @@ func parent() {
 	flag.Parse()
 
 	// mount RootFS
-	//must(syscall.Mount(*rootFSPath, *rootFSPath, "", uintptr(syscall.MS_BIND), ""))
+	must(syscall.Mount(*rootFSPath, *rootFSPath, "", uintptr(syscall.MS_BIND), ""))
 	must(os.MkdirAll((*rootFSPath)+"/oldroot", 0700))
 
 	// prepares the barrier (synchronization between child and parent) pipe
@@ -119,16 +112,10 @@ func parent() {
 		panic(fmt.Sprintf("Failed to create pipe: %s", err))
 	}
 
-	// create child
-	cmd := exec.Command("bash", "-c", "pwd; ls -l ./bin; chmod +x ./bin/cfsinit")
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	must(cmd.Run())
-
+	// prepare child
 	big, err := filepath.Abs("./bin/cfsinit")
 	must(err)
-
-	cmd = exec.Command(big, os.Args[1:]...)
+	cmd := exec.Command(big, os.Args[1:]...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Cloneflags: uintptr(syscall.CLONE_NEWUTS | syscall.CLONE_NEWNET | syscall.CLONE_NEWNS | syscall.CLONE_NEWPID)}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -136,7 +123,6 @@ func parent() {
 	cmd.ExtraFiles = append(cmd.ExtraFiles, containerSide)
 
 	// spawn child (and new namespaces)
-	fmt.Println("entering child process")
 	must(cmd.Start())
 
 	// barrier: wait for child to start
@@ -149,26 +135,18 @@ func parent() {
 }
 
 func child() {
-	fmt.Println("in child")
-
 	// argument parsing
 	rootFSPath := flag.String("root", "", "Path to root file system")
-	flag.String("run", "./run", "Path to use for socket file")
+	runDirPath := flag.String("run", "./run", "Path to use for socket file")
 	flag.String("lib", "./lib", "Hook scripts path")
 	flag.String("title", "Gawsh", "Container title")
 	flag.String("userns", "enabled", "Use user namespace")
 	flag.Parse()
 
-	cmd := exec.Command("sh", "-c", fmt.Sprintf("echo XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX; pwd; ls -l ./run;"))
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	must(cmd.Run())
-
 	// socket file
-	os.MkdirAll("./run", 0700)
-	sock, err := net.Listen("unix", "./run/wshd.sock")
+	sock, err := net.Listen("unix", (*runDirPath)+"/wshd.sock")
 	if err != nil {
-		panic("no socket :-(")
+		panic(fmt.Sprintf("no socket :-( %v", err))
 	}
 
 	defer sock.Close()
@@ -180,11 +158,11 @@ func child() {
 	must(syscall.Mount("proc", "/proc", "proc", uintptr(0), ""))
 
 	// host-container barrier
-	containerSide := os.NewFile(uintptr(3), "/dev/hostcomm")
-	_, err = containerSide.Write([]byte("after-pivot\n"))
-	if err != nil {
-		panic(fmt.Sprintf("Failed to send data to host: %s", err))
-	}
+	// containerSide := os.NewFile(uintptr(3), "/dev/hostcomm")
+	// _, err = containerSide.Write([]byte("after-pivot\n"))
+	// if err != nil {
+	// 	panic(fmt.Sprintf("Failed to send data to host: %s", err))
+	// }
 
 	// environment
 	must(os.Chdir("/"))
@@ -210,7 +188,6 @@ func child() {
 				pipes[i].r, pipes[i].w, pipes[i].err = os.Pipe()
 			}
 
-			fmt.Println("got wsh msg: ", w)
 			// create command
 			cmd := exec.Command(w.Path, w.Args...)
 
@@ -219,14 +196,12 @@ func child() {
 			cmd.Stdout = pipes[1].w
 			cmd.Stderr = pipes[2].w
 
-			// start the command
-			must(cmd.Start())
-
 			// make pipe for sending back exit code
 			roF, wF, err := os.Pipe()
 			if err != nil {
 				panic(fmt.Sprintf("Cannot create pipe for processe's exit code: %s", err))
 			}
+			defer wF.Close()
 
 			// send file descriptors
 			msg := syscall.UnixRights(
@@ -239,7 +214,14 @@ func child() {
 			if err != nil {
 				panic(fmt.Sprintf("Faled to send the fds: %s", err))
 			}
-			fmt.Println("Pipes are sent back to wsh")
+
+			// start the command
+			err = cmd.Start()
+			if err != nil {
+				pipes[2].w.Write([]byte("Program not found!\n"))
+				wF.Write([]byte("255"))
+				return
+			}
 
 			// write exit code in pipe
 			err = cmd.Wait()
