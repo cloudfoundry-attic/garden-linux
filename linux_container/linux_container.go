@@ -690,14 +690,3 @@ func (c *LinuxContainer) registerEvent(event string) {
 
 	c.events = append(c.events, event)
 }
-
-func langEnv() process.Env {
-	lang := os.Getenv("LANG")
-	if lang == "" {
-		lang = "en_US.UTF-8"
-	}
-
-	return process.Env{
-		"LANG": lang,
-	}
-}
