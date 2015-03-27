@@ -5,6 +5,7 @@ set -e
 action=$1
 container_path=$2
 overlay_path=$2/overlay
+workdir_path=$2/workdir
 rootfs_path=$2/rootfs
 base_path=$3
 
@@ -27,6 +28,29 @@ function current_fs() {
       echo $fs
     fi
   done < /proc/mounts
+}
+
+function should_use_overlay() {
+  # load it so it's in /proc/filesystems
+  modprobe -q overlay >/dev/null 2>&1 || true
+
+  # assumption: cannot mount overlay in aufs
+  if [ "$(current_fs $overlay_path)" == "aufs" ]; then
+    return 1
+  fi
+
+  # assumption: cannot mount overlay in overlayfs
+  if [ "$(current_fs $overlay_path)" == "overlayfs" ]; then
+    return 1
+  fi
+
+  # assumption: cannot mount overlay in overlay
+  if [ "$(current_fs $overlay_path)" == "overlay" ]; then
+    return 1
+  fi
+
+  # check if it's a known filesystem
+  grep -q overlay /proc/filesystems
 }
 
 function should_use_overlayfs() {
@@ -67,12 +91,15 @@ function should_use_aufs() {
 
 function setup_fs() {
   mkdir -p $overlay_path
+  mkdir -p $workdir_path
   mkdir -p $rootfs_path
 
   if should_use_aufs; then
     mount -n -t aufs -o br:$overlay_path=rw:$base_path=ro+wh none $rootfs_path
   elif should_use_overlayfs; then
     mount -n -t overlayfs -o rw,upperdir=$overlay_path,lowerdir=$base_path none $rootfs_path
+  elif should_use_overlay; then
+    mount -n -t overlay -o rw,upperdir=$overlay_path,lowerdir=$base_path,workdir=$workdir_path none $rootfs_path
   else
     # aufs and overlayfs are the only supported mount types.
     # aufs and overlayfs can be used in nested containers by mounting
