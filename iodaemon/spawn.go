@@ -122,33 +122,45 @@ func spawn(
 		}
 	}
 
-	initChild, childStarted, childEnded, stopAccepting := make(chan bool), make(chan bool), make(chan bool), make(chan bool)
+	initChild, childStarted, childEnded, stopAccepting, connected := make(chan bool), make(chan bool), make(chan bool), make(chan bool), make(chan bool)
 
-	go acceptConnections(acceptConn, initChild, childStarted, stopAccepting, processConn)
+	onFirstConn := func() {
+		connected <- true
+		initChild <- true
+		<-childStarted
+	}
 
-	<-initChild
-	go runChildProcess(startChild, waitForChild, childStarted, childEnded)
+	exitCode := 1
+	go acceptConnections(acceptConn, onFirstConn, stopAccepting, processConn)
 
-	<-childEnded
+	select {
+	case <-connected:
+		<-initChild
+		go runChildProcess(startChild, waitForChild, childStarted, childEnded)
+		<-childEnded
+		exitCode = 0
+	case <-time.After(timeout):
+		exitCode = 2
+		break
+	}
+
 	errStream.Close()
 	close(stopAccepting)
 	listener.Close()
-	terminate <- 0
+	terminate <- exitCode
 }
 
-func acceptConnections(acceptConn func(chan bool) (net.Conn, error), initChild, childStarted, stopAccepting chan bool,
+func acceptConnections(acceptConn func(chan bool) (net.Conn, error), onFirstConn func(), stopAccepting chan bool,
 	processConn func(net.Conn)) {
 	var once sync.Once
+
 	for {
 		conn, err := acceptConn(stopAccepting)
 		if err != nil {
 			return
 		}
 
-		once.Do(func() {
-			initChild <- true
-			<-childStarted
-		})
+		once.Do(onFirstConn)
 
 		processConn(conn)
 	}

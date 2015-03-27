@@ -26,15 +26,17 @@ func (b wc) Close() error {
 
 var _ = Describe("Iodaemon", func() {
 	var (
-		socketPath string
-		tmpdir     string
-		terminate  chan int
-		fakeOut    wc
-		fakeErr    wc
+		socketPath       string
+		tmpdir           string
+		terminate        chan int
+		fakeOut          wc
+		fakeErr          wc
+		expectedExitCode int
 	)
 
 	BeforeEach(func() {
 		var err error
+		expectedExitCode = 0
 		tmpdir, err = ioutil.TempDir("", "socket-dir")
 		Ω(err).ShouldNot(HaveOccurred())
 
@@ -54,7 +56,7 @@ var _ = Describe("Iodaemon", func() {
 		defer os.RemoveAll(tmpdir)
 
 		By("waiting for iodeamon to terminate")
-		Eventually(terminate).Should(Receive(Equal(0)))
+		Eventually(terminate, "2s").Should(Receive(Equal(expectedExitCode)))
 
 		By("tidying up the socket file")
 		if _, err := os.Stat(socketPath); !os.IsNotExist(err) {
@@ -66,6 +68,11 @@ var _ = Describe("Iodaemon", func() {
 		spawnProcess := func(args ...string) {
 			go spawn(socketPath, args, time.Second, false, 0, 0, false, terminate, fakeOut, fakeErr)
 		}
+
+		It("times out when no listeners connect", func() {
+			expectedExitCode = 2
+			spawnProcess("echo", "hello")
+		})
 
 		It("reports back stdout", func() {
 			spawnProcess("echo", "hello")

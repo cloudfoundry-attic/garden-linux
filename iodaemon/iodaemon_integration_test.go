@@ -87,4 +87,17 @@ var _ = Describe("Iodaemon integration tests", func() {
 			Eventually(spawnS).Should(gexec.Exit(0))
 		}
 	})
+
+	It("times out while spawning when no listeners connect", func() {
+		process, err := gexec.Start(exec.Command(
+			iodaemon,
+			"-timeout 5s",
+			"spawn",
+			socketPath,
+			"bash", "-c", "cat <&0",
+		), GinkgoWriter, GinkgoWriter)
+		Ω(err).ShouldNot(HaveOccurred())
+
+		Eventually(process, "6s").Should(gexec.Exit(2))
+	})
 })

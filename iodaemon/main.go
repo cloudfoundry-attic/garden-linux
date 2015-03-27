@@ -13,7 +13,6 @@ const USAGE = `usage:
 		the given socket
 `
 
-// TODO actually do this
 var timeout = flag.Duration(
 	"timeout",
 	10*time.Second,
