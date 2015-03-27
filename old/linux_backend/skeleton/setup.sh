@@ -115,7 +115,12 @@ if ! chroot $rootfs_path id vcap >/dev/null 2>&1; then
     shell=/bin/bash
   fi
 
-  useradd -R $rootfs_path -m -u $user_uid -s $shell vcap
+  if ! useradd -R $rootfs_path -m -u $user_uid -s $shell vcap >/dev/null 2>&1; then
+    # some kernels need login.defs to exist
+    mkdir -p $rootfs_path/etc
+    touch $rootfs_path/etc/login.defs
+    useradd -R $rootfs_path -m -u $user_uid -s $shell vcap
+  fi
 fi
 
 # workaround aufs limitations by copying /root directory out and back
