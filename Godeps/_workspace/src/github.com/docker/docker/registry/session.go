@@ -53,7 +53,7 @@ func NewSession(authConfig *AuthConfig, factory *utils.HTTPRequestFactory, endpo
 		if err != nil {
 			return nil, err
 		}
-		if info.Standalone {
+		if info.Standalone && authConfig != nil && factory != nil {
 			log.Debugf("Endpoint %s is eligible for private registry registry. Enabling decorator.", r.indexEndpoint.String())
 			dec := utils.NewHTTPAuthDecorator(authConfig.Username, authConfig.Password)
 			factory.AddDecorator(dec)
