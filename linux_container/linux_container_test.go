@@ -44,8 +44,6 @@ var _ = Describe("Linux containers", func() {
 	var containerProps map[string]string
 	var mtu uint32
 
-	var oldLang string
-
 	BeforeEach(func() {
 		fakeRunner = fake_command_runner.New()
 
@@ -84,17 +82,6 @@ var _ = Describe("Linux containers", func() {
 
 		containerProps = map[string]string{
 			"property-name": "property-value",
-		}
-
-		oldLang = os.Getenv("LANG")
-		os.Setenv("LANG", "en_US.UTF-8")
-	})
-
-	AfterEach(func() {
-		if oldLang == "" {
-			os.Unsetenv("LANG")
-		} else {
-			os.Setenv("LANG", oldLang)
 		}
 	})
 

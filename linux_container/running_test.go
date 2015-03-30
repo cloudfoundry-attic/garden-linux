@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
-	"os"
 	"os/exec"
 	"sync"
 	"time"
@@ -37,8 +36,6 @@ var _ = Describe("Linux containers", func() {
 	var fakeProcessTracker *fake_process_tracker.FakeProcessTracker
 	var containerDir string
 
-	var oldLang string
-
 	BeforeEach(func() {
 		fakeRunner = fake_command_runner.New()
 
@@ -60,17 +57,6 @@ var _ = Describe("Linux containers", func() {
 			[]uint32{},
 			nil,
 		)
-
-		oldLang = os.Getenv("LANG")
-		os.Setenv("LANG", "en_US.UTF-8")
-	})
-
-	AfterEach(func() {
-		if oldLang == "" {
-			os.Unsetenv("LANG")
-		} else {
-			os.Setenv("LANG", oldLang)
-		}
 	})
 
 	JustBeforeEach(func() {
@@ -126,7 +112,6 @@ var _ = Describe("Linux containers", func() {
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
 				"--user", "vcap",
-				"--env", "LANG=en_US.UTF-8",
 				"--env", "env1=env1Value",
 				"--env", "env2=env2Value",
 				"--pidfile", containerDir + "/processes/1.pid",
@@ -165,7 +150,6 @@ var _ = Describe("Linux containers", func() {
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
 				"--user", "vcap",
-				"--env", "LANG=en_US.UTF-8",
 				"--env", "env1=env1Value",
 				"--env", "env2=env2Value",
 				"--pidfile", containerDir + "/processes/1.pid",
@@ -226,7 +210,6 @@ var _ = Describe("Linux containers", func() {
 				"--socket", containerDir + "/run/wshd.sock",
 				"--user", "vcap",
 				"--env", `ESCAPED=kurt "russell"`,
-				"--env", "LANG=en_US.UTF-8",
 				"--env", "UNESCAPED=isaac\nhayes",
 				"--env", "env1=env1Value",
 				"--env", "env2=env2Value",
@@ -235,38 +218,11 @@ var _ = Describe("Linux containers", func() {
 			}))
 		})
 
-		Describe("LANG environment variable", func() {
-			It("forwards the LANG variable the environment if the user doesn't specify it", func() {
-				os.Setenv("LANG", "C")
-
-				_, err := container.Run(garden.ProcessSpec{
-					Path: "/some/script",
-				}, garden.ProcessIO{})
-				Ω(err).ShouldNot(HaveOccurred())
-
-				_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
-				Ω(ranCmd.Args).Should(ContainElement("LANG=C"))
-			})
-
-			It("forwards the LANG variable the environment if the user doesn't specify it", func() {
-				os.Unsetenv("LANG")
-
-				_, err := container.Run(garden.ProcessSpec{
-					Path: "/some/script",
-				}, garden.ProcessIO{})
-				Ω(err).ShouldNot(HaveOccurred())
-
-				_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
-				Ω(ranCmd.Args).Should(ContainElement("LANG=en_US.UTF-8"))
-			})
-		})
-
 		It("runs the script with the environment variables from the run taking precedence over the container environment variables", func() {
 			_, err := container.Run(garden.ProcessSpec{
 				Path: "/some/script",
 				Env: []string{
 					"env1=overridden",
-					"LANG=POSIX",
 				},
 			}, garden.ProcessIO{})
 
@@ -277,7 +233,6 @@ var _ = Describe("Linux containers", func() {
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
 				"--user", "vcap",
-				"--env", "LANG=POSIX",
 				"--env", "env1=overridden",
 				"--env", "env2=env2Value",
 				"--pidfile", containerDir + "/processes/1.pid",
@@ -298,7 +253,6 @@ var _ = Describe("Linux containers", func() {
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
 				"--user", "vcap",
-				"--env", "LANG=en_US.UTF-8",
 				"--env", "env1=env1Value",
 				"--env", "env2=env2Value",
 				"--dir", "/some/dir",
@@ -401,7 +355,6 @@ var _ = Describe("Linux containers", func() {
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
 				"--user", "vcap",
-				"--env", "LANG=en_US.UTF-8",
 				"--env", "env1=env1Value",
 				"--env", "env2=env2Value",
 				"--pidfile", containerDir + "/processes/1.pid",
@@ -437,7 +390,6 @@ var _ = Describe("Linux containers", func() {
 						containerDir + "/bin/wsh",
 						"--socket", containerDir + "/run/wshd.sock",
 						"--user", "root",
-						"--env", "LANG=en_US.UTF-8",
 						"--env", "env1=env1Value",
 						"--env", "env2=env2Value",
 						"--pidfile", containerDir + "/processes/1.pid",
@@ -463,7 +415,6 @@ var _ = Describe("Linux containers", func() {
 						containerDir + "/bin/wsh",
 						"--socket", containerDir + "/run/wshd.sock",
 						"--user", "potato",
-						"--env", "LANG=en_US.UTF-8",
 						"--env", "env1=env1Value",
 						"--env", "env2=env2Value",
 						"--pidfile", containerDir + "/processes/1.pid",
@@ -490,7 +441,6 @@ var _ = Describe("Linux containers", func() {
 						containerDir + "/bin/wsh",
 						"--socket", containerDir + "/run/wshd.sock",
 						"--user", "vcap",
-						"--env", "LANG=en_US.UTF-8",
 						"--env", "env1=env1Value",
 						"--env", "env2=env2Value",
 						"--pidfile", containerDir + "/processes/1.pid",
@@ -516,7 +466,6 @@ var _ = Describe("Linux containers", func() {
 						containerDir + "/bin/wsh",
 						"--socket", containerDir + "/run/wshd.sock",
 						"--user", "potato",
-						"--env", "LANG=en_US.UTF-8",
 						"--env", "env1=env1Value",
 						"--env", "env2=env2Value",
 						"--pidfile", containerDir + "/processes/1.pid",

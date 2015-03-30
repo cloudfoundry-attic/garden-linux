@@ -6,7 +6,6 @@ import (
 	"errors"
 	"io/ioutil"
 	"net"
-	"os"
 	"os/exec"
 	"time"
 
@@ -41,8 +40,6 @@ var _ = Describe("Linux containers", func() {
 	var fakeFilter *networkFakes.FakeFilter
 	var containerDir string
 	var containerProps map[string]string
-
-	var oldLang string
 
 	netOutRule1 := garden.NetOutRule{
 		Protocol: garden.ProtocolUDP,
@@ -91,18 +88,6 @@ var _ = Describe("Linux containers", func() {
 
 		containerProps = map[string]string{
 			"property-name": "property-value",
-		}
-
-		oldLang = os.Getenv("LANG")
-		os.Setenv("LANG", "en_US.UTF-8")
-
-	})
-
-	AfterEach(func() {
-		if oldLang == "" {
-			os.Unsetenv("LANG")
-		} else {
-			os.Setenv("LANG", oldLang)
 		}
 	})
 

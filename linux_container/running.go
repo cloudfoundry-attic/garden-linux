@@ -36,8 +36,7 @@ func (c *LinuxContainer) Run(spec garden.ProcessSpec, processIO garden.ProcessIO
 		"run-env":       specEnv,
 	})
 
-	defaultEnv := langEnv().Merge(c.env)
-	processEnv := defaultEnv.Merge(specEnv)
+	processEnv := c.env.Merge(specEnv)
 
 	for _, envVar := range processEnv.Array() {
 		args = append(args, "--env", envVar)
