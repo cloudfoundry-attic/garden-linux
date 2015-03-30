@@ -1,6 +1,7 @@
 package linux_backend
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -26,10 +27,16 @@ func (n *NamespacedSignaller) Signal(signal os.Signal) error {
 	}
 	defer pidFile.Close()
 
-	var pid int
-	_, err = fmt.Fscanf(pidFile, "%d", &pid)
+	fileContent, err := readPIDFile(pidFile)
+
 	if err != nil {
-		return fmt.Errorf("namespaced-signaller: can't read pidfile: %v", err)
+		return err
+	}
+
+	var pid int
+	_, err = fmt.Sscanf(fileContent, "%d", &pid)
+	if err != nil {
+		return fmt.Errorf("namespaced-signaller: can't parse pidfile content: %v", err)
 	}
 
 	return n.Runner.Run(exec.Command(filepath.Join(n.ContainerPath, "bin/wsh"),
@@ -50,4 +57,26 @@ func openPIDFile(pidFileName string) (*os.File, error) {
 	}
 
 	return nil, fmt.Errorf("linux_backend: namespaced-signaller can't open PID file: %s", err)
+}
+
+func readPIDFile(pidFile *os.File) (string, error) {
+	var bytesReadAmt int
+
+	buffer := make([]byte, 32)
+	for i := 0; i < 100; i++ { // retry 10 seconds
+		bytesReadAmt, _ = pidFile.Read(buffer)
+
+		if bytesReadAmt == 0 {
+			pidFile.Seek(0, 0)
+			time.Sleep(time.Millisecond * 100)
+			continue
+		}
+		break
+	}
+
+	if bytesReadAmt == 0 {
+		return "", errors.New("namespaced-signaller: can't read pidfile: is empty or non existant")
+	}
+
+	return string(buffer), nil
 }

@@ -478,6 +478,26 @@ var _ = Describe("Creating a container", func() {
 				Ω(process.Wait()).ShouldNot(Equal(0))
 			})
 
+			It("avoids a race condition when sending a kill signal", func(done Done) {
+				stdout := gbytes.NewBuffer()
+
+				for i := 0; i < 200; i++ {
+					process, err := container.Run(garden.ProcessSpec{
+						Path: "sh",
+						Args: []string{"-c", `while true; do echo -n "x"; sleep 1; done`},
+					}, garden.ProcessIO{
+						Stdout: io.MultiWriter(GinkgoWriter, stdout),
+						Stderr: GinkgoWriter,
+					})
+					Ω(err).ShouldNot(HaveOccurred())
+
+					Ω(process.Signal(garden.SignalKill)).Should(Succeed())
+					Ω(process.Wait()).Should(Equal(255))
+					println("Run ", i)
+				}
+				close(done)
+			}, 30.0)
+
 			It("collects the process's full output, even if it exits quickly after", func() {
 				for i := 0; i < 100; i++ {
 					stdout := gbytes.NewBuffer()
