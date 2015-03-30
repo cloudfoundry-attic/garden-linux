@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -1015,6 +1016,30 @@ var _ = Describe("Creating a container", func() {
 				Ω(err).ShouldNot(HaveOccurred())
 				Eventually(iptables, "2s").Should(gexec.Exit())
 				Ω(iptables).ShouldNot(gbytes.Say(handle))
+			})
+
+			It("should not leak network namespace", func() {
+				info, err := container.Info()
+				Ω(err).ShouldNot(HaveOccurred())
+				Ω(info.State).Should(Equal("active"))
+
+				pidPath := filepath.Join(info.ContainerPath, "run", "wshd.pid")
+
+				pidFile, err := os.Open(pidPath)
+				Ω(err).ShouldNot(HaveOccurred())
+
+				var pid int
+				_, err = fmt.Fscanf(pidFile, "%d", &pid)
+				Ω(err).ShouldNot(HaveOccurred())
+
+				Ω(client.Destroy(container.Handle())).Should(Succeed())
+				container = nil
+
+				stdout := gbytes.NewBuffer()
+				cmd, err := gexec.Start(exec.Command("sh", "-c", "mount -n -t tmpfs tmpfs /sys; ip netns list; umount /sys"), stdout, GinkgoWriter)
+				Ω(err).ShouldNot(HaveOccurred())
+				Eventually(cmd).Should(gexec.Exit(0))
+				Eventually(stdout).ShouldNot(gbytes.Say(strconv.Itoa(pid)))
 			})
 		})
 	})

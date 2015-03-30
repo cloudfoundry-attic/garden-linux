@@ -105,6 +105,7 @@ ip netns exec $PID ./bin/container-net -target=container \
                 -subnet=$network_cidr \
                 -mtu=$container_iface_mtu
 
+rm -f /var/run/netns/$PID
 umount /sys
 
 exit 0
