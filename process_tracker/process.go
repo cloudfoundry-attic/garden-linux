@@ -14,6 +14,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden-linux/iodaemon/link"
 	"github.com/cloudfoundry-incubator/garden-linux/process_tracker/writer"
+	"github.com/pivotal-golang/lager"
 )
 
 type Process struct {
@@ -35,6 +36,7 @@ type Process struct {
 	stderr writer.FanOut
 
 	signaller Signaller
+	logger    lager.Logger
 }
 
 type Signaller interface {
@@ -46,6 +48,7 @@ func NewProcess(
 	containerPath string,
 	runner command_runner.CommandRunner,
 	signaller Signaller,
+	logger lager.Logger,
 ) *Process {
 	return &Process{
 		id: id,
@@ -64,6 +67,7 @@ func NewProcess(
 		stderr: writer.NewFanOut(),
 
 		signaller: signaller,
+		logger:    logger,
 	}
 }
 
@@ -205,6 +209,7 @@ func (p *Process) runLinker() {
 }
 
 func (p *Process) completed(exitStatus int, err error) {
+	p.logger.Debug("process_tracker: completed", lager.Data{"exitStatus": exitStatus, "exitErr": err})
 	p.exitStatus = exitStatus
 	p.exitErr = err
 	close(p.exited)

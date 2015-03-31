@@ -5,8 +5,10 @@ import (
 	"os/exec"
 	"sync"
 
+	"github.com/cloudfoundry-incubator/cf-lager"
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry/gunk/command_runner"
+	"github.com/pivotal-golang/lager"
 )
 
 type ProcessTracker interface {
@@ -22,6 +24,8 @@ type processTracker struct {
 
 	processes      map[uint32]*Process
 	processesMutex *sync.RWMutex
+
+	logger lager.Logger
 }
 
 type UnknownProcessError struct {
@@ -39,12 +43,14 @@ func New(containerPath string, runner command_runner.CommandRunner) ProcessTrack
 
 		processesMutex: new(sync.RWMutex),
 		processes:      make(map[uint32]*Process),
+
+		logger: cf_lager.New("processTracker").Session("container", lager.Data{"containerPath": containerPath}),
 	}
 }
 
 func (t *processTracker) Run(processID uint32, cmd *exec.Cmd, processIO garden.ProcessIO, tty *garden.TTYSpec, signaller Signaller) (garden.Process, error) {
 	t.processesMutex.Lock()
-	process := NewProcess(processID, t.containerPath, t.runner, signaller)
+	process := NewProcess(processID, t.containerPath, t.runner, signaller, t.logger)
 	t.processes[processID] = process
 	t.processesMutex.Unlock()
 
@@ -52,6 +58,7 @@ func (t *processTracker) Run(processID uint32, cmd *exec.Cmd, processIO garden.P
 
 	err := <-ready
 	if err != nil {
+		t.logger.Debug("process_tracker: Run: Spawn failed", lager.Data{"err": err})
 		return nil, err
 	}
 
@@ -61,6 +68,7 @@ func (t *processTracker) Run(processID uint32, cmd *exec.Cmd, processIO garden.P
 
 	err = <-active
 	if err != nil {
+		t.logger.Debug("process_tracker: Run: active received error", lager.Data{"err": err})
 		return nil, err
 	}
 
@@ -86,7 +94,7 @@ func (t *processTracker) Attach(processID uint32, processIO garden.ProcessIO) (g
 func (t *processTracker) Restore(processID uint32, signaller Signaller) {
 	t.processesMutex.Lock()
 
-	process := NewProcess(processID, t.containerPath, t.runner, signaller)
+	process := NewProcess(processID, t.containerPath, t.runner, signaller, t.logger)
 
 	t.processes[processID] = process
 

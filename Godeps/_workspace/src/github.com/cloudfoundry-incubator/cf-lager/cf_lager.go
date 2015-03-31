@@ -23,7 +23,7 @@ func init() {
 	flag.StringVar(
 		&minLogLevel,
 		"logLevel",
-		string(INFO),
+		string(DEBUG),
 		"log level: debug, info, error or fatal",
 	)
 }
