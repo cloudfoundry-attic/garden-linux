@@ -60,15 +60,12 @@ func openPIDFile(pidFileName string) (*os.File, error) {
 }
 
 func readPIDFile(pidFile *os.File) (string, error) {
-	var err error
 	var bytesReadAmt int
 
 	buffer := make([]byte, 32)
 	for i := 0; i < 100; i++ { // retry 10 seconds
-		bytesReadAmt, err = pidFile.Read(buffer)
-		if err != nil {
-			return "", fmt.Errorf("namespaced-signaller: can't read pidfile: %v", err)
-		}
+		bytesReadAmt, _ = pidFile.Read(buffer)
+
 		if bytesReadAmt == 0 {
 			pidFile.Seek(0, 0)
 			time.Sleep(time.Millisecond * 100)
@@ -78,7 +75,7 @@ func readPIDFile(pidFile *os.File) (string, error) {
 	}
 
 	if bytesReadAmt == 0 {
-		return "", errors.New("namespaced-signaller: can't read pidfile: is empty")
+		return "", errors.New("namespaced-signaller: can't read pidfile: is empty or non existant")
 	}
 
 	return string(buffer), nil
