@@ -493,7 +493,6 @@ var _ = Describe("Creating a container", func() {
 
 					Ω(process.Signal(garden.SignalKill)).Should(Succeed())
 					Ω(process.Wait()).Should(Equal(255))
-					println("Run ", i)
 				}
 				close(done)
 			}, 30.0)
