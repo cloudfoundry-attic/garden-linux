@@ -36,7 +36,7 @@ func (n *NamespacedSignaller) Signal(signal os.Signal) error {
 	var pid int
 	_, err = fmt.Sscanf(fileContent, "%d", &pid)
 	if err != nil {
-		return fmt.Errorf("namespaced-signaller: can't read pidfile: %v", err)
+		return fmt.Errorf("namespaced-signaller: can't parse pidfile content: %v", err)
 	}
 
 	return n.Runner.Run(exec.Command(filepath.Join(n.ContainerPath, "bin/wsh"),
