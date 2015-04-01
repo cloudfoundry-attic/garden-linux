@@ -738,6 +738,8 @@ int child_run(void *data) {
   int rv;
   char pivoted_lib_path[PATH_MAX];
   size_t pivoted_lib_path_len;
+  char *path=NULL;
+  char put_old[4096];
 
   /* Wait for parent */
   rv = barrier_wait(&w->barrier_parent);
@@ -773,7 +775,11 @@ int child_run(void *data) {
     abort();
   }
 
-  rv = pivot_root(".", "tmp/garden-host");
+  path = getcwd(path, 4096);
+  strcpy(put_old, path)
+  strcat(put_old, "/tmp/garden-host")
+
+  rv = pivot_root(path, put_old);
   if (rv == -1) {
     perror("pivot_root");
     abort();
