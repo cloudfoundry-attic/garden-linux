@@ -80,5 +80,5 @@ then
   quotaon $CONTAINER_DEPOT_MOUNT_POINT_PATH
 elif [ "$DISK_QUOTA_ENABLED" = "false" ] && ! quotaon -p $CONTAINER_DEPOT_MOUNT_POINT_PATH > /dev/null 2>&1
 then
-  quotaoff $CONTAINER_DEPOT_MOUNT_POINT_PATH
+  quotaoff $CONTAINER_DEPOT_MOUNT_POINT_PATH || true
 fi
