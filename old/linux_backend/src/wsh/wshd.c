@@ -776,8 +776,8 @@ int child_run(void *data) {
   }
 
   path = getcwd(path, 4096);
-  strcpy(put_old, path)
-  strcat(put_old, "/tmp/garden-host")
+  strcpy(put_old, path);
+  strcat(put_old, "/tmp/garden-host");
 
   rv = pivot_root(path, put_old);
   if (rv == -1) {
