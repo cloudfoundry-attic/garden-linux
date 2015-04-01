@@ -94,17 +94,17 @@ echo $PID > ./run/wshd.pid
 [ ! -d /var/run/netns ] && mkdir -p /var/run/netns
 [ -f /var/run/netns/$PID ] && rm -f /var/run/netns/$PID
 
-mkdir -p /sys
-mount -n -t tmpfs tmpfs /sys  # otherwise netns exec fails
-ln -s /proc/$PID/ns/net /var/run/netns/$PID
+#mkdir -p /sys
+#mount -n -t tmpfs tmpfs /sys  # otherwise netns exec fails
+#ln -s /proc/$PID/ns/net /var/run/netns/$PID
 
-ip netns exec $PID ./bin/container-net -target=container \
-                -containerIfcName=$network_container_iface \
-                -containerIP=$network_container_ip \
-                -gatewayIP=$network_host_ip \
-                -subnet=$network_cidr \
-                -mtu=$container_iface_mtu
+#ip netns exec $PID ./bin/container-net -target=container \
+#                -containerIfcName=$network_container_iface \
+#                -containerIP=$network_container_ip \
+#                -gatewayIP=$network_host_ip \
+#                -subnet=$network_cidr \
+#                -mtu=$container_iface_mtu
 
-umount /sys
+#umount /sys
 
 exit 0
