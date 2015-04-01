@@ -60,8 +60,8 @@ function link_mounted_cgroup() {
 if [ ! -d $cgroup_path ]
 then
   # temporarily avoid mounting and link instead
-  # mount_nested_cgroup $cgroup_path || \
-  #  mount_flat_cgroup $cgroup_path || \
+  mount_nested_cgroup $cgroup_path || \
+    mount_flat_cgroup $cgroup_path || \
     link_mounted_cgroup $cgroup_path
 fi
 
