@@ -8,14 +8,6 @@ import (
 )
 
 type FakeContainerInitializer struct {
-	SetHostnameStub        func(hostname string) error
-	setHostnameMutex       sync.RWMutex
-	setHostnameArgsForCall []struct {
-		hostname string
-	}
-	setHostnameReturns struct {
-		result1 error
-	}
 	MountProcStub        func() error
 	mountProcMutex       sync.RWMutex
 	mountProcArgsForCall []struct{}
@@ -28,38 +20,6 @@ type FakeContainerInitializer struct {
 	mountTmpReturns     struct {
 		result1 error
 	}
-}
-
-func (fake *FakeContainerInitializer) SetHostname(hostname string) error {
-	fake.setHostnameMutex.Lock()
-	fake.setHostnameArgsForCall = append(fake.setHostnameArgsForCall, struct {
-		hostname string
-	}{hostname})
-	fake.setHostnameMutex.Unlock()
-	if fake.SetHostnameStub != nil {
-		return fake.SetHostnameStub(hostname)
-	} else {
-		return fake.setHostnameReturns.result1
-	}
-}
-
-func (fake *FakeContainerInitializer) SetHostnameCallCount() int {
-	fake.setHostnameMutex.RLock()
-	defer fake.setHostnameMutex.RUnlock()
-	return len(fake.setHostnameArgsForCall)
-}
-
-func (fake *FakeContainerInitializer) SetHostnameArgsForCall(i int) string {
-	fake.setHostnameMutex.RLock()
-	defer fake.setHostnameMutex.RUnlock()
-	return fake.setHostnameArgsForCall[i].hostname
-}
-
-func (fake *FakeContainerInitializer) SetHostnameReturns(result1 error) {
-	fake.SetHostnameStub = nil
-	fake.setHostnameReturns = struct {
-		result1 error
-	}{result1}
 }
 
 func (fake *FakeContainerInitializer) MountProc() error {

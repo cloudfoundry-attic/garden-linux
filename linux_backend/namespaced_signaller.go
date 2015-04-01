@@ -21,22 +21,9 @@ type NamespacedSignaller struct {
 }
 
 func (n *NamespacedSignaller) Signal(signal os.Signal) error {
-	pidFile, err := openPIDFile(n.PidFilePath)
+	pid, err := pidFromFile(n.PidFilePath)
 	if err != nil {
 		return err
-	}
-	defer pidFile.Close()
-
-	fileContent, err := readPIDFile(pidFile)
-
-	if err != nil {
-		return err
-	}
-
-	var pid int
-	_, err = fmt.Sscanf(fileContent, "%d", &pid)
-	if err != nil {
-		return fmt.Errorf("namespaced-signaller: can't parse pidfile content: %v", err)
 	}
 
 	return n.Runner.Run(exec.Command(filepath.Join(n.ContainerPath, "bin/wsh"),
@@ -44,19 +31,40 @@ func (n *NamespacedSignaller) Signal(signal os.Signal) error {
 		"kill", fmt.Sprintf("-%d", signal), fmt.Sprintf("%d", pid)))
 }
 
-func openPIDFile(pidFileName string) (*os.File, error) {
+func pidFromFile(pidFilePath string) (int, error) {
+	pidFile, err := openPIDFile(pidFilePath)
+	if err != nil {
+		return 0, err
+	}
+	defer pidFile.Close()
+
+	fileContent, err := readPIDFile(pidFile)
+	if err != nil {
+		return 0, err
+	}
+
+	var pid int
+	_, err = fmt.Sscanf(fileContent, "%d", &pid)
+	if err != nil {
+		return 0, fmt.Errorf("linux_backend: can't parse PID file content: %v", err)
+	}
+
+	return pid, nil
+}
+
+func openPIDFile(pidFilePath string) (*os.File, error) {
 	var err error
 
 	for i := 0; i < 100; i++ { // 10 seconds
 		var pidFile *os.File
-		pidFile, err = os.Open(pidFileName)
+		pidFile, err = os.Open(pidFilePath)
 		if err == nil {
 			return pidFile, nil
 		}
 		time.Sleep(time.Millisecond * 100)
 	}
 
-	return nil, fmt.Errorf("linux_backend: namespaced-signaller can't open PID file: %s", err)
+	return nil, fmt.Errorf("linux_backend: can't open PID file: %s", err)
 }
 
 func readPIDFile(pidFile *os.File) (string, error) {
@@ -75,7 +83,7 @@ func readPIDFile(pidFile *os.File) (string, error) {
 	}
 
 	if bytesReadAmt == 0 {
-		return "", errors.New("namespaced-signaller: can't read pidfile: is empty or non existant")
+		return "", errors.New("linux_backend: can't read PID file: is empty or non existent")
 	}
 
 	return string(buffer), nil

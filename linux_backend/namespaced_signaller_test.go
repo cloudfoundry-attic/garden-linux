@@ -49,7 +49,7 @@ var _ = Describe("Namespaced Signaller", func() {
 			PidFilePath:   "/does/not/exist",
 		}
 
-		Expect(signaller.Signal(os.Kill)).To(MatchError("linux_backend: namespaced-signaller can't open PID file: open /does/not/exist: no such file or directory"))
+		Expect(signaller.Signal(os.Kill)).To(MatchError("linux_backend: can't open PID file: open /does/not/exist: no such file or directory"))
 	})
 
 	It("returns an appropriate error when the pidfile is empty", func() {
@@ -68,7 +68,7 @@ var _ = Describe("Namespaced Signaller", func() {
 
 		Expect(ioutil.WriteFile(pidFile, []byte(""), 0755)).To(Succeed())
 
-		Expect(signaller.Signal(os.Kill)).To(MatchError("namespaced-signaller: can't read pidfile: is empty or non existant"))
+		Expect(signaller.Signal(os.Kill)).To(MatchError("linux_backend: can't read PID file: is empty or non existent"))
 	})
 
 	It("returns an appropriate error when the pidfile does not contain a number", func() {
@@ -87,6 +87,6 @@ var _ = Describe("Namespaced Signaller", func() {
 
 		Expect(ioutil.WriteFile(pidFile, []byte("not-a-pid\n"), 0755)).To(Succeed())
 
-		Expect(signaller.Signal(os.Kill)).To(MatchError("namespaced-signaller: can't parse pidfile content: expected integer"))
+		Expect(signaller.Signal(os.Kill)).To(MatchError("linux_backend: can't parse PID file content: expected integer"))
 	})
 })

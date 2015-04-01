@@ -109,14 +109,14 @@ For example, the following error from the `link` package follows these
 guidelines:
 
 ```go
-fmt.Errorf("link: create link: invalid number of fds, need 3, got %d", len(fds)")
+fmt.Errorf("link: create link: invalid number of fds, need 3, got %d", len(fds))
 ```
 
 Sometimes the package name alone gives enough indication of the operation in
 question, in which case you can be more succinct:
 
 ```go
-fmt.Errorf("link: invalid number of fds, need 3, got %d", len(fds)")
+fmt.Errorf("link: invalid number of fds, need 3, got %d", len(fds))
 ```
 
 ### Wrapping an Underlying Error with a New Message

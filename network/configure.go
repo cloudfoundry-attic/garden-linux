@@ -7,7 +7,20 @@ import (
 	"github.com/pivotal-golang/lager"
 )
 
-type Configurer struct {
+//go:generate counterfeiter . Configurer
+type Configurer interface {
+	ConfigureContainer(*ContainerConfig) error
+	ConfigureHost(*HostConfig) error
+}
+
+//go:generate counterfeiter . Hostname
+type Hostname interface {
+	SetHostname(hostName string) error
+}
+
+type NetworkConfigurer struct {
+	Hostname Hostname
+
 	Veth interface {
 		Create(hostIfcName, containerIfcName string) (*net.Interface, *net.Interface, error)
 	}
@@ -29,7 +42,17 @@ type Configurer struct {
 	Logger lager.Logger
 }
 
-func (c *Configurer) ConfigureHost(hostIfcName, containerIfcName, bridgeName string, containerPid int, bridgeIP net.IP, subnet *net.IPNet, mtu int) error {
+type HostConfig struct {
+	HostIntf      string
+	BridgeName    string
+	BridgeIP      net.IP
+	ContainerIntf string
+	ContainerPid  int
+	Subnet        *net.IPNet
+	Mtu           int
+}
+
+func (c *NetworkConfigurer) ConfigureHost(config *HostConfig) error {
 	var (
 		err       error
 		host      *net.Interface
@@ -38,38 +61,38 @@ func (c *Configurer) ConfigureHost(hostIfcName, containerIfcName, bridgeName str
 	)
 
 	cLog := c.Logger.Session("configure-host", lager.Data{
-		"bridgeName":     bridgeName,
-		"bridgeIP":       bridgeIP,
-		"subnet":         subnet,
-		"containerIface": containerIfcName,
-		"hostIface":      hostIfcName,
-		"mtu":            mtu,
-		"pid":            containerPid,
+		"bridgeName":     config.BridgeName,
+		"bridgeIP":       config.BridgeIP,
+		"subnet":         config.Subnet,
+		"containerIface": config.ContainerIntf,
+		"hostIface":      config.HostIntf,
+		"mtu":            config.Mtu,
+		"pid":            config.ContainerPid,
 	})
 
 	cLog.Debug("configuring")
 
-	if bridge, err = c.configureBridgeIntf(cLog, bridgeName, bridgeIP, subnet); err != nil {
+	if bridge, err = c.configureBridgeIntf(cLog, config.BridgeName, config.BridgeIP, config.Subnet); err != nil {
 		return err
 	}
 
-	if host, container, err = c.configureVethPair(cLog, hostIfcName, containerIfcName); err != nil {
+	if host, container, err = c.configureVethPair(cLog, config.HostIntf, config.ContainerIntf); err != nil {
 		return err
 	}
 
-	if err = c.configureHostIntf(cLog, host, bridge, mtu); err != nil {
+	if err = c.configureHostIntf(cLog, host, bridge, config.Mtu); err != nil {
 		return err
 	}
 
 	// move container end in to container
-	if err = c.Link.SetNs(container, containerPid); err != nil {
-		return &SetNsFailedError{err, container, containerPid}
+	if err = c.Link.SetNs(container, config.ContainerPid); err != nil {
+		return &SetNsFailedError{err, container, config.ContainerPid}
 	}
 
 	return nil
 }
 
-func (c *Configurer) configureBridgeIntf(log lager.Logger, name string, ip net.IP, subnet *net.IPNet) (*net.Interface, error) {
+func (c *NetworkConfigurer) configureBridgeIntf(log lager.Logger, name string, ip net.IP, subnet *net.IPNet) (*net.Interface, error) {
 	log = log.Session("bridge-interface")
 
 	log.Debug("find")
@@ -88,7 +111,7 @@ func (c *Configurer) configureBridgeIntf(log lager.Logger, name string, ip net.I
 	return bridge, nil
 }
 
-func (c *Configurer) configureVethPair(log lager.Logger, hostName, containerName string) (*net.Interface, *net.Interface, error) {
+func (c *NetworkConfigurer) configureVethPair(log lager.Logger, hostName, containerName string) (*net.Interface, *net.Interface, error) {
 	log = log.Session("veth")
 
 	log.Debug("create")
@@ -100,7 +123,7 @@ func (c *Configurer) configureVethPair(log lager.Logger, hostName, containerName
 	}
 }
 
-func (c *Configurer) configureHostIntf(log lager.Logger, intf *net.Interface, bridge *net.Interface, mtu int) error {
+func (c *NetworkConfigurer) configureHostIntf(log lager.Logger, intf *net.Interface, bridge *net.Interface, mtu int) error {
 	log = log.Session("host-interface", lager.Data{
 		"bridge-interface": bridge,
 		"host-interface":   intf,
@@ -127,19 +150,34 @@ func (c *Configurer) configureHostIntf(log lager.Logger, intf *net.Interface, br
 	return nil
 }
 
-func (c *Configurer) ConfigureContainer(containerIntf string, containerIP net.IP, gatewayIP net.IP, subnet *net.IPNet, mtu int) error {
+type ContainerConfig struct {
+	Hostname      string
+	ContainerIntf string
+	ContainerIP   net.IP
+	GatewayIP     net.IP
+	Subnet        *net.IPNet
+	Mtu           int
+}
+
+func (c *NetworkConfigurer) ConfigureContainer(config *ContainerConfig) error {
 	if err := c.configureLoopbackIntf(); err != nil {
 		return err
 	}
 
-	if err := c.configureContainerIntf(containerIntf, containerIP, gatewayIP, subnet, mtu); err != nil {
+	if err := c.configureContainerIntf(
+		config.ContainerIntf,
+		config.ContainerIP,
+		config.GatewayIP,
+		config.Subnet,
+		config.Mtu,
+	); err != nil {
 		return err
 	}
 
-	return nil
+	return c.Hostname.SetHostname(config.Hostname)
 }
 
-func (c *Configurer) configureContainerIntf(name string, ip, gatewayIP net.IP, subnet *net.IPNet, mtu int) (err error) {
+func (c *NetworkConfigurer) configureContainerIntf(name string, ip, gatewayIP net.IP, subnet *net.IPNet, mtu int) (err error) {
 	var found bool
 	var intf *net.Interface
 	if intf, found, err = c.Link.InterfaceByName(name); !found || err != nil {
@@ -165,7 +203,7 @@ func (c *Configurer) configureContainerIntf(name string, ip, gatewayIP net.IP, s
 	return nil
 }
 
-func (c *Configurer) configureLoopbackIntf() (err error) {
+func (c *NetworkConfigurer) configureLoopbackIntf() (err error) {
 	var found bool
 	var lo *net.Interface
 	if lo, found, err = c.Link.InterfaceByName("lo"); !found || err != nil {
