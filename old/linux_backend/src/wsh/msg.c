@@ -140,15 +140,17 @@ int msg_user_import(msg__user_t *u, const char *name) {
 int msg_user_export(msg__user_t *u, struct passwd *pw) {
   ((void) u);
 
-  int rv;
+  int rv = 0;
 
-  rv = setgid(pw->pw_gid);
+  // rv = setgid(pw->pw_gid);
   if (rv == -1) {
+    exit(134);
     return rv;
   }
 
   rv = setuid(pw->pw_uid);
   if (rv == -1) {
+    exit(135);
     return rv;
   }
 

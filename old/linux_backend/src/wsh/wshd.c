@@ -334,6 +334,7 @@ int child_fork(msg_request_t *req, int in, int out, int err) {
     pw = getpwnam(user);
     if (pw == NULL) {
       perror("getpwnam");
+      exit(129);
       goto error;
     }
 
@@ -356,12 +357,14 @@ int child_fork(msg_request_t *req, int in, int out, int err) {
     rv = msg_rlimit_export(&req->rlim);
     if (rv == -1) {
       perror("msg_rlimit_export");
+      exit(130);
       goto error;
     }
 
     rv = msg_user_export(&req->user, pw);
     if (rv == -1) {
       perror("msg_user_export");
+      exit(131);
       goto error;
     }
 
@@ -377,6 +380,7 @@ int child_fork(msg_request_t *req, int in, int out, int err) {
       rv = chdir(req->dir.path);
       if (rv == -1) {
         perror("chdir");
+        exit(132);
         goto error;
       }
     }
@@ -388,9 +392,10 @@ int child_fork(msg_request_t *req, int in, int out, int err) {
 
     execvpe(argv[0], argv, envp);
     perror("execvpe");
-
+   
+    exit(133);
 error:
-    exit(255);
+    exit(253);
   }
 
   return rv;
@@ -550,7 +555,7 @@ int child_accept(wshd_t *w) {
   rv = un_recv_fds(fd, (char *)&req, sizeof(req), NULL, 0);
   if (rv < 0) {
     perror("recvmsg");
-    exit(255);
+    exit(252);
   }
 
   if (rv == 0) {
