@@ -22,17 +22,40 @@ var _ = Describe("Rootfs container create parameter", func() {
 		args = []string{}
 	})
 
-	JustBeforeEach(func() {
-		client = startGarden(args...)
-	})
-
 	AfterEach(func() {
 		if container != nil {
 			Ω(client.Destroy(container.Handle())).Should(Succeed())
 		}
 	})
 
+	Context("without a default rootfs", func() {
+		JustBeforeEach(func() {
+			client = startGardenWithRootfs("", args...)
+		})
+
+		It("without a rootfs in container spec, the container creation fails", func() {
+			var err error
+
+			container, err = client.Create(garden.ContainerSpec{RootFSPath: ""})
+			Ω(err).Should(HaveOccurred())
+			Ω(err).Should(MatchError(ContainSubstring(
+				"RootFSPath: is a required parameter, since no default rootfs was provided to the server. To provide a default rootfs, use the --rootfs flag on startup.",
+			)))
+		})
+
+		It("with a rootfs in container spec, the container is created successfully", func() {
+			var err error
+
+			container, err = client.Create(garden.ContainerSpec{RootFSPath: os.Getenv("GARDEN_TEST_ROOTFS")})
+			Ω(err).ShouldNot(HaveOccurred())
+		})
+	})
+
 	Context("with a default rootfs", func() {
+		JustBeforeEach(func() {
+			client = startGarden(args...)
+		})
+
 		It("the container is created successfully", func() {
 			var err error
 
@@ -42,6 +65,10 @@ var _ = Describe("Rootfs container create parameter", func() {
 	})
 
 	Context("with a docker rootfs URI", func() {
+		JustBeforeEach(func() {
+			client = startGarden(args...)
+		})
+
 		Context("not containing a host", func() {
 			It("the container is created successfully", func() {
 				var err error

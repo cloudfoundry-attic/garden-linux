@@ -44,6 +44,22 @@ func startGarden(argv ...string) garden.Client {
 	return gardenRunner.NewClient()
 }
 
+func startGardenWithRootfs(defaultRootFS string, argv ...string) garden.Client {
+	gardenAddr := fmt.Sprintf("/tmp/garden_%d.sock", GinkgoParallelNode())
+
+	{
+		b, err := os.Open(binPath)
+		Ω(err).ShouldNot(HaveOccurred())
+		b.Close()
+	}
+
+	gardenRunner = runner.New("unix", gardenAddr, gardenBin, binPath, defaultRootFS, graphPath, argv...)
+
+	gardenProcess = ifrit.Invoke(gardenRunner)
+
+	return gardenRunner.NewClient()
+}
+
 func restartGarden(argv ...string) {
 	Ω(client.Ping()).Should(Succeed(), "tried to restart garden while it was not running")
 	gardenProcess.Signal(syscall.SIGTERM)

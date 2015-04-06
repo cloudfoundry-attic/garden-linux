@@ -41,6 +41,11 @@ func (provider *overlayRootFSProvider) ProvideRootFS(logger lager.Logger, id str
 		rootFSPath = rootfs.Path
 	}
 
+	// Rootfs path in container spec is empty
+	if rootFSPath == "" {
+		return "", nil, fmt.Errorf("RootFSPath: is a required parameter, since no default rootfs was provided to the server. To provide a default rootfs, use the --rootfs flag on startup.")
+	}
+
 	pRunner := logging.Runner{
 		CommandRunner: provider.runner,
 		Logger:        logger,

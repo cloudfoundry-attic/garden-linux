@@ -106,7 +106,9 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 	gardenArgs = appendDefaultFlag(gardenArgs, "--listenNetwork", r.network)
 	gardenArgs = appendDefaultFlag(gardenArgs, "--listenAddr", r.addr)
 	gardenArgs = appendDefaultFlag(gardenArgs, "--bin", r.binPath)
-	gardenArgs = appendDefaultFlag(gardenArgs, "--rootfs", r.rootFSPath)
+	if r.rootFSPath != "" { //rootfs is an optional parameter
+		gardenArgs = appendDefaultFlag(gardenArgs, "--rootfs", r.rootFSPath)
+	}
 	gardenArgs = appendDefaultFlag(gardenArgs, "--depot", depotPath)
 	gardenArgs = appendDefaultFlag(gardenArgs, "--debugAddr", r.debugAddr)
 	gardenArgs = appendDefaultFlag(gardenArgs, "--overlays", overlaysPath)
