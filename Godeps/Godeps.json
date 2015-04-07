@@ -20,11 +20,11 @@
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/cf-debug-server",
-			"Rev": "9423f9d0c1282337332ee35f2f5b0be10c83279b"
+			"Rev": "b370745eafe77f9089021cd32f87ccc2cdec300e"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/cf-lager",
-			"Rev": "94308c799cf61ac0818667ddcc25046c8c5659d1"
+			"Rev": "07421479102894f2f48b0245dab5c933aaf25b7b"
 		},
 		{
 			"ImportPath": "github.com/cloudfoundry-incubator/garden",
@@ -248,7 +248,7 @@
 		},
 		{
 			"ImportPath": "github.com/pivotal-golang/lager",
-			"Rev": "bb90e0a5276fefdf701cc5f145185bd62184f749"
+			"Rev": "09a71f6eb2dcc1c2335e37ceb78a91c6f618d561"
 		},
 		{
 			"ImportPath": "github.com/pkg/term/termios",

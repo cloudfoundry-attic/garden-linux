@@ -19,8 +19,8 @@ var enableSyslog bool
 var syslogPrefix string
 var minLogLevel string
 
-func init() {
-	flag.StringVar(
+func AddFlags(flagSet *flag.FlagSet) {
+	flagSet.StringVar(
 		&minLogLevel,
 		"logLevel",
 		string(INFO),
@@ -28,10 +28,7 @@ func init() {
 	)
 }
 
-func New(component string) lager.Logger {
-	if !flag.Parsed() {
-		flag.Parse()
-	}
+func New(component string) (lager.Logger, *lager.ReconfigurableSink) {
 	var minLagerLogLevel lager.LogLevel
 	switch minLogLevel {
 	case DEBUG:
@@ -43,11 +40,13 @@ func New(component string) lager.Logger {
 	case FATAL:
 		minLagerLogLevel = lager.FATAL
 	default:
-		panic(fmt.Errorf("unkown log level: %s", minLogLevel))
+		panic(fmt.Errorf("unknown log level: %s", minLogLevel))
 	}
 
 	logger := lager.NewLogger(component)
-	logger.RegisterSink(lager.NewWriterSink(os.Stdout, minLagerLogLevel))
 
-	return logger
+	sink := lager.NewReconfigurableSink(lager.NewWriterSink(os.Stdout, lager.DEBUG), minLagerLogLevel)
+	logger.RegisterSink(sink)
+
+	return logger, sink
 }
