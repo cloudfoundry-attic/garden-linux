@@ -1,27 +1,32 @@
 #!/bin/bash
 
-[ -n "$DEBUG" ] && set -o xtrace
+set -o xtrace
 set -o nounset
 set -o errexit
 shopt -s nullglob
+
+exec 1<&-
+exec 1<>/tmp/hook-log.txt
+exec 2<&-
+exec 2>&1
 
 cd $(dirname $0)/../
 
 source etc/config
 
 # write uid map if user namespacing is enabled
-if [ "$root_uid" -ne 0 ]
-then
-cat > /proc/$PID/uid_map <<EOF
-0 $root_uid 1
-$user_uid $user_uid 1
-EOF
+# if [ "$root_uid" -ne 0 ]
+# then
+# cat > /proc/$PID/uid_map <<EOF
+# 0 $root_uid 1
+# $user_uid $user_uid 1
+# EOF
 
-cat > /proc/$PID/gid_map <<EOF
-0 $root_uid 1
-$user_uid $user_uid 1
-EOF
-fi
+# cat > /proc/$PID/gid_map <<EOF
+# 0 $root_uid 1
+# $user_uid $user_uid 1
+# EOF
+# fi
 
 # Add new group for every subsystem
 

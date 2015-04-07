@@ -95,16 +95,12 @@ func runWsh() {
 
 func parent() {
 	// argument parsing
-	rootFSPath := flag.String("root", "", "Path to root file system")
+	flag.String("root", "", "Path to root file system")
 	flag.String("run", "./run", "Path to use for socket file")
 	libDirPath := flag.String("lib", "./lib", "Hook scripts path")
 	flag.String("title", "Gawsh", "Container title")
 	flag.String("userns", "enabled", "Use user namespace")
 	flag.Parse()
-
-	// mount RootFS
-	must(syscall.Mount(*rootFSPath, *rootFSPath, "", uintptr(syscall.MS_BIND), ""))
-	must(os.MkdirAll((*rootFSPath)+"/oldroot", 0700))
 
 	// prepares the barrier (synchronization between child and parent) pipe
 	hostSide, containerSide, err := os.Pipe()
@@ -119,7 +115,23 @@ func parent() {
 	big, err := filepath.Abs("./bin/cfsinit")
 	must(err)
 	cmd := exec.Command(big, os.Args[1:]...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{Cloneflags: uintptr(syscall.CLONE_NEWUTS | syscall.CLONE_NEWNET | syscall.CLONE_NEWNS | syscall.CLONE_NEWPID)}
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Cloneflags: uintptr(syscall.CLONE_NEWUTS | syscall.CLONE_NEWNET | syscall.CLONE_NEWNS | syscall.CLONE_NEWPID | syscall.CLONE_NEWUSER),
+		UidMappings: []syscall.SysProcIDMap{
+			{
+				ContainerID: 0,
+				HostID:      0,
+				Size:        1,
+			},
+		},
+		GidMappings: []syscall.SysProcIDMap{
+			{
+				ContainerID: 0,
+				HostID:      0,
+				Size:        1,
+			},
+		},
+	}
 	// cmd.Stdout = os.Stdout
 	// cmd.Stderr = os.Stderr
 	// cmd.Stdin = os.Stdin
@@ -137,7 +149,7 @@ func parent() {
 	if err != nil {
 		panic(fmt.Sprintf("Unable to receive data from the container: %s", err))
 	}
-	// fmt.Printf("Received '%s'\n", buffer)
+	fmt.Printf("Received '%s'\n", buffer)
 
 	// run child hook script
 	runHookScript(*libDirPath, "parent-after-clone")
@@ -152,18 +164,35 @@ func child() {
 	flag.String("userns", "enabled", "Use user namespace")
 	flag.Parse()
 
+	// setup the barrier file
+	containerSide := os.NewFile(uintptr(3), "/dev/hostcomm")
+
+	// mount RootFS
+	must(syscall.Mount(*rootFSPath, *rootFSPath, "", uintptr(syscall.MS_BIND|syscall.MS_REC), ""))
+
+	// set proper user / group
+	syscall.Setuid(0)
+	syscall.Setgid(0)
+
 	// socket file
 	sock, err := net.Listen("unix", (*runDirPath)+"/wshd.sock")
 	if err != nil {
+		containerSide.Write([]byte(fmt.Sprintf("failed-to-open-socket: %s", err)))
 		panic(fmt.Sprintf("no socket :-( %v", err))
 	}
 	defer sock.Close()
 
 	// pivotting here..
-	must(syscall.PivotRoot(*rootFSPath, (*rootFSPath)+"/oldroot"))
+	must(os.Chdir(*rootFSPath))
+	must(os.Chmod("tmp", 01777))
+	must(os.MkdirAll("tmp/oldroot", 0700))
+	err = syscall.PivotRoot(".", "tmp/oldroot")
+	if err != nil {
+		containerSide.Write([]byte(fmt.Sprintf("failed-to-pivot-root: %s", err)))
+		panic(fmt.Sprintf("no pivoted root :-( %v", err))
+	}
 
 	// host-container barrier
-	containerSide := os.NewFile(uintptr(3), "/dev/hostcomm")
 	_, err = containerSide.Write([]byte("after-pivot\n"))
 	if err != nil {
 		panic(fmt.Sprintf("Failed to send data to host: %s", err))
@@ -172,7 +201,6 @@ func child() {
 	// run child hook script
 	runHookScript(*libDirPath, "child-after-pivot")
 
-	// environment
 	must(os.Chdir("/"))
 
 	// loop
