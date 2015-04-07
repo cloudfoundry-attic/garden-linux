@@ -115,11 +115,11 @@ if ! chroot $rootfs_path id vcap >/dev/null 2>&1; then
     shell=/bin/bash
   fi
 
-  if ! useradd -R $rootfs_path -m -u $user_uid -s $shell vcap >/dev/null 2>&1; then
+  if ! useradd -R $rootfs_path -m -u $user_uid -U -s $shell vcap >/dev/null 2>&1; then
     # some kernels need login.defs to exist
     mkdir -p $rootfs_path/etc
     touch $rootfs_path/etc/login.defs
-    useradd -R $rootfs_path -m -u $user_uid -s $shell vcap
+    useradd -R $rootfs_path -m -u $user_uid -U -s $shell vcap
   fi
 fi
 
