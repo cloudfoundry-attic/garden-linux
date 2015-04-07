@@ -2,11 +2,11 @@
 
 ## Setting up Go
 
-Install Go 1.3 or later. For example, install [gvm](https://github.com/moovweb/gvm) and issue:
+Install Go 1.4 or later. For example, install [gvm](https://github.com/moovweb/gvm) and issue:
 
 ```
-# gvm install go1.3
-# gvm use go1.3
+# gvm install go1.4
+# gvm use go1.4
 ```
 
 Extend `$GOPATH` and `$PATH`:
