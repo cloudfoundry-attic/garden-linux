@@ -44,6 +44,10 @@ vagrant up
 
 Run tests in vagrant with `./scripts/test-in-vagrant`.
 
+### Docker
+
+To run the tests in Docker run `./scripts/test-in-docker`
+
 ### Concourse
 
 To test under your local concourse install 
