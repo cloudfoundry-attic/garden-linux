@@ -142,7 +142,7 @@ int msg_user_export(msg__user_t *u, struct passwd *pw) {
 
   int rv = 0;
 
-  // rv = setgid(pw->pw_gid);
+  rv = setgid(pw->pw_gid);
   if (rv == -1) {
     exit(134);
     return rv;
