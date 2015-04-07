@@ -97,7 +97,7 @@ func parent() {
 	// argument parsing
 	rootFSPath := flag.String("root", "", "Path to root file system")
 	flag.String("run", "./run", "Path to use for socket file")
-	flag.String("lib", "./lib", "Hook scripts path")
+	libDirPath := flag.String("lib", "./lib", "Hook scripts path")
 	flag.String("title", "Gawsh", "Container title")
 	flag.String("userns", "enabled", "Use user namespace")
 	flag.Parse()
@@ -107,38 +107,47 @@ func parent() {
 	must(os.MkdirAll((*rootFSPath)+"/oldroot", 0700))
 
 	// prepares the barrier (synchronization between child and parent) pipe
-	_, containerSide, err := os.Pipe()
+	hostSide, containerSide, err := os.Pipe()
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create pipe: %s", err))
 	}
+
+	// run hook script
+	runHookScript(*libDirPath, "parent-before-clone")
 
 	// prepare child
 	big, err := filepath.Abs("./bin/cfsinit")
 	must(err)
 	cmd := exec.Command(big, os.Args[1:]...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{Cloneflags: uintptr(syscall.CLONE_NEWUTS | syscall.CLONE_NEWNET | syscall.CLONE_NEWNS | syscall.CLONE_NEWPID)}
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	cmd.Stdin = os.Stdin
+	// cmd.Stdout = os.Stdout
+	// cmd.Stderr = os.Stderr
+	// cmd.Stdin = os.Stdin
 	cmd.ExtraFiles = append(cmd.ExtraFiles, containerSide)
 
 	// spawn child (and new namespaces)
 	must(cmd.Start())
 
+	// write PID
+	os.Setenv("PID", fmt.Sprintf("%d", cmd.Process.Pid))
+
 	// barrier: wait for child to start
-	// buffer := make([]byte, 1024)
-	// _, err = hostSide.Read(buffer)
-	// if err != nil {
-	// 	panic(fmt.Sprintf("Unable to receive data from the container: %s", err))
-	// // }
+	buffer := make([]byte, 1024)
+	_, err = hostSide.Read(buffer)
+	if err != nil {
+		panic(fmt.Sprintf("Unable to receive data from the container: %s", err))
+	}
 	// fmt.Printf("Received '%s'\n", buffer)
+
+	// run child hook script
+	runHookScript(*libDirPath, "parent-after-clone")
 }
 
 func child() {
 	// argument parsing
 	rootFSPath := flag.String("root", "", "Path to root file system")
 	runDirPath := flag.String("run", "./run", "Path to use for socket file")
-	flag.String("lib", "./lib", "Hook scripts path")
+	libDirPath := flag.String("lib", "./lib", "Hook scripts path")
 	flag.String("title", "Gawsh", "Container title")
 	flag.String("userns", "enabled", "Use user namespace")
 	flag.Parse()
@@ -148,21 +157,20 @@ func child() {
 	if err != nil {
 		panic(fmt.Sprintf("no socket :-( %v", err))
 	}
-
 	defer sock.Close()
 
 	// pivotting here..
 	must(syscall.PivotRoot(*rootFSPath, (*rootFSPath)+"/oldroot"))
 
-	// mountpoints
-	must(syscall.Mount("proc", "/proc", "proc", uintptr(0), ""))
-
 	// host-container barrier
-	// containerSide := os.NewFile(uintptr(3), "/dev/hostcomm")
-	// _, err = containerSide.Write([]byte("after-pivot\n"))
-	// if err != nil {
-	// 	panic(fmt.Sprintf("Failed to send data to host: %s", err))
-	// }
+	containerSide := os.NewFile(uintptr(3), "/dev/hostcomm")
+	_, err = containerSide.Write([]byte("after-pivot\n"))
+	if err != nil {
+		panic(fmt.Sprintf("Failed to send data to host: %s", err))
+	}
+
+	// run child hook script
+	runHookScript(*libDirPath, "child-after-pivot")
 
 	// environment
 	must(os.Chdir("/"))
@@ -245,4 +253,11 @@ func must(err error) {
 	if err != nil {
 		panic(err)
 	}
+}
+
+func runHookScript(libDirPath string, name string) {
+	cmd := exec.Command(libDirPath+"/hook", name)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	must(cmd.Run())
 }
