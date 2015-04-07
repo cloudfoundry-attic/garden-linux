@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+docker run --privileged \
+           -i -t \
+           -v /$GOPATH:/root/go \
+           -w /tmp/garden_test_run \
+           cloudfoundry/garden-ci-ubuntu \
+           /bin/bash -l -c "cd /root/go/src/github.com/cloudfoundry-incubator/garden-linux && scripts/drone-test $@"

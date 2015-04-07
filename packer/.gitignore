@@ -1,0 +1,9 @@
+/build
+/packer_cache
+*.log
+.envrc
+Vagrantfile
+.vagrant/
+rootfs/**/*.tar
+output*
+release_output*

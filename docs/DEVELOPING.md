@@ -33,6 +33,19 @@ Extend `$GOPATH` and `$PATH`:
 
 ## Run the Integration Tests
 
+### Vagrant
+
+To run the tests locally pull and start the `cloudfoundry/garden-ci-ubuntu` box
+
+```bash
+vagrant init cloudfoundry/garden-ci-ubuntu
+vagrant up
+```
+
+Run tests in vagrant with `./scripts/test-in-vagrant`.
+
+### Concourse
+
 To test under your local concourse install 
 
 ```bash

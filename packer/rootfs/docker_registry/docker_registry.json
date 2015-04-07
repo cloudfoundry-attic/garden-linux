@@ -1,0 +1,10 @@
+{
+ "builders": [
+   {
+      "type": "docker",
+      "image": "registry",
+      "export_path": "rootfs/docker_registry/docker_registry.tar"
+   }
+ ]
+}
+

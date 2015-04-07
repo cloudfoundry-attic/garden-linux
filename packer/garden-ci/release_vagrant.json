@@ -1,0 +1,34 @@
+{
+  "variables": {
+    "vm_name": "garden-ci.ubuntu.virtualbox",
+    "box_tag": "",
+    "box_version": "",
+    "access_token": "{{env `GARDEN_PACKER_ATLAS_TOKEN`}}"
+  },
+  "builders": [
+    {
+      "name": "{{user `vm_name`}}",
+      "type": "virtualbox-ovf",
+      "headless": true,
+      "source_path": "garden-ci/output/{{user `vm_name`}}.ovf",
+      "output_directory": "garden-ci/release_output",
+      "ssh_username": "vagrant",
+      "ssh_password": "vagrant"
+    }
+  ],
+  "post-processors": [
+    [
+      {
+        "type": "vagrant",
+        "vagrantfile_template": "garden-ci/Vagrantfile.template",
+        "output": "garden-ci/output/{{.BuildName}}.box"
+      },
+      {
+        "type": "vagrant-cloud",
+        "box_tag": "{{user `box_tag`}}",
+        "version": "{{user `box_version`}}",
+        "access_token": "{{user `access_token`}}"
+      }
+    ]
+  ]
+}

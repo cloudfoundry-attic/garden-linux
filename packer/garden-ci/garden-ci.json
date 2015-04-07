@@ -1,0 +1,132 @@
+{
+  "variables": {
+    "os_name": "ubuntu",
+    "os_version": "14.04",
+    "os_type": "Ubuntu_64",
+    "os_arch": "amd64",
+    "os_url": "http://releases.ubuntu.com/14.04/ubuntu-14.04-server-amd64.iso",
+    "os_md5_checksum": "01545fa976c8367b4f0d59169ac4866c",
+    "vm_name": "garden-ci.ubuntu.virtualbox",
+    "vm_hostname": "garden-ci-ubuntu"
+  },
+  "builders": [
+    {
+      "type": "docker",
+      "image": "{{user `os_name`}}:{{user `os_version`}}",
+      "commit": true
+    },
+    {
+      "name": "garden-ci-virtualbox-iso",
+      "vm_name": "{{user `vm_name`}}",
+      "output_directory": "garden-ci/output",
+      "type": "virtualbox-iso",
+      "headless": true,
+      "guest_os_type": "{{user `os_type`}}",
+      "iso_checksum_type": "md5",
+      "iso_checksum": "{{user `os_md5_checksum`}}",
+      "iso_url": "{{user `os_url`}}",
+      "ssh_username": "vagrant",
+      "ssh_password": "vagrant",
+      "http_directory": "garden-ci/http",
+      "shutdown_command": "echo vagrant | sudo -S shutdown -P now",
+      "boot_command": [
+        "<esc><esc><enter><wait>",
+        "/install/vmlinuz ",
+        "preseed/url=http://{{.HTTPIP}}:{{.HTTPPort}}/preseed.cfg ",
+        "debian-installer=en_US auto locale=en_US kbd-chooser/method=us ",
+        "hostname={{.Name}} ",
+        "fb=false debconf/frontend=noninteractive ",
+        "keyboard-configuration/modelcode=SKIP keyboard-configuration/layout=USA ",
+        "keyboard-configuration/variant=USA console-setup/ask_detect=false ",
+        "initrd=/install/initrd.gz -- <enter>"
+      ]
+    }
+  ],
+  "provisioners": [
+    {
+      "type": "shell",
+      "scripts": [
+        "garden-ci/scripts/passwordless_sudo.sh"
+      ],
+      "override": {
+        "garden-ci-virtualbox-iso": {
+          "scripts": [
+            "garden-ci/scripts/passwordless_sudo.sh",
+            "garden-ci/scripts/vagrant_passwordless_sudo.sh"
+          ],
+          "execute_command": "chmod +x {{ .Path }}; {{ .Vars }} echo vagrant | sudo -S {{ .Path }}"
+        }
+      }
+    },
+    {
+      "type": "shell",
+      "scripts": [
+        "garden-ci/scripts/provision.sh"
+      ],
+      "override": {
+        "garden-ci-virtualbox-iso": {
+          "scripts": [
+            "garden-ci/scripts/provision.sh",
+            "garden-ci/scripts/vagrant_provision.sh",
+            "garden-ci/scripts/install_vbox_guest_additions.sh",
+            "garden-ci/scripts/add_insecure_vagrant_ssh_keys.sh",
+            "garden-ci/scripts/update_grub_config.sh"
+          ],
+          "execute_command": "chmod +x {{ .Path }}; {{ .Vars }} sudo su -c {{.Path}} --login root"
+        }
+      }
+    },
+    {
+      "type": "file",
+      "source": "rootfs/busybox/busybox.tar",
+      "destination": "/opt/warden/rootfs.tar"
+    },
+    {
+      "type": "file",
+      "source": "rootfs/ubuntu/ubuntu.tar",
+      "destination": "/opt/warden/nestable-rootfs.tar"
+    },
+    {
+      "type": "file",
+      "source": "rootfs/fuse/fuse.tar",
+      "destination": "/opt/warden/fuse-rootfs.tar"
+    },
+    {
+      "type": "file",
+      "source": "rootfs/docker_registry/docker_registry.tar",
+      "destination": "/opt/warden/docker-registry-rootfs.tar"
+    },
+    {
+      "type": "file",
+      "source": "rootfs/no_sh/no_sh.tar",
+      "destination": "/opt/warden/no-sh-rootfs.tar"
+    },
+    {
+      "type": "shell",
+      "script": "garden-ci/scripts/untar_rootfses.sh",
+      "override": {
+        "garden-ci-virtualbox-iso": {
+          "execute_command": "chmod +x {{ .Path }}; {{ .Vars }} sudo {{ .Path }}"
+        }
+      }
+    },
+    {
+      "type": "shell",
+      "script": "garden-ci/scripts/cleanup.sh",
+      "override": {
+        "garden-ci-virtualbox-iso": {
+          "execute_command": "chmod +x {{ .Path }}; {{ .Vars }} sudo {{ .Path }}"
+        }
+      }
+    }
+  ],
+  "post-processors": [
+    {
+      "type": "docker-tag",
+      "repository": "garden-ci-ubuntu",
+      "tag": "packer",
+      "only": ["docker"]
+    }
+  ]
+}
+

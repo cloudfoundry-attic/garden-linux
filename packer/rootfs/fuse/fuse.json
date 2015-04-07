@@ -1,0 +1,16 @@
+{
+ "builders": [
+   {
+      "type": "docker",
+      "image": "ubuntu:14.04",
+      "export_path": "rootfs/fuse/fuse.tar"
+   }
+ ],
+ "provisioners": [
+   {
+      "type": "shell",
+      "script": "rootfs/fuse/provision.sh"
+   }
+ ]
+}
+

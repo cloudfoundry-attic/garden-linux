@@ -6,34 +6,6 @@ You can deploy Garden (inside a Garden container) using the [Garden BOSH Release
 
 See the [old README](old/README.md) for old documentation, caveat lector.
 
-## Creating a suitable dev box to install the code
-
-A good vagrant box to start from is at [cf-guardian/dev](http://github.com/cf-guardian/dev). 
-
-If you downloaded the dev box above, then you can set up the dependencies in your host machine (as follows), and then - making sure `$GOHOME` is properly set, say `vagrant up` in the cloned [cf-guardian/dev](http://github.com/cf-guardian/dev) box to create a vagrant with the source code checked out.
-
-First, follow the [godep instructions](http://github.com/tools/godep) to install godep.
-
-Then, checkout the code and restore the dependencies with godeps (this assumes your `$GOPATH` is a single value):
-
-    git clone https://github.com/cloudfoundry-incubator/garden-linux $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux
-    cd $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux
-    godep restore # if this fails, re-issue it.
-
-(One known reason for godep restore failing is that the Docker repository is [not "go gettable"](https://github.com/docker/docker/issues/10922),
- but re-running `godep restore` works around this problem.)
-
-Now, make sure to set `$GOHOME` to `$GOPATH` so that cf-guardian dev box knows where to find your go code:
-
-    export GOHOME=$GOPATH # assuming your GOPATH only contains one entry
-
-Bring dev box up:
-
-    cd ~/workspace/dev # or wherever you checked out the dev box
-    vagrant up
-    vagrant ssh
-
-
 ## Installing Garden-Linux
 
 **Note:** the rest of these instructions assume you arranged for the garden-linux code, and dependencies, to be
@@ -79,33 +51,6 @@ The rest of these instructions assume you are running inside an Ubuntu environme
 * Kick the tyres
 
     The external API is exposed using [Garden](https://github.com/cloudfoundry-incubator/garden), the instructions at that repo document the various API calls that you can now make (it will be running at `http://127.0.0.1:7777` if you followed the above instructions).
-
-## Running the tests in vagrant
-
-This is a useful way of running the tests directly in a virtual machine rather than inside a Garden container.
-
-Pre-requisites:
-
-* [VirtualBox](https://www.virtualbox.org/)
-* [vagrant](https://www.vagrantup.com/)
-* [vagrant-omnibus](https://github.com/opscode/vagrant-omnibus) (`vagrant plugin install vagrant-omnibus')
-* [Ruby](https://www.ruby-lang.org/en/installation/)
-* [librarian-chef](https://github.com/applicationsonline/librarian-chef) (`gem install librarian-chef`)
-
-Enter the root of this repository (`cd`) and then follow the steps below to create a vagrant box with garden-linux installed.
-
-```bash
-librarian-chef install
-vagrant up
-```
-
-Note: `site-cookbooks/garden/recipes/rootfs.rb` sets up a root filesystem against which integration tests will run.
-
-With the box configured as above, run the test suite on your local machine by issuing:
-
-```bash
-./scripts/test-in-vagrant
-```
 
 ## External API
 

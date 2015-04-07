@@ -1,0 +1,20 @@
+{
+ "builders": [
+   {
+      "type": "docker",
+      "image": "busybox",
+      "export_path": "rootfs/no_sh/no_sh.tar",
+      "run_command": ["-d", "-i", "-t", "{{.Image}}", "/bin/sh"]
+    }
+  ],
+  "provisioners": [
+   {
+      "type": "shell",
+      "inline": [
+        "rm /bin/sh"
+      ],
+      "inline_shebang": "/bin/sh"
+    }
+  ]
+}
+

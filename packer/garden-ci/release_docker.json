@@ -1,0 +1,38 @@
+{
+  "variables": {
+    "docker_repository": "{{env `GARDEN_PACKER_DOCKER_REPO`}}",
+    "image_version": "",
+    "login_username": "{{env `GARDEN_PACKER_DOCKER_USERNAME`}}",
+    "login_email": "{{env `GARDEN_PACKER_DOCKER_EMAIL`}}",
+    "login_password": "{{env `GARDEN_PACKER_DOCKER_PASSWORD`}}"
+  },
+  "builders": [
+    {
+      "type": "docker",
+      "image": "garden-ci-ubuntu:packer",
+      "pull": false,
+      "commit": true
+    }
+  ],
+  "post-processors": [
+    {
+        "type": "docker-tag",
+        "repository": "{{user `docker_repository`}}",
+        "tag": "latest"
+    },
+    [
+      {
+        "type": "docker-tag",
+        "repository": "{{user `docker_repository`}}",
+        "tag": "{{user `image_version`}}"
+      },
+      {
+        "type": "docker-push",
+        "login": true,
+        "login_username": "{{user `login_username`}}",
+        "login_email": "{{user `login_email`}}",
+        "login_password": "{{user `login_password`}}"
+      }
+    ]
+  ]
+}

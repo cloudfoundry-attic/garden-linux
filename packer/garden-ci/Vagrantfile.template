@@ -1,0 +1,14 @@
+# -*- mode: ruby -*-
+# vim: set ft=ruby :
+
+Vagrant.configure(2) do |config|
+  config.vm.box = "cloudfoundry/garden-ci-ubuntu"
+
+  go_path = ENV['GOPATH']
+  config.vm.synced_folder(go_path, "/home/vagrant/go") if go_path
+
+  config.vm.provider "virtualbox" do |vb|
+    vb.memory = "8192" #We need quite a bit of memory
+    vb.cpus = "4"
+  end
+end
