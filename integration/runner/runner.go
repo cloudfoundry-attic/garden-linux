@@ -33,8 +33,6 @@ type Runner struct {
 
 	tmpdir    string
 	graphPath string
-
-	debugAddr string
 }
 
 func New(network, addr string, bin, binPath, rootFSPath, graphPath string, argv ...string) *Runner {
@@ -56,12 +54,7 @@ func New(network, addr string, bin, binPath, rootFSPath, graphPath string, argv 
 			os.TempDir(),
 			fmt.Sprintf("test-garden-%d", ginkgo.GinkgoParallelNode()),
 		),
-		debugAddr: fmt.Sprintf("0.0.0.0:%d", 15000+ginkgo.GinkgoParallelNode()),
 	}
-}
-
-func (r *Runner) DebugAddr() string {
-	return r.debugAddr
 }
 
 func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
@@ -108,7 +101,6 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 	gardenArgs = appendDefaultFlag(gardenArgs, "--bin", r.binPath)
 	gardenArgs = appendDefaultFlag(gardenArgs, "--rootfs", r.rootFSPath)
 	gardenArgs = appendDefaultFlag(gardenArgs, "--depot", depotPath)
-	gardenArgs = appendDefaultFlag(gardenArgs, "--debugAddr", r.debugAddr)
 	gardenArgs = appendDefaultFlag(gardenArgs, "--overlays", overlaysPath)
 	gardenArgs = appendDefaultFlag(gardenArgs, "--snapshots", snapshotsPath)
 	gardenArgs = appendDefaultFlag(gardenArgs, "--graph", r.graphPath)

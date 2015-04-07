@@ -43,9 +43,10 @@ func main() {
 	var containerPid int
 	flag.IntVar(&containerPid, "containerPid", 0, "the PID of the container's init process")
 
+	cf_lager.AddFlags(flag.CommandLine)
 	flag.Parse()
 
-	log := cf_lager.New("container-net")
+	log, _ := cf_lager.New("container-net")
 
 	log.Info("args", lager.Data{
 		"target":           target,
