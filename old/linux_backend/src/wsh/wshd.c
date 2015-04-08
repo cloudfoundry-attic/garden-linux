@@ -743,8 +743,6 @@ int child_run(void *data) {
   int rv;
   char pivoted_lib_path[PATH_MAX];
   size_t pivoted_lib_path_len;
-  char *path=NULL;
-  char put_old[4096];
 
   /* Wait for parent */
   rv = barrier_wait(&w->barrier_parent);
@@ -758,6 +756,12 @@ int child_run(void *data) {
   rv = mount(w->root_path, w->root_path, NULL, MS_BIND|MS_REC, NULL);
   if(rv == -1) {
     perror("mount");
+    abort();
+  }
+
+  rv = mount("", "/", NULL, MS_PRIVATE|MS_REC, NULL);
+  if(rv == -1) {
+    perror("make private");
     abort();
   }
 
@@ -780,9 +784,6 @@ int child_run(void *data) {
     abort();
   }
 
-  path = getcwd(path, 4096);
-  strcpy(put_old, path);
-  strcat(put_old, "/tmp/garden-host");
 
   rv = pivot_root(".", "tmp/garden-host");
   if (rv == -1) {
