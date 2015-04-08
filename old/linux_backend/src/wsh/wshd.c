@@ -784,7 +784,7 @@ int child_run(void *data) {
   strcpy(put_old, path);
   strcat(put_old, "/tmp/garden-host");
 
-  rv = pivot_root(path, put_old);
+  rv = pivot_root(".", "tmp/garden-host");
   if (rv == -1) {
     perror("pivot_root");
     abort();
