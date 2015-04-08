@@ -551,7 +551,10 @@ var _ = Describe("Creating a container", func() {
 				for i := 0; i < 50; i++ {
 					process, err := container.Run(garden.ProcessSpec{
 						Path: "true",
-					}, garden.ProcessIO{})
+					}, garden.ProcessIO{
+						Stdout: GinkgoWriter,
+						Stderr: GinkgoWriter,
+					})
 					Ω(err).ShouldNot(HaveOccurred())
 					Ω(process.Wait()).Should(Equal(0))
 				}
