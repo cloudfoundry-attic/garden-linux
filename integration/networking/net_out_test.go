@@ -12,7 +12,7 @@ import (
 	"github.com/onsi/gomega/gbytes"
 )
 
-var _ = XDescribe("Net Out", func() {
+var _ = Describe("Net Out", func() {
 	var (
 		container      garden.Container
 		otherContainer garden.Container

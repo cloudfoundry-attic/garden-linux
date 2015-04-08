@@ -17,7 +17,7 @@ import (
 	gconn "github.com/cloudfoundry-incubator/garden/client/connection"
 )
 
-var _ = XDescribe("When nested", func() {
+var _ = Describe("When nested", func() {
 	nestedRootfsPath := os.Getenv("GARDEN_NESTABLE_TEST_ROOTFS")
 	if nestedRootfsPath == "" {
 		log.Println("GARDEN_NESTABLE_TEST_ROOTFS undefined; skipping nesting test")

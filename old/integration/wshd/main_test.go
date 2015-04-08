@@ -47,7 +47,7 @@ var _ = Describe("Running wshd", func() {
 		containerPath, err = ioutil.TempDir(os.TempDir(), "wshd-test-container")
 		Ω(err).ShouldNot(HaveOccurred())
 
-		userNs = "enabled"
+		userNs = "disabled"
 		beforeWshd = func() {}
 
 		binDir = path.Join(containerPath, "bin")
@@ -650,7 +650,7 @@ setup_fs
 				expectedQueryResponse = "4194304"
 			})
 
-			XContext("when user namespacing is disabled", func() {
+			Context("when user namespacing is disabled", func() {
 				BeforeEach(func() {
 					userNs = "disabled"
 				})
@@ -686,7 +686,7 @@ setup_fs
 				expectedQueryResponse = "8"
 			})
 
-			XContext("when user namespacing is disabled", func() {
+			Context("when user namespacing is disabled", func() {
 				BeforeEach(func() {
 					userNs = "disabled"
 				})
@@ -722,7 +722,7 @@ setup_fs
 				expectedQueryResponse = "3600"
 			})
 
-			XContext("when user namespacing is disabled", func() {
+			Context("when user namespacing is disabled", func() {
 				BeforeEach(func() {
 					userNs = "disabled"
 				})
@@ -758,7 +758,7 @@ setup_fs
 				expectedQueryResponse = "1024"
 			})
 
-			XContext("when user namespacing is disabled", func() {
+			Context("when user namespacing is disabled", func() {
 				BeforeEach(func() {
 					userNs = "disabled"
 				})
@@ -794,7 +794,7 @@ setup_fs
 				expectedQueryResponse = "8192"
 			})
 
-			XContext("when user namespacing is disabled", func() {
+			Context("when user namespacing is disabled", func() {
 				BeforeEach(func() {
 					userNs = "disabled"
 				})
@@ -830,7 +830,7 @@ setup_fs
 				expectedQueryResponse = "1024"
 			})
 
-			XContext("when user namespacing is disabled", func() {
+			Context("when user namespacing is disabled", func() {
 				BeforeEach(func() {
 					userNs = "disabled"
 				})
@@ -866,7 +866,7 @@ setup_fs
 				expectedQueryResponse = "32"
 			})
 
-			XContext("when user namespacing is disabled", func() {
+			Context("when user namespacing is disabled", func() {
 				BeforeEach(func() {
 					userNs = "disabled"
 				})
@@ -902,7 +902,7 @@ setup_fs
 				expectedQueryResponse = "RLIMIT_MSGQUEUE not queryable"
 			})
 
-			XContext("when user namespacing is disabled", func() {
+			Context("when user namespacing is disabled", func() {
 				BeforeEach(func() {
 					userNs = "disabled"
 				})
@@ -938,7 +938,7 @@ setup_fs
 				expectedQueryResponse = "100"
 			})
 
-			XContext("when user namespacing is disabled", func() {
+			Context("when user namespacing is disabled", func() {
 				BeforeEach(func() {
 					userNs = "disabled"
 				})
@@ -974,7 +974,7 @@ setup_fs
 				expectedQueryResponse = "4096"
 			})
 
-			XContext("when user namespacing is disabled", func() {
+			Context("when user namespacing is disabled", func() {
 				BeforeEach(func() {
 					userNs = "disabled"
 				})
@@ -1010,7 +1010,7 @@ setup_fs
 				expectedQueryResponse = "4096"
 			})
 
-			XContext("when user namespacing is disabled", func() {
+			Context("when user namespacing is disabled", func() {
 				BeforeEach(func() {
 					userNs = "disabled"
 				})
@@ -1046,7 +1046,7 @@ setup_fs
 				expectedQueryResponse = "4096"
 			})
 
-			XContext("when user namespacing is disabled", func() {
+			Context("when user namespacing is disabled", func() {
 				BeforeEach(func() {
 					userNs = "disabled"
 				})
@@ -1082,7 +1082,7 @@ setup_fs
 				expectedQueryResponse = "100"
 			})
 
-			XContext("when user namespacing is disabled", func() {
+			Context("when user namespacing is disabled", func() {
 				BeforeEach(func() {
 					userNs = "disabled"
 				})
@@ -1118,7 +1118,7 @@ setup_fs
 				expectedQueryResponse = "RLIMIT_SIGPENDING not queryable"
 			})
 
-			XContext("when user namespacing is disabled", func() {
+			Context("when user namespacing is disabled", func() {
 				BeforeEach(func() {
 					userNs = "disabled"
 				})
@@ -1154,7 +1154,7 @@ setup_fs
 				expectedQueryResponse = "4096"
 			})
 
-			XContext("when user namespacing is disabled", func() {
+			Context("when user namespacing is disabled", func() {
 				BeforeEach(func() {
 					userNs = "disabled"
 				})

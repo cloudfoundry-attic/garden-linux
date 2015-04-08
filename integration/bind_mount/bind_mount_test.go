@@ -104,7 +104,7 @@ var _ = Describe("A container", func() {
 				dstPath = "/home/vcap/readonly"
 			})
 
-			XContext("and with privileged=true", func() {
+			Context("and with privileged=true", func() {
 				BeforeEach(func() {
 					privilegedContainer = true
 				})
@@ -143,7 +143,7 @@ var _ = Describe("A container", func() {
 				dstPath = "/home/vcap/readwrite"
 			})
 
-			XContext("and with privileged=true", func() {
+			Context("and with privileged=true", func() {
 				BeforeEach(func() {
 					privilegedContainer = true
 				})
@@ -193,7 +193,7 @@ var _ = Describe("A container", func() {
 				dstPath = "/home/vcap/readonly"
 			})
 
-			XContext("and with privileged=true", func() {
+			Context("and with privileged=true", func() {
 				BeforeEach(func() {
 					privilegedContainer = true
 				})
@@ -233,7 +233,7 @@ var _ = Describe("A container", func() {
 				dstPath = "/home/vcap/readwrite"
 			})
 
-			XContext("and with privileged=true", func() {
+			Context("and with privileged=true", func() {
 				BeforeEach(func() {
 					privilegedContainer = true
 				})

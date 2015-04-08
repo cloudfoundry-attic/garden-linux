@@ -522,7 +522,7 @@ var _ = Describe("Through a restart", func() {
 		})
 	})
 
-	XDescribe("a privileged container", func() {
+	Describe("a privileged container", func() {
 		BeforeEach(func() {
 			privileged = true
 		})

@@ -48,7 +48,7 @@ var _ = Describe("Resource limits", func() {
 			rlimitValue = 100
 		})
 
-		XContext("with a privileged container", func() {
+		Context("with a privileged container", func() {
 			BeforeEach(func() {
 				privilegedContainer = true
 			})
@@ -100,7 +100,7 @@ var _ = Describe("Resource limits", func() {
 			rlimitValue = 2147483648
 		})
 
-		XContext("with a privileged container", func() {
+		Context("with a privileged container", func() {
 			BeforeEach(func() {
 				privilegedContainer = true
 			})
