@@ -347,7 +347,7 @@ var _ = Describe("Creating a container", func() {
 					})
 				})
 
-				Context("when the 'privileged' flag is set on the create call", func() {
+				XContext("when the 'privileged' flag is set on the create call", func() {
 					BeforeEach(func() {
 						privilegedContainer = true
 					})
@@ -896,7 +896,7 @@ var _ = Describe("Creating a container", func() {
 				Ω(output).Should(gbytes.Say("vcap"))
 			})
 
-			Context("in a privileged container", func() {
+			XContext("in a privileged container", func() {
 				BeforeEach(func() {
 					privilegedContainer = true
 				})
