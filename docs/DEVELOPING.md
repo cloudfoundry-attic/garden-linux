@@ -172,3 +172,9 @@ occur so that unexpected errors can be quickly diagnosed and debugged.
 
 Hence, an error message should not read like
 a stack trace: if it does, consider using `panic` instead.
+
+### Design Notes
+
+#### Process Structure
+
+![Process structure](https://github.com/cloudfoundry-incubator/garden-linux/blob/master/docs/images/iodaemon%20process%20structure.png)
