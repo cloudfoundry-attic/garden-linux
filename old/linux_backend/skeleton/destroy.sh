@@ -38,6 +38,8 @@ then
   # Done, remove pid
   rm -f ./run/wshd.pid
 
+  umount $rootfs_path/dev/pts || true
+
   # Remove cgroups
   for system_path in ${cgroup_path}/*
   do
