@@ -409,7 +409,7 @@ var _ = Describe("Creating a container", func() {
 					Eventually(stdout, "2s").Should(gbytes.Say("done\n"))
 				})
 
-				Ω(time.Seconds()).Should(BeNumerically("<", 1))
+				Ω(time.Seconds()).Should(BeNumerically("<", 2))
 			}, 10)
 
 			It("streams output back and reports the exit status", func() {
