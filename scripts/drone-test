@@ -29,6 +29,8 @@ go install github.com/onsi/ginkgo/ginkgo
 
 ginkgo -r -p -race -cover -keepGoing -nodes=4 "$@"
 
+umount /tmp/opt/warden/rootfs
+
 # don't leak coveralls token
 set +x
 
