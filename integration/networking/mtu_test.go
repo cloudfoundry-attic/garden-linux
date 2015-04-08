@@ -49,7 +49,7 @@ var _ = Describe("MTU size", func() {
 
 	Describe("hosts's network interface for a container", func() {
 		It("has the correct MTU size", func() {
-			out, err := exec.Command("/sbin/ifconfig", hostIfName(container)).Output()
+			out, err := exec.Command("ifconfig", hostIfName(container)).Output()
 			Ω(err).ShouldNot(HaveOccurred())
 
 			Ω(out).Should(ContainSubstring(" MTU:6789 "))
