@@ -53,7 +53,7 @@ var _ = Describe("When nested", func() {
 					Mode:    garden.BindMountModeRO,
 				},
 				{
-					SrcPath: rootFSPath,
+					SrcPath: nestedRootfsPath,
 					DstPath: "/home/vcap/rootfs",
 					Mode:    garden.BindMountModeRO,
 				},
