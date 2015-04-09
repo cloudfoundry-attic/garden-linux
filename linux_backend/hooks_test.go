@@ -83,7 +83,9 @@ var _ = Describe("Hooks", func() {
 			})
 		})
 
-		Context("Inside the child", func() {
+		// Leave pended as we do not care about this for CentOS variant spike
+		// Do not merge in this branch
+		XContext("Inside the child", func() {
 
 			Context("after pivotting in to the rootfs", func() {
 				It("sets the hostname to the container ID", func() {
