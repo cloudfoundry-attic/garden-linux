@@ -18,7 +18,7 @@ func TestIntegration(t *testing.T) {
 
 var _ = BeforeSuite(func() {
 	var err error
-	testBinary, err = gexec.Build("github.com/cloudfoundry-incubator/cf-lager/integration")
+	testBinary, err = gexec.Build("github.com/cloudfoundry-incubator/cf-lager/integration", "-race")
 	Ω(err).ShouldNot(HaveOccurred())
 })
 

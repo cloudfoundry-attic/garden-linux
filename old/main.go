@@ -203,11 +203,16 @@ var externalIP = flag.String(
 
 func Main() {
 
-	cf_debug_server.Run()
+	cf_debug_server.AddFlags(flag.CommandLine)
+	cf_lager.AddFlags(flag.CommandLine)
+	flag.Parse()
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	logger := cf_lager.New("garden-linux")
+	logger, reconfigurableSink := cf_lager.New("garden-linux")
+	if dbgAddr := cf_debug_server.DebugAddress(flag.CommandLine); dbgAddr != "" {
+		cf_debug_server.Run(dbgAddr, reconfigurableSink)
+	}
 
 	initializeDropsonde(logger)
 

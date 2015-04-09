@@ -43,10 +43,12 @@ var _ = Describe("The Garden server", func() {
 
 	var container garden.Container
 	var firstGoroutineCount uint64
+	var debugAddr string
 
 	BeforeEach(func() {
 		firstGoroutineCount = 0
-		client = startGarden()
+		debugAddr = fmt.Sprintf("0.0.0.0:%d", 15000+GinkgoParallelNode())
+		client = startGarden("--debugAddr", debugAddr)
 
 		var err error
 		container, err = client.Create(garden.ContainerSpec{})
@@ -54,7 +56,7 @@ var _ = Describe("The Garden server", func() {
 	})
 
 	getGoroutineCount := func(printIt ...bool) uint64 {
-		resp, err := http.Get(fmt.Sprintf("http://%s/debug/pprof/goroutine?debug=1", gardenRunner.DebugAddr()))
+		resp, err := http.Get(fmt.Sprintf("http://%s/debug/pprof/goroutine?debug=1", debugAddr))
 		Ω(err).ShouldNot(HaveOccurred())
 
 		line, _, err := bufio.NewReader(resp.Body).ReadLine()
