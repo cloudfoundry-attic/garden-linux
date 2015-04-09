@@ -13,6 +13,7 @@ For some reason the default temp dir for packer has issues with the boot2docker 
 
 ```bash
 export TMPDIR=~/.packer_tmp
+mkdir $TMPDIR
 ```
 
 ###Build everything
