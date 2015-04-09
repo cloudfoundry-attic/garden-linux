@@ -13,6 +13,13 @@ type Config struct {
 	Network json.RawMessage `json:"network"`
 }
 
+//go:generate counterfeiter . ContainerInitializer
+type ContainerInitializer interface {
+	SetHostname(hostname string) error
+	MountProc() error
+	MountTmp() error
+}
+
 func RegisterHooks(hs hook.HookSet, runner Runner, config process.Env, container ContainerInitializer) {
 	hs.Register(hook.PARENT_BEFORE_CLONE, func() {
 		must(runner.Run(exec.Command("./hook-parent-before-clone.sh")))

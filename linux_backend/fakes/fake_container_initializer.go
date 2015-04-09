@@ -7,7 +7,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 )
 
-type FakeRunningContainer struct {
+type FakeContainerInitializer struct {
 	SetHostnameStub        func(hostname string) error
 	setHostnameMutex       sync.RWMutex
 	setHostnameArgsForCall []struct {
@@ -30,7 +30,7 @@ type FakeRunningContainer struct {
 	}
 }
 
-func (fake *FakeRunningContainer) SetHostname(hostname string) error {
+func (fake *FakeContainerInitializer) SetHostname(hostname string) error {
 	fake.setHostnameMutex.Lock()
 	fake.setHostnameArgsForCall = append(fake.setHostnameArgsForCall, struct {
 		hostname string
@@ -43,26 +43,26 @@ func (fake *FakeRunningContainer) SetHostname(hostname string) error {
 	}
 }
 
-func (fake *FakeRunningContainer) SetHostnameCallCount() int {
+func (fake *FakeContainerInitializer) SetHostnameCallCount() int {
 	fake.setHostnameMutex.RLock()
 	defer fake.setHostnameMutex.RUnlock()
 	return len(fake.setHostnameArgsForCall)
 }
 
-func (fake *FakeRunningContainer) SetHostnameArgsForCall(i int) string {
+func (fake *FakeContainerInitializer) SetHostnameArgsForCall(i int) string {
 	fake.setHostnameMutex.RLock()
 	defer fake.setHostnameMutex.RUnlock()
 	return fake.setHostnameArgsForCall[i].hostname
 }
 
-func (fake *FakeRunningContainer) SetHostnameReturns(result1 error) {
+func (fake *FakeContainerInitializer) SetHostnameReturns(result1 error) {
 	fake.SetHostnameStub = nil
 	fake.setHostnameReturns = struct {
 		result1 error
 	}{result1}
 }
 
-func (fake *FakeRunningContainer) MountProc() error {
+func (fake *FakeContainerInitializer) MountProc() error {
 	fake.mountProcMutex.Lock()
 	fake.mountProcArgsForCall = append(fake.mountProcArgsForCall, struct{}{})
 	fake.mountProcMutex.Unlock()
@@ -73,20 +73,20 @@ func (fake *FakeRunningContainer) MountProc() error {
 	}
 }
 
-func (fake *FakeRunningContainer) MountProcCallCount() int {
+func (fake *FakeContainerInitializer) MountProcCallCount() int {
 	fake.mountProcMutex.RLock()
 	defer fake.mountProcMutex.RUnlock()
 	return len(fake.mountProcArgsForCall)
 }
 
-func (fake *FakeRunningContainer) MountProcReturns(result1 error) {
+func (fake *FakeContainerInitializer) MountProcReturns(result1 error) {
 	fake.MountProcStub = nil
 	fake.mountProcReturns = struct {
 		result1 error
 	}{result1}
 }
 
-func (fake *FakeRunningContainer) MountTmp() error {
+func (fake *FakeContainerInitializer) MountTmp() error {
 	fake.mountTmpMutex.Lock()
 	fake.mountTmpArgsForCall = append(fake.mountTmpArgsForCall, struct{}{})
 	fake.mountTmpMutex.Unlock()
@@ -97,17 +97,17 @@ func (fake *FakeRunningContainer) MountTmp() error {
 	}
 }
 
-func (fake *FakeRunningContainer) MountTmpCallCount() int {
+func (fake *FakeContainerInitializer) MountTmpCallCount() int {
 	fake.mountTmpMutex.RLock()
 	defer fake.mountTmpMutex.RUnlock()
 	return len(fake.mountTmpArgsForCall)
 }
 
-func (fake *FakeRunningContainer) MountTmpReturns(result1 error) {
+func (fake *FakeContainerInitializer) MountTmpReturns(result1 error) {
 	fake.MountTmpStub = nil
 	fake.mountTmpReturns = struct {
 		result1 error
 	}{result1}
 }
 
-var _ linux_backend.ContainerInitializer = new(FakeRunningContainer)
+var _ linux_backend.ContainerInitializer = new(FakeContainerInitializer)

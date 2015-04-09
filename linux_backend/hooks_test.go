@@ -19,7 +19,7 @@ var _ = Describe("Hooks", func() {
 	var hooks hook.HookSet
 	var fakeRunner *fake_command_runner.FakeCommandRunner
 	var config process.Env
-	var container *fakes.FakeRunningContainer
+	var container *fakes.FakeContainerInitializer
 
 	BeforeEach(func() {
 		fakeRunner = fake_command_runner.New()
@@ -27,7 +27,7 @@ var _ = Describe("Hooks", func() {
 		config = process.Env{
 			"id": "someID",
 		}
-		container = &fakes.FakeRunningContainer{}
+		container = &fakes.FakeContainerInitializer{}
 	})
 
 	Context("After RegisterHooks has been run", func() {

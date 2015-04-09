@@ -6,13 +6,6 @@ import (
 	"syscall"
 )
 
-//go:generate counterfeiter . RunningContainer
-type ContainerInitializer interface {
-	SetHostname(hostname string) error
-	MountProc() error
-	MountTmp() error
-}
-
 type containerInitializer struct{}
 
 func NewContainerInitializer() ContainerInitializer {
