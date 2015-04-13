@@ -33,9 +33,9 @@ var _ = Describe("setting rate limits", func() {
 		}
 
 		err := bandwidthManager.SetLimits(logger, limits)
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
-		Ω(fakeRunner).Should(HaveExecutedSerially(
+		Expect(fakeRunner).To(HaveExecutedSerially(
 			fake_command_runner.CommandSpec{
 				Path: "/depot/some-id/net_rate.sh",
 				Env: []string{
@@ -64,7 +64,7 @@ var _ = Describe("setting rate limits", func() {
 				RateInBytesPerSecond:      128,
 				BurstRateInBytesPerSecond: 256,
 			})
-			Ω(err).Should(Equal(nastyError))
+			Expect(err).To(Equal(nastyError))
 		})
 	})
 })
@@ -104,13 +104,13 @@ ref 1 bind 1
 		})
 
 		usage, err := bandwidthManager.GetLimits(logger)
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
-		Ω(usage.InRate).Should(Equal(uint64(1024)))
-		Ω(usage.InBurst).Should(Equal(uint64(65536)))
+		Expect(usage.InRate).To(Equal(uint64(1024)))
+		Expect(usage.InBurst).To(Equal(uint64(65536)))
 
-		Ω(usage.OutRate).Should(Equal(uint64(1024)))
-		Ω(usage.OutBurst).Should(Equal(uint64(65536)))
+		Expect(usage.OutRate).To(Equal(uint64(1024)))
+		Expect(usage.OutBurst).To(Equal(uint64(65536)))
 	})
 
 	Context("when net.sh get_egress_info fails", func() {
@@ -128,7 +128,7 @@ ref 1 bind 1
 
 		It("returns the error", func() {
 			_, err := bandwidthManager.GetLimits(logger)
-			Ω(err).Should(Equal(disaster))
+			Expect(err).To(Equal(disaster))
 		})
 	})
 
@@ -160,13 +160,13 @@ ref 1 bind 1
 			})
 
 			usage, err := bandwidthManager.GetLimits(logger)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(usage.InRate).Should(Equal(uint64(0)))
-			Ω(usage.InBurst).Should(Equal(uint64(0)))
+			Expect(usage.InRate).To(Equal(uint64(0)))
+			Expect(usage.InBurst).To(Equal(uint64(0)))
 
-			Ω(usage.OutRate).Should(Equal(uint64(1024)))
-			Ω(usage.OutBurst).Should(Equal(uint64(65536)))
+			Expect(usage.OutRate).To(Equal(uint64(1024)))
+			Expect(usage.OutBurst).To(Equal(uint64(65536)))
 		})
 	})
 
@@ -185,7 +185,7 @@ ref 1 bind 1
 
 		It("returns the error", func() {
 			_, err := bandwidthManager.GetLimits(logger)
-			Ω(err).Should(Equal(disaster))
+			Expect(err).To(Equal(disaster))
 		})
 	})
 
@@ -212,13 +212,13 @@ qdisc ingress ffff: parent ffff:fff1 ----------------
 			})
 
 			usage, err := bandwidthManager.GetLimits(logger)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(usage.InRate).Should(Equal(uint64(1024)))
-			Ω(usage.InBurst).Should(Equal(uint64(65536)))
+			Expect(usage.InRate).To(Equal(uint64(1024)))
+			Expect(usage.InBurst).To(Equal(uint64(65536)))
 
-			Ω(usage.OutRate).Should(Equal(uint64(0)))
-			Ω(usage.OutBurst).Should(Equal(uint64(0)))
+			Expect(usage.OutRate).To(Equal(uint64(0)))
+			Expect(usage.OutBurst).To(Equal(uint64(0)))
 		})
 	})
 })

@@ -18,12 +18,12 @@ var _ = Describe("MTU size", func() {
 		var err error
 
 		container, err = client.Create(garden.ContainerSpec{})
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	AfterEach(func() {
 		err := client.Destroy(container.Handle())
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	Describe("container's network interface", func() {
@@ -38,21 +38,21 @@ var _ = Describe("MTU size", func() {
 				Stdout: stdout,
 				Stderr: stderr,
 			})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 			rc, err := process.Wait()
-			Ω(err).ShouldNot(HaveOccurred())
-			Ω(rc).Should(Equal(0))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(rc).To(Equal(0))
 
-			Ω(stdout.Contents()).Should(ContainSubstring(" MTU:6789 "))
+			Expect(stdout.Contents()).To(ContainSubstring(" MTU:6789 "))
 		})
 	})
 
 	Describe("hosts's network interface for a container", func() {
 		It("has the correct MTU size", func() {
 			out, err := exec.Command("/sbin/ifconfig", hostIfName(container)).Output()
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(out).Should(ContainSubstring(" MTU:6789 "))
+			Expect(out).To(ContainSubstring(" MTU:6789 "))
 		})
 	})
 

@@ -38,7 +38,7 @@ var _ = Describe("Iodaemon", func() {
 		var err error
 		expectedExitCode = 0
 		tmpdir, err = ioutil.TempDir("", "socket-dir")
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		socketPath = filepath.Join(tmpdir, "iodaemon.sock")
 
@@ -78,7 +78,7 @@ var _ = Describe("Iodaemon", func() {
 			spawnProcess("echo", "hello")
 
 			_, linkStdout, _, err := createLink(socketPath)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 			Eventually(linkStdout).Should(gbytes.Say("hello\n"))
 		})
 
@@ -86,12 +86,12 @@ var _ = Describe("Iodaemon", func() {
 			spawnProcess("bash")
 
 			l, _, _, err := createLink(socketPath)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 			err = l.Writer.TerminateConnection()
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			m, _, _, err := createLink(socketPath)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			m.Write([]byte("exit\n"))
 		})
@@ -100,7 +100,7 @@ var _ = Describe("Iodaemon", func() {
 			spawnProcess("bash", "-c", "echo error 1>&2")
 
 			_, _, linkStderr, err := createLink(socketPath)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 			Eventually(linkStderr).Should(gbytes.Say("error\n"))
 		})
 
@@ -108,7 +108,7 @@ var _ = Describe("Iodaemon", func() {
 			spawnProcess("env", "-i", "bash", "--noprofile", "--norc")
 
 			l, linkStdout, _, err := createLink(socketPath)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			l.Write([]byte("echo hello\n"))
 			Eventually(linkStdout).Should(gbytes.Say(".*hello.*"))
@@ -120,7 +120,7 @@ var _ = Describe("Iodaemon", func() {
 			spawnProcess("bash")
 
 			l, _, _, err := createLink(socketPath)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			l.Write([]byte("exit\n"))
 		})
@@ -129,7 +129,7 @@ var _ = Describe("Iodaemon", func() {
 			spawnProcess("bash")
 
 			l, _, _, err := createLink(socketPath)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			l.Close() //bash will normally terminate when it receives EOF on stdin
 		})
@@ -137,7 +137,7 @@ var _ = Describe("Iodaemon", func() {
 		Context("when there is an existing socket file", func() {
 			BeforeEach(func() {
 				file, err := os.Create(socketPath)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 				file.Close()
 			})
 
@@ -145,7 +145,7 @@ var _ = Describe("Iodaemon", func() {
 				spawnProcess("echo", "hello")
 
 				_, linkStdout, _, err := createLink(socketPath)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 				Eventually(linkStdout).Should(gbytes.Say("hello\n"))
 			})
 		})
@@ -160,7 +160,7 @@ var _ = Describe("Iodaemon", func() {
 			spawnTty("echo", "hello")
 
 			_, linkStdout, _, err := createLink(socketPath)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 			Eventually(linkStdout).Should(gbytes.Say("hello"))
 		})
 
@@ -168,7 +168,7 @@ var _ = Describe("Iodaemon", func() {
 			spawnTty("bash", "-c", "echo error 1>&2")
 
 			_, linkStdout, _, err := createLink(socketPath)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 			Eventually(linkStdout).Should(gbytes.Say("error"))
 		})
 
@@ -176,7 +176,7 @@ var _ = Describe("Iodaemon", func() {
 			spawnTty("bash")
 
 			l, _, _, err := createLink(socketPath)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			l.Write([]byte("exit\n"))
 		})
@@ -185,7 +185,7 @@ var _ = Describe("Iodaemon", func() {
 			spawnTty("bash")
 
 			l, _, _, err := createLink(socketPath)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			l.Close() //bash will normally terminate when it receives EOF on stdin
 		})
@@ -194,7 +194,7 @@ var _ = Describe("Iodaemon", func() {
 			spawnTty("env", "-i", "bash", "--noprofile", "--norc")
 
 			l, linkStdout, _, err := createLink(socketPath)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			l.Write([]byte("echo hello\n"))
 			Eventually(linkStdout).Should(gbytes.Say(".*hello.*"))
@@ -206,7 +206,7 @@ var _ = Describe("Iodaemon", func() {
 			spawnTty("env", "-i", "bash", "--noprofile", "--norc")
 
 			l, linkStdout, _, err := createLink(socketPath)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			l.Write([]byte("echo $COLUMNS $LINES\n"))
 			Eventually(linkStdout).Should(gbytes.Say(".*\\s200 80\\s.*"))

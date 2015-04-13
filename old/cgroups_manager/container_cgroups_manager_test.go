@@ -17,7 +17,7 @@ var _ = Describe("Container cgroups", func() {
 
 	BeforeEach(func() {
 		tmpdir, err := ioutil.TempDir(os.TempDir(), "some-cgroups")
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		cgroupsPath = tmpdir
 
@@ -28,25 +28,25 @@ var _ = Describe("Container cgroups", func() {
 		It("writes the value to the name under the subsytem", func() {
 			containerMemoryCgroupsPath := path.Join(cgroupsPath, "memory", "instance-some-container-id")
 			err := os.MkdirAll(containerMemoryCgroupsPath, 0755)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			err = cgroupsManager.Set("memory", "memory.limit_in_bytes", "42")
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			value, err := ioutil.ReadFile(path.Join(containerMemoryCgroupsPath, "memory.limit_in_bytes"))
-			Ω(err).ShouldNot(HaveOccurred())
-			Ω(string(value)).Should(Equal("42"))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(string(value)).To(Equal("42"))
 		})
 
 		Context("when the cgroups directory does not exist", func() {
 			BeforeEach(func() {
 				err := os.RemoveAll(cgroupsPath)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 			})
 
 			It("returns an error", func() {
 				err := cgroupsManager.Set("memory", "memory.limit_in_bytes", "42")
-				Ω(err).Should(HaveOccurred())
+				Expect(err).To(HaveOccurred())
 			})
 		})
 	})
@@ -56,20 +56,20 @@ var _ = Describe("Container cgroups", func() {
 			containerMemoryCgroupsPath := path.Join(cgroupsPath, "memory", "instance-some-container-id")
 
 			err := os.MkdirAll(containerMemoryCgroupsPath, 0755)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			err = ioutil.WriteFile(path.Join(containerMemoryCgroupsPath, "memory.limit_in_bytes"), []byte("123\n"), 0644)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			val, err := cgroupsManager.Get("memory", "memory.limit_in_bytes")
-			Ω(err).ShouldNot(HaveOccurred())
-			Ω(val).Should(Equal("123"))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(val).To(Equal("123"))
 		})
 	})
 
 	Describe("retrieving a subsystem path", func() {
 		It("returns <path>/<subsytem>/instance-<container-id>", func() {
-			Ω(cgroupsManager.SubsystemPath("memory")).Should(Equal(
+			Expect(cgroupsManager.SubsystemPath("memory")).To(Equal(
 				path.Join(cgroupsPath, "memory", "instance-some-container-id"),
 			))
 

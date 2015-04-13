@@ -37,7 +37,7 @@ func startGarden(argv ...string) garden.Client {
 
 	{ // Check this test suite is in the correct directory
 		b, err := os.Open(binPath)
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 		b.Close()
 	}
 
@@ -52,7 +52,7 @@ func ensureGardenRunning() {
 	if err := client.Ping(); err != nil {
 		client = startGarden()
 	}
-	Ω(client.Ping()).ShouldNot(HaveOccurred())
+	Expect(client.Ping()).ToNot(HaveOccurred())
 }
 
 func checkConnection(container garden.Container, ip string, port int) error {
@@ -94,20 +94,20 @@ func TestNetworking(t *testing.T) {
 	SynchronizedBeforeSuite(func() []byte {
 		var err error
 		beforeSuite.GardenPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux", "-a", "-race", "-tags", "daemon")
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		ips, err := net.LookupIP("www.example.com")
-		Ω(err).ShouldNot(HaveOccurred())
-		Ω(ips).ShouldNot(BeEmpty())
+		Expect(err).ToNot(HaveOccurred())
+		Expect(ips).ToNot(BeEmpty())
 		beforeSuite.ExampleDotCom = ips[0]
 
 		b, err := json.Marshal(beforeSuite)
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		return b
 	}, func(paths []byte) {
 		err := json.Unmarshal(paths, &beforeSuite)
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		gardenBin = beforeSuite.GardenPath
 		externalIP = beforeSuite.ExampleDotCom
@@ -145,16 +145,16 @@ func ifNamePrefix(container garden.Container) string {
 func dumpIP() {
 	cmd := exec.Command("ip", "a")
 	op, err := cmd.CombinedOutput()
-	Ω(err).ShouldNot(HaveOccurred())
+	Expect(err).ToNot(HaveOccurred())
 	fmt.Println("IP status:\n", string(op))
 
 	cmd = exec.Command("iptables", "--verbose", "--exact", "--numeric", "--list")
 	op, err = cmd.CombinedOutput()
-	Ω(err).ShouldNot(HaveOccurred())
+	Expect(err).ToNot(HaveOccurred())
 	fmt.Println("IP tables chains:\n", string(op))
 
 	cmd = exec.Command("iptables", "--list-rules")
 	op, err = cmd.CombinedOutput()
-	Ω(err).ShouldNot(HaveOccurred())
+	Expect(err).ToNot(HaveOccurred())
 	fmt.Println("IP tables rules:\n", string(op))
 }

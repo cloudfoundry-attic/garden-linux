@@ -32,17 +32,17 @@ var _ = Describe("Denying access to network ranges", func() {
 
 		// create a listener to which we deny network access
 		blockedListener, err = client.Create(garden.ContainerSpec{})
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 		blockedListenerIP = containerIP(blockedListener)
 
 		// create a listener to which we do not deny access
 		unblockedListener, err = client.Create(garden.ContainerSpec{})
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 		unblockedListenerIP = containerIP(unblockedListener)
 
 		// create a listener to which we exclicitly allow access
 		allowedListener, err = client.Create(garden.ContainerSpec{})
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 		allowedListenerIP = containerIP(allowedListener)
 
 		restartGarden(
@@ -54,27 +54,27 @@ var _ = Describe("Denying access to network ranges", func() {
 		)
 
 		// check that the IPs were preserved over restart
-		Ω(containerIP(blockedListener)).Should(Equal(blockedListenerIP))
-		Ω(containerIP(unblockedListener)).Should(Equal(unblockedListenerIP))
-		Ω(containerIP(allowedListener)).Should(Equal(allowedListenerIP))
+		Expect(containerIP(blockedListener)).To(Equal(blockedListenerIP))
+		Expect(containerIP(unblockedListener)).To(Equal(unblockedListenerIP))
+		Expect(containerIP(allowedListener)).To(Equal(allowedListenerIP))
 
 		// create a container with the new deny network configuration
 		sender, err = client.Create(garden.ContainerSpec{})
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	AfterEach(func() {
 		err := client.Destroy(sender.Handle())
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		err = client.Destroy(blockedListener.Handle())
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		err = client.Destroy(unblockedListener.Handle())
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		err = client.Destroy(allowedListener.Handle())
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	runInContainer := func(container garden.Container, script string) garden.Process {
@@ -85,7 +85,7 @@ var _ = Describe("Denying access to network ranges", func() {
 			Stdout: GinkgoWriter,
 			Stderr: GinkgoWriter,
 		})
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		return process
 	}
@@ -102,18 +102,18 @@ var _ = Describe("Denying access to network ranges", func() {
 			sender,
 			fmt.Sprintf("echo hello | nc -w 1 %s 12345", blockedListenerIP),
 		)
-		Ω(process.Wait()).Should(Equal(1))
+		Expect(process.Wait()).To(Equal(1))
 
 		process = runInContainer(
 			sender,
 			fmt.Sprintf("echo hello | nc -w 1 %s 12345", unblockedListenerIP),
 		)
-		Ω(process.Wait()).Should(Equal(0))
+		Expect(process.Wait()).To(Equal(0))
 
 		process = runInContainer(
 			sender,
 			fmt.Sprintf("echo hello | nc -w 1 %s 12345", allowedListenerIP),
 		)
-		Ω(process.Wait()).Should(Equal(0))
+		Expect(process.Wait()).To(Equal(0))
 	})
 })

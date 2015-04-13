@@ -104,8 +104,8 @@ total_unevictable 28
 
 			It("is returned in the response", func() {
 				metrics, err := container.Metrics()
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(metrics.MemoryStat).Should(Equal(garden.ContainerMemoryStat{
+				Expect(err).ToNot(HaveOccurred())
+				Expect(metrics.MemoryStat).To(Equal(garden.ContainerMemoryStat{
 					Cache:                   1,
 					Rss:                     2,
 					MappedFile:              3,
@@ -150,7 +150,7 @@ total_unevictable 28
 
 			It("returns an error", func() {
 				_, err := container.Metrics()
-				Ω(err).Should(Equal(disaster))
+				Expect(err).To(Equal(disaster))
 			})
 		})
 
@@ -170,8 +170,8 @@ system 2
 
 			It("is returned in the response", func() {
 				metrics, err := container.Metrics()
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(metrics.CPUStat).Should(Equal(garden.ContainerCPUStat{
+				Expect(err).ToNot(HaveOccurred())
+				Expect(metrics.CPUStat).To(Equal(garden.ContainerCPUStat{
 					Usage:  42,
 					User:   1,
 					System: 2,
@@ -191,7 +191,7 @@ system 2
 
 			It("returns an error", func() {
 				_, err := container.Metrics()
-				Ω(err).Should(Equal(disaster))
+				Expect(err).To(Equal(disaster))
 			})
 		})
 
@@ -206,7 +206,7 @@ system 2
 
 			It("returns an error", func() {
 				_, err := container.Metrics()
-				Ω(err).Should(Equal(disaster))
+				Expect(err).To(Equal(disaster))
 			})
 		})
 
@@ -218,9 +218,9 @@ system 2
 				}
 
 				metrics, err := container.Metrics()
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(metrics.DiskStat).Should(Equal(garden.ContainerDiskStat{
+				Expect(metrics.DiskStat).To(Equal(garden.ContainerDiskStat{
 					BytesUsed:  1,
 					InodesUsed: 2,
 				}))
@@ -236,7 +236,7 @@ system 2
 
 				It("returns the error", func() {
 					_, err := container.Metrics()
-					Ω(err).Should(Equal(disaster))
+					Expect(err).To(Equal(disaster))
 				})
 			})
 		})

@@ -45,18 +45,18 @@ var _ = Describe("Configure", func() {
 		})
 
 		It("creates a virtual ethernet pair", func() {
-			Ω(configurer.ConfigureHost("host", "container", "bridge", 0, nil, nil, 0)).Should(Succeed())
+			Expect(configurer.ConfigureHost("host", "container", "bridge", 0, nil, nil, 0)).To(Succeed())
 
-			Ω(vethCreator.CreateCalledWith.HostIfcName).Should(Equal("host"))
-			Ω(vethCreator.CreateCalledWith.ContainerIfcName).Should(Equal("container"))
+			Expect(vethCreator.CreateCalledWith.HostIfcName).To(Equal("host"))
+			Expect(vethCreator.CreateCalledWith.ContainerIfcName).To(Equal("container"))
 		})
 
 		Context("when creating the pair fails", func() {
 			It("returns a wrapped error", func() {
 				vethCreator.CreateReturns.Err = errors.New("foo bar baz")
 				err := configurer.ConfigureHost("host", "container", "bridge", 0, nil, nil, 0)
-				Ω(err).Should(HaveOccurred())
-				Ω(err).Should(MatchError(&network.VethPairCreationError{vethCreator.CreateReturns.Err, "host", "container"}))
+				Expect(err).To(HaveOccurred())
+				Expect(err).To(MatchError(&network.VethPairCreationError{vethCreator.CreateReturns.Err, "host", "container"}))
 			})
 		})
 
@@ -67,30 +67,30 @@ var _ = Describe("Configure", func() {
 			})
 
 			It("should set mtu on the host interface", func() {
-				Ω(configurer.ConfigureHost("host", "", "bridge", 0, nil, nil, 123)).Should(Succeed())
+				Expect(configurer.ConfigureHost("host", "", "bridge", 0, nil, nil, 123)).To(Succeed())
 
-				Ω(linkConfigurer.SetMTUCalledWith.Interface).Should(Equal(vethCreator.CreateReturns.Host))
-				Ω(linkConfigurer.SetMTUCalledWith.MTU).Should(Equal(123))
+				Expect(linkConfigurer.SetMTUCalledWith.Interface).To(Equal(vethCreator.CreateReturns.Host))
+				Expect(linkConfigurer.SetMTUCalledWith.MTU).To(Equal(123))
 			})
 
 			Context("When setting the mtu fails", func() {
 				It("returns a wrapped error", func() {
 					linkConfigurer.SetMTUReturns = errors.New("o no")
 					err := configurer.ConfigureHost("host", "container", "bridge", 0, nil, nil, 14)
-					Ω(err).Should(MatchError(&network.MTUError{linkConfigurer.SetMTUReturns, vethCreator.CreateReturns.Host, 14}))
+					Expect(err).To(MatchError(&network.MTUError{linkConfigurer.SetMTUReturns, vethCreator.CreateReturns.Host, 14}))
 				})
 			})
 
 			It("should move the container interface in to the container's namespace", func() {
-				Ω(configurer.ConfigureHost("", "", "bridge", 3, nil, nil, 0)).Should(Succeed())
-				Ω(linkConfigurer.SetNsCalledWith.Pid).Should(Equal(3))
+				Expect(configurer.ConfigureHost("", "", "bridge", 3, nil, nil, 0)).To(Succeed())
+				Expect(linkConfigurer.SetNsCalledWith.Pid).To(Equal(3))
 			})
 
 			Context("When moving the container interface into the namespace fails", func() {
 				It("returns a wrapped error", func() {
 					linkConfigurer.SetNsReturns = errors.New("o no")
 					err := configurer.ConfigureHost("", "", "bridge", 3, nil, nil, 0)
-					Ω(err).Should(MatchError(&network.SetNsFailedError{linkConfigurer.SetNsReturns, vethCreator.CreateReturns.Container, 3}))
+					Expect(err).To(MatchError(&network.SetNsFailedError{linkConfigurer.SetNsReturns, vethCreator.CreateReturns.Container, 3}))
 				})
 			})
 
@@ -99,19 +99,19 @@ var _ = Describe("Configure", func() {
 					It("returns a wrapped error", func() {
 						_, subnet, _ := net.ParseCIDR("1.2.3.0/30")
 						err := configurer.ConfigureHost("", "", "bridge-that-doesnt-exist", 0, net.ParseIP("1.2.3.1"), subnet, 0)
-						Ω(err).Should(HaveOccurred())
+						Expect(err).To(HaveOccurred())
 					})
 				})
 
 				Context("when the bridge interface exists", func() {
 					It("adds the host interface to the existing bridge", func() {
-						Ω(configurer.ConfigureHost("", "", "bridge", 0, nil, nil, 0)).Should(Succeed())
-						Ω(bridger.AddCalledWith.Bridge).Should(Equal(existingBridge))
+						Expect(configurer.ConfigureHost("", "", "bridge", 0, nil, nil, 0)).To(Succeed())
+						Expect(bridger.AddCalledWith.Bridge).To(Equal(existingBridge))
 					})
 
 					It("brings the host interface up", func() {
-						Ω(configurer.ConfigureHost("", "", "bridge", 0, nil, nil, 0)).Should(Succeed())
-						Ω(linkConfigurer.SetUpCalledWith).Should(ContainElement(vethCreator.CreateReturns.Host))
+						Expect(configurer.ConfigureHost("", "", "bridge", 0, nil, nil, 0)).To(Succeed())
+						Expect(linkConfigurer.SetUpCalledWith).To(ContainElement(vethCreator.CreateReturns.Host))
 					})
 
 					Context("when bringing the host interface up fails", func() {
@@ -126,7 +126,7 @@ var _ = Describe("Configure", func() {
 							}
 
 							err := configurer.ConfigureHost("", "", "bridge", 0, nil, nil, 0)
-							Ω(err).Should(MatchError(&network.LinkUpError{cause, vethCreator.CreateReturns.Host, "host"}))
+							Expect(err).To(MatchError(&network.LinkUpError{cause, vethCreator.CreateReturns.Host, "host"}))
 						})
 					})
 				})
@@ -160,12 +160,12 @@ var _ = Describe("Configure", func() {
 
 			It("returns a wrapped error", func() {
 				err := configurer.ConfigureContainer("", nil, nil, nil, 0)
-				Ω(err).Should(MatchError(&network.FindLinkError{nil, "loopback", "lo"}))
+				Expect(err).To(MatchError(&network.FindLinkError{nil, "loopback", "lo"}))
 			})
 
 			It("does not attempt to configure other devices", func() {
-				Ω(configurer.ConfigureContainer("", nil, nil, nil, 0)).ShouldNot(Succeed())
-				Ω(linkConfigurer.SetUpCalledWith).ShouldNot(ContainElement(eth))
+				Expect(configurer.ConfigureContainer("", nil, nil, nil, 0)).ToNot(Succeed())
+				Expect(linkConfigurer.SetUpCalledWith).ToNot(ContainElement(eth))
 			})
 		})
 
@@ -181,8 +181,8 @@ var _ = Describe("Configure", func() {
 
 			It("adds 127.0.0.1/8 as an address", func() {
 				ip, subnet, _ := net.ParseCIDR("127.0.0.1/8")
-				Ω(configurer.ConfigureContainer("", nil, nil, nil, 0)).Should(Succeed())
-				Ω(linkConfigurer.AddIPCalledWith).Should(ContainElement(fakedevices.InterfaceIPAndSubnet{lo, ip, subnet}))
+				Expect(configurer.ConfigureContainer("", nil, nil, nil, 0)).To(Succeed())
+				Expect(linkConfigurer.AddIPCalledWith).To(ContainElement(fakedevices.InterfaceIPAndSubnet{lo, ip, subnet}))
 			})
 
 			Context("when adding the IP address fails", func() {
@@ -190,13 +190,13 @@ var _ = Describe("Configure", func() {
 					linkConfigurer.AddIPReturns["lo"] = errors.New("o no")
 					err := configurer.ConfigureContainer("", nil, nil, nil, 0)
 					ip, subnet, _ := net.ParseCIDR("127.0.0.1/8")
-					Ω(err).Should(MatchError(&network.ConfigureLinkError{errors.New("o no"), "loopback", lo, ip, subnet}))
+					Expect(err).To(MatchError(&network.ConfigureLinkError{errors.New("o no"), "loopback", lo, ip, subnet}))
 				})
 			})
 
 			It("brings it up", func() {
-				Ω(configurer.ConfigureContainer("", nil, nil, nil, 0)).Should(Succeed())
-				Ω(linkConfigurer.SetUpCalledWith).Should(ContainElement(lo))
+				Expect(configurer.ConfigureContainer("", nil, nil, nil, 0)).To(Succeed())
+				Expect(linkConfigurer.SetUpCalledWith).To(ContainElement(lo))
 			})
 
 			Context("when bringing the link up fails", func() {
@@ -206,7 +206,7 @@ var _ = Describe("Configure", func() {
 					}
 
 					err := configurer.ConfigureContainer("", nil, nil, nil, 0)
-					Ω(err).Should(MatchError(&network.LinkUpError{errors.New("o no"), lo, "loopback"}))
+					Expect(err).To(MatchError(&network.LinkUpError{errors.New("o no"), lo, "loopback"}))
 				})
 			})
 		})
@@ -224,7 +224,7 @@ var _ = Describe("Configure", func() {
 
 			It("returns a wrapped error", func() {
 				err := configurer.ConfigureContainer("foo", nil, nil, nil, 0)
-				Ω(err).Should(MatchError(&network.FindLinkError{nil, "container", "foo"}))
+				Expect(err).To(MatchError(&network.FindLinkError{nil, "container", "foo"}))
 			})
 		})
 
@@ -237,8 +237,8 @@ var _ = Describe("Configure", func() {
 
 			It("Adds the requested IP", func() {
 				ip, subnet, _ := net.ParseCIDR("2.3.4.5/6")
-				Ω(configurer.ConfigureContainer("foo", ip, nil, subnet, 0)).Should(Succeed())
-				Ω(linkConfigurer.AddIPCalledWith).Should(ContainElement(fakedevices.InterfaceIPAndSubnet{&net.Interface{Name: "foo"}, ip, subnet}))
+				Expect(configurer.ConfigureContainer("foo", ip, nil, subnet, 0)).To(Succeed())
+				Expect(linkConfigurer.AddIPCalledWith).To(ContainElement(fakedevices.InterfaceIPAndSubnet{&net.Interface{Name: "foo"}, ip, subnet}))
 			})
 
 			Context("when adding the IP fails", func() {
@@ -247,13 +247,13 @@ var _ = Describe("Configure", func() {
 
 					ip, subnet, _ := net.ParseCIDR("2.3.4.5/6")
 					err := configurer.ConfigureContainer("foo", ip, nil, subnet, 0)
-					Ω(err).Should(MatchError(&network.ConfigureLinkError{errors.New("o no"), "container", &net.Interface{Name: "foo"}, ip, subnet}))
+					Expect(err).To(MatchError(&network.ConfigureLinkError{errors.New("o no"), "container", &net.Interface{Name: "foo"}, ip, subnet}))
 				})
 			})
 
 			It("Brings the link up", func() {
-				Ω(configurer.ConfigureContainer("foo", nil, nil, nil, 0)).Should(Succeed())
-				Ω(linkConfigurer.SetUpCalledWith).Should(ContainElement(&net.Interface{Name: "foo"}))
+				Expect(configurer.ConfigureContainer("foo", nil, nil, nil, 0)).To(Succeed())
+				Expect(linkConfigurer.SetUpCalledWith).To(ContainElement(&net.Interface{Name: "foo"}))
 			})
 
 			Context("when bringing the link up fails", func() {
@@ -268,14 +268,14 @@ var _ = Describe("Configure", func() {
 					}
 
 					err := configurer.ConfigureContainer("foo", nil, nil, nil, 0)
-					Ω(err).Should(MatchError(&network.LinkUpError{cause, &net.Interface{Name: "foo"}, "container"}))
+					Expect(err).To(MatchError(&network.LinkUpError{cause, &net.Interface{Name: "foo"}, "container"}))
 				})
 			})
 
 			It("sets the mtu", func() {
-				Ω(configurer.ConfigureContainer("foo", nil, nil, nil, 1234)).Should(Succeed())
-				Ω(linkConfigurer.SetMTUCalledWith.Interface).Should(Equal(&net.Interface{Name: "foo"}))
-				Ω(linkConfigurer.SetMTUCalledWith.MTU).Should(Equal(1234))
+				Expect(configurer.ConfigureContainer("foo", nil, nil, nil, 1234)).To(Succeed())
+				Expect(linkConfigurer.SetMTUCalledWith.Interface).To(Equal(&net.Interface{Name: "foo"}))
+				Expect(linkConfigurer.SetMTUCalledWith.MTU).To(Equal(1234))
 			})
 
 			Context("when setting the mtu fails", func() {
@@ -283,14 +283,14 @@ var _ = Describe("Configure", func() {
 					linkConfigurer.SetMTUReturns = errors.New("this is NOT the right potato")
 
 					err := configurer.ConfigureContainer("foo", nil, nil, nil, 1234)
-					Ω(err).Should(MatchError(&network.MTUError{linkConfigurer.SetMTUReturns, &net.Interface{Name: "foo"}, 1234}))
+					Expect(err).To(MatchError(&network.MTUError{linkConfigurer.SetMTUReturns, &net.Interface{Name: "foo"}, 1234}))
 				})
 			})
 
 			It("adds a default gateway with the requested IP", func() {
-				Ω(configurer.ConfigureContainer("foo", nil, net.ParseIP("2.3.4.5"), nil, 0)).Should(Succeed())
-				Ω(linkConfigurer.AddDefaultGWCalledWith.Interface).Should(Equal(&net.Interface{Name: "foo"}))
-				Ω(linkConfigurer.AddDefaultGWCalledWith.IP).Should(Equal(net.ParseIP("2.3.4.5")))
+				Expect(configurer.ConfigureContainer("foo", nil, net.ParseIP("2.3.4.5"), nil, 0)).To(Succeed())
+				Expect(linkConfigurer.AddDefaultGWCalledWith.Interface).To(Equal(&net.Interface{Name: "foo"}))
+				Expect(linkConfigurer.AddDefaultGWCalledWith.IP).To(Equal(net.ParseIP("2.3.4.5")))
 			})
 
 			Context("when adding a default gateway fails", func() {
@@ -298,7 +298,7 @@ var _ = Describe("Configure", func() {
 					linkConfigurer.AddDefaultGWReturns = errors.New("this is NOT the right potato")
 
 					err := configurer.ConfigureContainer("foo", nil, net.ParseIP("2.3.4.5"), nil, 0)
-					Ω(err).Should(MatchError(&network.ConfigureDefaultGWError{linkConfigurer.AddDefaultGWReturns, &net.Interface{Name: "foo"}, net.ParseIP("2.3.4.5")}))
+					Expect(err).To(MatchError(&network.ConfigureDefaultGWError{linkConfigurer.AddDefaultGWReturns, &net.Interface{Name: "foo"}, net.ParseIP("2.3.4.5")}))
 				})
 			})
 		})

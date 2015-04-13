@@ -23,13 +23,13 @@ var _ = Describe("Networking recovery", func() {
 			containerNetwork := fmt.Sprintf("10.%d.0.0/24", GinkgoParallelNode())
 			var err error
 			ctr1, err = client.Create(garden.ContainerSpec{Network: containerNetwork})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 			ctr2, err = client.Create(garden.ContainerSpec{Network: containerNetwork})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			bridgeEvidence = fmt.Sprintf("inet 10.%d.0.254/24 scope global w%db-", GinkgoParallelNode(), GinkgoParallelNode())
 			cmd := exec.Command("ip", "a")
-			Ω(cmd.CombinedOutput()).Should(ContainSubstring(bridgeEvidence))
+			Expect(cmd.CombinedOutput()).To(ContainSubstring(bridgeEvidence))
 		})
 
 		Context("when garden is killed and restarted using SIGKILL", func() {
@@ -38,12 +38,12 @@ var _ = Describe("Networking recovery", func() {
 				Eventually(gardenProcess.Wait(), "10s").Should(Receive())
 
 				client = startGarden()
-				Ω(client.Ping()).ShouldNot(HaveOccurred())
+				Expect(client.Ping()).ToNot(HaveOccurred())
 			})
 
 			It("the subnet's bridge no longer exists", func() {
 				cmd := exec.Command("ip", "a")
-				Ω(cmd.CombinedOutput()).ShouldNot(ContainSubstring(bridgeEvidence))
+				Expect(cmd.CombinedOutput()).ToNot(ContainSubstring(bridgeEvidence))
 			})
 		})
 
@@ -53,18 +53,18 @@ var _ = Describe("Networking recovery", func() {
 				Eventually(gardenProcess.Wait(), "10s").Should(Receive())
 
 				client = startGarden()
-				Ω(client.Ping()).ShouldNot(HaveOccurred())
+				Expect(client.Ping()).ToNot(HaveOccurred())
 
 				cmd := exec.Command("ip", "a")
-				Ω(cmd.CombinedOutput()).Should(ContainSubstring(bridgeEvidence))
+				Expect(cmd.CombinedOutput()).To(ContainSubstring(bridgeEvidence))
 
-				Ω(client.Destroy(ctr1.Handle())).Should(Succeed())
-				Ω(client.Destroy(ctr2.Handle())).Should(Succeed())
+				Expect(client.Destroy(ctr1.Handle())).To(Succeed())
+				Expect(client.Destroy(ctr2.Handle())).To(Succeed())
 			})
 
 			It("the subnet's bridge no longer exists", func() {
 				cmd := exec.Command("ip", "a")
-				Ω(cmd.CombinedOutput()).ShouldNot(ContainSubstring(bridgeEvidence))
+				Expect(cmd.CombinedOutput()).ToNot(ContainSubstring(bridgeEvidence))
 			})
 		})
 
@@ -74,25 +74,25 @@ var _ = Describe("Networking recovery", func() {
 				Eventually(gardenProcess.Wait(), "10s").Should(Receive())
 
 				client = startGarden()
-				Ω(client.Ping()).ShouldNot(HaveOccurred())
+				Expect(client.Ping()).ToNot(HaveOccurred())
 			})
 
 			It("the subnet's bridge still exists", func() {
 				cmd := exec.Command("ip", "a")
-				Ω(cmd.CombinedOutput()).Should(ContainSubstring(bridgeEvidence))
+				Expect(cmd.CombinedOutput()).To(ContainSubstring(bridgeEvidence))
 			})
 
 			It("containers are still pingable", func() {
 				info1, ierr := ctr1.Info()
-				Ω(ierr).ShouldNot(HaveOccurred())
+				Expect(ierr).ToNot(HaveOccurred())
 
 				out, err := exec.Command("/bin/ping", "-c 2", info1.ContainerIP).Output()
-				Ω(out).Should(ContainSubstring(" 0% packet loss"))
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(out).To(ContainSubstring(" 0% packet loss"))
+				Expect(err).ToNot(HaveOccurred())
 			})
 
 			It("a container can still reach external networks", func() {
-				Ω(checkInternet(ctr1)).Should(Succeed())
+				Expect(checkInternet(ctr1)).To(Succeed())
 			})
 		})
 	})

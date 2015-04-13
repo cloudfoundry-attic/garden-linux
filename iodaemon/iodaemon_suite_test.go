@@ -28,18 +28,18 @@ var _ = SynchronizedBeforeSuite(func() []byte {
 	var err error
 	assets := CompiledAssets{}
 	assets.IoDaemon, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/iodaemon", "-race")
-	Ω(err).ShouldNot(HaveOccurred())
+	Expect(err).ToNot(HaveOccurred())
 
 	assets.WinSizeReporter, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/iodaemon/winsizereporter", "-race")
-	Ω(err).ShouldNot(HaveOccurred())
+	Expect(err).ToNot(HaveOccurred())
 
 	marshalledAssets, err := json.Marshal(assets)
-	Ω(err).ShouldNot(HaveOccurred())
+	Expect(err).ToNot(HaveOccurred())
 	return marshalledAssets
 }, func(marshalledAssets []byte) {
 	assets := CompiledAssets{}
 	err := json.Unmarshal(marshalledAssets, &assets)
-	Ω(err).ShouldNot(HaveOccurred())
+	Expect(err).ToNot(HaveOccurred())
 	iodaemon = assets.IoDaemon
 	winsizeReporter = assets.WinSizeReporter
 })
@@ -54,7 +54,7 @@ var _ = BeforeEach(func() {
 	var err error
 
 	tmpdir, err = ioutil.TempDir("", "socket-dir")
-	Ω(err).ShouldNot(HaveOccurred())
+	Expect(err).ToNot(HaveOccurred())
 
 	socketPath = filepath.Join(tmpdir, "iodaemon.sock")
 })

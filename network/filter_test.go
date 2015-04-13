@@ -19,21 +19,21 @@ var _ = Describe("Filter", func() {
 	BeforeEach(func() {
 		fakeChain = new(fakes.FakeChain)
 		filter = network.NewFilter(fakeChain)
-		Ω(filter).ShouldNot(BeNil())
+		Expect(filter).ToNot(BeNil())
 	})
 
 	Context("Setup", func() {
 		It("sets up the chain", func() {
-			Ω(filter.Setup("logPrefix")).Should(Succeed())
-			Ω(fakeChain.SetupCallCount()).Should(Equal(1))
-			Ω(fakeChain.SetupArgsForCall(0)).Should(Equal("logPrefix"))
+			Expect(filter.Setup("logPrefix")).To(Succeed())
+			Expect(fakeChain.SetupCallCount()).To(Equal(1))
+			Expect(fakeChain.SetupArgsForCall(0)).To(Equal("logPrefix"))
 		})
 
 		Context("when chain setup returns an error", func() {
 			It("Setup wraps the error and returns it", func() {
 				fakeChain.SetupReturns(errors.New("x"))
 				err := filter.Setup("logPrefix")
-				Ω(err).Should(MatchError("network: log chain setup: x"))
+				Expect(err).To(MatchError("network: log chain setup: x"))
 			})
 		})
 	})
@@ -41,7 +41,7 @@ var _ = Describe("Filter", func() {
 	Context("TearDown", func() {
 		It("tears down the chain", func() {
 			filter.TearDown()
-			Ω(fakeChain.TearDownCallCount()).Should(Equal(1))
+			Expect(fakeChain.TearDownCallCount()).To(Equal(1))
 		})
 	})
 
@@ -49,16 +49,16 @@ var _ = Describe("Filter", func() {
 		It("should mutate IP tables", func() {
 			rule := garden.NetOutRule{}
 			err := filter.NetOut(rule)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(fakeChain.PrependFilterRuleCallCount()).Should(Equal(1))
+			Expect(fakeChain.PrependFilterRuleCallCount()).To(Equal(1))
 			passedRule := fakeChain.PrependFilterRuleArgsForCall(0)
-			Ω(passedRule).Should(Equal(passedRule))
+			Expect(passedRule).To(Equal(passedRule))
 		})
 
 		It("returns an error if one occurs", func() {
 			fakeChain.PrependFilterRuleReturns(errors.New("iptables says no"))
-			Ω(filter.NetOut(garden.NetOutRule{})).Should(MatchError("iptables says no"))
+			Expect(filter.NetOut(garden.NetOutRule{})).To(MatchError("iptables says no"))
 		})
 	})
 })

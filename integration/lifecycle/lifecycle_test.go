@@ -29,7 +29,7 @@ var _ = Describe("Creating a container", func() {
 			It("returns an error message naming the overlapped range", func() {
 				client = startGarden("--networkPool", "1.2.3.0/24")
 				_, err := client.Create(garden.ContainerSpec{Network: "1.2.3.0/25"})
-				Ω(err).Should(MatchError("the requested subnet (1.2.3.0/25) overlaps the dynamic allocation range (1.2.3.0/24)"))
+				Expect(err).To(MatchError("the requested subnet (1.2.3.0/25) overlaps the dynamic allocation range (1.2.3.0/24)"))
 			})
 		})
 
@@ -37,9 +37,9 @@ var _ = Describe("Creating a container", func() {
 			It("returns an error message naming the overlapped range", func() {
 				client = startGarden()
 				_, err := client.Create(garden.ContainerSpec{Privileged: false, Network: "10.2.0.0/29"})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 				_, err = client.Create(garden.ContainerSpec{Privileged: false, Network: "10.2.0.0/30"})
-				Ω(err).Should(MatchError("the requested subnet (10.2.0.0/30) overlaps an existing subnet (10.2.0.0/29)"))
+				Expect(err).To(MatchError("the requested subnet (10.2.0.0/30) overlaps an existing subnet (10.2.0.0/29)"))
 			})
 		})
 	})
@@ -48,7 +48,7 @@ var _ = Describe("Creating a container", func() {
 		allBridges := func() []byte {
 			stdout := gbytes.NewBuffer()
 			cmd, err := gexec.Start(exec.Command("ip", "a"), stdout, GinkgoWriter)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 			cmd.Wait()
 
 			return stdout.Contents()
@@ -58,12 +58,12 @@ var _ = Describe("Creating a container", func() {
 			client = startGarden()
 
 			bridgePrefix := fmt.Sprintf("w%db-", GinkgoParallelNode())
-			Ω(allBridges()).ShouldNot(ContainSubstring(bridgePrefix))
+			Expect(allBridges()).ToNot(ContainSubstring(bridgePrefix))
 
 			handles := make([]string, 0)
 			for i := 0; i < 5; i++ {
 				c, err := client.Create(garden.ContainerSpec{})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				handles = append(handles, c.Handle())
 			}
@@ -96,8 +96,8 @@ var _ = Describe("Creating a container", func() {
 
 			wg.Wait()
 
-			Ω(errors).ShouldNot(Receive())
-			Ω(client.Containers(garden.Properties{})).Should(HaveLen(0)) // sanity check
+			Expect(errors).ToNot(Receive())
+			Expect(client.Containers(garden.Properties{})).To(HaveLen(0)) // sanity check
 
 			Eventually(allBridges).ShouldNot(ContainSubstring(bridgePrefix))
 		})
@@ -118,7 +118,7 @@ var _ = Describe("Creating a container", func() {
 				fmt.Sprintf("test-garden-%d", GinkgoParallelNode()),
 				"containers",
 			)
-			Ω(ioutil.ReadDir(depotDir)).Should(HaveLen(0))
+			Expect(ioutil.ReadDir(depotDir)).To(HaveLen(0))
 		})
 	})
 
@@ -134,12 +134,12 @@ var _ = Describe("Creating a container", func() {
 			var err error
 
 			container, err = client.Create(garden.ContainerSpec{Privileged: privilegedContainer, RootFSPath: rootfs})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 		})
 
 		AfterEach(func() {
 			if container != nil {
-				Ω(client.Destroy(container.Handle())).Should(Succeed())
+				Expect(client.Destroy(container.Handle())).To(Succeed())
 			}
 		})
 
@@ -153,9 +153,9 @@ var _ = Describe("Creating a container", func() {
 				Path: "test",
 				Args: []string{"-e", "/tmp/ran-seed"},
 			}, garden.ProcessIO{})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(process.Wait()).Should(Equal(0))
+			Expect(process.Wait()).To(Equal(0))
 		})
 
 		It("provides /dev/shm as tmpfs in the container", func() {
@@ -163,9 +163,9 @@ var _ = Describe("Creating a container", func() {
 				Path: "dd",
 				Args: []string{"if=/dev/urandom", "of=/dev/shm/some-data", "count=64", "bs=1k"},
 			}, garden.ProcessIO{})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(process.Wait()).Should(Equal(0))
+			Expect(process.Wait()).To(Equal(0))
 
 			outBuf := gbytes.NewBuffer()
 
@@ -175,26 +175,26 @@ var _ = Describe("Creating a container", func() {
 			}, garden.ProcessIO{
 				Stdout: outBuf,
 			})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(process.Wait()).Should(Equal(0))
+			Expect(process.Wait()).To(Equal(0))
 
-			Ω(outBuf).Should(gbytes.Say("tmpfs /dev/shm tmpfs"))
-			Ω(outBuf).Should(gbytes.Say("rw,nodev,relatime"))
+			Expect(outBuf).To(gbytes.Say("tmpfs /dev/shm tmpfs"))
+			Expect(outBuf).To(gbytes.Say("rw,nodev,relatime"))
 		})
 
 		Context("and sending a List request", func() {
 			It("includes the created container", func() {
-				Ω(getContainerHandles()).Should(ContainElement(container.Handle()))
+				Expect(getContainerHandles()).To(ContainElement(container.Handle()))
 			})
 		})
 
 		Context("and sending an Info request", func() {
 			It("returns the container's info", func() {
 				info, err := container.Info()
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(info.State).Should(Equal("active"))
+				Expect(info.State).To(Equal("active"))
 			})
 		})
 
@@ -206,7 +206,7 @@ var _ = Describe("Creating a container", func() {
 			}, garden.ProcessIO{
 				Stdout: stdout,
 			})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			Eventually(stdout).Should(gbytes.Say(fmt.Sprintf("%s\n", container.Handle())))
 		})
@@ -228,10 +228,10 @@ var _ = Describe("Creating a container", func() {
 						Stderr: GinkgoWriter,
 					})
 
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
 					process.Wait()
-					Ω(stdout).Should(gbytes.Say("foo"))
+					Expect(stdout).To(gbytes.Say("foo"))
 				})
 			})
 
@@ -255,10 +255,10 @@ var _ = Describe("Creating a container", func() {
 						Stderr: GinkgoWriter,
 					})
 
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
 					process.Wait()
-					Ω(stdout).Should(gbytes.Say("/usr/local/bin:/usr/bin:/bin:/from-dockerfile"))
+					Expect(stdout).To(gbytes.Say("/usr/local/bin:/usr/bin:/bin:/from-dockerfile"))
 				})
 
 				It("$TEST is taken from the docker image", func() {
@@ -271,10 +271,10 @@ var _ = Describe("Creating a container", func() {
 						Stderr: GinkgoWriter,
 					})
 
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
 					process.Wait()
-					Ω(stdout).Should(gbytes.Say("second-test-from-dockerfile:test-from-dockerfile"))
+					Expect(stdout).To(gbytes.Say("second-test-from-dockerfile:test-from-dockerfile"))
 				})
 			})
 		})
@@ -289,7 +289,7 @@ var _ = Describe("Creating a container", func() {
 					Stdout: stdout,
 				})
 
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 				Eventually(stdout).Should(gbytes.Say("vcap\n"))
 			})
 
@@ -304,7 +304,7 @@ var _ = Describe("Creating a container", func() {
 						Stdout: stdout,
 					})
 
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 					Eventually(stdout).Should(gbytes.Say("root\n"))
 				})
 
@@ -319,7 +319,7 @@ var _ = Describe("Creating a container", func() {
 							User: "root",
 						}, garden.ProcessIO{})
 
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 					})
 				})
 
@@ -330,9 +330,9 @@ var _ = Describe("Creating a container", func() {
 							User: "root",
 							Args: []string{"-c", "echo h > /proc/sysrq-trigger"},
 						}, garden.ProcessIO{})
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
-						Ω(process.Wait()).ShouldNot(Equal(0))
+						Expect(process.Wait()).ToNot(Equal(0))
 					})
 
 					It("can write to files in the /root directory", func() {
@@ -341,9 +341,9 @@ var _ = Describe("Creating a container", func() {
 							Path: "sh",
 							Args: []string{"-c", `touch /root/potato`},
 						}, garden.ProcessIO{})
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
-						Ω(process.Wait()).Should(Equal(0))
+						Expect(process.Wait()).To(Equal(0))
 					})
 				})
 
@@ -358,9 +358,9 @@ var _ = Describe("Creating a container", func() {
 							User: "root",
 							Args: []string{"-c", "echo h > /proc/sysrq-trigger"},
 						}, garden.ProcessIO{})
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
-						Ω(process.Wait()).Should(Equal(0))
+						Expect(process.Wait()).To(Equal(0))
 					})
 
 					It("can write to files in the /root directory", func() {
@@ -369,9 +369,9 @@ var _ = Describe("Creating a container", func() {
 							Path: "sh",
 							Args: []string{"-c", `touch /root/potato`},
 						}, garden.ProcessIO{})
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
-						Ω(process.Wait()).Should(Equal(0))
+						Expect(process.Wait()).To(Equal(0))
 					})
 				})
 			})
@@ -388,7 +388,7 @@ var _ = Describe("Creating a container", func() {
 						Stdout: stdout,
 						Stderr: stderr,
 					})
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
 					Eventually(stdout, "2s").Should(gbytes.Say("done\n"))
 				})
@@ -404,12 +404,12 @@ var _ = Describe("Creating a container", func() {
 						Stdout: stdout,
 						Stderr: stderr,
 					})
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
 					Eventually(stdout, "2s").Should(gbytes.Say("done\n"))
 				})
 
-				Ω(time.Seconds()).Should(BeNumerically("<", 1))
+				Expect(time.Seconds()).To(BeNumerically("<", 1))
 			}, 10)
 
 			It("streams output back and reports the exit status", func() {
@@ -424,11 +424,11 @@ var _ = Describe("Creating a container", func() {
 					Stdout: stdout,
 					Stderr: stderr,
 				})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				Eventually(stdout).Should(gbytes.Say("hello\n"))
 				Eventually(stderr).Should(gbytes.Say("goodbye\n"))
-				Ω(process.Wait()).Should(Equal(42))
+				Expect(process.Wait()).To(Equal(42))
 			})
 
 			It("sends a TERM signal to the process if requested", func() {
@@ -448,12 +448,12 @@ var _ = Describe("Creating a container", func() {
 					Stdout: io.MultiWriter(GinkgoWriter, stdout),
 					Stderr: GinkgoWriter,
 				})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				Eventually(stdout).Should(gbytes.Say("waiting"))
-				Ω(process.Signal(garden.SignalTerminate)).Should(Succeed())
+				Expect(process.Signal(garden.SignalTerminate)).To(Succeed())
 				Eventually(stdout, "2s").Should(gbytes.Say("termed"))
-				Ω(process.Wait()).Should(Equal(42))
+				Expect(process.Wait()).To(Equal(42))
 			})
 
 			It("sends a KILL signal to the process if requested", func() {
@@ -471,11 +471,11 @@ var _ = Describe("Creating a container", func() {
 					Stdout: io.MultiWriter(GinkgoWriter, stdout),
 					Stderr: GinkgoWriter,
 				})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				Eventually(stdout).Should(gbytes.Say("waiting"))
-				Ω(process.Signal(garden.SignalKill)).Should(Succeed())
-				Ω(process.Wait()).ShouldNot(Equal(0))
+				Expect(process.Signal(garden.SignalKill)).To(Succeed())
+				Expect(process.Wait()).ToNot(Equal(0))
 			})
 
 			It("avoids a race condition when sending a kill signal", func(done Done) {
@@ -489,10 +489,10 @@ var _ = Describe("Creating a container", func() {
 						Stdout: io.MultiWriter(GinkgoWriter, stdout),
 						Stderr: GinkgoWriter,
 					})
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
-					Ω(process.Signal(garden.SignalKill)).Should(Succeed())
-					Ω(process.Wait()).Should(Equal(255))
+					Expect(process.Signal(garden.SignalKill)).To(Succeed())
+					Expect(process.Wait()).To(Equal(255))
 				}
 				close(done)
 			}, 30.0)
@@ -515,10 +515,10 @@ var _ = Describe("Creating a container", func() {
 						select {}
 					}
 
-					Ω(err).ShouldNot(HaveOccurred())
-					Ω(process.Wait()).Should(Equal(0))
+					Expect(err).ToNot(HaveOccurred())
+					Expect(process.Wait()).To(Equal(0))
 
-					Ω(stdout).Should(gbytes.Say("hi stdout"))
+					Expect(stdout).To(gbytes.Say("hi stdout"))
 				}
 			})
 
@@ -532,17 +532,17 @@ var _ = Describe("Creating a container", func() {
 					Stdin:  bytes.NewBufferString("hello\nworld"),
 					Stdout: stdout,
 				})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				Eventually(stdout).Should(gbytes.Say("hello\nworld"))
-				Ω(process.Wait()).Should(Equal(0))
+				Expect(process.Wait()).To(Equal(0))
 			})
 
 			It("does not leak open files", func() {
 				openFileCount := func() int {
 					procFd := fmt.Sprintf("/proc/%d/fd", gardenRunner.Command.Process.Pid)
 					files, err := ioutil.ReadDir(procFd)
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 					return len(files)
 				}
 
@@ -555,8 +555,8 @@ var _ = Describe("Creating a container", func() {
 						Stdout: GinkgoWriter,
 						Stderr: GinkgoWriter,
 					})
-					Ω(err).ShouldNot(HaveOccurred())
-					Ω(process.Wait()).Should(Equal(0))
+					Expect(err).ToNot(HaveOccurred())
+					Expect(process.Wait()).To(Equal(0))
 				}
 
 				// there's some noise in 'open files' check, but it shouldn't grow
@@ -578,9 +578,9 @@ var _ = Describe("Creating a container", func() {
 					}, garden.ProcessIO{
 						Stdin: bytes.NewBufferString(strings.Repeat("x", 1024)),
 					})
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
-					Ω(process.Wait()).Should(Equal(0))
+					Expect(process.Wait()).To(Equal(0))
 				}
 			})
 
@@ -589,7 +589,7 @@ var _ = Describe("Creating a container", func() {
 					err := container.LimitMemory(garden.MemoryLimits{
 						LimitInBytes: 64 * 1024 * 1024,
 					})
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 				})
 
 				Context("when the process writes too much to /dev/shm", func() {
@@ -598,9 +598,9 @@ var _ = Describe("Creating a container", func() {
 							Path: "dd",
 							Args: []string{"if=/dev/urandom", "of=/dev/shm/too-big", "bs=1M", "count=65"},
 						}, garden.ProcessIO{})
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
-						Ω(process.Wait()).ShouldNot(Equal(0))
+						Expect(process.Wait()).ToNot(Equal(0))
 					})
 				})
 			})
@@ -624,19 +624,19 @@ var _ = Describe("Creating a container", func() {
 						Stdin:  inR,
 						Stdout: stdout,
 					})
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
 					_, err = inW.Write([]byte("hello"))
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
 					Eventually(stdout).Should(gbytes.Say("hello"))
 
 					_, err = inW.Write([]byte("\n"))
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
 					Eventually(stdout).Should(gbytes.Say("rows 456; columns 123;"))
 
-					Ω(process.Wait()).Should(Equal(0))
+					Expect(process.Wait()).To(Equal(0))
 				})
 
 				It("can have its terminal resized", func() {
@@ -665,7 +665,7 @@ var _ = Describe("Creating a container", func() {
 						Stdin:  inR,
 						Stdout: stdout,
 					})
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
 					Eventually(stdout).Should(gbytes.Say("waiting"))
 
@@ -675,14 +675,14 @@ var _ = Describe("Creating a container", func() {
 							Rows:    456,
 						},
 					})
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
 					Eventually(stdout).Should(gbytes.Say("rows 456; columns 123;"))
 
 					_, err = fmt.Fprintf(inW, "ok\n")
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
-					Ω(process.Wait()).Should(Equal(0))
+					Expect(process.Wait()).To(Equal(0))
 				})
 			})
 
@@ -696,10 +696,10 @@ var _ = Describe("Creating a container", func() {
 					}, garden.ProcessIO{
 						Stdout: stdout,
 					})
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
 					Eventually(stdout).Should(gbytes.Say("/usr\n"))
-					Ω(process.Wait()).Should(Equal(0))
+					Expect(process.Wait()).To(Equal(0))
 				})
 			})
 
@@ -714,12 +714,12 @@ var _ = Describe("Creating a container", func() {
 					}, garden.ProcessIO{
 						Stdout: stdout1,
 					})
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
 					attached, err := container.Attach(process.ID(), garden.ProcessIO{
 						Stdout: stdout2,
 					})
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
 					time.Sleep(2 * time.Second)
 
@@ -729,8 +729,8 @@ var _ = Describe("Creating a container", func() {
 					Eventually(stdout2).Should(gbytes.Say("hello\n"))
 					Eventually(stdout2).Should(gbytes.Say("goodbye\n"))
 
-					Ω(process.Wait()).Should(Equal(42))
-					Ω(attached.Wait()).Should(Equal(42))
+					Expect(process.Wait()).To(Equal(42))
+					Expect(attached.Wait()).To(Equal(42))
 
 					close(done)
 				}, 10.0)
@@ -757,14 +757,14 @@ var _ = Describe("Creating a container", func() {
 					}, garden.ProcessIO{
 						Stdout: stdout,
 					})
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
 					Eventually(stdout, 30).Should(gbytes.Say("waiting"))
 
 					err = container.Stop(false)
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
-					Ω(process.Wait()).Should(Equal(42))
+					Expect(process.Wait()).To(Equal(42))
 				})
 
 				It("recursively terminates all child processes", func(done Done) {
@@ -794,18 +794,18 @@ var _ = Describe("Creating a container", func() {
 						Stdout: stdout,
 					})
 
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
 					Eventually(stdout, 5).Should(gbytes.Say("waiting\n"))
 
 					stoppedAt := time.Now()
 
 					err = container.Stop(false)
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
-					Ω(process.Wait()).Should(Equal(143)) // 143 = 128 + SIGTERM
+					Expect(process.Wait()).To(Equal(143)) // 143 = 128 + SIGTERM
 
-					Ω(time.Since(stoppedAt)).Should(BeNumerically("<=", 5*time.Second))
+					Expect(time.Since(stoppedAt)).To(BeNumerically("<=", 5*time.Second))
 				}, 15)
 
 				Context("when a process does not die 10 seconds after receiving SIGTERM", func() {
@@ -826,16 +826,16 @@ var _ = Describe("Creating a container", func() {
 							},
 						}, garden.ProcessIO{})
 
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
 						stoppedAt := time.Now()
 
 						err = container.Stop(false)
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
-						Ω(process.Wait()).ShouldNot(Equal(0)) // either 137 or 255
+						Expect(process.Wait()).ToNot(Equal(0)) // either 137 or 255
 
-						Ω(time.Since(stoppedAt)).Should(BeNumerically(">=", 10*time.Second))
+						Expect(time.Since(stoppedAt)).To(BeNumerically(">=", 10*time.Second))
 					}, 15)
 				})
 			})
@@ -846,7 +846,7 @@ var _ = Describe("Creating a container", func() {
 
 			JustBeforeEach(func() {
 				tmpdir, err := ioutil.TempDir("", "some-temp-dir-parent")
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				tgzPath := filepath.Join(tmpdir, "some.tgz")
 
@@ -865,23 +865,23 @@ var _ = Describe("Creating a container", func() {
 				)
 
 				tgz, err := os.Open(tgzPath)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				tarStream, err = gzip.NewReader(tgz)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 			})
 
 			It("creates the files in the container, as the vcap user", func() {
 				err := container.StreamIn("/tmp/some/container/dir", tarStream)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				process, err := container.Run(garden.ProcessSpec{
 					Path: "test",
 					Args: []string{"-f", "/tmp/some/container/dir/some-temp-dir/some-temp-file"},
 				}, garden.ProcessIO{})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(process.Wait()).Should(Equal(0))
+				Expect(process.Wait()).To(Equal(0))
 
 				output := gbytes.NewBuffer()
 				process, err = container.Run(garden.ProcessSpec{
@@ -890,13 +890,13 @@ var _ = Describe("Creating a container", func() {
 				}, garden.ProcessIO{
 					Stdout: output,
 				})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(process.Wait()).Should(Equal(0))
+				Expect(process.Wait()).To(Equal(0))
 
 				// output should look like -rwxrwxrwx 1 vcap vcap 9 Jan  1  1970 /tmp/some-container-dir/some-temp-dir/some-temp-file
-				Ω(output).Should(gbytes.Say("vcap"))
-				Ω(output).Should(gbytes.Say("vcap"))
+				Expect(output).To(gbytes.Say("vcap"))
+				Expect(output).To(gbytes.Say("vcap"))
 			})
 
 			Context("in a privileged container", func() {
@@ -906,29 +906,29 @@ var _ = Describe("Creating a container", func() {
 
 				It("streams in relative to the default run directory", func() {
 					err := container.StreamIn(".", tarStream)
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
 					process, err := container.Run(garden.ProcessSpec{
 						Path: "test",
 						Args: []string{"-f", "some-temp-dir/some-temp-file"},
 					}, garden.ProcessIO{})
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
-					Ω(process.Wait()).Should(Equal(0))
+					Expect(process.Wait()).To(Equal(0))
 				})
 			})
 
 			It("streams in relative to the default run directory", func() {
 				err := container.StreamIn(".", tarStream)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				process, err := container.Run(garden.ProcessSpec{
 					Path: "test",
 					Args: []string{"-f", "some-temp-dir/some-temp-file"},
 				}, garden.ProcessIO{})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(process.Wait()).Should(Equal(0))
+				Expect(process.Wait()).To(Equal(0))
 			})
 
 			It("returns an error when the tar process dies", func() {
@@ -936,7 +936,7 @@ var _ = Describe("Creating a container", func() {
 					R: tarStream,
 					N: 10,
 				})
-				Ω(err).Should(HaveOccurred())
+				Expect(err).To(HaveOccurred())
 			})
 
 			Context("and then copying them out", func() {
@@ -945,22 +945,22 @@ var _ = Describe("Creating a container", func() {
 						Path: "sh",
 						Args: []string{"-c", `mkdir -p some-outer-dir/some-inner-dir && touch some-outer-dir/some-inner-dir/some-file`},
 					}, garden.ProcessIO{})
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
-					Ω(process.Wait()).Should(Equal(0))
+					Expect(process.Wait()).To(Equal(0))
 
 					tarOutput, err := container.StreamOut("some-outer-dir/some-inner-dir")
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
 					tarReader := tar.NewReader(tarOutput)
 
 					header, err := tarReader.Next()
-					Ω(err).ShouldNot(HaveOccurred())
-					Ω(header.Name).Should(Equal("some-inner-dir/"))
+					Expect(err).ToNot(HaveOccurred())
+					Expect(header.Name).To(Equal("some-inner-dir/"))
 
 					header, err = tarReader.Next()
-					Ω(err).ShouldNot(HaveOccurred())
-					Ω(header.Name).Should(Equal("some-inner-dir/some-file"))
+					Expect(err).ToNot(HaveOccurred())
+					Expect(header.Name).To(Equal("some-inner-dir/some-file"))
 				})
 
 				Context("with a trailing slash", func() {
@@ -969,22 +969,22 @@ var _ = Describe("Creating a container", func() {
 							Path: "sh",
 							Args: []string{"-c", `mkdir -p some-container-dir && touch some-container-dir/some-file`},
 						}, garden.ProcessIO{})
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
-						Ω(process.Wait()).Should(Equal(0))
+						Expect(process.Wait()).To(Equal(0))
 
 						tarOutput, err := container.StreamOut("some-container-dir/")
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
 						tarReader := tar.NewReader(tarOutput)
 
 						header, err := tarReader.Next()
-						Ω(err).ShouldNot(HaveOccurred())
-						Ω(header.Name).Should(Equal("./"))
+						Expect(err).ToNot(HaveOccurred())
+						Expect(header.Name).To(Equal("./"))
 
 						header, err = tarReader.Next()
-						Ω(err).ShouldNot(HaveOccurred())
-						Ω(header.Name).Should(Equal("./some-file"))
+						Expect(err).ToNot(HaveOccurred())
+						Expect(header.Name).To(Equal("./some-file"))
 					})
 				})
 			})
@@ -993,31 +993,31 @@ var _ = Describe("Creating a container", func() {
 		Context("and sending a Stop request", func() {
 			It("changes the container's state to 'stopped'", func() {
 				err := container.Stop(false)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				info, err := container.Info()
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(info.State).Should(Equal("stopped"))
+				Expect(info.State).To(Equal("stopped"))
 			})
 		})
 
 		Context("after destroying the container", func() {
 			It("should return api.ContainerNotFoundError when deleting the container again", func() {
-				Ω(client.Destroy(container.Handle())).Should(Succeed())
-				Ω(client.Destroy(container.Handle())).Should(MatchError(garden.ContainerNotFoundError{container.Handle()}))
+				Expect(client.Destroy(container.Handle())).To(Succeed())
+				Expect(client.Destroy(container.Handle())).To(MatchError(garden.ContainerNotFoundError{container.Handle()}))
 				container = nil
 			})
 
 			It("should ensure any iptables rules which were created no longer exist", func() {
 				handle := container.Handle()
-				Ω(client.Destroy(handle)).Should(Succeed())
+				Expect(client.Destroy(handle)).To(Succeed())
 				container = nil
 
 				iptables, err := gexec.Start(exec.Command("iptables", "-L"), GinkgoWriter, GinkgoWriter)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 				Eventually(iptables, "2s").Should(gexec.Exit())
-				Ω(iptables).ShouldNot(gbytes.Say(handle))
+				Expect(iptables).ToNot(gbytes.Say(handle))
 			})
 		})
 	})

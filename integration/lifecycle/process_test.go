@@ -15,7 +15,7 @@ var _ = Describe("Process", func() {
 		client = startGarden()
 		var err error
 		container, err = client.Create(garden.ContainerSpec{})
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	Describe("signalling", func() {
@@ -37,11 +37,11 @@ var _ = Describe("Process", func() {
 			}, garden.ProcessIO{
 				Stdout: stdout,
 			})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			err = process.Signal(garden.SignalTerminate)
-			Ω(err).ShouldNot(HaveOccurred())
-			Ω(process.Wait()).Should(Equal(42))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(process.Wait()).To(Equal(42))
 		})
 
 	})

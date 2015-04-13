@@ -26,19 +26,19 @@ var _ = Describe("FanIn", func() {
 	It("writes data to a sink and leaves the sink open", func() {
 		fanIn.AddSink(fWriter)
 		n, err := fanIn.Write(testBytes)
-		Ω(err).ShouldNot(HaveOccurred())
-		Ω(n).Should(Equal(10))
-		Ω(fWriter.writeCalls()).Should(Equal(1))
-		Ω(fWriter.writeArgument()).Should(Equal(testBytes))
-		Ω(fWriter.closeCalls()).Should(Equal(0))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(n).To(Equal(10))
+		Expect(fWriter.writeCalls()).To(Equal(1))
+		Expect(fWriter.writeArgument()).To(Equal(testBytes))
+		Expect(fWriter.closeCalls()).To(Equal(0))
 
 		By("and more data can be written to the sink")
 		testBytes2 := []byte{1, 2}
 		n, err = fanIn.Write(testBytes2)
-		Ω(err).ShouldNot(HaveOccurred())
-		Ω(n).Should(Equal(10))
-		Ω(fWriter.writeArgument()).Should(Equal(testBytes2))
-		Ω(fWriter.closeCalls()).Should(Equal(0))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(n).To(Equal(10))
+		Expect(fWriter.writeArgument()).To(Equal(testBytes2))
+		Expect(fWriter.closeCalls()).To(Equal(0))
 	})
 
 	It("blocks writes until a sink is added", func() {
@@ -55,8 +55,8 @@ var _ = Describe("FanIn", func() {
 		n := <-nChan
 		err := <-errChan
 
-		Ω(err).ShouldNot(HaveOccurred())
-		Ω(n).Should(Equal(10))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(n).To(Equal(10))
 	})
 
 	It("reads data from a source and writes to a sink", func() {
@@ -64,7 +64,7 @@ var _ = Describe("FanIn", func() {
 		fanIn.AddSource(strings.NewReader("abcdefghij"))
 
 		Eventually(fWriter.writeCalls).Should(Equal(1))
-		Ω(fWriter.writeArgument()).Should(Equal([]byte("abcdefghij")))
+		Expect(fWriter.writeArgument()).To(Equal([]byte("abcdefghij")))
 	})
 
 	It("closes the sink after writing from a source", func() {
@@ -82,8 +82,8 @@ var _ = Describe("FanIn", func() {
 	It("closes a sink", func() {
 		fanIn.AddSink(fWriter)
 		err := fanIn.Close()
-		Ω(err).ShouldNot(HaveOccurred())
-		Ω(fWriter.closeCalls()).Should(Equal(1))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(fWriter.closeCalls()).To(Equal(1))
 	})
 
 	It("blocks close until a sink is added", func() {
@@ -97,31 +97,31 @@ var _ = Describe("FanIn", func() {
 		fanIn.AddSink(fWriter)
 		err := <-errChan
 
-		Ω(err).ShouldNot(HaveOccurred())
-		Ω(fWriter.closeCalls()).Should(Equal(1))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(fWriter.closeCalls()).To(Equal(1))
 	})
 
 	It("returns an error if close is called twice", func() {
 		fanIn.AddSink(fWriter)
 
 		err := fanIn.Close()
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		err = fanIn.Close()
-		Ω(err).Should(MatchError("already closed"))
+		Expect(err).To(MatchError("already closed"))
 
-		Ω(fWriter.closeCalls()).Should(Equal(1))
+		Expect(fWriter.closeCalls()).To(Equal(1))
 	})
 
 	It("returns an error if write is called after close", func() {
 		fanIn.AddSink(fWriter)
 
 		err := fanIn.Close()
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		_, err = fanIn.Write(testBytes)
-		Ω(err).Should(MatchError("write after close"))
+		Expect(err).To(MatchError("write after close"))
 
-		Ω(fWriter.writeCalls()).Should(Equal(0))
+		Expect(fWriter.writeCalls()).To(Equal(0))
 	})
 })

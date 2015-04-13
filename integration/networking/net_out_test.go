@@ -44,12 +44,12 @@ var _ = Describe("Net Out", func() {
 
 		var err error
 		container, err = client.Create(garden.ContainerSpec{Network: containerNetwork, Privileged: true, Handle: containerHandle})
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	AfterEach(func() {
 		err := client.Destroy(container.Handle())
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	runInContainer := func(container garden.Container, script string) (garden.Process, *gbytes.Buffer) {
@@ -61,7 +61,7 @@ var _ = Describe("Net Out", func() {
 			Stdout: io.MultiWriter(out, GinkgoWriter),
 			Stderr: GinkgoWriter,
 		})
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		return process, out
 	}
@@ -74,13 +74,13 @@ var _ = Describe("Net Out", func() {
 		BeforeEach(func() {
 			ByAllowingTCP = func() {
 				By("allowing outbound tcp traffic", func() {
-					Ω(checkInternet(container)).Should(Succeed())
+					Expect(checkInternet(container)).To(Succeed())
 				})
 			}
 
 			ByRejectingTCP = func() {
 				By("rejecting outbound tcp traffic", func() {
-					Ω(checkInternet(container)).Should(HaveOccurred())
+					Expect(checkInternet(container)).To(HaveOccurred())
 				})
 			}
 		})
@@ -104,7 +104,7 @@ var _ = Describe("Net Out", func() {
 							garden.IPRangeFromIP(externalIP),
 						},
 					})
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 				})
 
 				It("allows TCP traffic to the target", func() {
@@ -146,15 +146,15 @@ var _ = Describe("Net Out", func() {
 			It("does not allow rules from the second container to affect the first", func() {
 				var err error
 				secondContainer, err := client.Create(garden.ContainerSpec{Network: containerNetwork, Privileged: true})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				ByRejectingTCP()
 
-				Ω(secondContainer.NetOut(garden.NetOutRule{
+				Expect(secondContainer.NetOut(garden.NetOutRule{
 					Networks: []garden.IPRange{
 						garden.IPRangeFromIP(externalIP),
 					},
-				})).Should(Succeed())
+				})).To(Succeed())
 
 				By("continuing to reject")
 				ByRejectingTCP()
@@ -168,13 +168,13 @@ var _ = Describe("Net Out", func() {
 
 		targetIP := func(c garden.Container) string {
 			info, err := c.Info()
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 			return info.ContainerIP
 		}
 
 		ByAllowingTCP := func() {
 			By("allowing tcp traffic to it", func() {
-				Ω(checkConnection(container, targetIP(otherContainer), tcpPort)).Should(Succeed())
+				Expect(checkConnection(container, targetIP(otherContainer), tcpPort)).To(Succeed())
 			})
 		}
 
@@ -182,7 +182,7 @@ var _ = Describe("Net Out", func() {
 			JustBeforeEach(func() {
 				var err error
 				otherContainer, err = client.Create(garden.ContainerSpec{Network: containerNetwork})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				runInContainer(otherContainer, fmt.Sprintf("echo hello | nc -l -p %d", tcpPort)) //tcp
 			})
@@ -207,7 +207,7 @@ var _ = Describe("Net Out", func() {
 				otherContainerNetwork = fmt.Sprintf("10.1%d.1.0/24", GinkgoParallelNode())
 				var err error
 				otherContainer, err = client.Create(garden.ContainerSpec{Network: otherContainerNetwork})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				runInContainer(otherContainer, fmt.Sprintf("echo hello | nc -l -p %d", tcpPort)) //tcp
 			})

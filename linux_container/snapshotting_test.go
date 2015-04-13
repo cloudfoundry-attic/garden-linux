@@ -71,7 +71,7 @@ var _ = Describe("Linux containers", func() {
 
 		var err error
 		containerDir, err = ioutil.TempDir("", "depot")
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		_, subnet, err := net.ParseCIDR("2.3.4.0/30")
 		containerResources = linux_backend.NewResources(
@@ -140,13 +140,13 @@ var _ = Describe("Linux containers", func() {
 			var err error
 
 			err = container.Start()
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			_, _, err = container.NetIn(1, 2)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			_, _, err = container.NetIn(3, 4)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			container.NetOut(netOutRule1)
 			container.NetOut(netOutRule2)
@@ -167,22 +167,22 @@ var _ = Describe("Linux containers", func() {
 			out := new(bytes.Buffer)
 
 			err := container.Snapshot(out)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			var snapshot linux_container.ContainerSnapshot
 
 			err = json.NewDecoder(out).Decode(&snapshot)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(snapshot.ID).Should(Equal("some-id"))
-			Ω(snapshot.Handle).Should(Equal("some-handle"))
+			Expect(snapshot.ID).To(Equal("some-id"))
+			Expect(snapshot.Handle).To(Equal("some-handle"))
 
-			Ω(snapshot.GraceTime).Should(Equal(1 * time.Second))
+			Expect(snapshot.GraceTime).To(Equal(1 * time.Second))
 
-			Ω(snapshot.State).Should(Equal("active"))
+			Expect(snapshot.State).To(Equal("active"))
 
 			_, subnet, err := net.ParseCIDR("2.3.4.0/30")
-			Ω(snapshot.Resources).Should(Equal(
+			Expect(snapshot.Resources).To(Equal(
 				linux_container.ResourcesSnapshot{
 					UserUID: containerResources.UserUID,
 					RootUID: containerResources.RootUID,
@@ -195,7 +195,7 @@ var _ = Describe("Linux containers", func() {
 				},
 			))
 
-			Ω(snapshot.NetIns).Should(Equal(
+			Expect(snapshot.NetIns).To(Equal(
 				[]linux_container.NetInSpec{
 					{
 						HostPort:      1,
@@ -208,39 +208,39 @@ var _ = Describe("Linux containers", func() {
 				},
 			))
 
-			Ω(snapshot.NetOuts).Should(Equal([]garden.NetOutRule{
+			Expect(snapshot.NetOuts).To(Equal([]garden.NetOutRule{
 				netOutRule1, netOutRule2,
 			}))
 
-			Ω(snapshot.Processes).Should(ContainElement(
+			Expect(snapshot.Processes).To(ContainElement(
 				linux_container.ProcessSnapshot{
 					ID: 1,
 				},
 			))
 
-			Ω(snapshot.Processes).Should(ContainElement(
+			Expect(snapshot.Processes).To(ContainElement(
 				linux_container.ProcessSnapshot{
 					ID: 2,
 				},
 			))
 
-			Ω(snapshot.Processes).Should(ContainElement(
+			Expect(snapshot.Processes).To(ContainElement(
 				linux_container.ProcessSnapshot{
 					ID: 3,
 				},
 			))
 
-			Ω(snapshot.Properties).Should(Equal(garden.Properties(map[string]string{
+			Expect(snapshot.Properties).To(Equal(garden.Properties(map[string]string{
 				"property-name": "property-value",
 			})))
 
-			Ω(snapshot.EnvVars).Should(Equal([]string{"env1=env1Value", "env2=env2Value"}))
+			Expect(snapshot.EnvVars).To(Equal([]string{"env1=env1Value", "env2=env2Value"}))
 		})
 
 		Context("with limits set", func() {
 			JustBeforeEach(func() {
 				err := container.LimitMemory(memoryLimits)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				// oom exits immediately since it's faked out; should see event,
 				// and it should show up in the snapshot
@@ -248,30 +248,30 @@ var _ = Describe("Linux containers", func() {
 				Eventually(container.State).Should(Equal(linux_container.StateStopped))
 
 				err = container.LimitDisk(diskLimits)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				err = container.LimitBandwidth(bandwidthLimits)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				err = container.LimitCPU(cpuLimits)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 			})
 
 			It("saves them", func() {
 				out := new(bytes.Buffer)
 
 				err := container.Snapshot(out)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				var snapshot linux_container.ContainerSnapshot
 
 				err = json.NewDecoder(out).Decode(&snapshot)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(snapshot.State).Should(Equal("stopped"))
-				Ω(snapshot.Events).Should(Equal([]string{"out of memory"}))
+				Expect(snapshot.State).To(Equal("stopped"))
+				Expect(snapshot.Events).To(Equal([]string{"out of memory"}))
 
-				Ω(snapshot.Limits).Should(Equal(
+				Expect(snapshot.Limits).To(Equal(
 					linux_container.LimitsSnapshot{
 						Memory:    &memoryLimits,
 						Disk:      &diskLimits,
@@ -287,14 +287,14 @@ var _ = Describe("Linux containers", func() {
 				out := new(bytes.Buffer)
 
 				err := container.Snapshot(out)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				var snapshot linux_container.ContainerSnapshot
 
 				err = json.NewDecoder(out).Decode(&snapshot)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(snapshot.Limits).Should(Equal(
+				Expect(snapshot.Limits).To(Equal(
 					linux_container.LimitsSnapshot{
 						Memory:    nil,
 						Disk:      nil,
@@ -313,10 +313,10 @@ var _ = Describe("Linux containers", func() {
 				State:  "active",
 				Events: []string{"out of memory", "foo"},
 			})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(container.State()).Should(Equal(linux_container.State("active")))
-			Ω(container.Events()).Should(Equal([]string{
+			Expect(container.State()).To(Equal(linux_container.State("active")))
+			Expect(container.Events()).To(Equal([]string{
 				"out of memory",
 				"foo",
 			}))
@@ -339,13 +339,13 @@ var _ = Describe("Linux containers", func() {
 					},
 				},
 			})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			pid, _ := fakeProcessTracker.RestoreArgsForCall(0)
-			Ω(pid).Should(Equal(uint32(0)))
+			Expect(pid).To(Equal(uint32(0)))
 
 			pid, _ = fakeProcessTracker.RestoreArgsForCall(1)
-			Ω(pid).Should(Equal(uint32(1)))
+			Expect(pid).To(Equal(uint32(1)))
 		})
 
 		It("makes the next process ID be higher than the highest restored ID", func() {
@@ -364,20 +364,20 @@ var _ = Describe("Linux containers", func() {
 					},
 				},
 			})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			_, err = container.Run(garden.ProcessSpec{
 				Path: "/some/script",
 			}, garden.ProcessIO{})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			nextId, _, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
 
-			Ω(nextId).Should(BeNumerically(">", 5))
+			Expect(nextId).To(BeNumerically(">", 5))
 		})
 
 		It("configures a signaller with the correct pidfile for the process", func() {
-			Ω(container.Restore(linux_container.ContainerSnapshot{
+			Expect(container.Restore(linux_container.ContainerSnapshot{
 				State:  "active",
 				Events: []string{},
 
@@ -387,10 +387,10 @@ var _ = Describe("Linux containers", func() {
 						TTY: true,
 					},
 				},
-			})).Should(Succeed())
+			})).To(Succeed())
 
 			_, signaller := fakeProcessTracker.RestoreArgsForCall(0)
-			Ω(signaller).Should(Equal(&linux_backend.NamespacedSignaller{
+			Expect(signaller).To(Equal(&linux_backend.NamespacedSignaller{
 				ContainerPath: containerDir,
 				Runner:        fakeRunner,
 				PidFilePath:   containerDir + "/processes/456.pid",
@@ -401,29 +401,29 @@ var _ = Describe("Linux containers", func() {
 			err := container.Restore(linux_container.ContainerSnapshot{
 				EnvVars: []string{"env1=env1value", "env2=env2Value"},
 			})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(container.CurrentEnvVars()).Should(Equal(process.Env{"env1": "env1value", "env2": "env2Value"}))
+			Expect(container.CurrentEnvVars()).To(Equal(process.Env{"env1": "env1value", "env2": "env2Value"}))
 		})
 
 		It("redoes net-outs", func() {
-			Ω(container.Restore(linux_container.ContainerSnapshot{
+			Expect(container.Restore(linux_container.ContainerSnapshot{
 				NetOuts: []garden.NetOutRule{netOutRule1, netOutRule2},
-			})).Should(Succeed())
+			})).To(Succeed())
 
-			Ω(fakeFilter.NetOutCallCount()).Should(Equal(2))
-			Ω(fakeFilter.NetOutArgsForCall(0)).Should(Equal(netOutRule1))
-			Ω(fakeFilter.NetOutArgsForCall(1)).Should(Equal(netOutRule2))
+			Expect(fakeFilter.NetOutCallCount()).To(Equal(2))
+			Expect(fakeFilter.NetOutArgsForCall(0)).To(Equal(netOutRule1))
+			Expect(fakeFilter.NetOutArgsForCall(1)).To(Equal(netOutRule2))
 		})
 
 		Context("when applying a netout rule fails", func() {
 			It("returns an error", func() {
 				fakeFilter.NetOutReturns(errors.New("didn't work"))
 
-				Ω(container.Restore(
+				Expect(container.Restore(
 					linux_container.ContainerSnapshot{
 						NetOuts: []garden.NetOutRule{{}},
-					})).Should(MatchError("didn't work"))
+					})).To(MatchError("didn't work"))
 			})
 		})
 
@@ -443,9 +443,9 @@ var _ = Describe("Linux containers", func() {
 					},
 				},
 			})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(fakeRunner).Should(HaveExecutedSerially(
+			Expect(fakeRunner).To(HaveExecutedSerially(
 				fake_command_runner.CommandSpec{
 					Path: containerDir + "/net.sh",
 					Args: []string{"setup"},
@@ -496,7 +496,7 @@ var _ = Describe("Linux containers", func() {
 
 						NetOuts: []garden.NetOutRule{},
 					})
-					Ω(err).Should(Equal(disaster))
+					Expect(err).To(Equal(disaster))
 				})
 			})
 		}
@@ -512,9 +512,9 @@ var _ = Describe("Linux containers", func() {
 					},
 				},
 			})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(fakeCgroups.SetValues()).Should(ContainElement(
+			Expect(fakeCgroups.SetValues()).To(ContainElement(
 				fake_cgroups_manager.SetValue{
 					Subsystem: "memory",
 					Name:      "memory.limit_in_bytes",
@@ -522,7 +522,7 @@ var _ = Describe("Linux containers", func() {
 				},
 			))
 
-			Ω(fakeCgroups.SetValues()).Should(ContainElement(
+			Expect(fakeCgroups.SetValues()).To(ContainElement(
 				fake_cgroups_manager.SetValue{
 					Subsystem: "memory",
 					Name:      "memory.memsw.limit_in_bytes",
@@ -540,9 +540,9 @@ var _ = Describe("Linux containers", func() {
 					State:  "active",
 					Events: []string{},
 				})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(fakeCgroups.SetValues()).Should(BeEmpty())
+				Expect(fakeCgroups.SetValues()).To(BeEmpty())
 			})
 		})
 
@@ -566,7 +566,7 @@ var _ = Describe("Linux containers", func() {
 						},
 					},
 				})
-				Ω(err).Should(Equal(disaster))
+				Expect(err).To(Equal(disaster))
 			})
 		})
 	})

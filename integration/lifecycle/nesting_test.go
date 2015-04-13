@@ -30,7 +30,7 @@ var _ = Describe("When nested", func() {
 
 	startNestedGarden := func(mountOverlayOnTmpfs bool) (garden.Container, string) {
 		absoluteBinPath, err := filepath.Abs(binPath)
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		container, err := client.Create(garden.ContainerSpec{
 			RootFSPath: nestedRootfsPath,
@@ -59,7 +59,7 @@ var _ = Describe("When nested", func() {
 				},
 			},
 		})
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		nestedServerOutput := gbytes.NewBuffer()
 
@@ -98,7 +98,7 @@ var _ = Describe("When nested", func() {
 		})
 
 		info, err := container.Info()
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		nestedGardenAddress := fmt.Sprintf("%s:7778", info.ContainerIP)
 		Eventually(nestedServerOutput, "30s").Should(gbytes.Say("garden-linux.started"))
@@ -112,7 +112,7 @@ var _ = Describe("When nested", func() {
 
 		nestedClient := gclient.New(gconn.New("tcp", nestedGardenAddress))
 		nestedContainer, err := nestedClient.Create(garden.ContainerSpec{})
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		nestedOutput := gbytes.NewBuffer()
 		_, err = nestedContainer.Run(garden.ProcessSpec{
@@ -121,7 +121,7 @@ var _ = Describe("When nested", func() {
 				"I am nested!",
 			},
 		}, garden.ProcessIO{Stdout: nestedOutput, Stderr: nestedOutput})
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		Eventually(nestedOutput, "30s").Should(gbytes.Say("I am nested!"))
 	})
@@ -132,6 +132,6 @@ var _ = Describe("When nested", func() {
 
 		nestedClient := gclient.New(gconn.New("tcp", nestedGardenAddress))
 		_, err := nestedClient.Create(garden.ContainerSpec{})
-		Ω(err).Should(MatchError("overlay.sh: exit status 222, the directories that contain the depot and rootfs must be mounted on a filesystem type that supports aufs or overlayfs"))
+		Expect(err).To(MatchError("overlay.sh: exit status 222, the directories that contain the depot and rootfs must be mounted on a filesystem type that supports aufs or overlayfs"))
 	})
 })

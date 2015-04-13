@@ -48,7 +48,7 @@ var _ = Describe("RepositoryProvider", func() {
 			provider := NewRepositoryProvider("the-default-host:11", nil)
 			provider.ProvideRegistry("")
 
-			Ω(receivedHost).Should(Equal("the-default-host:11"))
+			Expect(receivedHost).To(Equal("the-default-host:11"))
 		})
 	})
 
@@ -57,7 +57,7 @@ var _ = Describe("RepositoryProvider", func() {
 			provider := NewRepositoryProvider("", nil)
 			provider.ProvideRegistry("the-registry-host:44")
 
-			Ω(receivedHost).Should(Equal("the-registry-host:44"))
+			Expect(receivedHost).To(Equal("the-registry-host:44"))
 		})
 	})
 
@@ -66,7 +66,7 @@ var _ = Describe("RepositoryProvider", func() {
 			provider := NewRepositoryProvider("", []string{"insecure1", "insecure2"})
 			provider.ProvideRegistry("the-registry-host:44")
 
-			Ω(receievedInsecureRegistries).Should(Equal([]string{"insecure1", "insecure2"}))
+			Expect(receievedInsecureRegistries).To(Equal([]string{"insecure1", "insecure2"}))
 		})
 	})
 
@@ -77,7 +77,7 @@ var _ = Describe("RepositoryProvider", func() {
 				provider := NewRepositoryProvider("", nil)
 
 				_, err := provider.ProvideRegistry("the-registry-host:44")
-				Ω(err).Should(MatchError("an error"))
+				Expect(err).To(MatchError("an error"))
 			})
 		})
 
@@ -87,7 +87,7 @@ var _ = Describe("RepositoryProvider", func() {
 				provider := NewRepositoryProvider("", []string{"foo", "bar"})
 
 				_, err := provider.ProvideRegistry("the-registry-host:44")
-				Ω(err).Should(MatchError(
+				Expect(err).To(MatchError(
 					&InsecureRegistryError{
 						Cause:              endpointReturnsError,
 						Endpoint:           "the-registry-host:44",
@@ -101,10 +101,10 @@ var _ = Describe("RepositoryProvider", func() {
 	It("creates a new session based on the endpoint", func() {
 		provider := NewRepositoryProvider("", nil)
 		session, err := provider.ProvideRegistry("the-registry-host:44")
-		Ω(err).ShouldNot(HaveOccurred())
-		Ω(session).Should(Equal(returnedSession))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(session).To(Equal(returnedSession))
 
-		Ω(receivedEndpoint).Should(Equal(returnedEndpoint))
+		Expect(receivedEndpoint).To(Equal(returnedEndpoint))
 	})
 
 	Context("when NewSession returns an error", func() {
@@ -113,7 +113,7 @@ var _ = Describe("RepositoryProvider", func() {
 			provider := NewRepositoryProvider("", nil)
 
 			_, err := provider.ProvideRegistry("the-registry-host:44")
-			Ω(err).Should(MatchError("an error"))
+			Expect(err).To(MatchError("an error"))
 		})
 	})
 })

@@ -33,7 +33,7 @@ func startGarden(argv ...string) garden.Client {
 
 	{ // Check this test suite is in the correct directory
 		b, err := os.Open(binPath)
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 		b.Close()
 	}
 
@@ -64,15 +64,15 @@ func TestDevice(t *testing.T) {
 	SynchronizedBeforeSuite(func() []byte {
 		var err error
 		beforeSuite.GardenPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux", "-a", "-race", "-tags", "daemon")
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		b, err := json.Marshal(beforeSuite)
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		return b
 	}, func(paths []byte) {
 		err := json.Unmarshal(paths, &beforeSuite)
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		gardenBin = beforeSuite.GardenPath
 	})

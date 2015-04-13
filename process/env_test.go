@@ -14,7 +14,7 @@ var _ = Describe("Environment", func() {
 	Context("with an empty environment", func() {
 		It("turns into an empty array", func() {
 			env := process.Env{}
-			Ω(env.Array()).Should(BeEmpty())
+			Expect(env.Array()).To(BeEmpty())
 		})
 	})
 
@@ -24,7 +24,7 @@ var _ = Describe("Environment", func() {
 				"HOME": "/home/vcap",
 				"USER": "vcap",
 			}
-			Ω(env.Array()).Should(ConsistOf(
+			Expect(env.Array()).To(ConsistOf(
 				"HOME=/home/vcap",
 				"USER=vcap",
 			))
@@ -40,7 +40,7 @@ var _ = Describe("Environment", func() {
 				"HOME": "/home/vcap",
 			}
 
-			Ω(envForwards.Array()).To(Equal(envBackwards.Array()))
+			Expect(envForwards.Array()).To(Equal(envBackwards.Array()))
 		})
 
 		Describe("merging in a second environment", func() {
@@ -53,7 +53,7 @@ var _ = Describe("Environment", func() {
 				}
 
 				merged := old.Merge(extra)
-				Ω(merged.Array()).Should(ConsistOf(
+				Expect(merged.Array()).To(ConsistOf(
 					"HOME=/home/vcap",
 					"USER=vcap",
 				))
@@ -68,7 +68,7 @@ var _ = Describe("Environment", func() {
 				}
 
 				merged := old.Merge(extra)
-				Ω(merged.Array()).Should(ConsistOf(
+				Expect(merged.Array()).To(ConsistOf(
 					"USER=vcap",
 				))
 			})
@@ -78,12 +78,12 @@ var _ = Describe("Environment", func() {
 	Describe("reading from file", func() {
 		It("constructs the Env from a file", func() {
 			cwd, err := os.Getwd()
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 			pathToTestFile := filepath.Join(cwd, "test-assets", "sample")
 			result, err := process.EnvFromFile(pathToTestFile)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(result).Should(Equal(process.Env{
+			Expect(result).To(Equal(process.Env{
 				"key1": "value1",
 				"key2": "value2",
 				"key3": "value=3",
@@ -93,18 +93,18 @@ var _ = Describe("Environment", func() {
 		Context("when reading a bad file path", func() {
 			It("returns an error", func() {
 				_, err := process.EnvFromFile("/nosuch")
-				Ω(err).Should(MatchError(MatchRegexp("process: EnvFromFile: .* no such file .*")))
+				Expect(err).To(MatchError(MatchRegexp("process: EnvFromFile: .* no such file .*")))
 			})
 		})
 
 		Context("when the file is empty", func() {
 			It("returns an empty env", func() {
 				cwd, err := os.Getwd()
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 				pathToTestFile := filepath.Join(cwd, "test-assets", "empty")
 				result, err := process.EnvFromFile(pathToTestFile)
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(result).Should(Equal(process.Env{}))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(result).To(Equal(process.Env{}))
 			})
 		})
 	})
@@ -115,9 +115,9 @@ var _ = Describe("Environment", func() {
 				"HOME=/home/vcap",
 				"USER=vcap",
 			})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(env.Array()).Should(ConsistOf(
+			Expect(env.Array()).To(ConsistOf(
 				"HOME=/home/vcap",
 				"USER=vcap",
 			))
@@ -128,9 +128,9 @@ var _ = Describe("Environment", func() {
 				"HOME=/home/wrong",
 				"HOME=/home/vcap",
 			})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(env.Array()).Should(ConsistOf(
+			Expect(env.Array()).To(ConsistOf(
 				"HOME=/home/vcap",
 			))
 		})
@@ -143,8 +143,8 @@ var _ = Describe("Environment", func() {
 				"KEY4=in=middle",
 				"KEY5=multiple=equal=signs",
 			})
-			Ω(err).ShouldNot(HaveOccurred())
-			Ω(env.Array()).Should(ConsistOf(
+			Expect(err).ToNot(HaveOccurred())
+			Expect(env.Array()).To(ConsistOf(
 				"KEY1==",
 				"KEY2=atend=",
 				"KEY3==atbeginning",
@@ -156,9 +156,9 @@ var _ = Describe("Environment", func() {
 		Context("when the array is empty", func() {
 			It("returns an empty env", func() {
 				env, err := process.NewEnv([]string{})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(env).Should(Equal(process.Env{}))
+				Expect(env).To(Equal(process.Env{}))
 			})
 		})
 
@@ -166,27 +166,27 @@ var _ = Describe("Environment", func() {
 			It("returns an error when the array contains an empty string", func() {
 				env, err := process.NewEnv([]string{""})
 
-				Ω(err).Should(MatchError("process: malformed environment: empty string"))
-				Ω(env).Should(BeNil())
+				Expect(err).To(MatchError("process: malformed environment: empty string"))
+				Expect(env).To(BeNil())
 			})
 
 			It("returns an error when the array contains an element with an empty key", func() {
 				env, err := process.NewEnv([]string{"=value"})
 
-				Ω(err).Should(MatchError(`process: malformed environment: empty key: "=value"`))
-				Ω(env).Should(BeNil())
+				Expect(err).To(MatchError(`process: malformed environment: empty key: "=value"`))
+				Expect(env).To(BeNil())
 			})
 
 			It("returns an error when the array contains an element without an equals sign", func() {
 				env, err := process.NewEnv([]string{"x"})
 
-				Ω(err).Should(MatchError(`process: malformed environment: invalid format (not key=value): "x"`))
-				Ω(env).Should(BeNil())
+				Expect(err).To(MatchError(`process: malformed environment: invalid format (not key=value): "x"`))
+				Expect(env).To(BeNil())
 			})
 		})
 	})
 
 	It("produces a string representation", func() {
-		Ω(process.Env{"a": "b"}.String()).Should(Equal(`process.Env{"a":"b"}`))
+		Expect(process.Env{"a": "b"}.String()).To(Equal(`process.Env{"a":"b"}`))
 	})
 })

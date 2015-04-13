@@ -11,7 +11,7 @@ import (
 
 func parseURL(str string) *url.URL {
 	parsedURL, err := url.Parse(str)
-	Ω(err).ShouldNot(HaveOccurred())
+	Expect(err).ToNot(HaveOccurred())
 
 	return parsedURL
 }

@@ -16,7 +16,7 @@ import (
 var _ = Describe("Namespaced Signaller", func() {
 	It("kills a process using ./bin/wsh based on its pid", func() {
 		tmp, err := ioutil.TempDir("", "namespacedsignaller")
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 		defer os.RemoveAll(tmp)
 
 		pidFile := filepath.Join(tmp, "thepid.file")
@@ -28,10 +28,10 @@ var _ = Describe("Namespaced Signaller", func() {
 			PidFilePath:   pidFile,
 		}
 
-		Ω(ioutil.WriteFile(pidFile, []byte(" 12345\n"), 0755)).Should(Succeed())
+		Expect(ioutil.WriteFile(pidFile, []byte(" 12345\n"), 0755)).To(Succeed())
 
-		Ω(signaller.Signal(os.Kill)).Should(Succeed())
-		Ω(fakeRunner).Should(HaveExecutedSerially(
+		Expect(signaller.Signal(os.Kill)).To(Succeed())
+		Expect(fakeRunner).To(HaveExecutedSerially(
 			fake_command_runner.CommandSpec{
 				Path: "/fish/finger/bin/wsh",
 				Args: []string{
@@ -49,12 +49,12 @@ var _ = Describe("Namespaced Signaller", func() {
 			PidFilePath:   "/does/not/exist",
 		}
 
-		Ω(signaller.Signal(os.Kill)).Should(MatchError("linux_backend: namespaced-signaller can't open PID file: open /does/not/exist: no such file or directory"))
+		Expect(signaller.Signal(os.Kill)).To(MatchError("linux_backend: namespaced-signaller can't open PID file: open /does/not/exist: no such file or directory"))
 	})
 
 	It("returns an appropriate error when the pidfile is empty", func() {
 		tmp, err := ioutil.TempDir("", "namespacedsignaller")
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 		defer os.RemoveAll(tmp)
 
 		pidFile := filepath.Join(tmp, "thepid.file")
@@ -66,14 +66,14 @@ var _ = Describe("Namespaced Signaller", func() {
 			PidFilePath:   pidFile,
 		}
 
-		Ω(ioutil.WriteFile(pidFile, []byte(""), 0755)).Should(Succeed())
+		Expect(ioutil.WriteFile(pidFile, []byte(""), 0755)).To(Succeed())
 
-		Ω(signaller.Signal(os.Kill)).Should(MatchError("namespaced-signaller: can't read pidfile: is empty or non existant"))
+		Expect(signaller.Signal(os.Kill)).To(MatchError("namespaced-signaller: can't read pidfile: is empty or non existant"))
 	})
 
 	It("returns an appropriate error when the pidfile does not contain a number", func() {
 		tmp, err := ioutil.TempDir("", "namespacedsignaller")
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 		defer os.RemoveAll(tmp)
 
 		pidFile := filepath.Join(tmp, "thepid.file")
@@ -85,8 +85,8 @@ var _ = Describe("Namespaced Signaller", func() {
 			PidFilePath:   pidFile,
 		}
 
-		Ω(ioutil.WriteFile(pidFile, []byte("not-a-pid\n"), 0755)).Should(Succeed())
+		Expect(ioutil.WriteFile(pidFile, []byte("not-a-pid\n"), 0755)).To(Succeed())
 
-		Ω(signaller.Signal(os.Kill)).Should(MatchError("namespaced-signaller: can't parse pidfile content: expected integer"))
+		Expect(signaller.Signal(os.Kill)).To(MatchError("namespaced-signaller: can't parse pidfile content: expected integer"))
 	})
 })

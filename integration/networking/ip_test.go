@@ -42,11 +42,11 @@ var _ = Describe("IP settings", func() {
 
 		var err error
 		container1, err = client.Create(garden.ContainerSpec{Network: containerNetwork1})
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		if len(containerNetwork2) > 0 {
 			container2, err = client.Create(garden.ContainerSpec{Network: containerNetwork2})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 		}
 
 		containerInterface = "w" + strconv.Itoa(GinkgoParallelNode()) + container1.Handle() + "-1"
@@ -55,12 +55,12 @@ var _ = Describe("IP settings", func() {
 	AfterEach(func() {
 		if container1 != nil {
 			err := client.Destroy(container1.Handle())
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 		}
 
 		if container2 != nil {
 			err := client.Destroy(container2.Handle())
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 		}
 	})
 
@@ -81,12 +81,12 @@ var _ = Describe("IP settings", func() {
 					Stdout: stdout,
 					Stderr: stderr,
 				})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 				rc, err := process.Wait()
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(rc).Should(Equal(0))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rc).To(Equal(0))
 
-				Ω(stdout.Contents()).Should(ContainSubstring(fmt.Sprintf(" inet addr:10.%d.0.1 ", GinkgoParallelNode())))
+				Expect(stdout.Contents()).To(ContainSubstring(fmt.Sprintf(" inet addr:10.%d.0.1 ", GinkgoParallelNode())))
 			})
 		})
 	})
@@ -108,12 +108,12 @@ var _ = Describe("IP settings", func() {
 					Stdout: stdout,
 					Stderr: stderr,
 				})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 				rc, err := process.Wait()
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(rc).Should(Equal(0))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rc).To(Equal(0))
 
-				Ω(stdout.Contents()).Should(ContainSubstring(fmt.Sprintf(" inet addr:10.%d.0.2 ", GinkgoParallelNode())))
+				Expect(stdout.Contents()).To(ContainSubstring(fmt.Sprintf(" inet addr:10.%d.0.2 ", GinkgoParallelNode())))
 			})
 		})
 	})
@@ -125,11 +125,11 @@ var _ = Describe("IP settings", func() {
 
 		It("is reachable from the host", func() {
 			info1, ierr := container1.Info()
-			Ω(ierr).ShouldNot(HaveOccurred())
+			Expect(ierr).ToNot(HaveOccurred())
 
 			out, err := exec.Command("/bin/ping", "-c 2", info1.ContainerIP).Output()
-			Ω(out).Should(ContainSubstring(" 0% packet loss"))
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(out).To(ContainSubstring(" 0% packet loss"))
+			Expect(err).ToNot(HaveOccurred())
 		})
 	})
 
@@ -141,22 +141,22 @@ var _ = Describe("IP settings", func() {
 
 		Context("when the first container is deleted", func() {
 			JustBeforeEach(func() {
-				Ω(client.Destroy(container1.Handle())).Should(Succeed())
+				Expect(client.Destroy(container1.Handle())).To(Succeed())
 				container1 = nil
 			})
 
 			Context("the second container", func() {
 				It("can still reach external networks", func() {
-					Ω(checkInternet(container2)).Should(Succeed())
+					Expect(checkInternet(container2)).To(Succeed())
 				})
 
 				It("can still be reached from the host", func() {
 					info2, ierr := container2.Info()
-					Ω(ierr).ShouldNot(HaveOccurred())
+					Expect(ierr).ToNot(HaveOccurred())
 
 					out, err := exec.Command("/bin/ping", "-c 2", info2.ContainerIP).Output()
-					Ω(out).Should(ContainSubstring(" 0% packet loss"))
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(out).To(ContainSubstring(" 0% packet loss"))
+					Expect(err).ToNot(HaveOccurred())
 				})
 			})
 
@@ -168,36 +168,36 @@ var _ = Describe("IP settings", func() {
 				JustBeforeEach(func() {
 					var err error
 					container3, err = client.Create(garden.ContainerSpec{Network: containerNetwork1})
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 				})
 
 				AfterEach(func() {
 					err := client.Destroy(container3.Handle())
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 				})
 
 				It("can reach the second container", func() {
 					info2, err := container2.Info()
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
 					listener, err := container2.Run(garden.ProcessSpec{
 						Path: "sh",
 						Args: []string{"-c", "echo hi | nc -l -p 8080"},
 					}, garden.ProcessIO{})
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
-					Ω(checkConnection(container3, info2.ContainerIP, 8080)).Should(Succeed())
+					Expect(checkConnection(container3, info2.ContainerIP, 8080)).To(Succeed())
 
-					Ω(listener.Wait()).Should(Equal(0))
+					Expect(listener.Wait()).To(Equal(0))
 				})
 
 				It("can be reached from the host", func() {
 					info3, ierr := container3.Info()
-					Ω(ierr).ShouldNot(HaveOccurred())
+					Expect(ierr).ToNot(HaveOccurred())
 
 					out, err := exec.Command("/bin/ping", "-c 2", info3.ContainerIP).Output()
-					Ω(out).Should(ContainSubstring(" 0% packet loss"))
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(out).To(ContainSubstring(" 0% packet loss"))
+					Expect(err).ToNot(HaveOccurred())
 				})
 			})
 		})
@@ -240,22 +240,22 @@ var _ = Describe("IP settings", func() {
 	Describe("the container's external ip", func() {
 		It("is the external IP of its host", func() {
 			info1, err := container1.Info()
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			localIP, err := localip.LocalIP()
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(localIP).Should(Equal(info1.ExternalIP))
+			Expect(localIP).To(Equal(info1.ExternalIP))
 		})
 	})
 })
 
 func checkHostAccess(container garden.Container, permitted bool) {
 	info1, ierr := container.Info()
-	Ω(ierr).ShouldNot(HaveOccurred())
+	Expect(ierr).ToNot(HaveOccurred())
 
 	listener, err := net.Listen("tcp", fmt.Sprintf("%s:0", info1.HostIP))
-	Ω(err).ShouldNot(HaveOccurred())
+	Expect(err).ToNot(HaveOccurred())
 	defer listener.Close()
 
 	mux := http.NewServeMux()
@@ -266,12 +266,12 @@ func checkHostAccess(container garden.Container, permitted bool) {
 	go (&http.Server{Handler: mux}).Serve(listener)
 
 	port, err := strconv.Atoi(strings.Split(listener.Addr().String(), ":")[1])
-	Ω(err).ShouldNot(HaveOccurred())
+	Expect(err).ToNot(HaveOccurred())
 	err = checkConnection(container, info1.HostIP, port)
 
 	if permitted {
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 	} else {
-		Ω(err).Should(HaveOccurred())
+		Expect(err).To(HaveOccurred())
 	}
 }

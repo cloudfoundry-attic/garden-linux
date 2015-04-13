@@ -26,11 +26,11 @@ var _ = Describe("FanOut", func() {
 		fanOut.AddSink(fWriter)
 		n, err := fanOut.Write(testBytes)
 
-		Ω(err).ShouldNot(HaveOccurred())
-		Ω(n).Should(Equal(1))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(n).To(Equal(1))
 
-		Ω(fWriter.writeArgument()).Should(Equal(testBytes))
-		Ω(fWriter.writeCalls()).Should(Equal(1))
+		Expect(fWriter.writeArgument()).To(Equal(testBytes))
+		Expect(fWriter.writeCalls()).To(Equal(1))
 	})
 
 	It("ignores errors when writing to the sink", func() {
@@ -38,8 +38,8 @@ var _ = Describe("FanOut", func() {
 		fanOut.AddSink(fWriter)
 		n, err := fanOut.Write(testBytes)
 
-		Ω(err).ShouldNot(HaveOccurred())
-		Ω(n).Should(Equal(1))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(n).To(Equal(1))
 	})
 
 	It("writes data to two sinks", func() {
@@ -50,20 +50,20 @@ var _ = Describe("FanOut", func() {
 		fanOut.AddSink(fWriter)
 		n, err := fanOut.Write(testBytes)
 
-		Ω(err).ShouldNot(HaveOccurred())
-		Ω(n).Should(Equal(1))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(n).To(Equal(1))
 
-		Ω(fWriter.writeArgument()).Should(Equal(testBytes))
-		Ω(fWriter.writeCalls()).Should(Equal(1))
+		Expect(fWriter.writeArgument()).To(Equal(testBytes))
+		Expect(fWriter.writeCalls()).To(Equal(1))
 
-		Ω(fWriter2.writeArgument()).Should(Equal(testBytes))
-		Ω(fWriter2.writeCalls()).Should(Equal(1))
+		Expect(fWriter2.writeArgument()).To(Equal(testBytes))
+		Expect(fWriter2.writeCalls()).To(Equal(1))
 	})
 
 	It("copes when there are no sinks", func() {
 		n, err := fanOut.Write(testBytes)
 
-		Ω(err).ShouldNot(HaveOccurred())
-		Ω(n).Should(Equal(1))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(n).To(Equal(1))
 	})
 })

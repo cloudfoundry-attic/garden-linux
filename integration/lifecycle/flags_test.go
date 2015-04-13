@@ -23,12 +23,12 @@ var _ = Describe("Garden startup flags", func() {
 
 		It("does not expose the pprof debug endpoint", func() {
 			_, err := http.Get(fmt.Sprintf("http://%s/debug/pprof/?debug=1", debugAddr))
-			Ω(err).Should(HaveOccurred())
+			Expect(err).To(HaveOccurred())
 		})
 
 		It("does not expose the log level adjustment endpoint", func() {
 			_, err := http.Get(fmt.Sprintf("http://%s/log-level -X PUT -d debug", debugAddr))
-			Ω(err).Should(HaveOccurred())
+			Expect(err).To(HaveOccurred())
 		})
 	})
 
@@ -39,21 +39,21 @@ var _ = Describe("Garden startup flags", func() {
 
 		It("exposes the pprof debug endpoint", func() {
 			_, err := http.Get(fmt.Sprintf("http://%s/debug/pprof/?debug=1", debugAddr))
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 		})
 
 		It("exposes the log level adjustment endpoint", func() {
 			_, err := http.Get(fmt.Sprintf("http://%s/log-level -X PUT -d debug", debugAddr))
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			_, err = http.Get(fmt.Sprintf("http://%s/log-level -X PUT -d info", debugAddr))
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			_, err = http.Get(fmt.Sprintf("http://%s/log-level -X PUT -d error", debugAddr))
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			_, err = http.Get(fmt.Sprintf("http://%s/log-level -X PUT -d fatal", debugAddr))
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 		})
 	})
 })

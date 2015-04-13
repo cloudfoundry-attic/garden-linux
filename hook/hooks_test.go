@@ -22,20 +22,20 @@ var _ = Describe("HookSet", func() {
 			})
 
 			registry.Main("a-hook")
-			Ω(wasRun).Should(BeTrue())
+			Expect(wasRun).To(BeTrue())
 		})
 	})
 
 	Context("when the first argument does not name a registered hook", func() {
 		It("panics", func() {
-			Ω(func() { registry.Main("does-not-hook") }).Should(Panic())
+			Expect(func() { registry.Main("does-not-hook") }).To(Panic())
 		})
 	})
 
 	Context("when multiple hooks are registered with the same name", func() {
 		It("panics", func() {
 			registry.Register("a-hook", func() {})
-			Ω(func() { registry.Register("a-hook", func() {}) }).Should(Panic())
+			Expect(func() { registry.Register("a-hook", func() {}) }).To(Panic())
 		})
 	})
 })

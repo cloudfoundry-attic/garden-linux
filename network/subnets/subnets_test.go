@@ -18,7 +18,7 @@ var _ = Describe("Subnet Pool", func() {
 	JustBeforeEach(func() {
 		var err error
 		subnetpool, err = subnets.NewSubnets(defaultSubnetPool)
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	Describe("Capacity", func() {
@@ -28,7 +28,7 @@ var _ = Describe("Subnet Pool", func() {
 			})
 
 			It("returns zero", func() {
-				Ω(subnetpool.Capacity()).Should(Equal(0))
+				Expect(subnetpool.Capacity()).To(Equal(0))
 			})
 		})
 
@@ -38,22 +38,22 @@ var _ = Describe("Subnet Pool", func() {
 			})
 
 			It("returns the correct number of subnets initially and repeatedly", func() {
-				Ω(subnetpool.Capacity()).Should(Equal(8))
-				Ω(subnetpool.Capacity()).Should(Equal(8))
+				Expect(subnetpool.Capacity()).To(Equal(8))
+				Expect(subnetpool.Capacity()).To(Equal(8))
 			})
 
 			It("returns the correct capacity after allocating subnets", func() {
 				cap := subnetpool.Capacity()
 
 				_, err := subnetpool.Acquire(subnets.DynamicSubnetSelector, subnets.DynamicIPSelector)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(subnetpool.Capacity()).Should(Equal(cap))
+				Expect(subnetpool.Capacity()).To(Equal(cap))
 
 				_, err = subnetpool.Acquire(subnets.DynamicSubnetSelector, subnets.DynamicIPSelector)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(subnetpool.Capacity()).Should(Equal(cap))
+				Expect(subnetpool.Capacity()).To(Equal(cap))
 			})
 		})
 	})
@@ -69,7 +69,7 @@ var _ = Describe("Subnet Pool", func() {
 					_, static := networkParms("10.2.3.4/30")
 
 					_, err := subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.DynamicIPSelector)
-					Ω(err).Should(MatchError("the requested subnet (10.2.3.4/30) overlaps the dynamic allocation range (10.2.3.0/29)"))
+					Expect(err).To(MatchError("the requested subnet (10.2.3.4/30) overlaps the dynamic allocation range (10.2.3.0/29)"))
 				})
 			})
 
@@ -82,8 +82,8 @@ var _ = Describe("Subnet Pool", func() {
 					_, static := networkParms("10.2.3.0/24")
 
 					_, err := subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.DynamicIPSelector)
-					Ω(err).Should(HaveOccurred())
-					Ω(err).Should(MatchError("the requested subnet (10.2.3.0/24) overlaps the dynamic allocation range (10.2.3.4/30)"))
+					Expect(err).To(HaveOccurred())
+					Expect(err).To(MatchError("the requested subnet (10.2.3.0/24) overlaps the dynamic allocation range (10.2.3.4/30)"))
 				})
 			})
 
@@ -99,7 +99,7 @@ var _ = Describe("Subnet Pool", func() {
 
 							ip := net.ParseIP("9.0.0.1")
 							_, err := subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.StaticIPSelector{ip})
-							Ω(err).Should(Equal(subnets.ErrInvalidIP))
+							Expect(err).To(Equal(subnets.ErrInvalidIP))
 						})
 
 						It("returns the same subnet and IP if the IP is inside the subnet", func() {
@@ -107,10 +107,10 @@ var _ = Describe("Subnet Pool", func() {
 
 							ip := net.ParseIP("11.0.0.1")
 							network, err := subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.StaticIPSelector{ip})
-							Ω(err).ShouldNot(HaveOccurred())
+							Expect(err).ToNot(HaveOccurred())
 
-							Ω(network.Subnet).Should(Equal(static))
-							Ω(network.IP).Should(Equal(ip))
+							Expect(network.Subnet).To(Equal(static))
+							Expect(network.IP).To(Equal(ip))
 						})
 
 						It("does not allow the same IP to be requested twice", func() {
@@ -118,11 +118,11 @@ var _ = Describe("Subnet Pool", func() {
 
 							ip := net.ParseIP("11.0.0.1")
 							_, err := subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.StaticIPSelector{ip})
-							Ω(err).ShouldNot(HaveOccurred())
+							Expect(err).ToNot(HaveOccurred())
 
 							_, static = networkParms("11.0.0.0/8") // make sure we get a new pointer
 							_, err = subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.StaticIPSelector{ip})
-							Ω(err).Should(Equal(subnets.ErrIPAlreadyAcquired))
+							Expect(err).To(Equal(subnets.ErrIPAlreadyAcquired))
 						})
 
 						It("allows two IPs to be serially requested in the same subnet", func() {
@@ -130,17 +130,17 @@ var _ = Describe("Subnet Pool", func() {
 
 							ip := net.ParseIP("11.0.0.1")
 							network, err := subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.StaticIPSelector{ip})
-							Ω(err).ShouldNot(HaveOccurred())
-							Ω(network.Subnet).Should(Equal(static))
-							Ω(network.IP).Should(Equal(ip))
+							Expect(err).ToNot(HaveOccurred())
+							Expect(network.Subnet).To(Equal(static))
+							Expect(network.IP).To(Equal(ip))
 
 							ip2 := net.ParseIP("11.0.0.2")
 
 							_, static = networkParms("11.0.0.0/8") // make sure we get a new pointer
 							network2, err := subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.StaticIPSelector{ip2})
-							Ω(err).ShouldNot(HaveOccurred())
-							Ω(network2.Subnet).Should(Equal(static))
-							Ω(network2.IP).Should(Equal(ip2))
+							Expect(err).ToNot(HaveOccurred())
+							Expect(network2.Subnet).To(Equal(static))
+							Expect(network2.IP).To(Equal(ip2))
 						})
 
 						It("when an IP is allocated from a subnet but released in between, it should be treated as new both times", func() {
@@ -148,18 +148,18 @@ var _ = Describe("Subnet Pool", func() {
 
 							ip := net.ParseIP("11.0.0.1")
 							network, err := subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.StaticIPSelector{ip})
-							Ω(err).ShouldNot(HaveOccurred())
-							Ω(network.Subnet).Should(Equal(static))
-							Ω(network.IP).Should(Equal(ip))
+							Expect(err).ToNot(HaveOccurred())
+							Expect(network.Subnet).To(Equal(static))
+							Expect(network.IP).To(Equal(ip))
 
 							err = subnetpool.Release(network)
-							Ω(err).ShouldNot(HaveOccurred())
+							Expect(err).ToNot(HaveOccurred())
 
 							_, static = networkParms("11.0.0.0/8") // make sure we get a new pointer
 							network, err = subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.StaticIPSelector{ip})
-							Ω(err).ShouldNot(HaveOccurred())
-							Ω(network.Subnet).Should(Equal(static))
-							Ω(network.IP).Should(Equal(ip))
+							Expect(err).ToNot(HaveOccurred())
+							Expect(network.Subnet).To(Equal(static))
+							Expect(network.IP).To(Equal(ip))
 						})
 
 						It("prevents dynamic allocation of the same IP", func() {
@@ -167,15 +167,15 @@ var _ = Describe("Subnet Pool", func() {
 
 							ip := net.ParseIP("11.0.0.2")
 							_, err := subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.StaticIPSelector{ip})
-							Ω(err).ShouldNot(HaveOccurred())
+							Expect(err).ToNot(HaveOccurred())
 
 							network, err := subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.DynamicIPSelector)
-							Ω(err).ShouldNot(HaveOccurred())
-							Ω(network.IP.String()).Should(Equal("11.0.0.1"))
+							Expect(err).ToNot(HaveOccurred())
+							Expect(network.IP.String()).To(Equal("11.0.0.1"))
 
 							network, err = subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.DynamicIPSelector)
-							Ω(err).ShouldNot(HaveOccurred())
-							Ω(network.IP.String()).Should(Equal("11.0.0.3"))
+							Expect(err).ToNot(HaveOccurred())
+							Expect(network.IP.String()).To(Equal("11.0.0.3"))
 						})
 
 						Describe("errors", func() {
@@ -183,14 +183,14 @@ var _ = Describe("Subnet Pool", func() {
 								_, static := networkParms("11.0.0.0/8")
 								gateway := net.ParseIP("11.255.255.254")
 								_, err := subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.StaticIPSelector{gateway})
-								Ω(err).Should(MatchError(subnets.ErrIPEqualsGateway))
+								Expect(err).To(MatchError(subnets.ErrIPEqualsGateway))
 							})
 
 							It("fails if a static subnet is requested specifying an IP address which clashes with the broadcast IP address", func() {
 								_, static := networkParms("11.0.0.0/8")
 								max := net.ParseIP("11.255.255.255")
 								_, err := subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.StaticIPSelector{max})
-								Ω(err).Should(MatchError(subnets.ErrIPEqualsBroadcast))
+								Expect(err).To(MatchError(subnets.ErrIPEqualsBroadcast))
 							})
 						})
 					})
@@ -200,16 +200,16 @@ var _ = Describe("Subnet Pool", func() {
 							_, static := networkParms("11.0.0.0/8")
 
 							_, err := subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.DynamicIPSelector)
-							Ω(err).ShouldNot(HaveOccurred())
+							Expect(err).ToNot(HaveOccurred())
 						})
 
 						It("returns the first available IP", func() {
 							_, static := networkParms("11.0.0.0/8")
 
 							network, err := subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.DynamicIPSelector)
-							Ω(err).ShouldNot(HaveOccurred())
+							Expect(err).ToNot(HaveOccurred())
 
-							Ω(network.IP.String()).Should(Equal("11.0.0.1"))
+							Expect(network.IP.String()).To(Equal("11.0.0.1"))
 						})
 
 						It("returns distinct IPs", func() {
@@ -221,11 +221,11 @@ var _ = Describe("Subnet Pool", func() {
 								network, err := subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.DynamicIPSelector)
 
 								if err != nil {
-									Ω(err).Should(Equal(subnets.ErrInsufficientIPs))
+									Expect(err).To(Equal(subnets.ErrInsufficientIPs))
 									break
 								}
 
-								Ω(seen).ShouldNot(HaveKey(network.IP.String()))
+								Expect(seen).ToNot(HaveKey(network.IP.String()))
 								seen[network.IP.String()] = true
 							}
 						})
@@ -237,23 +237,23 @@ var _ = Describe("Subnet Pool", func() {
 							count := 0
 							for err == nil {
 								if _, err = subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.DynamicIPSelector); err != nil {
-									Ω(err).Should(Equal(subnets.ErrInsufficientIPs))
+									Expect(err).To(Equal(subnets.ErrInsufficientIPs))
 								}
 
 								count++
 							}
 
-							Ω(count).Should(Equal(510))
+							Expect(count).To(Equal(510))
 						})
 
 						It("causes static alocation to fail if it tries to allocate the same IP afterwards", func() {
 							_, static := networkParms("11.0.0.0/8")
 
 							network, err := subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.DynamicIPSelector)
-							Ω(err).ShouldNot(HaveOccurred())
+							Expect(err).ToNot(HaveOccurred())
 
 							_, err = subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.StaticIPSelector{network.IP})
-							Ω(err).Should(Equal(subnets.ErrIPAlreadyAcquired))
+							Expect(err).To(Equal(subnets.ErrIPAlreadyAcquired))
 						})
 					})
 				})
@@ -267,11 +267,11 @@ var _ = Describe("Subnet Pool", func() {
 					JustBeforeEach(func() {
 						var err error
 						_, static, err = net.ParseCIDR("10.9.3.0/29")
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
 						for i := 0; i < 5; i++ {
 							network, err := subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.DynamicIPSelector)
-							Ω(err).ShouldNot(HaveOccurred())
+							Expect(err).ToNot(HaveOccurred())
 
 							ips[i] = network.IP
 						}
@@ -279,26 +279,26 @@ var _ = Describe("Subnet Pool", func() {
 
 					It("returns an appropriate error", func() {
 						_, err := subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.DynamicIPSelector)
-						Ω(err).Should(HaveOccurred())
-						Ω(err).Should(Equal(subnets.ErrInsufficientIPs))
+						Expect(err).To(HaveOccurred())
+						Expect(err).To(Equal(subnets.ErrInsufficientIPs))
 					})
 
 					Context("but after it is released", func() {
 						It("dynamically allocates the released IP again", func() {
 							err := subnetpool.Release(&linux_backend.Network{static, ips[3]})
-							Ω(err).ShouldNot(HaveOccurred())
+							Expect(err).ToNot(HaveOccurred())
 
 							network, err := subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.DynamicIPSelector)
-							Ω(err).ShouldNot(HaveOccurred())
-							Ω(network.IP).Should(Equal(ips[3]))
+							Expect(err).ToNot(HaveOccurred())
+							Expect(network.IP).To(Equal(ips[3]))
 						})
 
 						It("allows static allocation again", func() {
 							err := subnetpool.Release(&linux_backend.Network{static, ips[3]})
-							Ω(err).ShouldNot(HaveOccurred())
+							Expect(err).ToNot(HaveOccurred())
 
 							_, err = subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.StaticIPSelector{ips[3]})
-							Ω(err).ShouldNot(HaveOccurred())
+							Expect(err).ToNot(HaveOccurred())
 						})
 					})
 				})
@@ -313,18 +313,18 @@ var _ = Describe("Subnet Pool", func() {
 					JustBeforeEach(func() {
 						var err error
 						firstContainerIP, firstSubnetPool = networkParms("10.9.3.0/30")
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
 						_, secondSubnetPool = networkParms("10.9.3.0/29")
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
 						_, err = subnetpool.Acquire(subnets.StaticSubnetSelector{firstSubnetPool}, subnets.DynamicIPSelector)
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 					})
 
 					It("returns an appropriate error", func() {
 						_, err := subnetpool.Acquire(subnets.StaticSubnetSelector{secondSubnetPool}, subnets.DynamicIPSelector)
-						Ω(err).Should(MatchError("the requested subnet (10.9.3.0/29) overlaps an existing subnet (10.9.3.0/30)"))
+						Expect(err).To(MatchError("the requested subnet (10.9.3.0/29) overlaps an existing subnet (10.9.3.0/30)"))
 					})
 				})
 
@@ -338,27 +338,27 @@ var _ = Describe("Subnet Pool", func() {
 					JustBeforeEach(func() {
 						var err error
 						firstContainerIP, firstSubnetPool = networkParms("10.9.3.4/30")
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
 						_, secondSubnetPool = networkParms("10.9.3.0/29")
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
 						_, err = subnetpool.Acquire(subnets.StaticSubnetSelector{firstSubnetPool}, subnets.DynamicIPSelector)
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 					})
 
 					It("returns an appropriate error", func() {
 						_, err := subnetpool.Acquire(subnets.StaticSubnetSelector{secondSubnetPool}, subnets.DynamicIPSelector)
-						Ω(err).Should(MatchError("the requested subnet (10.9.3.0/29) overlaps an existing subnet (10.9.3.4/30)"))
+						Expect(err).To(MatchError("the requested subnet (10.9.3.0/29) overlaps an existing subnet (10.9.3.4/30)"))
 					})
 
 					Context("but after it is released", func() {
 						It("allows allocation again", func() {
 							err := subnetpool.Release(&linux_backend.Network{firstSubnetPool, firstContainerIP})
-							Ω(err).ShouldNot(HaveOccurred())
+							Expect(err).ToNot(HaveOccurred())
 
 							_, err = subnetpool.Acquire(subnets.StaticSubnetSelector{secondSubnetPool}, subnets.DynamicIPSelector)
-							Ω(err).ShouldNot(HaveOccurred())
+							Expect(err).ToNot(HaveOccurred())
 						})
 					})
 				})
@@ -368,7 +368,7 @@ var _ = Describe("Subnet Pool", func() {
 						_, static := networkParms("10.9.3.6/29")
 
 						_, err := subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.DynamicIPSelector)
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 					})
 				})
 
@@ -383,7 +383,7 @@ var _ = Describe("Subnet Pool", func() {
 
 				It("the first request returns an error", func() {
 					_, err := subnetpool.Acquire(subnets.DynamicSubnetSelector, subnets.DynamicIPSelector)
-					Ω(err).Should(HaveOccurred())
+					Expect(err).To(HaveOccurred())
 				})
 			})
 
@@ -395,20 +395,20 @@ var _ = Describe("Subnet Pool", func() {
 				Context("the first request", func() {
 					It("succeeds, and returns a /30 network within the subnet", func() {
 						network, err := subnetpool.Acquire(subnets.DynamicSubnetSelector, subnets.DynamicIPSelector)
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
-						Ω(network.Subnet).ShouldNot(BeNil())
-						Ω(network.Subnet.String()).Should(Equal("10.2.3.0/30"))
+						Expect(network.Subnet).ToNot(BeNil())
+						Expect(network.Subnet.String()).To(Equal("10.2.3.0/30"))
 					})
 				})
 
 				Context("subsequent requests", func() {
 					It("fails, and return an err", func() {
 						_, err := subnetpool.Acquire(subnets.DynamicSubnetSelector, subnets.DynamicIPSelector)
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
 						_, err = subnetpool.Acquire(subnets.DynamicSubnetSelector, subnets.DynamicIPSelector)
-						Ω(err).Should(HaveOccurred())
+						Expect(err).To(HaveOccurred())
 					})
 				})
 
@@ -416,22 +416,22 @@ var _ = Describe("Subnet Pool", func() {
 					It("a subsequent allocation succeeds, and returns the first network again", func() {
 						// first
 						network, err := subnetpool.Acquire(subnets.DynamicSubnetSelector, subnets.DynamicIPSelector)
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
 						// second - will fail (sanity check)
 						_, err = subnetpool.Acquire(subnets.DynamicSubnetSelector, subnets.DynamicIPSelector)
-						Ω(err).Should(HaveOccurred())
+						Expect(err).To(HaveOccurred())
 
 						// release
 						err = subnetpool.Release(&linux_backend.Network{network.Subnet, network.IP})
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
 						// third - should work now because of release
 						network2, err := subnetpool.Acquire(subnets.DynamicSubnetSelector, subnets.DynamicIPSelector)
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
-						Ω(network2.Subnet).ShouldNot(BeNil())
-						Ω(network2.Subnet.String()).Should(Equal(network.Subnet.String()))
+						Expect(network2.Subnet).ToNot(BeNil())
+						Expect(network2.Subnet.String()).To(Equal(network.Subnet.String()))
 					})
 
 					Context("and it is not the last IP in the subnet", func() {
@@ -439,13 +439,13 @@ var _ = Describe("Subnet Pool", func() {
 							_, static := networkParms("10.3.3.0/29")
 
 							_, err := subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.DynamicIPSelector)
-							Ω(err).ShouldNot(HaveOccurred())
+							Expect(err).ToNot(HaveOccurred())
 
 							network, err := subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.DynamicIPSelector)
-							Ω(err).ShouldNot(HaveOccurred())
+							Expect(err).ToNot(HaveOccurred())
 
 							err = subnetpool.Release(&linux_backend.Network{network.Subnet, network.IP})
-							Ω(err).ShouldNot(HaveOccurred())
+							Expect(err).ToNot(HaveOccurred())
 						})
 					})
 				})
@@ -454,16 +454,16 @@ var _ = Describe("Subnet Pool", func() {
 					It("returns an error", func() {
 						// first
 						network, err := subnetpool.Acquire(subnets.DynamicSubnetSelector, subnets.DynamicIPSelector)
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
 						// release
 						err = subnetpool.Release(&linux_backend.Network{network.Subnet, network.IP})
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
 						// release again
 						err = subnetpool.Release(&linux_backend.Network{network.Subnet, network.IP})
-						Ω(err).Should(HaveOccurred())
-						Ω(err).Should(Equal(subnets.ErrReleasedUnallocatedSubnet))
+						Expect(err).To(HaveOccurred())
+						Expect(err).To(Equal(subnets.ErrReleasedUnallocatedSubnet))
 					})
 				})
 			})
@@ -476,21 +476,21 @@ var _ = Describe("Subnet Pool", func() {
 				Context("the second request", func() {
 					It("succeeds", func() {
 						_, err := subnetpool.Acquire(subnets.DynamicSubnetSelector, subnets.DynamicIPSelector)
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
 						_, err = subnetpool.Acquire(subnets.DynamicSubnetSelector, subnets.DynamicIPSelector)
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 					})
 
 					It("returns the second /30 network within the subnet", func() {
 						_, err := subnetpool.Acquire(subnets.DynamicSubnetSelector, subnets.DynamicIPSelector)
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
 						network, err := subnetpool.Acquire(subnets.DynamicSubnetSelector, subnets.DynamicIPSelector)
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
-						Ω(network.Subnet).ShouldNot(BeNil())
-						Ω(network.Subnet.String()).Should(Equal("10.2.3.4/30"))
+						Expect(network.Subnet).ToNot(BeNil())
+						Expect(network.Subnet.String()).To(Equal("10.2.3.4/30"))
 					})
 				})
 
@@ -500,23 +500,23 @@ var _ = Describe("Subnet Pool", func() {
 
 					Consistently(func() bool {
 						_, network, err := net.ParseCIDR("10.0.0.0/29")
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
 						subnetpool, err := subnets.NewSubnets(network)
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
 						out := make(chan *net.IPNet)
 						go func(out chan *net.IPNet) {
 							defer GinkgoRecover()
 							n1, err := subnetpool.Acquire(subnets.DynamicSubnetSelector, subnets.DynamicIPSelector)
-							Ω(err).ShouldNot(HaveOccurred())
+							Expect(err).ToNot(HaveOccurred())
 							out <- n1.Subnet
 						}(out)
 
 						go func(out chan *net.IPNet) {
 							defer GinkgoRecover()
 							n1, err := subnetpool.Acquire(subnets.DynamicSubnetSelector, subnets.DynamicIPSelector)
-							Ω(err).ShouldNot(HaveOccurred())
+							Expect(err).ToNot(HaveOccurred())
 							out <- n1.Subnet
 						}(out)
 
@@ -532,13 +532,13 @@ var _ = Describe("Subnet Pool", func() {
 
 					Consistently(func() bool {
 						_, network, err := net.ParseCIDR("10.0.0.0/29")
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
 						subnetpool, err := subnets.NewSubnets(network)
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
 						acquired, err := subnetpool.Acquire(subnets.DynamicSubnetSelector, subnets.DynamicIPSelector)
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
 						out := make(chan error)
 						go func(out chan error) {
@@ -567,7 +567,7 @@ var _ = Describe("Subnet Pool", func() {
 						network := subnetPool("10.0.0.0/29")
 
 						subnetpool, err := subnets.NewSubnets(network)
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
 						ip, n1 := networkParms("10.1.0.0/30")
 
@@ -602,17 +602,17 @@ var _ = Describe("Subnet Pool", func() {
 					_, static := networkParms("10.9.3.4/30")
 
 					err := subnetpool.Remove(&linux_backend.Network{static, net.ParseIP("10.9.3.5")})
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 				})
 
 				It("does not allow recovering twice", func() {
 					_, static := networkParms("10.9.3.4/30")
 
 					err := subnetpool.Remove(&linux_backend.Network{static, net.ParseIP("10.9.3.5")})
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
 					err = subnetpool.Remove(&linux_backend.Network{static, net.ParseIP("10.9.3.5")})
-					Ω(err).Should(HaveOccurred())
+					Expect(err).To(HaveOccurred())
 				})
 
 				It("does not allow allocating after recovery", func() {
@@ -620,17 +620,17 @@ var _ = Describe("Subnet Pool", func() {
 
 					ip := net.ParseIP("10.9.3.5")
 					err := subnetpool.Remove(&linux_backend.Network{static, ip})
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
 					_, err = subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.StaticIPSelector{ip})
-					Ω(err).Should(HaveOccurred())
+					Expect(err).To(HaveOccurred())
 				})
 
 				It("does not allow recovering without an explicit IP", func() {
 					_, static := networkParms("10.9.3.4/30")
 
 					err := subnetpool.Remove(&linux_backend.Network{static, nil})
-					Ω(err).Should(HaveOccurred())
+					Expect(err).To(HaveOccurred())
 				})
 			})
 
@@ -639,31 +639,31 @@ var _ = Describe("Subnet Pool", func() {
 					_, static := networkParms("10.2.3.4/30")
 
 					err := subnetpool.Remove(&linux_backend.Network{static, net.ParseIP("10.2.3.5")})
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 				})
 
 				It("does not allow recovering twice", func() {
 					_, static := networkParms("10.2.3.4/30")
 
 					err := subnetpool.Remove(&linux_backend.Network{static, net.ParseIP("10.2.3.5")})
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
 					err = subnetpool.Remove(&linux_backend.Network{static, net.ParseIP("10.2.3.5")})
-					Ω(err).Should(HaveOccurred())
+					Expect(err).To(HaveOccurred())
 				})
 
 				It("does not dynamically allocate a recovered network", func() {
 					_, static := networkParms("10.2.3.4/30")
 
 					err := subnetpool.Remove(&linux_backend.Network{static, net.ParseIP("10.2.3.1")})
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
 					network, err := subnetpool.Acquire(subnets.DynamicSubnetSelector, subnets.StaticIPSelector{net.ParseIP("10.2.3.1")})
-					Ω(err).ShouldNot(HaveOccurred())
-					Ω(network.Subnet.String()).Should(Equal("10.2.3.0/30"))
+					Expect(err).ToNot(HaveOccurred())
+					Expect(network.Subnet.String()).To(Equal("10.2.3.0/30"))
 
 					_, err = subnetpool.Acquire(subnets.DynamicSubnetSelector, subnets.StaticIPSelector{net.ParseIP("10.2.3.1")})
-					Ω(err).Should(Equal(subnets.ErrInsufficientSubnets))
+					Expect(err).To(Equal(subnets.ErrInsufficientSubnets))
 				})
 			})
 
@@ -679,7 +679,7 @@ func subnetPool(networkString string) *net.IPNet {
 
 func networkParms(networkString string) (net.IP, *net.IPNet) {
 	containerIP, subnet, err := net.ParseCIDR(networkString)
-	Ω(err).ShouldNot(HaveOccurred())
+	Expect(err).ToNot(HaveOccurred())
 	if containerIP.Equal(subnet.IP) {
 		containerIP = nextIP(containerIP)
 	}

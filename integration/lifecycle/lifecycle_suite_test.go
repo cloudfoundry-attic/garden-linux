@@ -33,7 +33,7 @@ func startGarden(argv ...string) garden.Client {
 
 	{ // Check this test suite is in the correct directory
 		b, err := os.Open(binPath)
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 		b.Close()
 	}
 
@@ -45,7 +45,7 @@ func startGarden(argv ...string) garden.Client {
 }
 
 func restartGarden(argv ...string) {
-	Ω(client.Ping()).Should(Succeed(), "tried to restart garden while it was not running")
+	Expect(client.Ping()).To(Succeed(), "tried to restart garden while it was not running")
 	gardenProcess.Signal(syscall.SIGTERM)
 	Eventually(gardenProcess.Wait(), 10).Should(Receive())
 
@@ -56,7 +56,7 @@ func ensureGardenRunning() {
 	if err := client.Ping(); err != nil {
 		client = startGarden()
 	}
-	Ω(client.Ping()).ShouldNot(HaveOccurred())
+	Expect(client.Ping()).ToNot(HaveOccurred())
 }
 
 func TestLifecycle(t *testing.T) {
@@ -67,7 +67,7 @@ func TestLifecycle(t *testing.T) {
 
 	SynchronizedBeforeSuite(func() []byte {
 		gardenPath, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux", "-a", "-race", "-tags", "daemon")
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 		return []byte(gardenPath)
 	}, func(gardenPath []byte) {
 		gardenBin = string(gardenPath)
@@ -91,23 +91,23 @@ func TestLifecycle(t *testing.T) {
 
 func containerIP(ctr garden.Container) string {
 	info, err := ctr.Info()
-	Ω(err).ShouldNot(HaveOccurred())
+	Expect(err).ToNot(HaveOccurred())
 	return info.ContainerIP
 }
 
 func dumpIP() {
 	cmd := exec.Command("ip", "a")
 	op, err := cmd.CombinedOutput()
-	Ω(err).ShouldNot(HaveOccurred())
+	Expect(err).ToNot(HaveOccurred())
 	fmt.Println("IP status:\n", string(op))
 
 	cmd = exec.Command("iptables", "--list")
 	op, err = cmd.CombinedOutput()
-	Ω(err).ShouldNot(HaveOccurred())
+	Expect(err).ToNot(HaveOccurred())
 	fmt.Println("IP tables chains:\n", string(op))
 
 	cmd = exec.Command("iptables", "--list-rules")
 	op, err = cmd.CombinedOutput()
-	Ω(err).ShouldNot(HaveOccurred())
+	Expect(err).ToNot(HaveOccurred())
 	fmt.Println("IP tables rules:\n", string(op))
 }

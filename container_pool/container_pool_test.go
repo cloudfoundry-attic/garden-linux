@@ -66,7 +66,7 @@ var _ = Describe("Container pool", func() {
 		var err error
 		containerNetwork = &linux_backend.Network{}
 		containerNetwork.IP, containerNetwork.Subnet, err = net.ParseCIDR("10.2.0.1/30")
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 		fakeSubnetPool.AcquireReturns(containerNetwork, nil)
 
 		fakeBridges = new(fake_bridge_manager.FakeBridgeManager)
@@ -90,7 +90,7 @@ var _ = Describe("Container pool", func() {
 		defaultFakeRootFSProvider.ProvideRootFSReturns("/provided/rootfs/path", nil, nil)
 
 		depotPath, err = ioutil.TempDir("", "depot-path")
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		config = sysconfig.NewConfig("0", false)
 		logger := lagertest.NewTestLogger("test")
@@ -130,7 +130,7 @@ var _ = Describe("Container pool", func() {
 			})
 
 			It("returns the network pool size", func() {
-				Ω(pool.MaxContainers()).Should(Equal(5))
+				Expect(pool.MaxContainers()).To(Equal(5))
 			})
 		})
 		Context("when constrained by uid pool size", func() {
@@ -140,7 +140,7 @@ var _ = Describe("Container pool", func() {
 			})
 
 			It("returns the uid pool size", func() {
-				Ω(pool.MaxContainers()).Should(Equal(42))
+				Expect(pool.MaxContainers()).To(Equal(42))
 			})
 		})
 	})
@@ -150,9 +150,9 @@ var _ = Describe("Container pool", func() {
 			fakeQuotaManager.MountPointResult = "/depot/mount/point"
 
 			err := pool.Setup()
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(fakeRunner).Should(HaveExecutedSerially(
+			Expect(fakeRunner).To(HaveExecutedSerially(
 				fake_command_runner.CommandSpec{
 					Path: "/root/path/setup.sh",
 					Env: []string{
@@ -181,16 +181,16 @@ var _ = Describe("Container pool", func() {
 
 			It("returns the error", func() {
 				err := pool.Setup()
-				Ω(err).Should(Equal(nastyError))
+				Expect(err).To(Equal(nastyError))
 			})
 		})
 
 		Describe("Setting up IPTables", func() {
 			It("sets up global allow and deny rules, adding allow before deny", func() {
 				err := pool.Setup()
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(fakeRunner).Should(HaveExecutedSerially(
+				Expect(fakeRunner).To(HaveExecutedSerially(
 					fake_command_runner.CommandSpec{
 						Path: "/root/path/setup.sh", // must run iptables rules after setup.sh
 					},
@@ -228,7 +228,7 @@ var _ = Describe("Container pool", func() {
 
 				It("returns a wrapped error", func() {
 					err := pool.Setup()
-					Ω(err).Should(MatchError("container_pool: setting up allow rules in iptables: oh no!"))
+					Expect(err).To(MatchError("container_pool: setting up allow rules in iptables: oh no!"))
 				})
 			})
 		})
@@ -237,14 +237,14 @@ var _ = Describe("Container pool", func() {
 	Describe("creating", func() {
 		itReleasesTheUserIDs := func() {
 			It("returns the container's user ID and root ID to the pool", func() {
-				Ω(fakeUIDPool.Released).Should(Equal([]uint32{10000, 10001}))
+				Expect(fakeUIDPool.Released).To(Equal([]uint32{10000, 10001}))
 			})
 		}
 
 		itReleasesTheIPBlock := func() {
 			It("returns the container's IP block to the pool", func() {
-				Ω(fakeSubnetPool.ReleaseCallCount()).Should(Equal(1))
-				Ω(fakeSubnetPool.ReleaseArgsForCall(0)).Should(Equal(containerNetwork))
+				Expect(fakeSubnetPool.ReleaseCallCount()).To(Equal(1))
+				Expect(fakeSubnetPool.ReleaseArgsForCall(0)).To(Equal(containerNetwork))
 			})
 		}
 
@@ -253,53 +253,53 @@ var _ = Describe("Container pool", func() {
 				executedCommands := fakeRunner.ExecutedCommands()
 
 				createCommand := executedCommands[0]
-				Ω(createCommand.Path).Should(Equal("/root/path/create.sh"))
+				Expect(createCommand.Path).To(Equal("/root/path/create.sh"))
 				containerPath := createCommand.Args[1]
 
 				lastCommand := executedCommands[len(executedCommands)-1]
-				Ω(lastCommand.Path).Should(Equal("/root/path/destroy.sh"))
-				Ω(lastCommand.Args[1]).Should(Equal(containerPath))
+				Expect(lastCommand.Path).To(Equal("/root/path/destroy.sh"))
+				Expect(lastCommand.Args[1]).To(Equal(containerPath))
 			})
 		}
 
 		itCleansUpTheRootfs := func() {
 			It("cleans up the rootfs for the container", func() {
-				Ω(defaultFakeRootFSProvider.CleanupRootFSCallCount()).Should(Equal(1))
+				Expect(defaultFakeRootFSProvider.CleanupRootFSCallCount()).To(Equal(1))
 				_, providedID, _ := defaultFakeRootFSProvider.ProvideRootFSArgsForCall(0)
 				_, cleanedUpID := defaultFakeRootFSProvider.CleanupRootFSArgsForCall(0)
-				Ω(cleanedUpID).Should(Equal(providedID))
+				Expect(cleanedUpID).To(Equal(providedID))
 			})
 		}
 
 		itReleasesAndDestroysTheBridge := func() {
 			It("releases the bridge", func() {
-				Ω(fakeBridges.ReleaseCallCount()).Should(Equal(1))
+				Expect(fakeBridges.ReleaseCallCount()).To(Equal(1))
 				_, containerId := fakeBridges.ReserveArgsForCall(0)
 
-				Ω(fakeBridges.ReleaseCallCount()).Should(Equal(1))
+				Expect(fakeBridges.ReleaseCallCount()).To(Equal(1))
 				bridgeName, containerId := fakeBridges.ReleaseArgsForCall(0)
-				Ω(bridgeName).Should(Equal("bridge-for-10.2.0.0/30-" + containerId))
-				Ω(containerId).Should(Equal(containerId))
+				Expect(bridgeName).To(Equal("bridge-for-10.2.0.0/30-" + containerId))
+				Expect(containerId).To(Equal(containerId))
 			})
 		}
 
 		It("returns containers with unique IDs", func() {
 			container1, err := pool.Create(garden.ContainerSpec{})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			container2, err := pool.Create(garden.ContainerSpec{})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(container1.ID()).ShouldNot(Equal(container2.ID()))
+			Expect(container1.ID()).ToNot(Equal(container2.ID()))
 		})
 
 		It("creates containers with the correct grace time", func() {
 			container, err := pool.Create(garden.ContainerSpec{
 				GraceTime: 1 * time.Second,
 			})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(container.GraceTime()).Should(Equal(1 * time.Second))
+			Expect(container.GraceTime()).To(Equal(1 * time.Second))
 		})
 
 		It("creates containers with the correct properties", func() {
@@ -310,19 +310,19 @@ var _ = Describe("Container pool", func() {
 			container, err := pool.Create(garden.ContainerSpec{
 				Properties: properties,
 			})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(container.GetProperties()).Should(Equal(properties))
+			Expect(container.GetProperties()).To(Equal(properties))
 		})
 
 		It("sets up iptable filters for the container", func() {
 			container, err := pool.Create(garden.ContainerSpec{})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(fakeFilterProvider.ProvideFilterCallCount()).Should(BeNumerically(">", 0))
-			Ω(fakeFilterProvider.ProvideFilterArgsForCall(0)).Should(Equal(container.Handle()))
-			Ω(fakeFilter.SetupCallCount()).Should(Equal(1))
-			Ω(fakeFilter.SetupArgsForCall(0)).Should(Equal(container.Handle()))
+			Expect(fakeFilterProvider.ProvideFilterCallCount()).To(BeNumerically(">", 0))
+			Expect(fakeFilterProvider.ProvideFilterArgsForCall(0)).To(Equal(container.Handle()))
+			Expect(fakeFilter.SetupCallCount()).To(Equal(1))
+			Expect(fakeFilter.SetupArgsForCall(0)).To(Equal(container.Handle()))
 		})
 
 		Context("when setting up iptables fails", func() {
@@ -330,11 +330,11 @@ var _ = Describe("Container pool", func() {
 			BeforeEach(func() {
 				fakeFilter.SetupReturns(errors.New("iptables says no"))
 				_, err = pool.Create(garden.ContainerSpec{})
-				Ω(err).Should(HaveOccurred())
+				Expect(err).To(HaveOccurred())
 			})
 
 			It("returns a wrapped error", func() {
-				Ω(err).Should(MatchError("container_pool: set up filter: iptables says no"))
+				Expect(err).To(MatchError("container_pool: set up filter: iptables says no"))
 			})
 
 			itReleasesTheUserIDs()
@@ -346,9 +346,9 @@ var _ = Describe("Container pool", func() {
 		Context("when the privileged flag is specified and true", func() {
 			It("executes create.sh with a root_uid of 0", func() {
 				container, err := pool.Create(garden.ContainerSpec{Privileged: true})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(fakeRunner).Should(HaveExecutedSerially(
+				Expect(fakeRunner).To(HaveExecutedSerially(
 					fake_command_runner.CommandSpec{
 						Path: "/root/path/create.sh",
 						Args: []string{path.Join(depotPath, container.ID())},
@@ -374,9 +374,9 @@ var _ = Describe("Container pool", func() {
 		Context("when no Network parameter is specified", func() {
 			It("executes create.sh with the correct args and environment", func() {
 				container, err := pool.Create(garden.ContainerSpec{})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(fakeRunner).Should(HaveExecutedSerially(
+				Expect(fakeRunner).To(HaveExecutedSerially(
 					fake_command_runner.CommandSpec{
 						Path: "/root/path/create.sh",
 						Args: []string{path.Join(depotPath, container.ID())},
@@ -408,9 +408,9 @@ var _ = Describe("Container pool", func() {
 				container, err := pool.Create(garden.ContainerSpec{
 					Network: "1.3.0.0/30",
 				})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(fakeRunner).Should(HaveExecutedSerially(
+				Expect(fakeRunner).To(HaveExecutedSerially(
 					fake_command_runner.CommandSpec{
 						Path: "/root/path/create.sh",
 						Args: []string{path.Join(depotPath, container.ID())},
@@ -434,38 +434,38 @@ var _ = Describe("Container pool", func() {
 
 			It("creates the container directory", func() {
 				container, err := pool.Create(garden.ContainerSpec{})
-				Ω(err).Should(Succeed())
+				Expect(err).To(Succeed())
 
 				containerDir := path.Join(depotPath, container.ID())
 				_, err = os.Stat(containerDir)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 			})
 
 			Context("when creating the container directory fails", func() {
 				JustBeforeEach(func() {
-					Ω(os.Remove(depotPath)).Should(Succeed())
+					Expect(os.Remove(depotPath)).To(Succeed())
 					ioutil.WriteFile(depotPath, []byte(""), 0755)
 				})
 
 				It("returns an error", func() {
 					_, err := pool.Create(garden.ContainerSpec{})
-					Ω(err).Should(MatchError(HavePrefix("containerpool: creating container directory")))
+					Expect(err).To(MatchError(HavePrefix("containerpool: creating container directory")))
 				})
 			})
 
 			Describe("allocating the requested network", func() {
 				itShouldAcquire := func(subnet subnets.SubnetSelector, ip subnets.IPSelector) {
-					Ω(fakeSubnetPool.AcquireCallCount()).Should(Equal(1))
+					Expect(fakeSubnetPool.AcquireCallCount()).To(Equal(1))
 					s, i := fakeSubnetPool.AcquireArgsForCall(0)
 
-					Ω(s).Should(Equal(subnet))
-					Ω(i).Should(Equal(ip))
+					Expect(s).To(Equal(subnet))
+					Expect(i).To(Equal(ip))
 				}
 
 				Context("when the network string is empty", func() {
 					It("allocates a dynamic subnet and ip", func() {
 						_, err := pool.Create(garden.ContainerSpec{Network: ""})
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
 						itShouldAcquire(subnets.DynamicSubnetSelector, subnets.DynamicIPSelector)
 					})
@@ -475,7 +475,7 @@ var _ = Describe("Container pool", func() {
 					Context("when it contains a prefix length", func() {
 						It("statically allocates the requested subnet ", func() {
 							_, err := pool.Create(garden.ContainerSpec{Network: "1.2.3.0/30"})
-							Ω(err).ShouldNot(HaveOccurred())
+							Expect(err).ToNot(HaveOccurred())
 
 							_, sn, _ := net.ParseCIDR("1.2.3.0/30")
 							itShouldAcquire(subnets.StaticSubnetSelector{sn}, subnets.DynamicIPSelector)
@@ -485,7 +485,7 @@ var _ = Describe("Container pool", func() {
 					Context("when it does not contain a prefix length", func() {
 						It("statically allocates the requested Network from Subnets as a /30", func() {
 							_, err := pool.Create(garden.ContainerSpec{Network: "1.2.3.0"})
-							Ω(err).ShouldNot(HaveOccurred())
+							Expect(err).ToNot(HaveOccurred())
 
 							_, sn, _ := net.ParseCIDR("1.2.3.0/30")
 							itShouldAcquire(subnets.StaticSubnetSelector{sn}, subnets.DynamicIPSelector)
@@ -495,7 +495,7 @@ var _ = Describe("Container pool", func() {
 					Context("when the network parameter has non-zero host bits", func() {
 						It("statically allocates an IP address based on the network parameter", func() {
 							_, err := pool.Create(garden.ContainerSpec{Network: "1.2.3.1/20"})
-							Ω(err).ShouldNot(HaveOccurred())
+							Expect(err).ToNot(HaveOccurred())
 
 							_, sn, _ := net.ParseCIDR("1.2.3.0/20")
 							itShouldAcquire(subnets.StaticSubnetSelector{sn}, subnets.StaticIPSelector{net.ParseIP("1.2.3.1")})
@@ -505,7 +505,7 @@ var _ = Describe("Container pool", func() {
 					Context("when the network parameter has zero host bits", func() {
 						It("dynamically allocates an IP address", func() {
 							_, err := pool.Create(garden.ContainerSpec{Network: "1.2.3.0/24"})
-							Ω(err).ShouldNot(HaveOccurred())
+							Expect(err).ToNot(HaveOccurred())
 
 							_, sn, _ := net.ParseCIDR("1.2.3.0/24")
 							itShouldAcquire(subnets.StaticSubnetSelector{sn}, subnets.DynamicIPSelector)
@@ -515,13 +515,13 @@ var _ = Describe("Container pool", func() {
 					Context("when an invalid network string is passed", func() {
 						It("returns an error", func() {
 							_, err := pool.Create(garden.ContainerSpec{Network: "not a network"})
-							Ω(err).Should(MatchError("create container: invalid network spec: invalid CIDR address: not a network/30"))
+							Expect(err).To(MatchError("create container: invalid network spec: invalid CIDR address: not a network/30"))
 						})
 
 						It("does not acquire any resources", func() {
-							Ω(fakeUIDPool.Acquired).Should(HaveLen(0))
-							Ω(fakePortPool.Acquired).Should(HaveLen(0))
-							Ω(fakeSubnetPool.AcquireCallCount()).Should(Equal(0))
+							Expect(fakeUIDPool.Acquired).To(HaveLen(0))
+							Expect(fakePortPool.Acquired).To(HaveLen(0))
+							Expect(fakeSubnetPool.AcquireCallCount()).To(Equal(0))
 						})
 					})
 				})
@@ -540,13 +540,13 @@ var _ = Describe("Container pool", func() {
 				})
 
 				It("returns the error", func() {
-					Ω(err).Should(Equal(allocateError))
+					Expect(err).To(Equal(allocateError))
 				})
 
 				itReleasesTheUserIDs()
 
 				It("does not execute create.sh", func() {
-					Ω(fakeRunner).ShouldNot(HaveExecutedSerially(
+					Expect(fakeRunner).ToNot(HaveExecutedSerially(
 						fake_command_runner.CommandSpec{
 							Path: "/root/path/create.sh",
 						},
@@ -554,29 +554,29 @@ var _ = Describe("Container pool", func() {
 				})
 
 				It("doesn't attempt to release the network if it has not been assigned", func() {
-					Ω(fakeSubnetPool.ReleaseCallCount()).Should(Equal(0))
+					Expect(fakeSubnetPool.ReleaseCallCount()).To(Equal(0))
 				})
 			})
 		})
 
 		It("saves the bridge name to the depot", func() {
 			container, err := pool.Create(garden.ContainerSpec{})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			body, err := ioutil.ReadFile(path.Join(depotPath, container.ID(), "bridge-name"))
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(string(body)).Should(Equal("bridge-for-10.2.0.0/30-" + container.ID()))
+			Expect(string(body)).To(Equal("bridge-for-10.2.0.0/30-" + container.ID()))
 		})
 
 		It("saves the determined rootfs provider to the depot", func() {
 			container, err := pool.Create(garden.ContainerSpec{})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			body, err := ioutil.ReadFile(path.Join(depotPath, container.ID(), "rootfs-provider"))
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(string(body)).Should(Equal(""))
+			Expect(string(body)).To(Equal(""))
 		})
 
 		Context("when a rootfs is specified", func() {
@@ -584,11 +584,11 @@ var _ = Describe("Container pool", func() {
 				container, err := pool.Create(garden.ContainerSpec{
 					RootFSPath: "fake:///path/to/custom-rootfs",
 				})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				_, id, uri := fakeRootFSProvider.ProvideRootFSArgsForCall(0)
-				Ω(id).Should(Equal(container.ID()))
-				Ω(uri).Should(Equal(&url.URL{
+				Expect(id).To(Equal(container.ID()))
+				Expect(uri).To(Equal(&url.URL{
 					Scheme: "fake",
 					Host:   "",
 					Path:   "/path/to/custom-rootfs",
@@ -601,9 +601,9 @@ var _ = Describe("Container pool", func() {
 				container, err := pool.Create(garden.ContainerSpec{
 					RootFSPath: "fake:///path/to/custom-rootfs",
 				})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(fakeRunner).Should(HaveExecutedSerially(
+				Expect(fakeRunner).To(HaveExecutedSerially(
 					fake_command_runner.CommandSpec{
 						Path: "/root/path/create.sh",
 						Args: []string{path.Join(depotPath, container.ID())},
@@ -629,12 +629,12 @@ var _ = Describe("Container pool", func() {
 				container, err := pool.Create(garden.ContainerSpec{
 					RootFSPath: "fake:///path/to/custom-rootfs",
 				})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				body, err := ioutil.ReadFile(path.Join(depotPath, container.ID(), "rootfs-provider"))
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(string(body)).Should(Equal("fake"))
+				Expect(string(body)).To(Equal("fake"))
 			})
 
 			It("returns an error if the supplied environment is invalid", func() {
@@ -643,7 +643,7 @@ var _ = Describe("Container pool", func() {
 						"hello",
 					},
 				})
-				Ω(err).Should(MatchError(HavePrefix("process: malformed environment")))
+				Expect(err).To(MatchError(HavePrefix("process: malformed environment")))
 			})
 
 			It("merges the env vars associated with the rootfs with those in the spec", func() {
@@ -660,8 +660,8 @@ var _ = Describe("Container pool", func() {
 					},
 				})
 
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(container.(*linux_container.LinuxContainer).CurrentEnvVars()).Should(Equal(process.Env{
+				Expect(err).ToNot(HaveOccurred())
+				Expect(container.(*linux_container.LinuxContainer).CurrentEnvVars()).To(Equal(process.Env{
 					"var1": "spec-value1",
 					"var2": "spec-value2",
 					"var3": "rootfs-value-3",
@@ -678,14 +678,14 @@ var _ = Describe("Container pool", func() {
 				})
 
 				It("returns an error", func() {
-					Ω(err).Should(BeAssignableToTypeOf(&url.Error{}))
+					Expect(err).To(BeAssignableToTypeOf(&url.Error{}))
 				})
 
 				itReleasesTheUserIDs()
 				itReleasesTheIPBlock()
 
 				It("does not acquire a bridge", func() {
-					Ω(fakeBridges.ReserveCallCount()).Should(Equal(0))
+					Expect(fakeBridges.ReserveCallCount()).To(Equal(0))
 				})
 			})
 
@@ -699,14 +699,14 @@ var _ = Describe("Container pool", func() {
 				})
 
 				It("returns ErrUnknownRootFSProvider", func() {
-					Ω(err).Should(Equal(container_pool.ErrUnknownRootFSProvider))
+					Expect(err).To(Equal(container_pool.ErrUnknownRootFSProvider))
 				})
 
 				itReleasesTheUserIDs()
 				itReleasesTheIPBlock()
 
 				It("does not acquire a bridge", func() {
-					Ω(fakeBridges.ReserveCallCount()).Should(Equal(0))
+					Expect(fakeBridges.ReserveCallCount()).To(Equal(0))
 				})
 			})
 
@@ -723,18 +723,18 @@ var _ = Describe("Container pool", func() {
 				})
 
 				It("returns the error", func() {
-					Ω(err).Should(Equal(providerErr))
+					Expect(err).To(Equal(providerErr))
 				})
 
 				itReleasesTheUserIDs()
 				itReleasesTheIPBlock()
 
 				It("does not acquire a bridge", func() {
-					Ω(fakeBridges.ReserveCallCount()).Should(Equal(0))
+					Expect(fakeBridges.ReserveCallCount()).To(Equal(0))
 				})
 
 				It("does not execute create.sh", func() {
-					Ω(fakeRunner).ShouldNot(HaveExecutedSerially(
+					Expect(fakeRunner).ToNot(HaveExecutedSerially(
 						fake_command_runner.CommandSpec{
 							Path: "/root/path/create.sh",
 						},
@@ -754,7 +754,7 @@ var _ = Describe("Container pool", func() {
 			})
 
 			It("does not execute create.sh", func() {
-				Ω(fakeRunner).ShouldNot(HaveExecutedSerially(
+				Expect(fakeRunner).ToNot(HaveExecutedSerially(
 					fake_command_runner.CommandSpec{
 						Path: "/root/path/create.sh",
 					},
@@ -762,13 +762,13 @@ var _ = Describe("Container pool", func() {
 			})
 
 			It("cleans up the rootfs", func() {
-				Ω(fakeRootFSProvider.CleanupRootFSCallCount()).Should(Equal(1))
+				Expect(fakeRootFSProvider.CleanupRootFSCallCount()).To(Equal(1))
 				_, rootfsPath := fakeRootFSProvider.CleanupRootFSArgsForCall(0)
-				Ω(rootfsPath).Should(Equal("the-rootfs"))
+				Expect(rootfsPath).To(Equal("the-rootfs"))
 			})
 
 			It("returns an error", func() {
-				Ω(err).Should(HaveOccurred())
+				Expect(err).To(HaveOccurred())
 			})
 		})
 
@@ -795,12 +795,12 @@ var _ = Describe("Container pool", func() {
 					},
 				})
 
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				containerPath := path.Join(depotPath, container.ID())
 				rootfsPath := "/provided/rootfs/path"
 
-				Ω(fakeRunner).Should(HaveExecutedSerially(
+				Expect(fakeRunner).To(HaveExecutedSerially(
 					fake_command_runner.CommandSpec{
 						Path: "bash",
 						Args: []string{
@@ -918,7 +918,7 @@ var _ = Describe("Container pool", func() {
 				})
 
 				It("returns the error", func() {
-					Ω(err).Should(Equal(disaster))
+					Expect(err).To(Equal(disaster))
 				})
 
 				itReleasesTheUserIDs()
@@ -937,7 +937,7 @@ var _ = Describe("Container pool", func() {
 
 			It("returns the error", func() {
 				_, err := pool.Create(garden.ContainerSpec{})
-				Ω(err).Should(Equal(nastyError))
+				Expect(err).To(Equal(nastyError))
 			})
 		})
 
@@ -958,12 +958,12 @@ var _ = Describe("Container pool", func() {
 			})
 
 			It("returns the error and releases the uid and network", func() {
-				Ω(err).Should(Equal(nastyError))
+				Expect(err).To(Equal(nastyError))
 
-				Ω(fakeUIDPool.Released).Should(ContainElement(uint32(10000)))
+				Expect(fakeUIDPool.Released).To(ContainElement(uint32(10000)))
 
-				Ω(fakeSubnetPool.ReleaseCallCount()).Should(Equal(1))
-				Ω(fakeSubnetPool.ReleaseArgsForCall(0)).Should(Equal(containerNetwork))
+				Expect(fakeSubnetPool.ReleaseCallCount()).To(Equal(1))
+				Expect(fakeSubnetPool.ReleaseArgsForCall(0)).To(Equal(containerNetwork))
 			})
 
 			itReleasesTheUserIDs()
@@ -987,7 +987,7 @@ var _ = Describe("Container pool", func() {
 						// creating a directory with this name will cause the write to the
 						// file to fail.
 						err := os.MkdirAll(rootfsProviderPath, 0755)
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
 						return nil
 					},
@@ -997,7 +997,7 @@ var _ = Describe("Container pool", func() {
 			})
 
 			It("returns an error", func() {
-				Ω(err).Should(HaveOccurred())
+				Expect(err).To(HaveOccurred())
 			})
 
 			itReleasesTheUserIDs()
@@ -1056,37 +1056,37 @@ var _ = Describe("Container pool", func() {
 					},
 				},
 			)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 		})
 
 		It("constructs a container from the snapshot", func() {
 			container, err := pool.Restore(snapshot)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(container.ID()).Should(Equal("some-restored-id"))
-			Ω(container.Handle()).Should(Equal("some-restored-handle"))
-			Ω(container.GraceTime()).Should(Equal(1 * time.Second))
-			Ω(container.GetProperties()).Should(Equal(garden.Properties(map[string]string{
+			Expect(container.ID()).To(Equal("some-restored-id"))
+			Expect(container.Handle()).To(Equal("some-restored-handle"))
+			Expect(container.GraceTime()).To(Equal(1 * time.Second))
+			Expect(container.GetProperties()).To(Equal(garden.Properties(map[string]string{
 				"foo": "bar",
 			})))
 
 			linuxContainer := container.(*linux_container.LinuxContainer)
 
-			Ω(linuxContainer.State()).Should(Equal(linux_container.State("some-restored-state")))
-			Ω(linuxContainer.Events()).Should(Equal([]string{
+			Expect(linuxContainer.State()).To(Equal(linux_container.State("some-restored-state")))
+			Expect(linuxContainer.Events()).To(Equal([]string{
 				"some-restored-event",
 				"some-other-restored-event",
 			}))
 
-			Ω(linuxContainer.Resources().Network).Should(Equal(containerNetwork))
-			Ω(linuxContainer.Resources().Bridge).Should(Equal("some-bridge"))
+			Expect(linuxContainer.Resources().Network).To(Equal(containerNetwork))
+			Expect(linuxContainer.Resources().Bridge).To(Equal("some-bridge"))
 		})
 
 		It("removes its UID from the pool", func() {
 			_, err := pool.Restore(snapshot)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(fakeUIDPool.Removed).Should(ContainElement(uint32(10000)))
+			Expect(fakeUIDPool.Removed).To(ContainElement(uint32(10000)))
 		})
 
 		Context("when the Root UID is 0", func() {
@@ -1096,38 +1096,38 @@ var _ = Describe("Container pool", func() {
 
 			It("does not remove it from the pool", func() {
 				_, err := pool.Restore(snapshot)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(fakeUIDPool.Removed).ShouldNot(ContainElement(rootUID))
+				Expect(fakeUIDPool.Removed).ToNot(ContainElement(rootUID))
 			})
 		})
 
 		It("removes its network from the pool", func() {
 			_, err := pool.Restore(snapshot)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(fakeSubnetPool.RemoveCallCount()).Should(Equal(1))
-			Ω(fakeSubnetPool.RemoveArgsForCall(0)).Should(Equal(containerNetwork))
+			Expect(fakeSubnetPool.RemoveCallCount()).To(Equal(1))
+			Expect(fakeSubnetPool.RemoveArgsForCall(0)).To(Equal(containerNetwork))
 		})
 
 		It("removes its ports from the pool", func() {
 			_, err := pool.Restore(snapshot)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(fakePortPool.Removed).Should(ContainElement(uint32(61001)))
-			Ω(fakePortPool.Removed).Should(ContainElement(uint32(61002)))
-			Ω(fakePortPool.Removed).Should(ContainElement(uint32(61003)))
+			Expect(fakePortPool.Removed).To(ContainElement(uint32(61001)))
+			Expect(fakePortPool.Removed).To(ContainElement(uint32(61002)))
+			Expect(fakePortPool.Removed).To(ContainElement(uint32(61003)))
 		})
 
 		It("rereserves the bridge for the subnet from the pool", func() {
 			_, err := pool.Restore(snapshot)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(fakeBridges.RereserveCallCount()).Should(Equal(1))
+			Expect(fakeBridges.RereserveCallCount()).To(Equal(1))
 			bridgeName, subnet, containerId := fakeBridges.RereserveArgsForCall(0)
-			Ω(bridgeName).Should(Equal("some-bridge"))
-			Ω(subnet.String()).Should(Equal("2.3.4.0/29"))
-			Ω(containerId).Should(Equal("some-restored-id"))
+			Expect(bridgeName).To(Equal("some-bridge"))
+			Expect(subnet.String()).To(Equal("2.3.4.0/29"))
+			Expect(containerId).To(Equal("some-restored-id"))
 		})
 
 		Context("when rereserving the bridge fails", func() {
@@ -1139,16 +1139,16 @@ var _ = Describe("Container pool", func() {
 			})
 
 			It("returns the error", func() {
-				Ω(err).Should(HaveOccurred())
+				Expect(err).To(HaveOccurred())
 			})
 
 			It("returns the UID to the pool", func() {
-				Ω(fakeUIDPool.Released).Should(ContainElement(uint32(10000)))
+				Expect(fakeUIDPool.Released).To(ContainElement(uint32(10000)))
 			})
 
 			It("returns the subnet to the pool", func() {
-				Ω(fakeSubnetPool.ReleaseCallCount()).Should(Equal(1))
-				Ω(fakeSubnetPool.ReleaseArgsForCall(0)).Should(Equal(containerNetwork))
+				Expect(fakeSubnetPool.ReleaseCallCount()).To(Equal(1))
+				Expect(fakeSubnetPool.ReleaseArgsForCall(0)).To(Equal(containerNetwork))
 			})
 		})
 
@@ -1159,7 +1159,7 @@ var _ = Describe("Container pool", func() {
 
 			It("fails", func() {
 				_, err := pool.Restore(snapshot)
-				Ω(err).Should(HaveOccurred())
+				Expect(err).To(HaveOccurred())
 			})
 		})
 
@@ -1172,7 +1172,7 @@ var _ = Describe("Container pool", func() {
 
 			It("returns the error", func() {
 				_, err := pool.Restore(snapshot)
-				Ω(err).Should(Equal(disaster))
+				Expect(err).To(Equal(disaster))
 			})
 		})
 
@@ -1185,9 +1185,9 @@ var _ = Describe("Container pool", func() {
 
 			It("returns the error and releases the uid", func() {
 				_, err := pool.Restore(snapshot)
-				Ω(err).Should(Equal(disaster))
+				Expect(err).To(Equal(disaster))
 
-				Ω(fakeUIDPool.Released).Should(ContainElement(uint32(10000)))
+				Expect(fakeUIDPool.Released).To(ContainElement(uint32(10000)))
 			})
 		})
 
@@ -1200,16 +1200,16 @@ var _ = Describe("Container pool", func() {
 
 			It("returns the error and releases the uid, network, and all ports", func() {
 				_, err := pool.Restore(snapshot)
-				Ω(err).Should(Equal(disaster))
+				Expect(err).To(Equal(disaster))
 
-				Ω(fakeUIDPool.Released).Should(ContainElement(uint32(10000)))
+				Expect(fakeUIDPool.Released).To(ContainElement(uint32(10000)))
 
-				Ω(fakeSubnetPool.ReleaseCallCount()).Should(Equal(1))
-				Ω(fakeSubnetPool.ReleaseArgsForCall(0)).Should(Equal(containerNetwork))
+				Expect(fakeSubnetPool.ReleaseCallCount()).To(Equal(1))
+				Expect(fakeSubnetPool.ReleaseArgsForCall(0)).To(Equal(containerNetwork))
 
-				Ω(fakePortPool.Released).Should(ContainElement(uint32(61001)))
-				Ω(fakePortPool.Released).Should(ContainElement(uint32(61002)))
-				Ω(fakePortPool.Released).Should(ContainElement(uint32(61003)))
+				Expect(fakePortPool.Released).To(ContainElement(uint32(61001)))
+				Expect(fakePortPool.Released).To(ContainElement(uint32(61002)))
+				Expect(fakePortPool.Released).To(ContainElement(uint32(61003)))
 			})
 
 			Context("when the container is privileged", func() {
@@ -1219,9 +1219,9 @@ var _ = Describe("Container pool", func() {
 
 				It("does not release uid 0 back to the uid pool", func() {
 					_, err := pool.Restore(snapshot)
-					Ω(err).Should(Equal(disaster))
+					Expect(err).To(Equal(disaster))
 
-					Ω(fakeUIDPool.Released).ShouldNot(ContainElement(rootUID))
+					Expect(fakeUIDPool.Released).ToNot(ContainElement(rootUID))
 				})
 			})
 		})
@@ -1231,38 +1231,38 @@ var _ = Describe("Container pool", func() {
 		Context("when containers are found in the depot", func() {
 			BeforeEach(func() {
 				err := os.MkdirAll(path.Join(depotPath, "container-1"), 0755)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				err = os.MkdirAll(path.Join(depotPath, "container-2"), 0755)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				err = os.MkdirAll(path.Join(depotPath, "container-3"), 0755)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				err = os.MkdirAll(path.Join(depotPath, "tmp"), 0755)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				err = ioutil.WriteFile(path.Join(depotPath, "container-1", "bridge-name"), []byte("fake-bridge-1"), 0644)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				err = ioutil.WriteFile(path.Join(depotPath, "container-2", "bridge-name"), []byte("fake-bridge-2"), 0644)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				err = ioutil.WriteFile(path.Join(depotPath, "container-1", "rootfs-provider"), []byte("fake"), 0644)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				err = ioutil.WriteFile(path.Join(depotPath, "container-2", "rootfs-provider"), []byte("fake"), 0644)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				err = ioutil.WriteFile(path.Join(depotPath, "container-3", "rootfs-provider"), []byte(""), 0644)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 			})
 
 			It("destroys each container", func() {
 				err := pool.Prune(map[string]bool{})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(fakeRunner).Should(HaveExecutedSerially(
+				Expect(fakeRunner).To(HaveExecutedSerially(
 					fake_command_runner.CommandSpec{
 						Path: "/root/path/destroy.sh",
 						Args: []string{path.Join(depotPath, "container-1")},
@@ -1291,70 +1291,70 @@ var _ = Describe("Container pool", func() {
 
 				It("cleans up each container's rootfs after destroying it", func() {
 					err := pool.Prune(map[string]bool{})
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
-					Ω(fakeRootFSProvider.CleanupRootFSCallCount()).Should(Equal(2))
+					Expect(fakeRootFSProvider.CleanupRootFSCallCount()).To(Equal(2))
 					_, id1 := fakeRootFSProvider.CleanupRootFSArgsForCall(0)
 					_, id2 := fakeRootFSProvider.CleanupRootFSArgsForCall(1)
-					Ω(id1).Should(Equal("container-1"))
-					Ω(id2).Should(Equal("container-2"))
+					Expect(id1).To(Equal("container-1"))
+					Expect(id2).To(Equal("container-2"))
 
-					Ω(defaultFakeRootFSProvider.CleanupRootFSCallCount()).Should(Equal(1))
+					Expect(defaultFakeRootFSProvider.CleanupRootFSCallCount()).To(Equal(1))
 					_, id3 := defaultFakeRootFSProvider.CleanupRootFSArgsForCall(0)
-					Ω(id3).Should(Equal("container-3"))
+					Expect(id3).To(Equal("container-3"))
 				})
 
 				It("releases the bridge", func() {
 					err := pool.Prune(map[string]bool{})
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
-					Ω(fakeBridges.ReleaseCallCount()).Should(Equal(2))
+					Expect(fakeBridges.ReleaseCallCount()).To(Equal(2))
 
 					bridge, containerId := fakeBridges.ReleaseArgsForCall(0)
-					Ω(bridge).Should(Equal("fake-bridge-1"))
-					Ω(containerId).Should(Equal("container-1"))
+					Expect(bridge).To(Equal("fake-bridge-1"))
+					Expect(containerId).To(Equal("container-1"))
 
 					bridge, containerId = fakeBridges.ReleaseArgsForCall(1)
-					Ω(bridge).Should(Equal("fake-bridge-2"))
-					Ω(containerId).Should(Equal("container-2"))
+					Expect(bridge).To(Equal("fake-bridge-2"))
+					Expect(containerId).To(Equal("container-2"))
 				})
 			})
 
 			Context("when a container does not declare a bridge name", func() {
 				It("does nothing much", func() {
 					err := pool.Prune(map[string]bool{"container-1": true, "container-2": true})
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
-					Ω(fakeBridges.ReleaseCallCount()).Should(Equal(0))
+					Expect(fakeBridges.ReleaseCallCount()).To(Equal(0))
 				})
 			})
 
 			Context("when a container does not declare a rootfs provider", func() {
 				BeforeEach(func() {
 					err := os.Remove(path.Join(depotPath, "container-2", "rootfs-provider"))
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 				})
 
 				It("cleans it up using the default provider", func() {
 					err := pool.Prune(map[string]bool{})
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
-					Ω(defaultFakeRootFSProvider.CleanupRootFSCallCount()).Should(Equal(2))
+					Expect(defaultFakeRootFSProvider.CleanupRootFSCallCount()).To(Equal(2))
 					_, id1 := defaultFakeRootFSProvider.CleanupRootFSArgsForCall(0)
 					_, id2 := defaultFakeRootFSProvider.CleanupRootFSArgsForCall(1)
-					Ω(id1).Should(Equal("container-2"))
-					Ω(id2).Should(Equal("container-3"))
+					Expect(id1).To(Equal("container-2"))
+					Expect(id2).To(Equal("container-3"))
 				})
 
 				Context("when a container exists with an unknown rootfs provider", func() {
 					BeforeEach(func() {
 						err := ioutil.WriteFile(path.Join(depotPath, "container-2", "rootfs-provider"), []byte("unknown"), 0644)
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 					})
 
 					It("ignores the error", func() {
 						err := pool.Prune(map[string]bool{})
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 					})
 				})
 			})
@@ -1368,16 +1368,16 @@ var _ = Describe("Container pool", func() {
 
 				It("ignores the error", func() {
 					err := pool.Prune(map[string]bool{})
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 				})
 			})
 
 			Context("when a container to keep is specified", func() {
 				It("is not destroyed", func() {
 					err := pool.Prune(map[string]bool{"container-2": true})
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
-					Ω(fakeRunner).ShouldNot(HaveExecutedSerially(
+					Expect(fakeRunner).ToNot(HaveExecutedSerially(
 						fake_command_runner.CommandSpec{
 							Path: "/root/path/destroy.sh",
 							Args: []string{path.Join(depotPath, "container-2")},
@@ -1387,18 +1387,18 @@ var _ = Describe("Container pool", func() {
 
 				It("is not cleaned up", func() {
 					err := pool.Prune(map[string]bool{"container-2": true})
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
-					Ω(fakeRootFSProvider.CleanupRootFSCallCount()).Should(Equal(1))
+					Expect(fakeRootFSProvider.CleanupRootFSCallCount()).To(Equal(1))
 					_, prunedId := fakeRootFSProvider.CleanupRootFSArgsForCall(0)
-					Ω(prunedId).ShouldNot(Equal("container-2"))
+					Expect(prunedId).ToNot(Equal("container-2"))
 				})
 
 				It("does not release the bridge", func() {
 					err := pool.Prune(map[string]bool{"container-2": true})
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
-					Ω(fakeBridges.ReleaseCallCount()).Should(Equal(1))
+					Expect(fakeBridges.ReleaseCallCount()).To(Equal(1))
 				})
 			})
 
@@ -1417,18 +1417,18 @@ var _ = Describe("Container pool", func() {
 
 				It("ignores the error", func() {
 					err := pool.Prune(map[string]bool{})
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
 					By("and does not clean up the container's rootfs")
-					Ω(fakeRootFSProvider.CleanupRootFSCallCount()).Should(Equal(0))
+					Expect(fakeRootFSProvider.CleanupRootFSCallCount()).To(Equal(0))
 				})
 			})
 
 			It("prunes any remaining bridges", func() {
 				err := pool.Prune(map[string]bool{})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(fakeBridges.PruneCallCount()).Should(Equal(1))
+				Expect(fakeBridges.PruneCallCount()).To(Equal(1))
 			})
 		})
 	})
@@ -1442,7 +1442,7 @@ var _ = Describe("Container pool", func() {
 			}
 
 			container, err := pool.Create(garden.ContainerSpec{})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			createdContainer = container.(*linux_container.LinuxContainer)
 
@@ -1452,9 +1452,9 @@ var _ = Describe("Container pool", func() {
 
 		It("executes destroy.sh with the correct args and environment", func() {
 			err := pool.Destroy(createdContainer)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(fakeRunner).Should(HaveExecutedSerially(
+			Expect(fakeRunner).To(HaveExecutedSerially(
 				fake_command_runner.CommandSpec{
 					Path: "/root/path/destroy.sh",
 					Args: []string{path.Join(depotPath, createdContainer.ID())},
@@ -1464,27 +1464,27 @@ var _ = Describe("Container pool", func() {
 
 		It("releases the container's ports, uid, and network", func() {
 			err := pool.Destroy(createdContainer)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(fakePortPool.Released).Should(ContainElement(uint32(123)))
-			Ω(fakePortPool.Released).Should(ContainElement(uint32(456)))
+			Expect(fakePortPool.Released).To(ContainElement(uint32(123)))
+			Expect(fakePortPool.Released).To(ContainElement(uint32(456)))
 
-			Ω(fakeUIDPool.Released).Should(ContainElement(uint32(10000)))
+			Expect(fakeUIDPool.Released).To(ContainElement(uint32(10000)))
 
-			Ω(fakeSubnetPool.ReleaseCallCount()).Should(Equal(1))
-			Ω(fakeSubnetPool.ReleaseArgsForCall(0)).Should(Equal(createdContainer.Resources().Network))
+			Expect(fakeSubnetPool.ReleaseCallCount()).To(Equal(1))
+			Expect(fakeSubnetPool.ReleaseArgsForCall(0)).To(Equal(createdContainer.Resources().Network))
 		})
 
 		Describe("bridge cleanup", func() {
 			It("releases the bridge from the pool", func() {
 				err := pool.Destroy(createdContainer)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(fakeBridges.ReleaseCallCount()).Should(Equal(1))
+				Expect(fakeBridges.ReleaseCallCount()).To(Equal(1))
 				bridgeName, containerId := fakeBridges.ReleaseArgsForCall(0)
 
-				Ω(bridgeName).Should(Equal("the-bridge"))
-				Ω(containerId).Should(Equal(createdContainer.ID()))
+				Expect(bridgeName).To(Equal("the-bridge"))
+				Expect(containerId).To(Equal(createdContainer.ID()))
 			})
 
 			Context("when the releasing the bridge fails", func() {
@@ -1492,36 +1492,36 @@ var _ = Describe("Container pool", func() {
 					releaseErr := errors.New("jam in the bridge")
 					fakeBridges.ReleaseReturns(releaseErr)
 					err := pool.Destroy(createdContainer)
-					Ω(err).Should(MatchError("containerpool: release bridge the-bridge: jam in the bridge"))
+					Expect(err).To(MatchError("containerpool: release bridge the-bridge: jam in the bridge"))
 				})
 			})
 		})
 
 		It("tears down filter chains", func() {
 			err := pool.Destroy(createdContainer)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(fakeFilterProvider.ProvideFilterCallCount()).Should(BeNumerically(">", 0))
-			Ω(fakeFilterProvider.ProvideFilterArgsForCall(0)).Should(Equal(createdContainer.Handle()))
-			Ω(fakeFilter.TearDownCallCount()).Should(Equal(1))
+			Expect(fakeFilterProvider.ProvideFilterCallCount()).To(BeNumerically(">", 0))
+			Expect(fakeFilterProvider.ProvideFilterArgsForCall(0)).To(Equal(createdContainer.Handle()))
+			Expect(fakeFilter.TearDownCallCount()).To(Equal(1))
 		})
 
 		Context("when the container has a rootfs provider defined", func() {
 			BeforeEach(func() {
 				err := os.MkdirAll(path.Join(depotPath, createdContainer.ID()), 0755)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				err = ioutil.WriteFile(path.Join(depotPath, createdContainer.ID(), "rootfs-provider"), []byte("fake"), 0644)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 			})
 
 			It("cleans up the container's rootfs", func() {
 				err := pool.Destroy(createdContainer)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(fakeRootFSProvider.CleanupRootFSCallCount()).Should(Equal(1))
+				Expect(fakeRootFSProvider.CleanupRootFSCallCount()).To(Equal(1))
 				_, id := fakeRootFSProvider.CleanupRootFSArgsForCall(0)
-				Ω(id).Should(Equal(createdContainer.ID()))
+				Expect(id).To(Equal(createdContainer.ID()))
 			})
 
 			Context("when cleaning up the container's rootfs fails", func() {
@@ -1533,26 +1533,26 @@ var _ = Describe("Container pool", func() {
 
 				It("returns the error", func() {
 					err := pool.Destroy(createdContainer)
-					Ω(err).Should(Equal(disaster))
+					Expect(err).To(Equal(disaster))
 				})
 
 				It("does not release the container's ports or uid", func() {
 					pool.Destroy(createdContainer)
 
-					Ω(fakePortPool.Released).ShouldNot(ContainElement(uint32(123)))
-					Ω(fakePortPool.Released).ShouldNot(ContainElement(uint32(456)))
-					Ω(fakeUIDPool.Released).ShouldNot(ContainElement(uint32(10000)))
+					Expect(fakePortPool.Released).ToNot(ContainElement(uint32(123)))
+					Expect(fakePortPool.Released).ToNot(ContainElement(uint32(456)))
+					Expect(fakeUIDPool.Released).ToNot(ContainElement(uint32(10000)))
 				})
 
 				It("does not release the network", func() {
 					pool.Destroy(createdContainer)
 
-					Ω(fakeSubnetPool.ReleaseCallCount()).Should(Equal(0))
+					Expect(fakeSubnetPool.ReleaseCallCount()).To(Equal(0))
 				})
 
 				It("does not tear down the filter", func() {
 					pool.Destroy(createdContainer)
-					Ω(fakeFilter.TearDownCallCount()).Should(Equal(0))
+					Expect(fakeFilter.TearDownCallCount()).To(Equal(0))
 				})
 			})
 		})
@@ -1574,34 +1574,34 @@ var _ = Describe("Container pool", func() {
 
 			It("returns the error", func() {
 				err := pool.Destroy(createdContainer)
-				Ω(err).Should(Equal(disaster))
+				Expect(err).To(Equal(disaster))
 			})
 
 			It("does not clean up the container's rootfs", func() {
 				err := pool.Destroy(createdContainer)
-				Ω(err).Should(HaveOccurred())
+				Expect(err).To(HaveOccurred())
 
-				Ω(fakeRootFSProvider.CleanupRootFSCallCount()).Should(Equal(0))
+				Expect(fakeRootFSProvider.CleanupRootFSCallCount()).To(Equal(0))
 			})
 
 			It("does not release the container's ports or uid", func() {
 				err := pool.Destroy(createdContainer)
-				Ω(err).Should(HaveOccurred())
+				Expect(err).To(HaveOccurred())
 
-				Ω(fakePortPool.Released).Should(BeEmpty())
-				Ω(fakePortPool.Released).Should(BeEmpty())
-				Ω(fakeUIDPool.Released).Should(BeEmpty())
+				Expect(fakePortPool.Released).To(BeEmpty())
+				Expect(fakePortPool.Released).To(BeEmpty())
+				Expect(fakeUIDPool.Released).To(BeEmpty())
 			})
 
 			It("does not release the network", func() {
 				err := pool.Destroy(createdContainer)
-				Ω(err).Should(HaveOccurred())
-				Ω(fakeSubnetPool.ReleaseCallCount()).Should(Equal(0))
+				Expect(err).To(HaveOccurred())
+				Expect(fakeSubnetPool.ReleaseCallCount()).To(Equal(0))
 			})
 
 			It("does not tear down the filter", func() {
 				pool.Destroy(createdContainer)
-				Ω(fakeFilter.TearDownCallCount()).Should(Equal(0))
+				Expect(fakeFilter.TearDownCallCount()).To(Equal(0))
 			})
 		})
 	})

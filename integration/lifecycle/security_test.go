@@ -18,7 +18,7 @@ var _ = Describe("Security", func() {
 		It("isolates processes so that only process from inside the container are visible", func() {
 			client = startGarden()
 			container, err := client.Create(garden.ContainerSpec{})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			_, err = container.Run(garden.ProcessSpec{
 				Path: "sleep",
@@ -27,7 +27,7 @@ var _ = Describe("Security", func() {
 				Stdout: GinkgoWriter,
 				Stderr: GinkgoWriter,
 			})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			psout := gbytes.NewBuffer()
 			ps, err := container.Run(garden.ProcessSpec{
@@ -37,10 +37,10 @@ var _ = Describe("Security", func() {
 				Stdout: psout,
 				Stderr: GinkgoWriter,
 			})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(ps.Wait()).Should(Equal(0))
-			Ω(strings.Split(string(psout.Contents()), "\n")).Should(HaveLen(6)) // header, wshd, sleep, sh, ps, \n
+			Expect(ps.Wait()).To(Equal(0))
+			Expect(strings.Split(string(psout.Contents()), "\n")).To(HaveLen(6)) // header, wshd, sleep, sh, ps, \n
 		})
 	})
 
@@ -63,7 +63,7 @@ var _ = Describe("Security", func() {
 					RootFSPath: emptyRootFSPath,
 				},
 			)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			stdout := gbytes.NewBuffer()
 			stderr := gbytes.NewBuffer()
@@ -76,14 +76,14 @@ var _ = Describe("Security", func() {
 					Stderr: stderr,
 				},
 			)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			exitStatus, err := process.Wait()
-			Ω(err).ShouldNot(HaveOccurred())
-			Ω(exitStatus).Should(Equal(0))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(exitStatus).To(Equal(0))
 
-			Ω(string(stdout.Contents())).Should(Equal("hello from stdout"))
-			Ω(string(stderr.Contents())).Should(Equal("hello from stderr"))
+			Expect(string(stdout.Contents())).To(Equal("hello from stdout"))
+			Expect(string(stderr.Contents())).To(Equal("hello from stderr"))
 		})
 	})
 
@@ -114,37 +114,37 @@ var _ = Describe("Security", func() {
 
 			// create a listener to which we deny network access
 			blockedListener, err = client.Create(garden.ContainerSpec{Network: blockedListenerIP + "/30"})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 			blockedListenerIP = containerIP(blockedListener)
 
 			// create a listener to which we do not deny access
 			unblockedListener, err = client.Create(garden.ContainerSpec{Network: unblockedListenerIP + "/30"})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 			unblockedListenerIP = containerIP(unblockedListener)
 
 			// create a listener to which we exclicitly allow access
 			allowedListener, err = client.Create(garden.ContainerSpec{Network: allowedListenerIP + "/30"})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 			allowedListenerIP = containerIP(allowedListener)
 
 			// create a container with the new deny network configuration
 			sender, err = client.Create(garden.ContainerSpec{})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 		})
 
 		AfterEach(func() {
 			err := client.Destroy(sender.Handle())
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			err = client.Destroy(blockedListener.Handle())
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			err = client.Destroy(unblockedListener.Handle())
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			err = client.Destroy(allowedListener.Handle())
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 		})
 
 		runInContainer := func(container garden.Container, script string) garden.Process {
@@ -155,7 +155,7 @@ var _ = Describe("Security", func() {
 				Stdout: GinkgoWriter,
 				Stderr: GinkgoWriter,
 			})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			return process
 		}
@@ -172,19 +172,19 @@ var _ = Describe("Security", func() {
 				sender,
 				fmt.Sprintf("echo hello | nc -w 1 %s 12345", blockedListenerIP),
 			)
-			Ω(process.Wait()).Should(Equal(1))
+			Expect(process.Wait()).To(Equal(1))
 
 			process = runInContainer(
 				sender,
 				fmt.Sprintf("echo hello | nc -w 1 %s 12345", unblockedListenerIP),
 			)
-			Ω(process.Wait()).Should(Equal(0))
+			Expect(process.Wait()).To(Equal(0))
 
 			process = runInContainer(
 				sender,
 				fmt.Sprintf("echo hello | nc -w 1 %s 12345", allowedListenerIP),
 			)
-			Ω(process.Wait()).Should(Equal(0))
+			Expect(process.Wait()).To(Equal(0))
 		})
 	})
 })

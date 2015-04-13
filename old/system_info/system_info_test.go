@@ -16,12 +16,12 @@ var _ = Describe("SystemInfo", func() {
 
 	It("provides nonzero memory and disk information", func() {
 		totalMemory, err := provider.TotalMemory()
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		totalDisk, err := provider.TotalDisk()
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
-		Ω(totalMemory).Should(BeNumerically(">", 0))
-		Ω(totalDisk).Should(BeNumerically(">", 0))
+		Expect(totalMemory).To(BeNumerically(">", 0))
+		Expect(totalDisk).To(BeNumerically(">", 0))
 	})
 })

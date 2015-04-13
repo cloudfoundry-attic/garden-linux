@@ -52,15 +52,15 @@ var _ = Describe("The Garden server", func() {
 
 		var err error
 		container, err = client.Create(garden.ContainerSpec{})
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	getGoroutineCount := func(printIt ...bool) uint64 {
 		resp, err := http.Get(fmt.Sprintf("http://%s/debug/pprof/goroutine?debug=1", debugAddr))
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		line, _, err := bufio.NewReader(resp.Body).ReadLine()
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		if len(printIt) > 0 && printIt[0] {
 			io.Copy(os.Stdout, resp.Body)
@@ -69,7 +69,7 @@ var _ = Describe("The Garden server", func() {
 		words := strings.Split(string(line), " ")
 
 		goroutineCount, err := strconv.ParseUint(words[len(words)-1], 10, 64)
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		return goroutineCount
 	}
@@ -81,11 +81,11 @@ var _ = Describe("The Garden server", func() {
 					Path: "echo",
 					Args: []string{"hi"},
 				}, garden.ProcessIO{})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				status, err := process.Wait()
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(status).Should(Equal(0))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(status).To(Equal(0))
 
 				if i == 1 {
 					firstGoroutineCount = getGoroutineCount()
@@ -96,7 +96,7 @@ var _ = Describe("The Garden server", func() {
 					lastGoroutineCount := getGoroutineCount()
 					b.RecordValue("last goroutine count", float64(lastGoroutineCount))
 
-					Ω(lastGoroutineCount).ShouldNot(BeNumerically(">", firstGoroutineCount+5))
+					Expect(lastGoroutineCount).ToNot(BeNumerically(">", firstGoroutineCount+5))
 				}
 			}
 		}, 1)
@@ -109,7 +109,7 @@ var _ = Describe("The Garden server", func() {
 			process, err := container.Run(garden.ProcessSpec{
 				Path: "cat",
 			}, garden.ProcessIO{})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			processID = process.ID()
 		})
@@ -123,12 +123,12 @@ var _ = Describe("The Garden server", func() {
 					Stdin:  stdinR,
 					Stdout: stdoutW,
 				})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				stdinData := fmt.Sprintf("hello %d", i)
 
 				_, err = stdinW.Write([]byte(stdinData + "\n"))
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				var line []byte
 				doneReading := make(chan struct{})
@@ -138,8 +138,8 @@ var _ = Describe("The Garden server", func() {
 				}()
 
 				Eventually(doneReading).Should(BeClosed())
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(string(line)).Should(Equal(stdinData))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(string(line)).To(Equal(stdinData))
 
 				stdinW.CloseWithError(errors.New("going away now"))
 
@@ -153,7 +153,7 @@ var _ = Describe("The Garden server", func() {
 					b.RecordValue("last goroutine count", float64(lastGoroutineCount))
 
 					// TODO - we have a leak more.
-					// Ω(lastGoroutineCount).ShouldNot(BeNumerically(">", firstGoroutineCount+5))
+					// Expect(lastGoroutineCount).ToNot(BeNumerically(">", firstGoroutineCount+5))
 				}
 			}
 		}, 1)
@@ -191,7 +191,7 @@ var _ = Describe("The Garden server", func() {
 							}, garden.ProcessIO{
 								Stdout: byteCounter,
 							})
-							Ω(err).ShouldNot(HaveOccurred())
+							Expect(err).ToNot(HaveOccurred())
 
 							spawned <- true
 						}()
@@ -204,7 +204,7 @@ var _ = Describe("The Garden server", func() {
 
 				AfterEach(func() {
 					err := client.Destroy(container.Handle())
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 				})
 
 				Measure("it should not adversely affect the rest of the API", func(b Benchmarker) {
@@ -214,28 +214,28 @@ var _ = Describe("The Garden server", func() {
 						var err error
 
 						newContainer, err = client.Create(garden.ContainerSpec{})
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 					})
 
 					for i := 0; i < repeats; i++ {
 						b.Time("getting container info ("+strconv.Itoa(repeats)+"x)", func() {
 							_, err := newContainer.Info()
-							Ω(err).ShouldNot(HaveOccurred())
+							Expect(err).ToNot(HaveOccurred())
 						})
 					}
 
 					for i := 0; i < repeats; i++ {
 						b.Time("running a job ("+strconv.Itoa(repeats)+"x)", func() {
 							process, err := newContainer.Run(garden.ProcessSpec{Path: "ls"}, garden.ProcessIO{})
-							Ω(err).ShouldNot(HaveOccurred())
+							Expect(err).ToNot(HaveOccurred())
 
-							Ω(process.Wait()).Should(Equal(0))
+							Expect(process.Wait()).To(Equal(0))
 						})
 					}
 
 					b.Time("destroying the container", func() {
 						err := client.Destroy(newContainer.Handle())
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 					})
 
 					b.RecordValue(

@@ -19,20 +19,20 @@ var _ = Describe("Container information", func() {
 			_, err := client.Create(garden.ContainerSpec{
 				Handle: "handle1",
 			})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 			_, err = client.Create(garden.ContainerSpec{
 				Handle: "handle2",
 			})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 		})
 
 		Describe(".BulkInfo", func() {
 			It("returns container info for the specified handles", func() {
 				bulkInfo, err := client.BulkInfo(handles)
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(bulkInfo).Should(HaveLen(2))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(bulkInfo).To(HaveLen(2))
 				for _, containerInfoEntry := range bulkInfo {
-					Ω(containerInfoEntry.Err).ShouldNot(HaveOccurred())
+					Expect(containerInfoEntry.Err).ToNot(HaveOccurred())
 				}
 			})
 		})
@@ -40,10 +40,10 @@ var _ = Describe("Container information", func() {
 		Describe(".BulkMetrics", func() {
 			It("returns container metrics for the specified handles", func() {
 				bulkInfo, err := client.BulkMetrics(handles)
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(bulkInfo).Should(HaveLen(2))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(bulkInfo).To(HaveLen(2))
 				for _, containerMetricsEntry := range bulkInfo {
-					Ω(containerMetricsEntry.Err).ShouldNot(HaveOccurred())
+					Expect(containerMetricsEntry.Err).ToNot(HaveOccurred())
 				}
 			})
 		})
@@ -61,33 +61,33 @@ var _ = Describe("Container information", func() {
 					"a":   "b",
 				},
 			})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 		})
 
 		AfterEach(func() {
 			err := client.Destroy(container.Handle())
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 		})
 
 		Describe("info for one container", func() {
 			It("includes the properties", func() {
 				info, err := container.Info()
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(info.Properties["foo"]).Should(Equal("bar"))
-				Ω(info.Properties["a"]).Should(Equal("b"))
+				Expect(info.Properties["foo"]).To(Equal("bar"))
+				Expect(info.Properties["a"]).To(Equal("b"))
 
-				Ω(info.Properties).Should(HaveLen(2))
+				Expect(info.Properties).To(HaveLen(2))
 			})
 		})
 
 		Describe("getting container metrics without getting info", func() {
 			It("can list metrics", func() {
 				metrics, err := container.Metrics()
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(metrics).Should(BeAssignableToTypeOf(garden.Metrics{}))
-				Ω(metrics).ShouldNot(Equal(garden.Metrics{}))
+				Expect(metrics).To(BeAssignableToTypeOf(garden.Metrics{}))
+				Expect(metrics).ToNot(Equal(garden.Metrics{}))
 			})
 		})
 
@@ -96,28 +96,28 @@ var _ = Describe("Container information", func() {
 				err := container.SetProperty("bar", "baz")
 
 				value, err := container.GetProperties()
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(value).Should(HaveKeyWithValue("foo", "bar"))
-				Ω(value).Should(HaveKeyWithValue("bar", "baz"))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(value).To(HaveKeyWithValue("foo", "bar"))
+				Expect(value).To(HaveKeyWithValue("bar", "baz"))
 			})
 		})
 
 		Describe("updating container properties", func() {
 			It("can CRUD", func() {
 				value, err := container.GetProperty("foo")
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(value).Should(Equal("bar"))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(value).To(Equal("bar"))
 
 				err = container.SetProperty("foo", "baz")
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				err = container.RemoveProperty("a")
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				info, err := container.Info()
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(info.Properties).Should(Equal(garden.Properties{
+				Expect(info.Properties).To(Equal(garden.Properties{
 					"foo": "baz",
 				}))
 			})
@@ -134,7 +134,7 @@ var _ = Describe("Container information", func() {
 					},
 				})
 
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				undesiredHandles = append(undesiredHandles, undesiredContainer.Handle())
 
@@ -145,7 +145,7 @@ var _ = Describe("Container information", func() {
 					},
 				})
 
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				undesiredHandles = append(undesiredHandles, undesiredContainer.Handle())
 			})
@@ -153,21 +153,21 @@ var _ = Describe("Container information", func() {
 			AfterEach(func() {
 				for _, handle := range undesiredHandles {
 					err := client.Destroy(handle)
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 				}
 			})
 
 			It("can filter by property", func() {
 				containers, err := client.Containers(garden.Properties{"foo": "bar"})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(containers).Should(HaveLen(1))
-				Ω(containers[0].Handle()).Should(Equal(container.Handle()))
+				Expect(containers).To(HaveLen(1))
+				Expect(containers[0].Handle()).To(Equal(container.Handle()))
 
 				containers, err = client.Containers(garden.Properties{"matthew": "mcconaughey"})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(containers).Should(BeEmpty())
+				Expect(containers).To(BeEmpty())
 			})
 		})
 	})

@@ -41,7 +41,7 @@ var _ = Describe("Concurrent container creation", func() {
 					client := gclient.New(connection.New("tcp", "localhost:7777"))
 					b.Time("create-"+strconv.Itoa(index), func() {
 						ctr, err := client.Create(garden.ContainerSpec{})
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 						c <- ctr.Handle()
 					})
 				}(ch, i)
@@ -59,7 +59,7 @@ var _ = Describe("Concurrent container creation", func() {
 
 		for _, handle := range handles {
 			client := gclient.New(connection.New("tcp", "localhost:7777"))
-			Ω(client.Destroy(handle)).Should(Succeed())
+			Expect(client.Destroy(handle)).To(Succeed())
 		}
 
 	}, createSamples)

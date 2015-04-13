@@ -19,7 +19,7 @@ var _ = Describe("Iodaemon integration tests", func() {
 			socketPath,
 			"bash", "-c", "cat <&0; exit 42",
 		), GinkgoWriter, GinkgoWriter)
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		defer spawnS.Kill()
 
@@ -28,7 +28,7 @@ var _ = Describe("Iodaemon integration tests", func() {
 
 		linkStdout := gbytes.NewBuffer()
 		link, err := linkpkg.Create(socketPath, linkStdout, os.Stderr)
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		link.Write([]byte("hello\ngoodbye"))
 		link.Close()
@@ -36,7 +36,7 @@ var _ = Describe("Iodaemon integration tests", func() {
 		Eventually(spawnS).Should(gbytes.Say("active\n"))
 		Eventually(linkStdout).Should(gbytes.Say("hello\ngoodbye"))
 
-		Ω(link.Wait()).Should(Equal(42))
+		Expect(link.Wait()).To(Equal(42))
 	})
 
 	It("can read stdin in tty mode", func() {
@@ -47,7 +47,7 @@ var _ = Describe("Iodaemon integration tests", func() {
 			socketPath,
 			"bash", "-c", "cat <&0; exit 42",
 		), GinkgoWriter, GinkgoWriter)
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		defer spawnS.Kill()
 
@@ -56,7 +56,7 @@ var _ = Describe("Iodaemon integration tests", func() {
 
 		linkStdout := gbytes.NewBuffer()
 		link, err := linkpkg.Create(socketPath, linkStdout, os.Stderr)
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		link.Write([]byte("hello\ngoodbye"))
 		link.Close()
@@ -64,7 +64,7 @@ var _ = Describe("Iodaemon integration tests", func() {
 		Eventually(spawnS).Should(gbytes.Say("active\n"))
 		Eventually(linkStdout).Should(gbytes.Say("hello\r\ngoodbye"))
 
-		Ω(link.Wait()).Should(Equal(-1)) // -1 indicates unhandled SIGHUP
+		Expect(link.Wait()).To(Equal(-1)) // -1 indicates unhandled SIGHUP
 	})
 
 	It("consistently executes a quickly-printing-and-exiting command", func() {
@@ -75,12 +75,12 @@ var _ = Describe("Iodaemon integration tests", func() {
 				socketPath,
 				"echo", "hi",
 			), GinkgoWriter, GinkgoWriter)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			Eventually(spawnS).Should(gbytes.Say("ready\n"))
 
 			lk, err := linkpkg.Create(socketPath, GinkgoWriter, GinkgoWriter)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 			lk.Close()
 
 			Eventually(spawnS).Should(gbytes.Say("active\n"))
@@ -96,7 +96,7 @@ var _ = Describe("Iodaemon integration tests", func() {
 			socketPath,
 			"bash", "-c", "cat <&0",
 		), GinkgoWriter, GinkgoWriter)
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		Eventually(process, "6s").Should(gexec.Exit(2))
 	})

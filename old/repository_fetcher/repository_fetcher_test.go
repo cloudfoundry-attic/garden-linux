@@ -56,10 +56,10 @@ var _ = Describe("RepositoryFetcher", func() {
 			server.HTTPTestServer.Listener.Addr().String(),
 			[]string{server.HTTPTestServer.Listener.Addr().String()},
 		)
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		registry, err := registry.NewSession(nil, nil, endpoint, true)
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		fakeRegistryProvider = new(fakes.FakeRegistryProvider)
 		fakeRegistryProvider.ProvideRegistryReturns(registry, nil)
@@ -155,15 +155,15 @@ var _ = Describe("RepositoryFetcher", func() {
 
 			It("retrieves the registry from the registry provider based on the host of the repo url", func() {
 				fetcher.Fetch(logger, parseURL("some-scheme://some-registry:4444/some-repo"), "some-tag")
-				Ω(fakeRegistryProvider.ProvideRegistryCallCount()).Should(Equal(1))
-				Ω(fakeRegistryProvider.ProvideRegistryArgsForCall(0)).Should(Equal("some-registry:4444"))
+				Expect(fakeRegistryProvider.ProvideRegistryCallCount()).To(Equal(1))
+				Expect(fakeRegistryProvider.ProvideRegistryArgsForCall(0)).To(Equal("some-registry:4444"))
 			})
 
 			Context("when retrieving a session from the registry provider errors", func() {
 				It("returns error", func() {
 					fakeRegistryProvider.ProvideRegistryReturns(nil, errors.New("an error"))
 					_, _, _, err := fetcher.Fetch(logger, parseURL("some-scheme://some-registry:4444/some-repo"), "some-tag")
-					Ω(err).Should(MatchError("an error"))
+					Expect(err).To(MatchError("an error"))
 				})
 			})
 		})
@@ -177,12 +177,12 @@ var _ = Describe("RepositoryFetcher", func() {
 				expectedLayerNum := 3
 
 				graph.WhenRegistering = func(image *image.Image, layer archive.ArchiveReader) error {
-					Ω(image.ID).Should(Equal(fmt.Sprintf("layer-%d", expectedLayerNum)))
-					Ω(image.Parent).Should(Equal(fmt.Sprintf("parent-%d", expectedLayerNum)))
+					Expect(image.ID).To(Equal(fmt.Sprintf("layer-%d", expectedLayerNum)))
+					Expect(image.Parent).To(Equal(fmt.Sprintf("parent-%d", expectedLayerNum)))
 
 					layerData, err := ioutil.ReadAll(layer)
-					Ω(err).ShouldNot(HaveOccurred())
-					Ω(string(layerData)).Should(Equal(fmt.Sprintf("layer-%d-data", expectedLayerNum)))
+					Expect(err).ToNot(HaveOccurred())
+					Expect(string(layerData)).To(Equal(fmt.Sprintf("layer-%d-data", expectedLayerNum)))
 
 					expectedLayerNum--
 
@@ -195,10 +195,10 @@ var _ = Describe("RepositoryFetcher", func() {
 					"some-tag",
 				)
 
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(envvars).Should(Equal(process.Env{"env1": "env1Value", "env2": "env2NewValue"}))
-				Ω(volumes).Should(ConsistOf([]string{"/tmp", "/another"}))
-				Ω(imageID).Should(Equal("id-1"))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(envvars).To(Equal(process.Env{"env1": "env1Value", "env2": "env2NewValue"}))
+				Expect(volumes).To(ConsistOf([]string{"/tmp", "/another"}))
+				Expect(imageID).To(Equal("id-1"))
 			})
 
 			Context("when the first endpoint fails", func() {
@@ -225,9 +225,9 @@ var _ = Describe("RepositoryFetcher", func() {
 						parseURL("scheme://host/some-repo"),
 						"some-tag",
 					)
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
-					Ω(imageID).Should(Equal("id-1"))
+					Expect(imageID).To(Equal("id-1"))
 				})
 
 				Context("and the rest also fail", func() {
@@ -243,7 +243,7 @@ var _ = Describe("RepositoryFetcher", func() {
 							parseURL("scheme://host/some-repo"),
 							"some-tag",
 						)
-						Ω(err).Should(HaveOccurred())
+						Expect(err).To(HaveOccurred())
 					})
 				})
 			})
@@ -287,12 +287,12 @@ var _ = Describe("RepositoryFetcher", func() {
 				expectedLayerNum := 3
 
 				graph.WhenRegistering = func(image *image.Image, layer archive.ArchiveReader) error {
-					Ω(image.ID).Should(Equal(fmt.Sprintf("layer-%d", expectedLayerNum)))
-					Ω(image.Parent).Should(Equal(fmt.Sprintf("parent-%d", expectedLayerNum)))
+					Expect(image.ID).To(Equal(fmt.Sprintf("layer-%d", expectedLayerNum)))
+					Expect(image.Parent).To(Equal(fmt.Sprintf("parent-%d", expectedLayerNum)))
 
 					layerData, err := ioutil.ReadAll(layer)
-					Ω(err).ShouldNot(HaveOccurred())
-					Ω(string(layerData)).Should(Equal(fmt.Sprintf("layer-%d-data", expectedLayerNum)))
+					Expect(err).ToNot(HaveOccurred())
+					Expect(string(layerData)).To(Equal(fmt.Sprintf("layer-%d-data", expectedLayerNum)))
 
 					expectedLayerNum--
 
@@ -307,10 +307,10 @@ var _ = Describe("RepositoryFetcher", func() {
 					parseURL("scheme://host/some-repo"),
 					"some-tag",
 				)
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(envVars).Should(Equal(process.Env{"env2": "env2Value"}))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(envVars).To(Equal(process.Env{"env2": "env2Value"}))
 
-				Ω(imageID).Should(Equal("id-1"))
+				Expect(imageID).To(Equal("id-1"))
 			})
 		})
 
@@ -327,7 +327,7 @@ var _ = Describe("RepositoryFetcher", func() {
 					parseURL("scheme://host/some-repo"),
 					"some-tag",
 				)
-				Ω(err).Should(HaveOccurred())
+				Expect(err).To(HaveOccurred())
 			})
 		})
 
@@ -358,7 +358,7 @@ var _ = Describe("RepositoryFetcher", func() {
 					parseURL("scheme://host/some-repo"),
 					"some-tag",
 				)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 			})
 
 			Context("on all endpoints", func() {
@@ -374,7 +374,7 @@ var _ = Describe("RepositoryFetcher", func() {
 						parseURL("scheme://host/some-repo"),
 						"some-tag",
 					)
-					Ω(err).Should(HaveOccurred())
+					Expect(err).To(HaveOccurred())
 				})
 			})
 		})
@@ -383,7 +383,7 @@ var _ = Describe("RepositoryFetcher", func() {
 
 func parseURL(str string) *url.URL {
 	parsedURL, err := url.Parse(str)
-	Ω(err).ShouldNot(HaveOccurred())
+	Expect(err).ToNot(HaveOccurred())
 
 	return parsedURL
 }

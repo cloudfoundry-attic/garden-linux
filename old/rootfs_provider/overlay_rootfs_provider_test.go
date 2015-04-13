@@ -34,10 +34,10 @@ var _ = Describe("OverlayRootfsProvider", func() {
 		Context("with no path given", func() {
 			It("executes overlay.sh create with the default rootfs", func() {
 				rootfs, _, err := provider.ProvideRootFS(logger, "some-id", parseURL(""))
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(rootfs).Should(Equal("/some/overlays/path/some-id/rootfs"))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rootfs).To(Equal("/some/overlays/path/some-id/rootfs"))
 
-				Ω(fakeRunner).Should(HaveExecutedSerially(
+				Expect(fakeRunner).To(HaveExecutedSerially(
 					fake_command_runner.CommandSpec{
 						Path: "/some/bin/path/overlay.sh",
 						Args: []string{"create", "/some/overlays/path/some-id", "/some/default/rootfs"},
@@ -50,10 +50,10 @@ var _ = Describe("OverlayRootfsProvider", func() {
 		Context("with a path given", func() {
 			It("executes overlay.sh create with the given rootfs", func() {
 				rootfs, _, err := provider.ProvideRootFS(logger, "some-id", parseURL("/some/given/rootfs"))
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(rootfs).Should(Equal("/some/overlays/path/some-id/rootfs"))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(rootfs).To(Equal("/some/overlays/path/some-id/rootfs"))
 
-				Ω(fakeRunner).Should(HaveExecutedSerially(
+				Expect(fakeRunner).To(HaveExecutedSerially(
 					fake_command_runner.CommandSpec{
 						Path: "/some/bin/path/overlay.sh",
 						Args: []string{"create", "/some/overlays/path/some-id", "/some/given/rootfs"},
@@ -81,7 +81,7 @@ var _ = Describe("OverlayRootfsProvider", func() {
 
 				It("returns the error message from stderr", func() {
 					_, _, err := provider.ProvideRootFS(logger, "some-id", parseURL("/some/given/rootfs"))
-					Ω(err).Should(MatchError("overlay.sh: oh no!, this cake is not fresh"))
+					Expect(err).To(MatchError("overlay.sh: oh no!, this cake is not fresh"))
 				})
 			})
 		})
@@ -90,9 +90,9 @@ var _ = Describe("OverlayRootfsProvider", func() {
 	Describe("CleanupRootFS", func() {
 		It("executes overlay.sh cleanup for the id's path", func() {
 			err := provider.CleanupRootFS(logger, "some-id")
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(fakeRunner).Should(HaveExecutedSerially(
+			Expect(fakeRunner).To(HaveExecutedSerially(
 				fake_command_runner.CommandSpec{
 					Path: "/some/bin/path/overlay.sh",
 					Args: []string{"cleanup", "/some/overlays/path/some-id"},
@@ -118,7 +118,7 @@ var _ = Describe("OverlayRootfsProvider", func() {
 
 			It("returns the error", func() {
 				err := provider.CleanupRootFS(logger, "some-id")
-				Ω(err).Should(Equal(disaster))
+				Expect(err).To(Equal(disaster))
 			})
 		})
 	})

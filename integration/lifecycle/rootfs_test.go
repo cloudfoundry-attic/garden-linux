@@ -29,7 +29,7 @@ var _ = Describe("Rootfs container create parameter", func() {
 
 	AfterEach(func() {
 		if container != nil {
-			Ω(client.Destroy(container.Handle())).Should(Succeed())
+			Expect(client.Destroy(container.Handle())).To(Succeed())
 		}
 	})
 
@@ -38,7 +38,7 @@ var _ = Describe("Rootfs container create parameter", func() {
 			var err error
 
 			container, err = client.Create(garden.ContainerSpec{RootFSPath: ""})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 		})
 	})
 
@@ -48,7 +48,7 @@ var _ = Describe("Rootfs container create parameter", func() {
 				var err error
 
 				container, err = client.Create(garden.ContainerSpec{RootFSPath: "docker:///busybox"})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 			})
 		})
 
@@ -58,7 +58,7 @@ var _ = Describe("Rootfs container create parameter", func() {
 					var err error
 
 					container, err = client.Create(garden.ContainerSpec{RootFSPath: "docker://index.docker.io/busybox"})
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 				})
 			})
 
@@ -67,7 +67,7 @@ var _ = Describe("Rootfs container create parameter", func() {
 					var err error
 
 					container, err = client.Create(garden.ContainerSpec{RootFSPath: "docker://xindex.docker.io/busybox"})
-					Ω(err.Error()).Should(MatchRegexp("could not resolve"))
+					Expect(err.Error()).To(MatchRegexp("could not resolve"))
 				})
 			})
 
@@ -88,7 +88,7 @@ var _ = Describe("Rootfs container create parameter", func() {
 
 				AfterEach(func() {
 					if dockerRegistry != nil {
-						Ω(client.Destroy(dockerRegistry.Handle())).Should(Succeed())
+						Expect(client.Destroy(dockerRegistry.Handle())).To(Succeed())
 					}
 				})
 
@@ -104,7 +104,7 @@ var _ = Describe("Rootfs container create parameter", func() {
 						_, err := client.Create(garden.ContainerSpec{
 							RootFSPath: fmt.Sprintf("docker://%s:%s/busybox", dockerRegistryIP, dockerRegistryPort),
 						})
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 					})
 				})
 
@@ -114,8 +114,8 @@ var _ = Describe("Rootfs container create parameter", func() {
 							RootFSPath: fmt.Sprintf("docker://%s:%s/busybox", dockerRegistryIP, dockerRegistryPort),
 						})
 
-						Ω(err).Should(MatchError(ContainSubstring("-insecureDockerRegistryList")))
-						Ω(err).Should(MatchError(ContainSubstring(
+						Expect(err).To(MatchError(ContainSubstring("-insecureDockerRegistryList")))
+						Expect(err).To(MatchError(ContainSubstring(
 							"Unable to fetch RootFS image from docker://%s:%s", dockerRegistryIP, dockerRegistryPort,
 						)))
 					})
@@ -132,7 +132,7 @@ func startDockerRegistry(dockerRegistryIP string, dockerRegistryPort string) gar
 			Network:    dockerRegistryIP,
 		},
 	)
-	Ω(err).ShouldNot(HaveOccurred())
+	Expect(err).ToNot(HaveOccurred())
 
 	_, err = dockerRegistry.Run(garden.ProcessSpec{
 		Env: []string{
@@ -144,7 +144,7 @@ func startDockerRegistry(dockerRegistryIP string, dockerRegistryPort string) gar
 		},
 		Path: "docker-registry",
 	}, garden.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
-	Ω(err).ShouldNot(HaveOccurred())
+	Expect(err).ToNot(HaveOccurred())
 
 	Eventually(
 		fmt.Sprintf("http://%s:%s/_ping", dockerRegistryIP, dockerRegistryPort),

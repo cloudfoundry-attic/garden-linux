@@ -21,25 +21,25 @@ var _ = Describe("Resource limits", func() {
 
 	JustBeforeEach(func() {
 		err := syscall.Getrlimit(rlimitResource, &prevRlimit)
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		rlimit := syscall.Rlimit{Cur: rlimitValue, Max: rlimitValue}
 		err = syscall.Setrlimit(rlimitResource, &rlimit)
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		client = startGarden()
 		container, err = client.Create(garden.ContainerSpec{
 			Privileged: privilegedContainer,
 		})
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	AfterEach(func() {
 		err := client.Destroy(container.Handle())
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		err = syscall.Setrlimit(rlimitResource, &prevRlimit)
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	Context("NOFILE rlimit", func() {
@@ -63,10 +63,10 @@ var _ = Describe("Resource limits", func() {
 						Nofile: &nofile,
 					},
 				}, garden.ProcessIO{Stdout: io.MultiWriter(stdout, GinkgoWriter), Stderr: GinkgoWriter})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				Eventually(stdout).Should(gbytes.Say("1000"))
-				Ω(process.Wait()).Should(Equal(0))
+				Expect(process.Wait()).To(Equal(0))
 			})
 		})
 
@@ -86,10 +86,10 @@ var _ = Describe("Resource limits", func() {
 						Nofile: &nofile,
 					},
 				}, garden.ProcessIO{Stdout: io.MultiWriter(stdout, GinkgoWriter), Stderr: GinkgoWriter})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				Eventually(stdout).Should(gbytes.Say("1000"))
-				Ω(process.Wait()).Should(Equal(0))
+				Expect(process.Wait()).To(Equal(0))
 			})
 		})
 	})
@@ -115,10 +115,10 @@ var _ = Describe("Resource limits", func() {
 						As: &as,
 					},
 				}, garden.ProcessIO{Stdout: io.MultiWriter(stdout, GinkgoWriter), Stderr: GinkgoWriter})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				Eventually(stdout).Should(gbytes.Say("4194304"))
-				Ω(process.Wait()).Should(Equal(0))
+				Expect(process.Wait()).To(Equal(0))
 			})
 		})
 
@@ -138,10 +138,10 @@ var _ = Describe("Resource limits", func() {
 						As: &as,
 					},
 				}, garden.ProcessIO{Stdout: io.MultiWriter(stdout, GinkgoWriter), Stderr: GinkgoWriter})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				Eventually(stdout).Should(gbytes.Say("4194304"))
-				Ω(process.Wait()).Should(Equal(0))
+				Expect(process.Wait()).To(Equal(0))
 			})
 		})
 	})

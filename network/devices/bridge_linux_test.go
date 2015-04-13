@@ -24,7 +24,7 @@ var _ = Describe("Bridge Management", func() {
 		var err error
 		addr = "10.9.0.1/30"
 		ip, subnet, err = net.ParseCIDR(addr)
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	AfterEach(func() {
@@ -35,25 +35,25 @@ var _ = Describe("Bridge Management", func() {
 		Context("when the bridge does not already exist", func() {
 			It("creates a bridge", func() {
 				_, err := b.Create(name, ip, subnet)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 			})
 
 			It("sets the bridge name", func() {
 				bridge, err := b.Create(name, ip, subnet)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(bridge.Name).Should(Equal(name))
+				Expect(bridge.Name).To(Equal(name))
 			})
 
 			It("sets the bridge address", func() {
 				bridge, err := b.Create(name, ip, subnet)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				addrs, err := bridge.Addrs()
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(addrs).Should(HaveLen(1))
-				Ω(addrs[0].String()).Should(Equal(addr))
+				Expect(addrs).To(HaveLen(1))
+				Expect(addrs[0].String()).To(Equal(addr))
 			})
 		})
 
@@ -64,27 +64,27 @@ var _ = Describe("Bridge Management", func() {
 			BeforeEach(func() {
 				var err error
 				existingIfc, err = b.Create(name, ip, subnet)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 			})
 
 			It("returns the interface for it", func() {
 				ifc, err := b.Create(name, ip, subnet)
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(ifc).Should(Equal(existingIfc))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(ifc).To(Equal(existingIfc))
 			})
 
 			It("does not change the existing bridge", func() {
 				ip2, subnet2, _ := net.ParseCIDR("10.8.0.2/30")
 				_, err := b.Create(name, ip2, subnet2)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				intf, err := net.InterfaceByName(name)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				addrs, err := intf.Addrs()
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(addrs[0].String()).Should(Equal(addr))
+				Expect(addrs[0].String()).To(Equal(addr))
 			})
 		})
 	})
@@ -93,13 +93,13 @@ var _ = Describe("Bridge Management", func() {
 		Context("when the bridge exists", func() {
 			It("deletes it", func() {
 				br, err := b.Create(name, ip, subnet)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				// sanity check
-				Ω(interfaceNames()).Should(ContainElement(name))
+				Expect(interfaceNames()).To(ContainElement(name))
 
 				// delete
-				Ω(b.Destroy(br.Name)).Should(Succeed())
+				Expect(b.Destroy(br.Name)).To(Succeed())
 
 				// should be gone
 				Eventually(interfaceNames).ShouldNot(ContainElement(name))
@@ -108,7 +108,7 @@ var _ = Describe("Bridge Management", func() {
 
 		Context("when the bridge does not exist", func() {
 			It("does not return an error (because Destroy should be idempotent)", func() {
-				Ω(b.Destroy("something")).Should(Succeed())
+				Expect(b.Destroy("something")).To(Succeed())
 			})
 		})
 	})
@@ -116,7 +116,7 @@ var _ = Describe("Bridge Management", func() {
 
 func interfaceNames() []string {
 	intfs, err := net.Interfaces()
-	Ω(err).ShouldNot(HaveOccurred())
+	Expect(err).ToNot(HaveOccurred())
 
 	v := make([]string, 0)
 	for _, i := range intfs {

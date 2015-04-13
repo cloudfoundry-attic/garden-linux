@@ -37,62 +37,62 @@ var _ = Describe("Logging", func() {
 
 	It("logs the duration it took to run the command", func() {
 		err := runner.Run(exec.Command("sleep", "1"))
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
-		Ω(logger.TestSink.Logs()).Should(HaveLen(2))
+		Expect(logger.TestSink.Logs()).To(HaveLen(2))
 
 		log := logger.TestSink.Logs()[1]
 
 		took := log.Data["took"].(string)
-		Ω(took).ShouldNot(BeEmpty())
+		Expect(took).ToNot(BeEmpty())
 
 		duration, err := time.ParseDuration(took)
-		Ω(err).ShouldNot(HaveOccurred())
-		Ω(duration).Should(BeNumerically(">=", 1*time.Second))
+		Expect(err).ToNot(HaveOccurred())
+		Expect(duration).To(BeNumerically(">=", 1*time.Second))
 	})
 
 	It("logs the command's argv", func() {
 		err := runner.Run(exec.Command("bash", "-c", "echo sup"))
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
-		Ω(logger.TestSink.Logs()).Should(HaveLen(2))
+		Expect(logger.TestSink.Logs()).To(HaveLen(2))
 
 		log := logger.TestSink.Logs()[0]
-		Ω(log.LogLevel).Should(Equal(lager.DEBUG))
-		Ω(log.Message).Should(Equal("test.command.starting"))
-		Ω(log.Data["argv"]).Should(Equal([]interface{}{"bash", "-c", "echo sup"}))
+		Expect(log.LogLevel).To(Equal(lager.DEBUG))
+		Expect(log.Message).To(Equal("test.command.starting"))
+		Expect(log.Data["argv"]).To(Equal([]interface{}{"bash", "-c", "echo sup"}))
 
 		log = logger.TestSink.Logs()[1]
-		Ω(log.LogLevel).Should(Equal(lager.DEBUG))
-		Ω(log.Message).Should(Equal("test.command.succeeded"))
-		Ω(log.Data["argv"]).Should(Equal([]interface{}{"bash", "-c", "echo sup"}))
+		Expect(log.LogLevel).To(Equal(lager.DEBUG))
+		Expect(log.Message).To(Equal("test.command.succeeded"))
+		Expect(log.Data["argv"]).To(Equal([]interface{}{"bash", "-c", "echo sup"}))
 	})
 
 	Describe("running a command that exits normally", func() {
 		It("logs its exit status with 'debug' level", func() {
 			err := runner.Run(exec.Command("true"))
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(logger.TestSink.Logs()).Should(HaveLen(2))
+			Expect(logger.TestSink.Logs()).To(HaveLen(2))
 
 			log := logger.TestSink.Logs()[1]
-			Ω(log.LogLevel).Should(Equal(lager.DEBUG))
-			Ω(log.Message).Should(Equal("test.command.succeeded"))
-			Ω(log.Data["exit-status"]).Should(Equal(float64(0))) // JSOOOOOOOOOOOOOOOOOOON
+			Expect(log.LogLevel).To(Equal(lager.DEBUG))
+			Expect(log.Message).To(Equal("test.command.succeeded"))
+			Expect(log.Data["exit-status"]).To(Equal(float64(0))) // JSOOOOOOOOOOOOOOOOOOON
 		})
 
 		Context("when the command has output to stdout/stderr", func() {
 			It("does not log stdout/stderr", func() {
 				err := runner.Run(exec.Command("sh", "-c", "echo hi out; echo hi err >&2"))
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(logger.TestSink.Logs()).Should(HaveLen(2))
+				Expect(logger.TestSink.Logs()).To(HaveLen(2))
 
 				log := logger.TestSink.Logs()[1]
-				Ω(log.LogLevel).Should(Equal(lager.DEBUG))
-				Ω(log.Message).Should(Equal("test.command.succeeded"))
-				Ω(log.Data).ShouldNot(HaveKey("stdout"))
-				Ω(log.Data).ShouldNot(HaveKey("stderr"))
+				Expect(log.LogLevel).To(Equal(lager.DEBUG))
+				Expect(log.Message).To(Equal("test.command.succeeded"))
+				Expect(log.Data).ToNot(HaveKey("stdout"))
+				Expect(log.Data).ToNot(HaveKey("stderr"))
 			})
 		})
 	})
@@ -107,9 +107,9 @@ var _ = Describe("Logging", func() {
 
 		It("runs using the provided runner", func() {
 			err := runner.Run(exec.Command("morgan-freeman"))
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+			Expect(fakeRunner).To(HaveExecutedSerially(fake_command_runner.CommandSpec{
 				Path: "morgan-freeman",
 			}))
 		})
@@ -118,44 +118,44 @@ var _ = Describe("Logging", func() {
 	Describe("running a bogus command", func() {
 		It("logs the error", func() {
 			err := runner.Run(exec.Command("morgan-freeman"))
-			Ω(err).Should(HaveOccurred())
+			Expect(err).To(HaveOccurred())
 
-			Ω(logger.TestSink.Logs()).Should(HaveLen(2))
+			Expect(logger.TestSink.Logs()).To(HaveLen(2))
 
 			log := logger.TestSink.Logs()[1]
-			Ω(log.LogLevel).Should(Equal(lager.ERROR))
-			Ω(log.Message).Should(Equal("test.command.failed"))
-			Ω(log.Data["error"]).ShouldNot(BeEmpty())
-			Ω(log.Data).ShouldNot(HaveKey("exit-status"))
+			Expect(log.LogLevel).To(Equal(lager.ERROR))
+			Expect(log.Message).To(Equal("test.command.failed"))
+			Expect(log.Data["error"]).ToNot(BeEmpty())
+			Expect(log.Data).ToNot(HaveKey("exit-status"))
 		})
 	})
 
 	Describe("running a command that exits nonzero", func() {
 		It("logs its status with 'error' level", func() {
 			err := runner.Run(exec.Command("false"))
-			Ω(err).Should(HaveOccurred())
+			Expect(err).To(HaveOccurred())
 
-			Ω(logger.TestSink.Logs()).Should(HaveLen(2))
+			Expect(logger.TestSink.Logs()).To(HaveLen(2))
 
 			log := logger.TestSink.Logs()[1]
-			Ω(log.LogLevel).Should(Equal(lager.ERROR))
-			Ω(log.Message).Should(Equal("test.command.failed"))
-			Ω(log.Data["error"]).Should(Equal("exit status 1"))
-			Ω(log.Data["exit-status"]).Should(Equal(float64(1))) // JSOOOOOOOOOOOOOOOOOOON
+			Expect(log.LogLevel).To(Equal(lager.ERROR))
+			Expect(log.Message).To(Equal("test.command.failed"))
+			Expect(log.Data["error"]).To(Equal("exit status 1"))
+			Expect(log.Data["exit-status"]).To(Equal(float64(1))) // JSOOOOOOOOOOOOOOOOOOON
 		})
 
 		Context("when the command has output to stdout/stderr", func() {
 			It("reports the stdout/stderr in the log data", func() {
 				err := runner.Run(exec.Command("sh", "-c", "echo hi out; echo hi err >&2; exit 1"))
-				Ω(err).Should(HaveOccurred())
+				Expect(err).To(HaveOccurred())
 
-				Ω(logger.TestSink.Logs()).Should(HaveLen(2))
+				Expect(logger.TestSink.Logs()).To(HaveLen(2))
 
 				log := logger.TestSink.Logs()[1]
-				Ω(log.LogLevel).Should(Equal(lager.ERROR))
-				Ω(log.Message).Should(Equal("test.command.failed"))
-				Ω(log.Data["stdout"]).Should(Equal("hi out\n"))
-				Ω(log.Data["stderr"]).Should(Equal("hi err\n"))
+				Expect(log.LogLevel).To(Equal(lager.ERROR))
+				Expect(log.Message).To(Equal("test.command.failed"))
+				Expect(log.Data["stdout"]).To(Equal("hi out\n"))
+				Expect(log.Data["stderr"]).To(Equal("hi err\n"))
 			})
 
 			Context("and it is being collected by the caller", func() {
@@ -168,18 +168,18 @@ var _ = Describe("Logging", func() {
 					cmd.Stderr = stderr
 
 					err := runner.Run(cmd)
-					Ω(err).Should(HaveOccurred())
+					Expect(err).To(HaveOccurred())
 
-					Ω(logger.TestSink.Logs()).Should(HaveLen(2))
+					Expect(logger.TestSink.Logs()).To(HaveLen(2))
 
 					log := logger.TestSink.Logs()[1]
-					Ω(log.LogLevel).Should(Equal(lager.ERROR))
-					Ω(log.Message).Should(Equal("test.command.failed"))
-					Ω(log.Data["stdout"]).Should(Equal("hi out\n"))
-					Ω(log.Data["stderr"]).Should(Equal("hi err\n"))
+					Expect(log.LogLevel).To(Equal(lager.ERROR))
+					Expect(log.Message).To(Equal("test.command.failed"))
+					Expect(log.Data["stdout"]).To(Equal("hi out\n"))
+					Expect(log.Data["stderr"]).To(Equal("hi err\n"))
 
-					Ω(stdout.String()).Should(Equal("hi out\n"))
-					Ω(stderr.String()).Should(Equal("hi err\n"))
+					Expect(stdout.String()).To(Equal("hi out\n"))
+					Expect(stderr.String()).To(Equal("hi err\n"))
 				})
 			})
 		})

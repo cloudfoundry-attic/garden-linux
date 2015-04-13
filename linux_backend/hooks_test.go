@@ -39,7 +39,7 @@ var _ = Describe("Hooks", func() {
 			Context("before container creation", func() {
 				It("runs the hook-parent-before-clone.sh legacy shell script", func() {
 					hooks.Main(hook.PARENT_BEFORE_CLONE)
-					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+					Expect(fakeRunner).To(HaveExecutedSerially(fake_command_runner.CommandSpec{
 						Path: "hook-parent-before-clone.sh",
 					}))
 				})
@@ -54,7 +54,7 @@ var _ = Describe("Hooks", func() {
 					})
 
 					It("panics", func() {
-						Ω(func() { hooks.Main(hook.PARENT_BEFORE_CLONE) }).Should(Panic())
+						Expect(func() { hooks.Main(hook.PARENT_BEFORE_CLONE) }).To(Panic())
 					})
 				})
 			})
@@ -62,7 +62,7 @@ var _ = Describe("Hooks", func() {
 			Context("after container creation", func() {
 				It("runs the hook-parent-after-clone.sh legacy shell script", func() {
 					hooks.Main(hook.PARENT_AFTER_CLONE)
-					Ω(fakeRunner).Should(HaveExecutedSerially(fake_command_runner.CommandSpec{
+					Expect(fakeRunner).To(HaveExecutedSerially(fake_command_runner.CommandSpec{
 						Path: "hook-parent-after-clone.sh",
 					}))
 				})
@@ -77,7 +77,7 @@ var _ = Describe("Hooks", func() {
 					})
 
 					It("panics", func() {
-						Ω(func() { hooks.Main(hook.PARENT_AFTER_CLONE) }).Should(Panic())
+						Expect(func() { hooks.Main(hook.PARENT_AFTER_CLONE) }).To(Panic())
 					})
 				})
 			})
@@ -89,20 +89,20 @@ var _ = Describe("Hooks", func() {
 				It("sets the hostname to the container ID", func() {
 					container.SetHostnameReturns(nil)
 					hooks.Main(hook.CHILD_AFTER_PIVOT)
-					Ω(container.SetHostnameCallCount()).Should(Equal(1))
-					Ω(container.SetHostnameArgsForCall(0)).Should(Equal("someID"))
+					Expect(container.SetHostnameCallCount()).To(Equal(1))
+					Expect(container.SetHostnameArgsForCall(0)).To(Equal("someID"))
 				})
 
 				It("mounts proc", func() {
 					container.MountProcReturns(nil)
 					hooks.Main(hook.CHILD_AFTER_PIVOT)
-					Ω(container.MountProcCallCount()).Should(Equal(1))
+					Expect(container.MountProcCallCount()).To(Equal(1))
 				})
 
 				It("mounts tmp", func() {
 					container.MountTmpReturns(nil)
 					hooks.Main(hook.CHILD_AFTER_PIVOT)
-					Ω(container.MountTmpCallCount()).Should(Equal(1))
+					Expect(container.MountTmpCallCount()).To(Equal(1))
 				})
 			})
 		})

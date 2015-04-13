@@ -23,19 +23,19 @@ var _ = Describe("Bridge Name Generator", func() {
 			generatedNames[name] = true
 		}
 
-		Ω(generatedNames).Should(HaveLen(100))
+		Expect(generatedNames).To(HaveLen(100))
 	})
 
 	It("includes the entire prefix as part of the name", func() {
 		name := generator.Generate()
-		Ω(name).Should(HavePrefix("pr-"))
+		Expect(name).To(HavePrefix("pr-"))
 	})
 
 	It("returns names that are exactly 15 characters", func() {
 		name := generator.Generate()
-		Ω(name).Should(HaveLen(15))
+		Expect(name).To(HaveLen(15))
 
 		name = bridgemgr.NewBridgeNameGenerator("p").Generate()
-		Ω(name).Should(HaveLen(15))
+		Expect(name).To(HaveLen(15))
 	})
 })

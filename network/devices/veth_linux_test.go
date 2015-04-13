@@ -29,30 +29,30 @@ var _ = Describe("Veth Pair Creation", func() {
 	})
 
 	AfterEach(func() {
-		Ω(cleanup(hostName)).Should(Succeed())
-		Ω(cleanup(containerName)).Should(Succeed())
+		Expect(cleanup(hostName)).To(Succeed())
+		Expect(cleanup(containerName)).To(Succeed())
 	})
 
 	Context("when neither host already exists", func() {
 		It("creates both interfaces in the host", func() {
-			Ω(l(v.Create(hostName, containerName))).Should(Succeed())
-			Ω(net.InterfaceByName(hostName)).ShouldNot(BeNil())
-			Ω(net.InterfaceByName(containerName)).ShouldNot(BeNil())
+			Expect(l(v.Create(hostName, containerName))).To(Succeed())
+			Expect(net.InterfaceByName(hostName)).ToNot(BeNil())
+			Expect(net.InterfaceByName(containerName)).ToNot(BeNil())
 		})
 
 		It("returns the created interfaces", func() {
 			a, b, err := v.Create(hostName, containerName)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(a).Should(Equal(f(net.InterfaceByName(hostName))))
-			Ω(b).Should(Equal(f(net.InterfaceByName(containerName))))
+			Expect(a).To(Equal(f(net.InterfaceByName(hostName))))
+			Expect(b).To(Equal(f(net.InterfaceByName(containerName))))
 		})
 	})
 
 	Context("when one of the interfaces already exists", func() {
 		It("returns an error", func() {
-			Ω(l(v.Create(hostName, containerName))).Should(Succeed())
-			Ω(l(v.Create(hostName, containerName))).ShouldNot(Succeed())
+			Expect(l(v.Create(hostName, containerName))).To(Succeed())
+			Expect(l(v.Create(hostName, containerName))).ToNot(Succeed())
 		})
 	})
 })

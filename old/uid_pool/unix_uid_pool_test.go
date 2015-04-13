@@ -13,13 +13,13 @@ var _ = Describe("Unix UID pool", func() {
 			pool := uid_pool.New(10000, 5)
 
 			uid1, err := pool.Acquire()
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			uid2, err := pool.Acquire()
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(uid1).Should(Equal(uint32(10000)))
-			Ω(uid2).Should(Equal(uint32(10001)))
+			Expect(uid1).To(Equal(uint32(10000)))
+			Expect(uid2).To(Equal(uint32(10001)))
 		})
 
 		Context("when the pool is exhausted", func() {
@@ -28,11 +28,11 @@ var _ = Describe("Unix UID pool", func() {
 
 				for i := 0; i < 5; i++ {
 					_, err := pool.Acquire()
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 				}
 
 				_, err := pool.Acquire()
-				Ω(err).Should(HaveOccurred())
+				Expect(err).To(HaveOccurred())
 			})
 		})
 	})
@@ -42,14 +42,14 @@ var _ = Describe("Unix UID pool", func() {
 			pool := uid_pool.New(10000, 2)
 
 			err := pool.Remove(10000)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			uid, err := pool.Acquire()
-			Ω(err).ShouldNot(HaveOccurred())
-			Ω(uid).Should(Equal(uint32(10001)))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(uid).To(Equal(uint32(10001)))
 
 			_, err = pool.Acquire()
-			Ω(err).Should(HaveOccurred())
+			Expect(err).To(HaveOccurred())
 		})
 
 		Context("when the resource is already acquired", func() {
@@ -57,10 +57,10 @@ var _ = Describe("Unix UID pool", func() {
 				pool := uid_pool.New(10000, 2)
 
 				uid, err := pool.Acquire()
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				err = pool.Remove(uid)
-				Ω(err).Should(Equal(uid_pool.UIDTakenError{uid}))
+				Expect(err).To(Equal(uid_pool.UIDTakenError{uid}))
 			})
 		})
 	})
@@ -70,18 +70,18 @@ var _ = Describe("Unix UID pool", func() {
 			pool := uid_pool.New(10000, 2)
 
 			uid1, err := pool.Acquire()
-			Ω(err).ShouldNot(HaveOccurred())
-			Ω(uid1).Should(Equal(uint32(10000)))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(uid1).To(Equal(uint32(10000)))
 
 			pool.Release(uid1)
 
 			uid2, err := pool.Acquire()
-			Ω(err).ShouldNot(HaveOccurred())
-			Ω(uid2).Should(Equal(uint32(10001)))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(uid2).To(Equal(uint32(10001)))
 
 			nextUID, err := pool.Acquire()
-			Ω(err).ShouldNot(HaveOccurred())
-			Ω(nextUID).Should(Equal(uint32(10000)))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(nextUID).To(Equal(uint32(10000)))
 		})
 
 		Context("when the released uid is out of the range", func() {
@@ -91,7 +91,7 @@ var _ = Describe("Unix UID pool", func() {
 				pool.Release(20000)
 
 				_, err := pool.Acquire()
-				Ω(err).Should(HaveOccurred())
+				Expect(err).To(HaveOccurred())
 			})
 		})
 	})

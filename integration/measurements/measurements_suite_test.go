@@ -32,7 +32,7 @@ func startGarden(argv ...string) gardenClient.Client {
 
 	{ // Check this test suite is in the correct directory
 		b, err := os.Open(binPath)
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 		b.Close()
 	}
 
@@ -58,7 +58,7 @@ func TestLifecycle(t *testing.T) {
 
 	SynchronizedBeforeSuite(func() []byte {
 		gardenPath, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux", "-a", "-race", "-tags", "daemon")
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 		return []byte(gardenPath)
 	}, func(gardenPath []byte) {
 		gardenBin = string(gardenPath)

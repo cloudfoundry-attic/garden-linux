@@ -58,12 +58,12 @@ var _ = Describe("Linux containers", func() {
 
 		var err error
 		containerDir, err = ioutil.TempDir("", "depot")
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		err = os.Mkdir(filepath.Join(containerDir, "run"), 0755)
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 		err = ioutil.WriteFile(filepath.Join(containerDir, "run", "wshd.pid"), []byte("12345\n"), 0644)
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		_, subnet, err := net.ParseCIDR("2.3.4.0/30")
 		containerResources = linux_backend.NewResources(
@@ -106,15 +106,15 @@ var _ = Describe("Linux containers", func() {
 	})
 
 	It("sets the container ID", func() {
-		Ω(container.ID()).Should(Equal("some-id"))
+		Expect(container.ID()).To(Equal("some-id"))
 	})
 
 	It("sets the container handle", func() {
-		Ω(container.Handle()).Should(Equal("some-handle"))
+		Expect(container.Handle()).To(Equal("some-handle"))
 	})
 
 	It("sets the container grace time", func() {
-		Ω(container.GraceTime()).Should(Equal(1 * time.Second))
+		Expect(container.GraceTime()).To(Equal(1 * time.Second))
 	})
 
 	Describe("Starting", func() {
@@ -124,9 +124,9 @@ var _ = Describe("Linux containers", func() {
 
 		It("executes the container's start.sh with the correct environment", func() {
 			err := container.Start()
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(fakeRunner).Should(HaveExecutedSerially(
+			Expect(fakeRunner).To(HaveExecutedSerially(
 				fake_command_runner.CommandSpec{
 					Path: containerDir + "/start.sh",
 					Env: []string{
@@ -138,12 +138,12 @@ var _ = Describe("Linux containers", func() {
 		})
 
 		It("changes the container's state to active", func() {
-			Ω(container.State()).Should(Equal(linux_container.StateBorn))
+			Expect(container.State()).To(Equal(linux_container.StateBorn))
 
 			err := container.Start()
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(container.State()).Should(Equal(linux_container.StateActive))
+			Expect(container.State()).To(Equal(linux_container.StateActive))
 		})
 
 		Context("when start.sh fails", func() {
@@ -161,16 +161,16 @@ var _ = Describe("Linux containers", func() {
 
 			It("returns a wrapped error", func() {
 				err := container.Start()
-				Ω(err).Should(MatchError("container: start: oh no!"))
+				Expect(err).To(MatchError("container: start: oh no!"))
 			})
 
 			It("does not change the container's state", func() {
-				Ω(container.State()).Should(Equal(linux_container.StateBorn))
+				Expect(container.State()).To(Equal(linux_container.StateBorn))
 
 				err := container.Start()
-				Ω(err).Should(HaveOccurred())
+				Expect(err).To(HaveOccurred())
 
-				Ω(container.State()).Should(Equal(linux_container.StateBorn))
+				Expect(container.State()).To(Equal(linux_container.StateBorn))
 			})
 		})
 	})
@@ -178,9 +178,9 @@ var _ = Describe("Linux containers", func() {
 	Describe("Stopping", func() {
 		It("executes the container's stop.sh with the appropriate arguments", func() {
 			err := container.Stop(false)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(fakeRunner).Should(HaveExecutedSerially(
+			Expect(fakeRunner).To(HaveExecutedSerially(
 				fake_command_runner.CommandSpec{
 					Path: containerDir + "/stop.sh",
 				},
@@ -188,21 +188,21 @@ var _ = Describe("Linux containers", func() {
 		})
 
 		It("sets the container's state to stopped", func() {
-			Ω(container.State()).Should(Equal(linux_container.StateBorn))
+			Expect(container.State()).To(Equal(linux_container.StateBorn))
 
 			err := container.Stop(false)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(container.State()).Should(Equal(linux_container.StateStopped))
+			Expect(container.State()).To(Equal(linux_container.StateStopped))
 
 		})
 
 		Context("when kill is true", func() {
 			It("executes stop.sh with -w 0", func() {
 				err := container.Stop(true)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(fakeRunner).Should(HaveExecutedSerially(
+				Expect(fakeRunner).To(HaveExecutedSerially(
 					fake_command_runner.CommandSpec{
 						Path: containerDir + "/stop.sh",
 						Args: []string{"-w", "0"},
@@ -227,16 +227,16 @@ var _ = Describe("Linux containers", func() {
 
 			It("returns the error", func() {
 				err := container.Stop(false)
-				Ω(err).Should(Equal(nastyError))
+				Expect(err).To(Equal(nastyError))
 			})
 
 			It("does not change the container's state", func() {
-				Ω(container.State()).Should(Equal(linux_container.StateBorn))
+				Expect(container.State()).To(Equal(linux_container.StateBorn))
 
 				err := container.Stop(false)
-				Ω(err).Should(HaveOccurred())
+				Expect(err).To(HaveOccurred())
 
-				Ω(container.State()).Should(Equal(linux_container.StateBorn))
+				Expect(container.State()).To(Equal(linux_container.StateBorn))
 			})
 		})
 
@@ -246,14 +246,14 @@ var _ = Describe("Linux containers", func() {
 					LimitInBytes: 42,
 				})
 
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 			})
 
 			It("stops it", func() {
 				err := container.Stop(false)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(fakeRunner).Should(HaveKilled(fake_command_runner.CommandSpec{
+				Expect(fakeRunner).To(HaveKilled(fake_command_runner.CommandSpec{
 					Path: containerDir + "/bin/oom",
 				}))
 
@@ -268,13 +268,13 @@ var _ = Describe("Linux containers", func() {
 					LimitInBytes: 42,
 				})
 
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 			})
 
 			It("stops it", func() {
 				container.Cleanup()
 
-				Ω(fakeRunner).Should(HaveKilled(fake_command_runner.CommandSpec{
+				Expect(fakeRunner).To(HaveKilled(fake_command_runner.CommandSpec{
 					Path: containerDir + "/bin/oom",
 				}))
 
@@ -295,16 +295,16 @@ var _ = Describe("Linux containers", func() {
 				},
 				func(cmd *exec.Cmd) error {
 					bytes, err := ioutil.ReadAll(cmd.Stdin)
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
-					Ω(string(bytes)).Should(Equal("the-tar-content"))
+					Expect(string(bytes)).To(Equal("the-tar-content"))
 
 					return nil
 				},
 			)
 
 			err := container.StreamIn("/some/directory/dst", bytes.NewBufferString("the-tar-content"))
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 		})
 
 		Context("when tar fails", func() {
@@ -323,7 +323,7 @@ var _ = Describe("Linux containers", func() {
 
 			It("returns the error", func() {
 				err := container.StreamIn("/some/directory/dst", nil)
-				Ω(err).Should(Equal(disaster))
+				Expect(err).To(Equal(disaster))
 			})
 		})
 	})
@@ -342,18 +342,18 @@ var _ = Describe("Linux containers", func() {
 				},
 				func(cmd *exec.Cmd) error {
 					_, err := cmd.Stdout.Write([]byte("the-compressed-content"))
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
 					return nil
 				},
 			)
 
 			reader, err := container.StreamOut("/some/directory/dst")
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			bytes, err := ioutil.ReadAll(reader)
-			Ω(err).ShouldNot(HaveOccurred())
-			Ω(string(bytes)).Should(Equal("the-compressed-content"))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(string(bytes)).To(Equal("the-compressed-content"))
 		})
 
 		It("closes the server-side dupe of of the pipe's write end", func() {
@@ -376,20 +376,20 @@ var _ = Describe("Linux containers", func() {
 			)
 
 			_, err := container.StreamOut("/some/directory/dst")
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(outPipe).ShouldNot(BeNil())
+			Expect(outPipe).ToNot(BeNil())
 
 			_, err = outPipe.Write([]byte("sup"))
-			Ω(err).Should(HaveOccurred())
+			Expect(err).To(HaveOccurred())
 		})
 
 		Context("when there's a trailing slash", func() {
 			It("compresses the directory's contents", func() {
 				_, err := container.StreamOut("/some/directory/dst/")
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(fakeRunner).Should(HaveBackgrounded(
+				Expect(fakeRunner).To(HaveBackgrounded(
 					fake_command_runner.CommandSpec{
 						Path: containerDir + "/bin/nstar",
 						Args: []string{
@@ -418,7 +418,7 @@ var _ = Describe("Linux containers", func() {
 
 			It("returns the error", func() {
 				_, err := container.StreamOut("/some/dst")
-				Ω(err).Should(Equal(disaster))
+				Expect(err).To(Equal(disaster))
 			})
 		})
 	})
@@ -426,9 +426,9 @@ var _ = Describe("Linux containers", func() {
 	Describe("Net in", func() {
 		It("executes net.sh in with HOST_PORT and CONTAINER_PORT", func() {
 			hostPort, containerPort, err := container.NetIn(123, 456)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(fakeRunner).Should(HaveExecutedSerially(
+			Expect(fakeRunner).To(HaveExecutedSerially(
 				fake_command_runner.CommandSpec{
 					Path: containerDir + "/net.sh",
 					Args: []string{"in"},
@@ -440,24 +440,24 @@ var _ = Describe("Linux containers", func() {
 				},
 			))
 
-			Ω(hostPort).Should(Equal(uint32(123)))
-			Ω(containerPort).Should(Equal(uint32(456)))
+			Expect(hostPort).To(Equal(uint32(123)))
+			Expect(containerPort).To(Equal(uint32(456)))
 		})
 
 		Context("when a host port is not provided", func() {
 			It("acquires one from the port pool", func() {
 				hostPort, containerPort, err := container.NetIn(0, 456)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(hostPort).Should(Equal(uint32(1000)))
-				Ω(containerPort).Should(Equal(uint32(456)))
+				Expect(hostPort).To(Equal(uint32(1000)))
+				Expect(containerPort).To(Equal(uint32(456)))
 
 				secondHostPort, _, err := container.NetIn(0, 456)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(secondHostPort).ShouldNot(Equal(hostPort))
+				Expect(secondHostPort).ToNot(Equal(hostPort))
 
-				Ω(container.Resources().Ports).Should(ContainElement(hostPort))
+				Expect(container.Resources().Ports).To(ContainElement(hostPort))
 			})
 
 			Context("and acquiring a port from the pool fails", func() {
@@ -469,7 +469,7 @@ var _ = Describe("Linux containers", func() {
 
 				It("returns the error", func() {
 					_, _, err := container.NetIn(0, 456)
-					Ω(err).Should(Equal(disaster))
+					Expect(err).To(Equal(disaster))
 				})
 			})
 		})
@@ -477,9 +477,9 @@ var _ = Describe("Linux containers", func() {
 		Context("when a container port is not provided", func() {
 			It("defaults it to the host port", func() {
 				hostPort, containerPort, err := container.NetIn(123, 0)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(fakeRunner).Should(HaveExecutedSerially(
+				Expect(fakeRunner).To(HaveExecutedSerially(
 					fake_command_runner.CommandSpec{
 						Path: containerDir + "/net.sh",
 						Args: []string{"in"},
@@ -491,16 +491,16 @@ var _ = Describe("Linux containers", func() {
 					},
 				))
 
-				Ω(hostPort).Should(Equal(uint32(123)))
-				Ω(containerPort).Should(Equal(uint32(123)))
+				Expect(hostPort).To(Equal(uint32(123)))
+				Expect(containerPort).To(Equal(uint32(123)))
 			})
 
 			Context("and a host port is not provided either", func() {
 				It("defaults it to the same acquired port", func() {
 					hostPort, containerPort, err := container.NetIn(0, 0)
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
-					Ω(fakeRunner).Should(HaveExecutedSerially(
+					Expect(fakeRunner).To(HaveExecutedSerially(
 						fake_command_runner.CommandSpec{
 							Path: containerDir + "/net.sh",
 							Args: []string{"in"},
@@ -512,8 +512,8 @@ var _ = Describe("Linux containers", func() {
 						},
 					))
 
-					Ω(hostPort).Should(Equal(uint32(1000)))
-					Ω(containerPort).Should(Equal(uint32(1000)))
+					Expect(hostPort).To(Equal(uint32(1000)))
+					Expect(containerPort).To(Equal(uint32(1000)))
 				})
 			})
 		})
@@ -533,7 +533,7 @@ var _ = Describe("Linux containers", func() {
 
 			It("returns the error", func() {
 				_, _, err := container.NetIn(123, 456)
-				Ω(err).Should(Equal(disaster))
+				Expect(err).To(Equal(disaster))
 			})
 		})
 	})
@@ -542,11 +542,11 @@ var _ = Describe("Linux containers", func() {
 		It("delegates to the filter", func() {
 			rule := garden.NetOutRule{}
 			err := container.NetOut(rule)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(fakeFilter.NetOutCallCount()).Should(Equal(1))
+			Expect(fakeFilter.NetOutCallCount()).To(Equal(1))
 			passedRule := fakeFilter.NetOutArgsForCall(0)
-			Ω(passedRule).Should(Equal(rule))
+			Expect(passedRule).To(Equal(rule))
 		})
 
 		Context("when the filter fails", func() {
@@ -558,7 +558,7 @@ var _ = Describe("Linux containers", func() {
 
 			It("returns the error", func() {
 				err := container.NetOut(garden.NetOutRule{})
-				Ω(err).Should(Equal(disaster))
+				Expect(err).To(Equal(disaster))
 			})
 		})
 	})
@@ -567,46 +567,46 @@ var _ = Describe("Linux containers", func() {
 		Describe("CRUD", func() {
 			It("can get a property", func() {
 				value, err := container.GetProperty("property-name")
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(value).Should(Equal("property-value"))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(value).To(Equal("property-value"))
 			})
 
 			It("can test for a set of properties", func() {
-				Ω(container.HasProperties(garden.Properties{
+				Expect(container.HasProperties(garden.Properties{
 					"other-property": "property-value",
-				})).Should(BeFalse())
+				})).To(BeFalse())
 
-				Ω(container.HasProperties(garden.Properties{
+				Expect(container.HasProperties(garden.Properties{
 					"property-name":  "property-value",
 					"other-property": "property-value",
-				})).Should(BeFalse())
+				})).To(BeFalse())
 
-				Ω(container.HasProperties(garden.Properties{
+				Expect(container.HasProperties(garden.Properties{
 					"property-name": "property-value",
-				})).Should(BeTrue())
+				})).To(BeTrue())
 			})
 
 			It("returns an error when the property is undefined", func() {
 				_, err := container.GetProperty("some-other-property")
-				Ω(err).Should(Equal(linux_container.UndefinedPropertyError{"some-other-property"}))
-				Ω(err).Should(MatchError("property does not exist: some-other-property"))
+				Expect(err).To(Equal(linux_container.UndefinedPropertyError{"some-other-property"}))
+				Expect(err).To(MatchError("property does not exist: some-other-property"))
 			})
 
 			It("can set a new property", func() {
 				err := container.SetProperty("some-other-property", "some-other-value")
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 				value, err := container.GetProperty("some-other-property")
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(value).Should(Equal("some-other-value"))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(value).To(Equal("some-other-value"))
 			})
 
 			It("can override an existing property", func() {
 				err := container.SetProperty("property-name", "some-other-new-value")
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				value, err := container.GetProperty("property-name")
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(value).Should(Equal("some-other-new-value"))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(value).To(Equal("some-other-new-value"))
 			})
 
 			Context("when removing a property", func() {
@@ -614,50 +614,50 @@ var _ = Describe("Linux containers", func() {
 
 				JustBeforeEach(func() {
 					err = container.SetProperty("other-property-name", "some-other-value")
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
 					err = container.RemoveProperty("property-name")
 				})
 
 				It("removes the property", func() {
-					Ω(err).ShouldNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
 					_, err = container.GetProperty("property-name")
-					Ω(err).Should(Equal(linux_container.UndefinedPropertyError{"property-name"}))
+					Expect(err).To(Equal(linux_container.UndefinedPropertyError{"property-name"}))
 				})
 
 				It("does not remove other properties", func() {
 					value, err := container.GetProperty("other-property-name")
-					Ω(err).ShouldNot(HaveOccurred())
-					Ω(value).Should(Equal("some-other-value"))
+					Expect(err).ToNot(HaveOccurred())
+					Expect(value).To(Equal("some-other-value"))
 				})
 			})
 
 			It("returns an error when removing an undefined property", func() {
 				err := container.RemoveProperty("some-other-property")
-				Ω(err).Should(HaveOccurred())
-				Ω(err).Should(MatchError("property does not exist: some-other-property"))
+				Expect(err).To(HaveOccurred())
+				Expect(err).To(MatchError("property does not exist: some-other-property"))
 			})
 		})
 
 		It("can return all properties as a map", func() {
 			properties, err := container.GetProperties()
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(properties).Should(Equal(garden.Properties{"property-name": "property-value"}))
+			Expect(properties).To(Equal(garden.Properties{"property-name": "property-value"}))
 		})
 
 		It("returns a properties snapshot", func() {
 			err := container.SetProperty("some-property", "some-value")
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			properties := container.Properties()
-			Ω(properties["some-property"]).Should(Equal("some-value"))
+			Expect(properties["some-property"]).To(Equal("some-value"))
 
 			err = container.SetProperty("some-property", "some-other-value")
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(properties["some-property"]).Should(Equal("some-value"))
+			Expect(properties["some-property"]).To(Equal("some-value"))
 		})
 
 		Context("with a nil map of properties at container creation", func() {
@@ -667,16 +667,16 @@ var _ = Describe("Linux containers", func() {
 
 			It("reading a property fails in the expected way", func() {
 				_, err := container.GetProperty("property-name")
-				Ω(err).Should(Equal(linux_container.UndefinedPropertyError{"property-name"}))
+				Expect(err).To(Equal(linux_container.UndefinedPropertyError{"property-name"}))
 			})
 
 			It("setting a property succeeds", func() {
 				err := container.SetProperty("some-other-property", "some-other-value")
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				value, err := container.GetProperty("some-other-property")
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(value).Should(Equal("some-other-value"))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(value).To(Equal("some-other-value"))
 			})
 		})
 	})
@@ -684,49 +684,49 @@ var _ = Describe("Linux containers", func() {
 	Describe("Info", func() {
 		It("returns the container's state", func() {
 			info, err := container.Info()
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(info.State).Should(Equal("born"))
+			Expect(info.State).To(Equal("born"))
 		})
 
 		It("returns the container's events", func() {
 			info, err := container.Info()
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(info.Events).Should(Equal([]string{}))
+			Expect(info.Events).To(Equal([]string{}))
 		})
 
 		It("returns the container's properties", func() {
 			info, err := container.Info()
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(info.Properties).Should(Equal(container.Properties()))
+			Expect(info.Properties).To(Equal(container.Properties()))
 		})
 
 		It("returns the container's network info", func() {
 			info, err := container.Info()
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(info.HostIP).Should(Equal("2.3.4.2"))
-			Ω(info.ContainerIP).Should(Equal("1.2.3.4"))
+			Expect(info.HostIP).To(Equal("2.3.4.2"))
+			Expect(info.ContainerIP).To(Equal("1.2.3.4"))
 		})
 
 		It("returns the container's path", func() {
 			info, err := container.Info()
-			Ω(err).ShouldNot(HaveOccurred())
-			Ω(info.ContainerPath).Should(Equal(containerDir))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(info.ContainerPath).To(Equal(containerDir))
 		})
 
 		It("returns the container's mapped ports", func() {
 			_, _, err := container.NetIn(1234, 5678)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			_, _, err = container.NetIn(1235, 5679)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			info, err := container.Info()
-			Ω(err).ShouldNot(HaveOccurred())
-			Ω(info.MappedPorts).Should(Equal([]garden.PortMapping{
+			Expect(err).ToNot(HaveOccurred())
+			Expect(info.MappedPorts).To(Equal([]garden.PortMapping{
 				{HostPort: 1234, ContainerPort: 5678},
 				{HostPort: 1235, ContainerPort: 5679},
 			}))
@@ -749,8 +749,8 @@ var _ = Describe("Linux containers", func() {
 
 			It("returns their process IDs", func() {
 				info, err := container.Info()
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(info.ProcessIDs).Should(Equal([]uint32{1, 2, 3}))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(info.ProcessIDs).To(Equal([]uint32{1, 2, 3}))
 			})
 		})
 	})

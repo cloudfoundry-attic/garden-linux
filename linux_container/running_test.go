@@ -43,7 +43,7 @@ var _ = Describe("Linux containers", func() {
 
 		var err error
 		containerDir, err = ioutil.TempDir("", "depot")
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		_, subnet, _ := net.ParseCIDR("2.3.4.0/30")
 		containerResources = linux_backend.NewResources(
@@ -103,12 +103,12 @@ var _ = Describe("Linux containers", func() {
 				},
 			}, garden.ProcessIO{})
 
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
-			Ω(ranCmd.Path).Should(Equal(containerDir + "/bin/wsh"))
+			Expect(ranCmd.Path).To(Equal(containerDir + "/bin/wsh"))
 
-			Ω(ranCmd.Args).Should(Equal([]string{
+			Expect(ranCmd.Args).To(Equal([]string{
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
 				"--user", "vcap",
@@ -120,7 +120,7 @@ var _ = Describe("Linux containers", func() {
 				"arg2",
 			}))
 
-			Ω(ranCmd.Env).Should(Equal([]string{
+			Expect(ranCmd.Env).To(Equal([]string{
 				"RLIMIT_AS=1",
 				"RLIMIT_CORE=2",
 				"RLIMIT_CPU=3",
@@ -143,10 +143,10 @@ var _ = Describe("Linux containers", func() {
 			_, err := container.Run(garden.ProcessSpec{
 				Path: "/some/script",
 			}, garden.ProcessIO{})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
-			Ω(ranCmd.Args).Should(Equal([]string{
+			Expect(ranCmd.Args).To(Equal([]string{
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
 				"--user", "vcap",
@@ -161,10 +161,10 @@ var _ = Describe("Linux containers", func() {
 			_, err := container.Run(garden.ProcessSpec{
 				Path: "/some/script",
 			}, garden.ProcessIO{})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			_, _, _, _, signaller := fakeProcessTracker.RunArgsForCall(0)
-			Ω(signaller).Should(Equal(&linux_backend.NamespacedSignaller{
+			Expect(signaller).To(Equal(&linux_backend.NamespacedSignaller{
 				ContainerPath: containerDir,
 				Runner:        fakeRunner,
 				PidFilePath:   containerDir + "/processes/1.pid",
@@ -175,17 +175,17 @@ var _ = Describe("Linux containers", func() {
 			_, err := container.Run(garden.ProcessSpec{
 				Path: "/some/script",
 			}, garden.ProcessIO{})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			_, err = container.Run(garden.ProcessSpec{
 				Path: "/some/script",
 			}, garden.ProcessIO{})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			id1, _, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
 			id2, _, _, _, _ := fakeProcessTracker.RunArgsForCall(1)
 
-			Ω(id1).ShouldNot(Equal(id2))
+			Expect(id1).ToNot(Equal(id2))
 		})
 
 		It("should return an error when an environment variable is malformed", func() {
@@ -193,7 +193,7 @@ var _ = Describe("Linux containers", func() {
 				Path: "/some/script",
 				Env:  []string{"a"},
 			}, garden.ProcessIO{})
-			Ω(err).Should(MatchError(HavePrefix("process: malformed environment")))
+			Expect(err).To(MatchError(HavePrefix("process: malformed environment")))
 		})
 
 		It("runs the script with environment variables", func() {
@@ -202,10 +202,10 @@ var _ = Describe("Linux containers", func() {
 				Env:  []string{"ESCAPED=kurt \"russell\"", "UNESCAPED=isaac\nhayes"},
 			}, garden.ProcessIO{})
 
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
-			Ω(ranCmd.Args).Should(Equal([]string{
+			Expect(ranCmd.Args).To(Equal([]string{
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
 				"--user", "vcap",
@@ -226,10 +226,10 @@ var _ = Describe("Linux containers", func() {
 				},
 			}, garden.ProcessIO{})
 
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
-			Ω(ranCmd.Args).Should(Equal([]string{
+			Expect(ranCmd.Args).To(Equal([]string{
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
 				"--user", "vcap",
@@ -246,10 +246,10 @@ var _ = Describe("Linux containers", func() {
 				Dir:  "/some/dir",
 			}, garden.ProcessIO{})
 
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
-			Ω(ranCmd.Args).Should(Equal([]string{
+			Expect(ranCmd.Args).To(Equal([]string{
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
 				"--user", "vcap",
@@ -274,10 +274,10 @@ var _ = Describe("Linux containers", func() {
 				TTY:  ttySpec,
 			}, garden.ProcessIO{})
 
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			_, _, _, tty, _ := fakeProcessTracker.RunArgsForCall(0)
-			Ω(tty).Should(Equal(ttySpec))
+			Expect(tty).To(Equal(ttySpec))
 		})
 
 		Describe("streaming", func() {
@@ -291,10 +291,10 @@ var _ = Describe("Linux containers", func() {
 						defer GinkgoRecover()
 
 						_, err := fmt.Fprintf(io.Stdout, "hi out\n")
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
 						_, err = fmt.Fprintf(io.Stderr, "hi err\n")
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 					}()
 
 					process := new(wfakes.FakeProcess)
@@ -320,14 +320,14 @@ var _ = Describe("Linux containers", func() {
 					Stdout: stdout,
 					Stderr: stderr,
 				})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(process.ID()).Should(Equal(uint32(1)))
+				Expect(process.ID()).To(Equal(uint32(1)))
 
 				Eventually(stdout).Should(gbytes.Say("hi out\n"))
 				Eventually(stderr).Should(gbytes.Say("hi err\n"))
 
-				Ω(process.Wait()).Should(Equal(123))
+				Expect(process.Wait()).To(Equal(123))
 			})
 		})
 
@@ -346,12 +346,12 @@ var _ = Describe("Linux containers", func() {
 				},
 			}, garden.ProcessIO{})
 
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
-			Ω(ranCmd.Path).Should(Equal(containerDir + "/bin/wsh"))
+			Expect(ranCmd.Path).To(Equal(containerDir + "/bin/wsh"))
 
-			Ω(ranCmd.Args).Should(Equal([]string{
+			Expect(ranCmd.Args).To(Equal([]string{
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
 				"--user", "vcap",
@@ -361,7 +361,7 @@ var _ = Describe("Linux containers", func() {
 				"/some/script",
 			}))
 
-			Ω(ranCmd.Env).Should(Equal([]string{
+			Expect(ranCmd.Env).To(Equal([]string{
 				"RLIMIT_AS=1",
 				"RLIMIT_CPU=3",
 				"RLIMIT_FSIZE=5",
@@ -381,12 +381,12 @@ var _ = Describe("Linux containers", func() {
 						Privileged: true,
 					}, garden.ProcessIO{})
 
-					Ω(err).ToNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
 					_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
-					Ω(ranCmd.Path).Should(Equal(containerDir + "/bin/wsh"))
+					Expect(ranCmd.Path).To(Equal(containerDir + "/bin/wsh"))
 
-					Ω(ranCmd.Args).Should(Equal([]string{
+					Expect(ranCmd.Args).To(Equal([]string{
 						containerDir + "/bin/wsh",
 						"--socket", containerDir + "/run/wshd.sock",
 						"--user", "root",
@@ -406,12 +406,12 @@ var _ = Describe("Linux containers", func() {
 						User:       "potato",
 					}, garden.ProcessIO{})
 
-					Ω(err).ToNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
 					_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
-					Ω(ranCmd.Path).Should(Equal(containerDir + "/bin/wsh"))
+					Expect(ranCmd.Path).To(Equal(containerDir + "/bin/wsh"))
 
-					Ω(ranCmd.Args).Should(Equal([]string{
+					Expect(ranCmd.Args).To(Equal([]string{
 						containerDir + "/bin/wsh",
 						"--socket", containerDir + "/run/wshd.sock",
 						"--user", "potato",
@@ -432,12 +432,12 @@ var _ = Describe("Linux containers", func() {
 						Privileged: false,
 					}, garden.ProcessIO{})
 
-					Ω(err).ToNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
 					_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
-					Ω(ranCmd.Path).Should(Equal(containerDir + "/bin/wsh"))
+					Expect(ranCmd.Path).To(Equal(containerDir + "/bin/wsh"))
 
-					Ω(ranCmd.Args).Should(Equal([]string{
+					Expect(ranCmd.Args).To(Equal([]string{
 						containerDir + "/bin/wsh",
 						"--socket", containerDir + "/run/wshd.sock",
 						"--user", "vcap",
@@ -457,12 +457,12 @@ var _ = Describe("Linux containers", func() {
 						User:       "potato",
 					}, garden.ProcessIO{})
 
-					Ω(err).ToNot(HaveOccurred())
+					Expect(err).ToNot(HaveOccurred())
 
 					_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
-					Ω(ranCmd.Path).Should(Equal(containerDir + "/bin/wsh"))
+					Expect(ranCmd.Path).To(Equal(containerDir + "/bin/wsh"))
 
-					Ω(ranCmd.Args).Should(Equal([]string{
+					Expect(ranCmd.Args).To(Equal([]string{
 						containerDir + "/bin/wsh",
 						"--socket", containerDir + "/run/wshd.sock",
 						"--user", "potato",
@@ -487,7 +487,7 @@ var _ = Describe("Linux containers", func() {
 					Path:       "/some/script",
 					Privileged: true,
 				}, garden.ProcessIO{})
-				Ω(err).Should(Equal(disaster))
+				Expect(err).To(Equal(disaster))
 			})
 		})
 	})
@@ -504,10 +504,10 @@ var _ = Describe("Linux containers", func() {
 						defer GinkgoRecover()
 
 						_, err := fmt.Fprintf(io.Stdout, "hi out\n")
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 
 						_, err = fmt.Fprintf(io.Stderr, "hi err\n")
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 					}()
 
 					process := new(wfakes.FakeProcess)
@@ -531,17 +531,17 @@ var _ = Describe("Linux containers", func() {
 					Stdout: stdout,
 					Stderr: stderr,
 				})
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
 				pid, _ := fakeProcessTracker.AttachArgsForCall(0)
-				Ω(pid).Should(Equal(uint32(1)))
+				Expect(pid).To(Equal(uint32(1)))
 
-				Ω(process.ID()).Should(Equal(uint32(42)))
+				Expect(process.ID()).To(Equal(uint32(42)))
 
 				Eventually(stdout).Should(gbytes.Say("hi out\n"))
 				Eventually(stderr).Should(gbytes.Say("hi err\n"))
 
-				Ω(process.Wait()).Should(Equal(123))
+				Expect(process.Wait()).To(Equal(123))
 			})
 		})
 
@@ -554,7 +554,7 @@ var _ = Describe("Linux containers", func() {
 
 			It("returns the error", func() {
 				_, err := container.Attach(42, garden.ProcessIO{})
-				Ω(err).Should(Equal(disaster))
+				Expect(err).To(Equal(disaster))
 			})
 		})
 	})

@@ -55,7 +55,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 			fakeVolumeCreator,
 			fakeClock,
 		)
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 
 		logger = lagertest.NewTestLogger("test")
 	})
@@ -70,22 +70,22 @@ var _ = Describe("DockerRootFSProvider", func() {
 				"some-id",
 				parseURL("docker:///some-repository-name"),
 			)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(fakeGraphDriver.CreateCallCount()).Should(Equal(1))
+			Expect(fakeGraphDriver.CreateCallCount()).To(Equal(1))
 			id, parent := fakeGraphDriver.CreateArgsForCall(0)
-			Ω(id).Should(Equal("some-id"))
-			Ω(parent).Should(Equal("some-image-id"))
+			Expect(id).To(Equal("some-id"))
+			Expect(parent).To(Equal("some-image-id"))
 
-			Ω(fakeRepositoryFetcher.Fetched()).Should(ContainElement(
+			Expect(fakeRepositoryFetcher.Fetched()).To(ContainElement(
 				fake_repository_fetcher.FetchSpec{
 					Repository: "docker:///some-repository-name",
 					Tag:        "latest",
 				},
 			))
 
-			Ω(mountpoint).Should(Equal("/some/graph/driver/mount/point"))
-			Ω(envvars).Should(Equal(
+			Expect(mountpoint).To(Equal("/some/graph/driver/mount/point"))
+			Expect(envvars).To(Equal(
 				process.Env{
 					"env1": "env1Value",
 					"env2": "env2Value",
@@ -103,9 +103,9 @@ var _ = Describe("DockerRootFSProvider", func() {
 					"some-id",
 					parseURL("docker:///some-repository-name"),
 				)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(fakeVolumeCreator.Created).Should(Equal(
+				Expect(fakeVolumeCreator.Created).To(Equal(
 					[]RootAndVolume{
 						{"/some/graph/driver/mount/point", "/foo"},
 						{"/some/graph/driver/mount/point", "/bar"},
@@ -123,7 +123,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 						"some-id",
 						parseURL("docker:///some-repository-name"),
 					)
-					Ω(err).Should(HaveOccurred())
+					Expect(err).To(HaveOccurred())
 				})
 			})
 		})
@@ -135,7 +135,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 					"some-id",
 					parseURL("docker://"),
 				)
-				Ω(err).Should(Equal(ErrInvalidDockerURL))
+				Expect(err).To(Equal(ErrInvalidDockerURL))
 			})
 		})
 
@@ -146,9 +146,9 @@ var _ = Describe("DockerRootFSProvider", func() {
 					"some-id",
 					parseURL("docker:///some-repository-name#some-tag"),
 				)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(fakeRepositoryFetcher.Fetched()).Should(ContainElement(
+				Expect(fakeRepositoryFetcher.Fetched()).To(ContainElement(
 					fake_repository_fetcher.FetchSpec{
 						Repository: "docker:///some-repository-name#some-tag",
 						Tag:        "some-tag",
@@ -167,7 +167,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 					fakeVolumeCreator,
 					fakeClock,
 				)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 			})
 
 			It("uses the host as the registry when fetching the repository", func() {
@@ -176,9 +176,9 @@ var _ = Describe("DockerRootFSProvider", func() {
 					"some-id",
 					parseURL("docker://some.host/some-repository-name"),
 				)
-				Ω(err).ShouldNot(HaveOccurred())
+				Expect(err).ToNot(HaveOccurred())
 
-				Ω(fakeRepositoryFetcher.Fetched()).Should(ContainElement(
+				Expect(fakeRepositoryFetcher.Fetched()).To(ContainElement(
 					fake_repository_fetcher.FetchSpec{
 						Repository: "docker://some.host/some-repository-name",
 						Tag:        "latest",
@@ -200,7 +200,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 					"some-id",
 					parseURL("docker:///some-repository-name"),
 				)
-				Ω(err).Should(Equal(disaster))
+				Expect(err).To(Equal(disaster))
 			})
 		})
 
@@ -216,7 +216,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 					"some-id",
 					parseURL("docker:///some-repository-name#some-tag"),
 				)
-				Ω(err).Should(Equal(disaster))
+				Expect(err).To(Equal(disaster))
 			})
 		})
 
@@ -233,7 +233,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 					"some-id",
 					parseURL("docker:///some-repository-name#some-tag"),
 				)
-				Ω(err).Should(Equal(disaster))
+				Expect(err).To(Equal(disaster))
 			})
 		})
 	})
@@ -241,15 +241,15 @@ var _ = Describe("DockerRootFSProvider", func() {
 	Describe("CleanupRootFS", func() {
 		It("removes the container from the rootfs graph", func() {
 			err := provider.CleanupRootFS(logger, "some-id")
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(fakeGraphDriver.PutCallCount()).Should(Equal(1))
+			Expect(fakeGraphDriver.PutCallCount()).To(Equal(1))
 			putted := fakeGraphDriver.PutArgsForCall(0)
-			Ω(putted).Should(Equal("some-id"))
+			Expect(putted).To(Equal("some-id"))
 
-			Ω(fakeGraphDriver.RemoveCallCount()).Should(Equal(1))
+			Expect(fakeGraphDriver.RemoveCallCount()).To(Equal(1))
 			removed := fakeGraphDriver.RemoveArgsForCall(0)
-			Ω(removed).Should(Equal("some-id"))
+			Expect(removed).To(Equal("some-id"))
 		})
 
 		Context("when removing the container from the graph fails", func() {
@@ -280,7 +280,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 					done := make(chan struct{})
 					go func(done chan<- struct{}) {
 						err := provider.CleanupRootFS(logger, "some-id")
-						Ω(err).ShouldNot(HaveOccurred())
+						Expect(err).ToNot(HaveOccurred())
 						close(done)
 					}(done)
 

@@ -15,7 +15,7 @@ var _ = Describe("A container with a grace time", func() {
 		var err error
 
 		container, err = client.Create(garden.ContainerSpec{})
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	Context("when a request takes longer than the grace time", func() {
@@ -24,12 +24,12 @@ var _ = Describe("A container with a grace time", func() {
 				Path: "sleep",
 				Args: []string{"5"},
 			}, garden.ProcessIO{})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(process.Wait()).Should(Equal(0))
+			Expect(process.Wait()).To(Equal(0))
 
 			_, err = container.Info()
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 		})
 	})
 

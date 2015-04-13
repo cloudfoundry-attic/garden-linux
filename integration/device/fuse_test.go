@@ -28,7 +28,7 @@ var _ = Describe("Fuse", func() {
 			RootFSPath: fuseRootFSPath,
 			Privileged: privilegedContainer,
 		})
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 	})
 
 	Describe("/dev/fuse", func() {
@@ -38,9 +38,9 @@ var _ = Describe("Fuse", func() {
 				Path:       "/usr/bin/test",
 				Args:       []string{"-c", "/dev/fuse"},
 			}, garden.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
-			Ω(process.Wait()).Should(Equal(0), "/dev/fuse cannot be found or is not a character special device.")
+			Expect(process.Wait()).To(Equal(0), "/dev/fuse cannot be found or is not a character special device.")
 		})
 
 		Context("in a privileged Container", func() {
@@ -79,16 +79,16 @@ func canCreateAndUseFuseFileSystem(container garden.Container, privilegedProcess
 		Path:       "mkdir",
 		Args:       []string{"-p", mountpoint},
 	}, garden.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
-	Ω(err).ShouldNot(HaveOccurred())
-	Ω(process.Wait()).Should(Equal(0), "Could not make temporary directory!")
+	Expect(err).ToNot(HaveOccurred())
+	Expect(process.Wait()).To(Equal(0), "Could not make temporary directory!")
 
 	process, err = container.Run(garden.ProcessSpec{
 		Privileged: privilegedProcess,
 		Path:       "/usr/bin/hellofs",
 		Args:       []string{mountpoint},
 	}, garden.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
-	Ω(err).ShouldNot(HaveOccurred())
-	Ω(process.Wait()).Should(Equal(0), "Failed to mount hello filesystem.")
+	Expect(err).ToNot(HaveOccurred())
+	Expect(process.Wait()).To(Equal(0), "Failed to mount hello filesystem.")
 
 	stdout := gbytes.NewBuffer()
 	process, err = container.Run(garden.ProcessSpec{
@@ -96,17 +96,17 @@ func canCreateAndUseFuseFileSystem(container garden.Container, privilegedProcess
 		Path:       "cat",
 		Args:       []string{filepath.Join(mountpoint, "hello")},
 	}, garden.ProcessIO{Stdout: stdout, Stderr: GinkgoWriter})
-	Ω(err).ShouldNot(HaveOccurred())
-	Ω(process.Wait()).Should(Equal(0), "Failed to find hello file.")
-	Ω(stdout).Should(gbytes.Say("Hello World!"))
+	Expect(err).ToNot(HaveOccurred())
+	Expect(process.Wait()).To(Equal(0), "Failed to find hello file.")
+	Expect(stdout).To(gbytes.Say("Hello World!"))
 
 	process, err = container.Run(garden.ProcessSpec{
 		Privileged: privilegedProcess,
 		Path:       "fusermount",
 		Args:       []string{"-u", mountpoint},
 	}, garden.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
-	Ω(err).ShouldNot(HaveOccurred())
-	Ω(process.Wait()).Should(Equal(0), "Failed to unmount user filesystem.")
+	Expect(err).ToNot(HaveOccurred())
+	Expect(process.Wait()).To(Equal(0), "Failed to unmount user filesystem.")
 
 	stdout2 := gbytes.NewBuffer()
 	process, err = container.Run(garden.ProcessSpec{
@@ -114,7 +114,7 @@ func canCreateAndUseFuseFileSystem(container garden.Container, privilegedProcess
 		Path:       "ls",
 		Args:       []string{mountpoint},
 	}, garden.ProcessIO{Stdout: stdout2, Stderr: GinkgoWriter})
-	Ω(err).ShouldNot(HaveOccurred())
-	Ω(process.Wait()).Should(Equal(0))
-	Ω(stdout2).ShouldNot(gbytes.Say("hello"), "Fuse filesystem appears still to be visible after being unmounted.")
+	Expect(err).ToNot(HaveOccurred())
+	Expect(process.Wait()).To(Equal(0))
+	Expect(stdout2).ToNot(gbytes.Say("hello"), "Fuse filesystem appears still to be visible after being unmounted.")
 }
