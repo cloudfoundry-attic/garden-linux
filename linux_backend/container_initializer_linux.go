@@ -2,7 +2,6 @@ package linux_backend
 
 import (
 	"fmt"
-	"os"
 	"syscall"
 )
 
@@ -16,10 +15,8 @@ func (*containerInitializer) SetHostname(hostname string) error {
 	return syscall.Sethostname([]byte(hostname))
 }
 
+// Pre-condition: /proc must exist.
 func (*containerInitializer) MountProc() error {
-	if err := os.MkdirAll("/proc", 0755); err != nil {
-		return fmt.Errorf("linux_backend: MountProc: %s", err)
-	}
 	if err := syscall.Mount("proc", "/proc", "proc", uintptr(0), ""); err != nil {
 		return fmt.Errorf("linux_backend: MountProc: %s", err)
 	}

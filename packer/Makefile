@@ -15,6 +15,7 @@ ubuntu-vagrant: rootfs-tars
 	packer build -except=docker garden-ci/garden-ci.json
 
 rootfs-tars:
+	./rootfs/empty/scripts/compile_binary
 	find rootfs -name '*.json' -exec packer build {} \;
 
 GARDEN_PACKER_DOCKER_REPO ?= cloudfoundry/garden-ci-ubuntu

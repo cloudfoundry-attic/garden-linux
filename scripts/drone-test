@@ -18,6 +18,7 @@ export GARDEN_TEST_ROOTFS=$(mountOnTmpfs /opt/warden/rootfs)
 [ -d /opt/warden/nestable-rootfs ] && export GARDEN_NESTABLE_TEST_ROOTFS=$(mountOnTmpfs /opt/warden/nestable-rootfs)
 [ -d /opt/warden/fuse-rootfs ] && export GARDEN_FUSE_TEST_ROOTFS=$(mountOnTmpfs /opt/warden/fuse-rootfs)
 [ -d /opt/warden/docker-registry-rootfs ] && export GARDEN_DOCKER_REGISTRY_TEST_ROOTFS=$(mountOnTmpfs /opt/warden/docker-registry-rootfs)
+[ -d /opt/warden/empty ] && export GARDEN_EMPTY_TEST_ROOTFS=$(mountOnTmpfs /opt/warden/empty)
 
 export GODEPS_WORKSPACE=$PWD/Godeps/_workspace
 export GOPATH=$GODEPS_WORKSPACE:$GOPATH

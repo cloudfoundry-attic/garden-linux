@@ -9,6 +9,7 @@ cd $(dirname $0)/../
 
 source ./etc/config
 
+mkdir -p $rootfs_path/sbin
 cp bin/wshd $rootfs_path/sbin/wshd
 chown $root_uid:$root_uid $rootfs_path/sbin/wshd
 chmod 700 $rootfs_path/sbin/wshd

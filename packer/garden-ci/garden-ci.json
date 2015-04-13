@@ -97,9 +97,17 @@
       "destination": "/opt/warden/docker-registry-rootfs.tar"
     },
     {
+      "type": "shell",
+      "inline": ["mkdir /opt/warden/empty"]
+    },
+    {
       "type": "file",
-      "source": "rootfs/no_sh/no_sh.tar",
-      "destination": "/opt/warden/no-sh-rootfs.tar"
+      "source": "rootfs/empty/hello",
+      "destination": "/opt/warden/empty/hello"
+    },
+    {
+      "type": "shell",
+      "inline": ["chmod 0777 /opt/warden/empty/hello"]
     },
     {
       "type": "shell",
@@ -126,6 +134,13 @@
       "repository": "garden-ci-ubuntu",
       "tag": "packer",
       "only": ["docker"]
+    },
+    {
+      "type": "vagrant",
+      "vagrantfile_template": "garden-ci/Vagrantfile.template",
+      "keep_input_artifact": true,
+      "output": "garden-ci/output/{{.BuildName}}.box",
+      "only": ["garden-ci-virtualbox-iso"]
     }
   ]
 }

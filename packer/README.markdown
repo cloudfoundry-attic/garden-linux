@@ -18,7 +18,7 @@ mkdir $TMPDIR
 
 ###Build everything
 
-Run `make ubuntu`. This will output a virtual-box `ovf` to `garden-ci/output` and commit a docker image to your Docker server.
+Run `make ubuntu`. This will output a virtual-box `.ovf` and vagrant `.box` to `garden-ci/output` and commit a docker image to your Docker server named `garden-ci-ubuntu:packer`.
 
 ### Build Individual Images
   * Docker: `make ubuntu-docker`

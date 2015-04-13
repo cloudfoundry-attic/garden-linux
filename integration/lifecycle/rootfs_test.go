@@ -19,6 +19,7 @@ var _ = Describe("Rootfs container create parameter", func() {
 	var args []string
 
 	BeforeEach(func() {
+		container = nil
 		args = []string{}
 	})
 

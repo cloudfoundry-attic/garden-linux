@@ -2,6 +2,7 @@ package lifecycle_test
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -43,13 +44,46 @@ var _ = Describe("Security", func() {
 		})
 	})
 
-	Describe("not relying on /bin/sh on user-supplied root FS", func() {
-		It("can run rootFS that does not contain /bin/sh", func() {
+	Context("with a empty rootfs", func() {
+		var emptyRootFSPath string
+
+		BeforeEach(func() {
+			emptyRootFSPath = os.Getenv("GARDEN_EMPTY_TEST_ROOTFS")
+
+			if emptyRootFSPath == "" {
+				Fail("GARDEN_EMPTY_TEST_ROOTFS undefined;")
+			}
+
 			client = startGarden()
-			_, err := client.Create(garden.ContainerSpec{
-				RootFSPath: "docker:///cloudfoundry/no-sh",
-			})
+		})
+
+		It("runs a statically compiled executable in the container", func() {
+			container, err := client.Create(
+				garden.ContainerSpec{
+					RootFSPath: emptyRootFSPath,
+				},
+			)
 			Ω(err).ShouldNot(HaveOccurred())
+
+			stdout := gbytes.NewBuffer()
+			stderr := gbytes.NewBuffer()
+			process, err := container.Run(
+				garden.ProcessSpec{
+					Path: "/hello",
+				},
+				garden.ProcessIO{
+					Stdout: stdout,
+					Stderr: stderr,
+				},
+			)
+			Ω(err).ShouldNot(HaveOccurred())
+
+			exitStatus, err := process.Wait()
+			Ω(err).ShouldNot(HaveOccurred())
+			Ω(exitStatus).Should(Equal(0))
+
+			Ω(string(stdout.Contents())).Should(Equal("hello from stdout"))
+			Ω(string(stderr.Contents())).Should(Equal("hello from stderr"))
 		})
 	})
 

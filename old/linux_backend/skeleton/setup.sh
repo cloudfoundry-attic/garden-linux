@@ -24,6 +24,16 @@ user_uid=${user_uid:-10000}
 root_uid=${root_uid:-10000}
 rootfs_path=$(readlink -f $rootfs_path)
 
+if [ ! -d $rootfs_path/tmp ]; then
+  mkdir $rootfs_path/tmp
+fi
+chmod 1777 $rootfs_path/tmp
+
+if [ ! -d $rootfs_path/etc ]; then
+  mkdir $rootfs_path/etc
+  chmod 0755 $rootfs_path/etc
+fi
+
 # Write configuration
 cat > etc/config <<-EOS
 id=$id
@@ -41,8 +51,23 @@ rootfs_path=$rootfs_path
 external_ip=$external_ip
 EOS
 
+if [ ! -d $rootfs_path/proc ]; then
+  mkdir -p $rootfs_path/proc
+  chmod 0755 $rootfs_path/proc
+fi
+
+if [ ! -d $rootfs_path/dev ]; then
+  mkdir -p $rootfs_path/dev
+  chmod 0755 $rootfs_path/dev
+fi
+
 # Strip /dev down to the bare minimum
 rm -rf $rootfs_path/dev/*
+
+if [ ! -d $rootfs_path/dev/shm ]; then
+  mkdir $rootfs_path/dev/shm
+  chmod 1777 $rootfs_path/dev/shm
+fi
 
 # add device: adddev <owner> <device-file-path> <mknod-1> <mknod-2>
 function adddev()
@@ -54,6 +79,7 @@ function adddev()
   mknod -m 666 ${file} ${opts}
   chown root:${own} ${file}
 }
+
 
 # /dev/tty
 adddev tty  $rootfs_path/dev/tty     5 0
@@ -106,6 +132,7 @@ else
   cp /etc/resolv.conf $rootfs_path/etc/
 fi
 
+
 # Add vcap user if not already present
 if ! chroot $rootfs_path id vcap >/dev/null 2>&1; then
   mkdir -p $rootfs_path/home
@@ -115,6 +142,8 @@ if ! chroot $rootfs_path id vcap >/dev/null 2>&1; then
     shell=/bin/bash
   fi
 
+  touch $rootfs_path/etc/passwd
+  touch $rootfs_path/etc/group
   useradd -R $rootfs_path -m -u $user_uid -s $shell vcap
 fi
 
