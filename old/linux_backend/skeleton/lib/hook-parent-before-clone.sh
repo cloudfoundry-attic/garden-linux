@@ -15,4 +15,6 @@ chmod 700 $rootfs_path/sbin/wshd
 
 mkdir -p $rootfs_path/dev/pts
 mount -n -t devpts -o newinstance,ptmxmode=0666 devpts $rootfs_path/dev/pts
+rm -f $rootfs_path/dev/ptmx
+ln -s /dev/pts/ptmx $rootfs_path/dev/ptmx
 mkdir -p $rootfs_path/dev/shm

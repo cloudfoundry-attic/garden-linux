@@ -392,7 +392,7 @@ int child_fork(msg_request_t *req, int in, int out, int err) {
 
     execvpe(argv[0], argv, envp);
     perror("execvpe");
-   
+
     exit(133);
 error:
     exit(253);
@@ -797,16 +797,6 @@ int child_run(void *data) {
     abort();
   }
 
-  rv = symlink("/dev/pts/ptmx", "/dev/ptmx");
-  if (rv == -1 || errno == EEXIST) {
-    rv = unlink("/dev/ptmx");
-    if (rv == -1) {
-      perror("unlink");
-      abort();
-    }
-
-    rv = symlink("/dev/pts/ptmx", "/dev/ptmx");
-  }
 
   rv = setuid(0);
   if (rv == -1) {
