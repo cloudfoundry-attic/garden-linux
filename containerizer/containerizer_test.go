@@ -27,11 +27,11 @@ var _ = Describe("Containerizer", func() {
 		})
 
 		It("Runs the initd process in a container", func() {
-			Ω(cz.Create()).Should(Succeed())
-			Ω(containerExecer.ExecCallCount()).Should(Equal(1))
+			Expect(cz.Create()).To(Succeed())
+			Expect(containerExecer.ExecCallCount()).To(Equal(1))
 			binPath, args := containerExecer.ExecArgsForCall(0)
-			Ω(binPath).Should(Equal("initd"))
-			Ω(args).Should(BeEmpty())
+			Expect(binPath).To(Equal("initd"))
+			Expect(args).To(BeEmpty())
 		})
 
 		PIt("exports PID environment variable", func() {})
@@ -39,7 +39,7 @@ var _ = Describe("Containerizer", func() {
 		Context("when execer fails", func() {
 			It("returns an error", func() {
 				containerExecer.ExecReturns(0, errors.New("Oh my gawsh"))
-				Ω(cz.Create()).Should(MatchError("containerizer: Failed to create container: Oh my gawsh"))
+				Expect(cz.Create()).To(MatchError("containerizer: Failed to create container: Oh my gawsh"))
 			})
 		})
 	})
@@ -54,7 +54,7 @@ var _ = Describe("Containerizer", func() {
 			var err error
 
 			workingDirectory, err = os.Getwd()
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 
 			rootFS = &fake_rootfs_enterer.FakeRootFSEnterer{}
 			setUider = &fake_set_uider.FakeSetUider{}
@@ -66,17 +66,17 @@ var _ = Describe("Containerizer", func() {
 		})
 
 		AfterEach(func() {
-			Ω(os.Chdir(workingDirectory)).Should(Succeed())
+			Expect(os.Chdir(workingDirectory)).To(Succeed())
 		})
 
 		It("enters the rootfs", func() {
-			Ω(cz.Child()).Should(Succeed())
-			Ω(rootFS.EnterCallCount()).Should(Equal(1))
+			Expect(cz.Child()).To(Succeed())
+			Expect(rootFS.EnterCallCount()).To(Equal(1))
 		})
 
 		It("setus uid", func() {
-			Ω(cz.Child()).Should(Succeed())
-			Ω(setUider.SetUidCallCount()).Should(Equal(1))
+			Expect(cz.Child()).To(Succeed())
+			Expect(setUider.SetUidCallCount()).To(Equal(1))
 		})
 
 		Context("when enter rootfs fails", func() {
@@ -85,12 +85,12 @@ var _ = Describe("Containerizer", func() {
 			})
 
 			It("returns an error", func() {
-				Ω(cz.Child()).Should(MatchError("containerizer: Failed to enter root fs: Opps"))
+				Expect(cz.Child()).To(MatchError("containerizer: Failed to enter root fs: Opps"))
 			})
 
 			It("does not set uid", func() {
 				cz.Child()
-				Ω(setUider.SetUidCallCount()).Should(Equal(0))
+				Expect(setUider.SetUidCallCount()).To(Equal(0))
 			})
 		})
 
@@ -100,7 +100,7 @@ var _ = Describe("Containerizer", func() {
 			})
 
 			It("returns an error", func() {
-				Ω(cz.Child()).Should(MatchError("containerizer: Failed to set uid: Opps"))
+				Expect(cz.Child()).To(MatchError("containerizer: Failed to set uid: Opps"))
 			})
 		})
 	})

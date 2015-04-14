@@ -24,9 +24,9 @@ var _ = Describe("Execer", func() {
 
 	// It("executes the given command", func() {
 	// 	_, err := execer.Exec("something", "smthg")
-	// 	Ω(err).Should(Succeed())
+	// 	Expect(err).To(Succeed())
 
-	// 	Ω(commandRunner).Should(HaveExecutedSerially(
+	// 	Expect(commandRunner).To(HaveExecutedSerially(
 	// 		fake_command_runner.CommandSpec{
 	// 			Path: "something",
 	// 			Args: []string{
@@ -38,16 +38,16 @@ var _ = Describe("Execer", func() {
 
 	// It("returns the correct PID", func() {
 	// 	pid, err := execer.Exec("something", "smthg")
-	// 	Ω(pid).Should(Equal(12))
-	// 	Ω(err).ShouldNot(HaveOccurred())
+	// 	Expect(pid).To(Equal(12))
+	// 	Expect(err).ToNot(HaveOccurred())
 	// })
 
 	// It("sets the correct flags", func() {
 	// 	_, err := execer.Exec("something", "smthg")
-	// 	Ω(err).ShouldNot(HaveOccurred())
+	// 	Expect(err).ToNot(HaveOccurred())
 
 	// 	cmd := commandRunner.ExecutedCommands()[0]
-	// 	Ω(cmd.SysProcAttr).ShouldNot(BeNil())
-	// 	Ω(cmd.SysProcAttr.Cloneflags).Should(Equal(uintptr(syscall.CLONE_NEWUTS | syscall.CLONE_NEWNET | syscall.CLONE_NEWNS | syscall.CLONE_NEWPID)))
+	// 	Expect(cmd.SysProcAttr).ToNot(BeNil())
+	// 	Expect(cmd.SysProcAttr.Cloneflags).To(Equal(uintptr(syscall.CLONE_NEWUTS | syscall.CLONE_NEWNET | syscall.CLONE_NEWNS | syscall.CLONE_NEWPID)))
 	// })
 })

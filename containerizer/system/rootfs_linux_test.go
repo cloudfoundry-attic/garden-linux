@@ -18,62 +18,62 @@ import (
 var _ = Describe("RootfsLinux", func() {
 	It("pivots in to a given rootfs in a privileged container", func() {
 		rootfsDir, err := ioutil.TempDir("", "rootfs")
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 		defer os.RemoveAll(rootfsDir)
 
-		Ω(ioutil.WriteFile(path.Join(rootfsDir, "potato"), []byte{}, 0755)).Should(Succeed())
+		Expect(ioutil.WriteFile(path.Join(rootfsDir, "potato"), []byte{}, 0755)).To(Succeed())
 
 		stdout := gbytes.NewBuffer()
-		Ω(runInContainer(io.MultiWriter(stdout, GinkgoWriter), GinkgoWriter, true, "fake_container", rootfsDir)).Should(Succeed())
-		Ω(stdout).Should(gbytes.Say("potato"))
+		Expect(runInContainer(io.MultiWriter(stdout, GinkgoWriter), GinkgoWriter, true, "fake_container", rootfsDir)).To(Succeed())
+		Expect(stdout).To(gbytes.Say("potato"))
 	})
 
 	It("pivots in to a given rootfs in an unprivileged container", func() {
 		rootfsDir, err := ioutil.TempDir("", "rootfs")
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 		defer os.RemoveAll(rootfsDir)
 
-		Ω(ioutil.WriteFile(path.Join(rootfsDir, "potato"), []byte{}, 0755)).Should(Succeed())
+		Expect(ioutil.WriteFile(path.Join(rootfsDir, "potato"), []byte{}, 0755)).To(Succeed())
 
 		stdout := gbytes.NewBuffer()
-		Ω(runInContainer(io.MultiWriter(stdout, GinkgoWriter), GinkgoWriter, false, "fake_container", rootfsDir)).Should(Succeed())
-		Ω(stdout).Should(gbytes.Say("potato"))
+		Expect(runInContainer(io.MultiWriter(stdout, GinkgoWriter), GinkgoWriter, false, "fake_container", rootfsDir)).To(Succeed())
+		Expect(stdout).To(gbytes.Say("potato"))
 	})
 
 	It("unmounts the old rootfs", func() {
 		rootfsDir, err := ioutil.TempDir("", "rootfs")
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 		defer os.RemoveAll(rootfsDir)
 
 		stdout := gbytes.NewBuffer()
-		Ω(runInContainer(io.MultiWriter(stdout, GinkgoWriter), GinkgoWriter, false, "fake_container", rootfsDir)).Should(Succeed())
-		Ω(stdout).ShouldNot(gbytes.Say("oldroot"))
+		Expect(runInContainer(io.MultiWriter(stdout, GinkgoWriter), GinkgoWriter, false, "fake_container", rootfsDir)).To(Succeed())
+		Expect(stdout).ToNot(gbytes.Say("oldroot"))
 	})
 
 	It("returns an error when the rootfs does not exist", func() {
 		stderr := gbytes.NewBuffer()
 		err := runInContainer(GinkgoWriter, io.MultiWriter(stderr, GinkgoWriter), false, "fake_container", "does-not-exist-blah-blah")
-		Ω(err).Should(HaveOccurred())
-		Ω(stderr).Should(gbytes.Say("ERROR: Failed to enter root fs: containerizer: validate root file system: stat does-not-exist-blah-blah: no such file or directory"))
+		Expect(err).To(HaveOccurred())
+		Expect(stderr).To(gbytes.Say("ERROR: Failed to enter root fs: containerizer: validate root file system: stat does-not-exist-blah-blah: no such file or directory"))
 	})
 
 	It("returns an error when the rootfs is not a directory", func() {
 		tmpFile, err := ioutil.TempFile(os.TempDir(), "rootfs")
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).ToNot(HaveOccurred())
 		tmpFile.Close()
 
 		defer os.Remove(tmpFile.Name())
 
 		stderr := gbytes.NewBuffer()
 		err = runInContainer(GinkgoWriter, io.MultiWriter(stderr, GinkgoWriter), false, "fake_container", tmpFile.Name())
-		Ω(err).Should(HaveOccurred())
-		Ω(stderr).Should(gbytes.Say(fmt.Sprintf("ERROR: Failed to enter root fs: containerizer: validate root file system: %s is not a directory", tmpFile.Name())))
+		Expect(err).To(HaveOccurred())
+		Expect(stderr).To(gbytes.Say(fmt.Sprintf("ERROR: Failed to enter root fs: containerizer: validate root file system: %s is not a directory", tmpFile.Name())))
 	})
 })
 
 func runInContainer(stdout, stderr io.Writer, privileged bool, programName string, args ...string) error {
 	container, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/containerizer/system/" + programName)
-	Ω(err).ShouldNot(HaveOccurred())
+	Expect(err).ToNot(HaveOccurred())
 
 	flags := syscall.CLONE_NEWNS
 	if !privileged {

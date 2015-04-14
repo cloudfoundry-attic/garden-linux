@@ -20,7 +20,7 @@ var _ = FDescribe("Container operations", func() {
 
 	AfterEach(func() {
 		if container != nil {
-			Ω(client.Destroy(container.Handle())).Should(Succeed())
+			Expect(client.Destroy(container.Handle())).To(Succeed())
 		}
 	})
 
@@ -29,7 +29,7 @@ var _ = FDescribe("Container operations", func() {
 			var err error
 
 			container, err = client.Create(garden.ContainerSpec{RootFSPath: ""})
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).ToNot(HaveOccurred())
 		})
 
 		PIt("the container is in a new namespace", func() {})
