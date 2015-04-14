@@ -175,6 +175,10 @@ a stack trace: if it does, consider using `panic` instead.
 
 ### Design Notes
 
+#### Container Creation
+
+![Container creation](https://github.com/cloudfoundry-incubator/garden-linux/blob/master/docs/images/container%20creation.png)
+
 #### Process Structure
 
 ![Process structure](https://github.com/cloudfoundry-incubator/garden-linux/blob/master/docs/images/iodaemon%20process%20structure.png)
