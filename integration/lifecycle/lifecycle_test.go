@@ -10,7 +10,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -1023,26 +1022,31 @@ var _ = Describe("Creating a container", func() {
 
 			It("should not leak network namespace", func() {
 				info, err := container.Info()
-				Ω(err).ShouldNot(HaveOccurred())
-				Ω(info.State).Should(Equal("active"))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(info.State).To(Equal("active"))
 
 				pidPath := filepath.Join(info.ContainerPath, "run", "wshd.pid")
 
-				pidFile, err := os.Open(pidPath)
-				Ω(err).ShouldNot(HaveOccurred())
+				_, err = ioutil.ReadFile(pidPath)
+				Expect(err).ToNot(HaveOccurred())
 
-				var pid int
-				_, err = fmt.Fscanf(pidFile, "%d", &pid)
-				Ω(err).ShouldNot(HaveOccurred())
-
-				Ω(client.Destroy(container.Handle())).Should(Succeed())
+				Expect(client.Destroy(container.Handle())).To(Succeed())
 				container = nil
 
 				stdout := gbytes.NewBuffer()
-				cmd, err := gexec.Start(exec.Command("sh", "-c", "mount -n -t tmpfs tmpfs /sys; ip netns list; umount /sys"), stdout, GinkgoWriter)
-				Ω(err).ShouldNot(HaveOccurred())
-				Eventually(cmd).Should(gexec.Exit(0))
-				Eventually(stdout).ShouldNot(gbytes.Say(strconv.Itoa(pid)))
+				cmd, err := gexec.Start(
+					exec.Command(
+						"sh",
+						"-c",
+						"mount -n -t tmpfs tmpfs /sys && ip netns list && umount /sys",
+					),
+					stdout,
+					GinkgoWriter,
+				)
+
+				Expect(err).ToNot(HaveOccurred())
+				Expect(cmd.Wait("1s").ExitCode()).To(Equal(0))
+				Expect(stdout.Contents()).To(Equal([]byte{}))
 			})
 		})
 	})
