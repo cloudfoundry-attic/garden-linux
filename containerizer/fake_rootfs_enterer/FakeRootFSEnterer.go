@@ -11,13 +11,7 @@ type FakeRootFSEnterer struct {
 	EnterStub        func() error
 	enterMutex       sync.RWMutex
 	enterArgsForCall []struct{}
-	enterReturns     struct {
-		result1 error
-	}
-	UnmountOldRootFSStub        func() error
-	unmountOldRootFSMutex       sync.RWMutex
-	unmountOldRootFSArgsForCall []struct{}
-	unmountOldRootFSReturns     struct {
+	enterReturns struct {
 		result1 error
 	}
 }
@@ -42,30 +36,6 @@ func (fake *FakeRootFSEnterer) EnterCallCount() int {
 func (fake *FakeRootFSEnterer) EnterReturns(result1 error) {
 	fake.EnterStub = nil
 	fake.enterReturns = struct {
-		result1 error
-	}{result1}
-}
-
-func (fake *FakeRootFSEnterer) UnmountOldRootFS() error {
-	fake.unmountOldRootFSMutex.Lock()
-	fake.unmountOldRootFSArgsForCall = append(fake.unmountOldRootFSArgsForCall, struct{}{})
-	fake.unmountOldRootFSMutex.Unlock()
-	if fake.UnmountOldRootFSStub != nil {
-		return fake.UnmountOldRootFSStub()
-	} else {
-		return fake.unmountOldRootFSReturns.result1
-	}
-}
-
-func (fake *FakeRootFSEnterer) UnmountOldRootFSCallCount() int {
-	fake.unmountOldRootFSMutex.RLock()
-	defer fake.unmountOldRootFSMutex.RUnlock()
-	return len(fake.unmountOldRootFSArgsForCall)
-}
-
-func (fake *FakeRootFSEnterer) UnmountOldRootFSReturns(result1 error) {
-	fake.UnmountOldRootFSStub = nil
-	fake.unmountOldRootFSReturns = struct {
 		result1 error
 	}{result1}
 }

@@ -8,34 +8,64 @@ import (
 )
 
 type FakeContainerDaemon struct {
-	StartStub        func() error
-	startMutex       sync.RWMutex
-	startArgsForCall []struct{}
-	startReturns     struct {
+	InitStub        func() error
+	initMutex       sync.RWMutex
+	initArgsForCall []struct{}
+	initReturns struct {
+		result1 error
+	}
+	RunStub        func() error
+	runMutex       sync.RWMutex
+	runArgsForCall []struct{}
+	runReturns struct {
 		result1 error
 	}
 }
 
-func (fake *FakeContainerDaemon) Start() error {
-	fake.startMutex.Lock()
-	fake.startArgsForCall = append(fake.startArgsForCall, struct{}{})
-	fake.startMutex.Unlock()
-	if fake.StartStub != nil {
-		return fake.StartStub()
+func (fake *FakeContainerDaemon) Init() error {
+	fake.initMutex.Lock()
+	fake.initArgsForCall = append(fake.initArgsForCall, struct{}{})
+	fake.initMutex.Unlock()
+	if fake.InitStub != nil {
+		return fake.InitStub()
 	} else {
-		return fake.startReturns.result1
+		return fake.initReturns.result1
 	}
 }
 
-func (fake *FakeContainerDaemon) StartCallCount() int {
-	fake.startMutex.RLock()
-	defer fake.startMutex.RUnlock()
-	return len(fake.startArgsForCall)
+func (fake *FakeContainerDaemon) InitCallCount() int {
+	fake.initMutex.RLock()
+	defer fake.initMutex.RUnlock()
+	return len(fake.initArgsForCall)
 }
 
-func (fake *FakeContainerDaemon) StartReturns(result1 error) {
-	fake.StartStub = nil
-	fake.startReturns = struct {
+func (fake *FakeContainerDaemon) InitReturns(result1 error) {
+	fake.InitStub = nil
+	fake.initReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeContainerDaemon) Run() error {
+	fake.runMutex.Lock()
+	fake.runArgsForCall = append(fake.runArgsForCall, struct{}{})
+	fake.runMutex.Unlock()
+	if fake.RunStub != nil {
+		return fake.RunStub()
+	} else {
+		return fake.runReturns.result1
+	}
+}
+
+func (fake *FakeContainerDaemon) RunCallCount() int {
+	fake.runMutex.RLock()
+	defer fake.runMutex.RUnlock()
+	return len(fake.runArgsForCall)
+}
+
+func (fake *FakeContainerDaemon) RunReturns(result1 error) {
+	fake.RunStub = nil
+	fake.runReturns = struct {
 		result1 error
 	}{result1}
 }

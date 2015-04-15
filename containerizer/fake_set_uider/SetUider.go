@@ -11,7 +11,7 @@ type FakeSetUider struct {
 	SetUidStub        func() error
 	setUidMutex       sync.RWMutex
 	setUidArgsForCall []struct{}
-	setUidReturns     struct {
+	setUidReturns struct {
 		result1 error
 	}
 }

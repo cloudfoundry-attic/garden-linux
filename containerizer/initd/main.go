@@ -7,6 +7,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer"
+	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
 )
 
 func missing(flagName string) {
@@ -17,23 +18,35 @@ func missing(flagName string) {
 
 func main() {
 	socketPath := flag.String("socket", "", "Path for the socket file")
+	rootFsPath := flag.String("root", "", "Path for the root file system directory")
 	flag.Parse()
 
 	if *socketPath == "" {
 		missing("--socket")
 	}
+	if *rootFsPath == "" {
+		missing("--root")
+	}
 
-	daemon := container_daemon.ContainerDaemon{
-		SocketPath: *socketPath,
+	sync := &containerizer.PipeSynchronizer{
+		Reader: os.NewFile(uintptr(3), "/dev/a"),
+		Writer: os.NewFile(uintptr(4), "/dev/d"),
 	}
 
 	containerizer := containerizer.Containerizer{
-		Daemon: daemon,
+		RootFS: &system.RootFS{
+			Root: *rootFsPath,
+		},
+		Daemon: &container_daemon.ContainerDaemon{
+			SocketPath: *socketPath,
+		},
+		Waiter:    sync,
+		Signaller: sync,
 	}
 
-	if err := daemon.Init(); err != nil {
-		panic(fmt.Sprintf("Failed to initialize daemon: %v", err))
+	err := containerizer.Run()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to run containerizer: %s\n", err)
+		os.Exit(2)
 	}
-
-	containerizer.Child()
 }
