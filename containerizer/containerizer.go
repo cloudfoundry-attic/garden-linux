@@ -19,18 +19,20 @@ type SetUider interface {
 
 //go:generate counterfeiter -o fake_container_daemon/FakeContainerDaemon.go . ContainerDaemon
 type ContainerDaemon interface {
-	Start() error
+	// Run() error
 }
 
 type Containerizer struct {
 	InitBinPath string
+	InitArgs    []string
 	Execer      ContainerExecer
 	RootFS      RootFSEnterer
 	SetUider    SetUider
+	Daemon      ContainerDaemon
 }
 
 func (c *Containerizer) Create() error {
-	_, err := c.Execer.Exec(c.InitBinPath)
+	_, err := c.Execer.Exec(c.InitBinPath, c.InitArgs...)
 	if err != nil {
 		return fmt.Errorf("containerizer: Failed to create container: %s", err)
 	}
@@ -55,7 +57,7 @@ func (c *Containerizer) Child() error {
 
 	// TODO: Barrier(s) for synchronization with tha parent
 
-	// TODO: Run the daemon
+	// c.Daemon.Run()
 
 	return nil
 }

@@ -6,7 +6,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = FDescribe("Container operations", func() {
+var _ = Describe("Container operations", func() {
 	var container garden.Container
 	var args []string
 

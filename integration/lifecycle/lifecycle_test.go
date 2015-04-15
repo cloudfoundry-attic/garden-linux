@@ -165,14 +165,31 @@ var _ = Describe("Creating a container", func() {
 			rootfs = ""
 		})
 
-		It("sources /etc/seed", func() {
+		FIt("sources /etc/seed", func() {
+			stdout := gbytes.NewBuffer()
+			stderr := gbytes.NewBuffer()
 			process, err := container.Run(garden.ProcessSpec{
 				Path: "test",
 				Args: []string{"-e", "/tmp/ran-seed"},
-			}, garden.ProcessIO{})
+			},
+				garden.ProcessIO{
+					Stdout: stdout,
+					Stderr: stderr,
+				})
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(process.Wait()).To(Equal(0))
+			exitStatus, err := process.Wait()
+			Expect(err).ToNot(HaveOccurred())
+
+			if exitStatus != 0 {
+				Fail(fmt.Sprintf(
+					"Non zero exit status %d:\n stderr says: %s\n stdout says: %s\n",
+					exitStatus,
+					string(stderr.Contents()),
+					string(stdout.Contents()),
+				))
+			}
+			Expect(exitStatus).To(Equal(0))
 		})
 
 		It("provides /dev/shm as tmpfs in the container", func() {
