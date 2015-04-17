@@ -3,5 +3,8 @@ image: docker:///cloudfoundry/garden-ci-ubuntu
 
 platform: linux
 
+inputs:
+- name: garden-linux
+
 run:
   path: garden-linux/scripts/concourse-test
