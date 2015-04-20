@@ -14,13 +14,24 @@ type Execer struct {
 	Stdout        io.Writer
 	Stderr        io.Writer
 	ExtraFiles    []*os.File
+	Privileged    bool
 }
 
 func (e *Execer) Exec(binPath string, args ...string) (int, error) {
 	cmd := exec.Command(binPath, args...)
 
+	flags := syscall.CLONE_NEWIPC
+	flags = flags | syscall.CLONE_NEWNET
+	flags = flags | syscall.CLONE_NEWNS
+	flags = flags | syscall.CLONE_NEWUTS
+	flags = flags | syscall.CLONE_NEWPID
+
+	if !e.Privileged {
+		flags = flags | syscall.CLONE_NEWUSER
+	}
+
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Cloneflags: uintptr(syscall.CLONE_NEWUTS | syscall.CLONE_NEWNET | syscall.CLONE_NEWNS | syscall.CLONE_NEWPID),
+		Cloneflags: uintptr(flags),
 	}
 
 	cmd.Stdout = e.Stdout

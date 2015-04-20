@@ -11,6 +11,9 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/fake_set_uider"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/fake_signaller"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/fake_waiter"
+	"github.com/cloudfoundry-incubator/garden-linux/hook"
+	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
+	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -21,21 +24,45 @@ var _ = Describe("Containerizer", func() {
 		var containerExecer *fake_container_execer.FakeContainerExecer
 		var signaller *fake_signaller.FakeSignaller
 		var waiter *fake_waiter.FakeWaiter
+		var hookCommandRunner *FakeCommandRunner
 
 		BeforeEach(func() {
 			containerExecer = &fake_container_execer.FakeContainerExecer{}
 			signaller = &fake_signaller.FakeSignaller{}
 			waiter = &fake_waiter.FakeWaiter{}
+			hookCommandRunner = &FakeCommandRunner{}
 
 			cz = &containerizer.Containerizer{
-				Execer:      containerExecer,
-				InitBinPath: "initd",
-				Signaller:   signaller,
-				Waiter:      waiter,
+				CommandRunner: hookCommandRunner,
+				Execer:        containerExecer,
+				InitBinPath:   "initd",
+				Signaller:     signaller,
+				Waiter:        waiter,
+				// Temporary until we merge the hook scripts functionality in Golang
+				LibPath: "./lib",
 			}
 		})
 
-		It("Runs the initd process in a container", func() {
+		// Temporary until we merge the hook scripts functionality in Golang
+		It("runs parent hooks", func() {
+			Expect(cz.Create()).To(Succeed())
+			Expect(hookCommandRunner).To(HaveExecutedSerially(
+				CommandSpec{
+					Path: "lib/hook",
+					Args: []string{
+						string(hook.PARENT_BEFORE_CLONE),
+					},
+				},
+				CommandSpec{
+					Path: "lib/hook",
+					Args: []string{
+						string(hook.PARENT_AFTER_CLONE),
+					},
+				},
+			))
+		})
+
+		It("runs the initd process in a container", func() {
 			Expect(cz.Create()).To(Succeed())
 			Expect(containerExecer.ExecCallCount()).To(Equal(1))
 			binPath, args := containerExecer.ExecArgsForCall(0)
@@ -52,13 +79,30 @@ var _ = Describe("Containerizer", func() {
 				Expect(cz.Create()).To(MatchError("containerizer: Failed to create container: Oh my gawsh"))
 			})
 
+			// Temporary until we merge the hook scripts functionality in Golang
+			It("does not run parent-after-clone hooks", func() {
+				cz.Create()
+				Expect(hookCommandRunner.ExecutedCommands()).To(HaveLen(1))
+				Expect(hookCommandRunner).To(HaveExecutedSerially(
+					CommandSpec{
+						Path: "lib/hook",
+						Args: []string{
+							string(hook.PARENT_BEFORE_CLONE),
+						},
+					}))
+			})
+
 			It("does not signal the container", func() {
 				cz.Create()
 				Expect(signaller.SignalSuccessCallCount()).To(Equal(0))
 			})
 		})
 
-		PIt("exports PID environment variable", func() {})
+		It("exports PID environment variable", func() {
+			containerExecer.ExecReturns(12, nil)
+			Expect(cz.Create()).To(Succeed())
+			Expect(os.Getenv("PID")).To(Equal("12"))
+		})
 
 		It("sends signal to container", func() {
 			Expect(cz.Create()).To(Succeed())

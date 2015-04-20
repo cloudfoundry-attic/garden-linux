@@ -56,7 +56,25 @@ var _ = Describe("Execer", func() {
 
 			cmd := commandRunner.StartedCommands()[0]
 			Expect(cmd.SysProcAttr).ToNot(BeNil())
-			Expect(cmd.SysProcAttr.Cloneflags).To(Equal(uintptr(syscall.CLONE_NEWUTS | syscall.CLONE_NEWNET | syscall.CLONE_NEWNS | syscall.CLONE_NEWPID)))
+			flags := syscall.CLONE_NEWIPC
+			flags = flags | syscall.CLONE_NEWNET
+			flags = flags | syscall.CLONE_NEWNS
+			flags = flags | syscall.CLONE_NEWUTS
+			flags = flags | syscall.CLONE_NEWPID
+			flags = flags | syscall.CLONE_NEWUSER
+			Expect(cmd.SysProcAttr.Cloneflags).To(Equal(uintptr(flags)))
+		})
+
+		Context("when the container is privileged", func() {
+			It("does not create a user namespace", func() {
+				execer.Privileged = true
+
+				_, err := execer.Exec("something", "smthg")
+				Expect(err).ToNot(HaveOccurred())
+
+				cmd := commandRunner.StartedCommands()[0]
+				Expect(cmd.SysProcAttr.Cloneflags & syscall.CLONE_NEWUSER).To(Equal(uintptr(0)))
+			})
 		})
 
 		It("sets extra files", func() {

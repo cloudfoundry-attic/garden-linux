@@ -2,7 +2,13 @@ package containerizer
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
+	"path"
+	"strconv"
 	"time"
+
+	"github.com/cloudfoundry/gunk/command_runner"
 )
 
 var timeout = time.Second * 3
@@ -41,29 +47,40 @@ type Waiter interface {
 }
 
 type Containerizer struct {
-	InitBinPath string
-	InitArgs    []string
-	Execer      ContainerExecer
-	RootFS      RootFSEnterer
-	SetUider    SetUider
-	Daemon      ContainerDaemon
-	Signaller   Signaller
-	Waiter      Waiter
+	CommandRunner command_runner.CommandRunner
+	InitBinPath   string
+	InitArgs      []string
+	Execer        ContainerExecer
+	RootFS        RootFSEnterer
+	SetUider      SetUider
+	Daemon        ContainerDaemon
+	Signaller     Signaller
+	Waiter        Waiter
+	// Temporary until we merge the hook scripts functionality in Golang
+	LibPath string
 }
 
 func (c *Containerizer) Create() error {
-	// TODO: Call parent-before-clone
+	// Temporary until we merge the hook scripts functionality in Golang
+	cmd := exec.Command(path.Join(c.LibPath, "hook"), "parent-before-clone")
+	if err := c.CommandRunner.Run(cmd); err != nil {
+		return fmt.Errorf("containerizer: Failed to run `parent-before-clone`: %s", err)
+	}
 
 	// TODO: Set hard rlimits
 
-	_, err := c.Execer.Exec(c.InitBinPath, c.InitArgs...)
+	pid, err := c.Execer.Exec(c.InitBinPath, c.InitArgs...)
 	if err != nil {
 		return fmt.Errorf("containerizer: Failed to create container: %s", err)
 	}
 
-	// TODO: Export PID environment variable
+	os.Setenv("PID", strconv.Itoa(pid))
 
-	// TODO: Call parent-after-clone
+	// Temporary until we merge the hook scripts functionality in Golang
+	cmd = exec.Command(path.Join(c.LibPath, "hook"), "parent-after-clone")
+	if err := c.CommandRunner.Run(cmd); err != nil {
+		return fmt.Errorf("containerizer: Failed to run `parent-after-clone`: %s", err)
+	}
 
 	if err := c.Signaller.SignalSuccess(); err != nil {
 		return fmt.Errorf("containerizer: Failed to send success singnal to the container: %s", err)
