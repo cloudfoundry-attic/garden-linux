@@ -65,6 +65,10 @@ scripts/remote-fly
 you will need to specify the `GARDEN_REMOTE_ATC_URL` environment variable for
 this to work.
 
+## Building CI Images
+
+See our [Packer README](../packer/README.markdown).
+
 ## Coding Conventions
 
 Thankfully Go defines a standard code format so we simply adhere to that.

@@ -11,6 +11,8 @@ root/
 old/linux_backend/bin/repquota
 old/linux_backend/skeleton/bin/*
 old/linux_backend/skeleton/lib/hook
+scripts/amimgr/amimgr
+scripts/awsreaper/awsreaper
 garden-test-rootfs.tar
 *.test
 .idea/*

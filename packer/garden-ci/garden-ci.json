@@ -7,7 +7,9 @@
     "os_url": "http://releases.ubuntu.com/14.04/ubuntu-14.04-server-amd64.iso",
     "os_md5_checksum": "01545fa976c8367b4f0d59169ac4866c",
     "vm_name": "garden-ci.ubuntu.virtualbox",
-    "vm_hostname": "garden-ci-ubuntu"
+    "vm_hostname": "garden-ci-ubuntu",
+    "aws_key": "{{env `GARDEN_PACKER_AMAZON_ACCESS_KEY`}}",
+    "aws_secret": "{{env `GARDEN_PACKER_AMAZON_SECRET_KEY`}}"
   },
   "builders": [
     {
@@ -40,6 +42,16 @@
         "keyboard-configuration/variant=USA console-setup/ask_detect=false ",
         "initrd=/install/initrd.gz -- <enter>"
       ]
+    },
+    {
+      "type": "amazon-ebs",
+      "access_key": "{{user `aws_key`}}",
+      "secret_key": "{{user `aws_secret`}}",
+      "region": "us-east-1",
+      "source_ami": "ami-e63b3e8e",
+      "instance_type": "m3.large",
+      "ssh_username": "ubuntu",
+      "ami_name": "garden-ci-ubuntu-ami-{{timestamp}}"
     }
   ],
   "provisioners": [
@@ -55,6 +67,13 @@
             "garden-ci/scripts/vagrant_passwordless_sudo.sh"
           ],
           "execute_command": "chmod +x {{ .Path }}; {{ .Vars }} echo vagrant | sudo -S {{ .Path }}"
+        },
+        "amazon-ebs": {
+          "scripts": [
+            "garden-ci/scripts/passwordless_sudo.sh",
+            "garden-ci/scripts/amazon_ebs_passwordless_sudo.sh"
+          ],
+          "execute_command": "chmod +x {{ .Path }}; {{ .Vars }} sudo {{ .Path }}"
         }
       }
     },
@@ -72,6 +91,9 @@
             "garden-ci/scripts/add_insecure_vagrant_ssh_keys.sh",
             "garden-ci/scripts/update_grub_config.sh"
           ],
+          "execute_command": "chmod +x {{ .Path }}; {{ .Vars }} sudo su -c {{.Path}} --login root"
+        },
+        "amazon-ebs": {
           "execute_command": "chmod +x {{ .Path }}; {{ .Vars }} sudo su -c {{.Path}} --login root"
         }
       }
@@ -115,6 +137,9 @@
       "override": {
         "garden-ci-virtualbox-iso": {
           "execute_command": "chmod +x {{ .Path }}; {{ .Vars }} sudo {{ .Path }}"
+        },
+        "amazon-ebs": {
+          "execute_command": "chmod +x {{ .Path }}; {{ .Vars }} sudo {{ .Path }}"
         }
       }
     },
@@ -123,6 +148,9 @@
       "script": "garden-ci/scripts/cleanup.sh",
       "override": {
         "garden-ci-virtualbox-iso": {
+          "execute_command": "chmod +x {{ .Path }}; {{ .Vars }} sudo {{ .Path }}"
+        },
+        "amazon-ebs": {
           "execute_command": "chmod +x {{ .Path }}; {{ .Vars }} sudo {{ .Path }}"
         }
       }

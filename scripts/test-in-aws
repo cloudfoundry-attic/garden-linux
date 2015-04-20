@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+set -e
+set -x
+
+if [ -z $GOPATH ]; then
+  export GOROOT=/usr/local/go
+  export GOPATH=$HOME/go
+  export PATH=$GOROOT/bin:$PATH
+  export PATH=$GOPATH/bin:$PATH
+fi
+
+go get github.com/awslabs/aws-sdk-go/aws
+go get github.com/awslabs/aws-sdk-go/service/ec2
+go get golang.org/x/crypto/ssh
+
+cd $(dirname $0)/..
+
+go build -o scripts/amimgr/amimgr scripts/amimgr/main.go
+
+./scripts/amimgr/amimgr --commit `git rev-parse HEAD` \
+                        --imageID `cat packer/garden-ci/AMI_IMAGE_ID`

@@ -14,6 +14,9 @@ ubuntu-docker: rootfs-tars
 ubuntu-vagrant: rootfs-tars
 	packer build -except=docker garden-ci/garden-ci.json
 
+ubuntu-ami: rootfs-tars
+	packer build -only=amazon-ebs garden-ci/garden-ci.json
+
 rootfs-tars:
 	./rootfs/empty/scripts/compile_binary
 	find rootfs -name '*.json' -exec packer build {} \;
