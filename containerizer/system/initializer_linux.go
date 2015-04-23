@@ -1,25 +1,36 @@
-package linux_backend
+package system
 
 import (
 	"fmt"
 	"syscall"
 )
 
-type containerInitializer struct{}
+type Configurer interface {
+	Configure() error
+}
 
-func NewContainerInitializer() ContainerInitializer {
-	return &containerInitializer{}
+type Initializer struct {
+	NetworkConfigurer Configurer
+}
+
+func (i *Initializer) Init() error {
+	// syscall.Setuid(0)
+	// syscall.Setgid(0)
+
+	i.NetworkConfigurer.Configure()
+
+	return nil
 }
 
 // Pre-condition: /proc must exist.
-func (*containerInitializer) MountProc() error {
+func (*Initializer) mountProc() error {
 	if err := syscall.Mount("proc", "/proc", "proc", uintptr(0), ""); err != nil {
 		return fmt.Errorf("linux_backend: MountProc: %s", err)
 	}
 	return nil
 }
 
-func (*containerInitializer) MountTmp() error {
+func (*Initializer) mountTmp() error {
 	if err := syscall.Mount("tmpfs", "/dev/shm", "tmpfs", uintptr(syscall.MS_NODEV), ""); err != nil {
 		return fmt.Errorf("linux_backend: MountTmp: %s", err)
 	}

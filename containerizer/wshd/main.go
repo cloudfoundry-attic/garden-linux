@@ -18,6 +18,7 @@ func missing(flagName string) {
 	os.Exit(1)
 }
 
+// TODO: Catch the system errors and panic
 func main() {
 	runPath := flag.String("run", "./run", "Directory where server socket is placed")
 	libPath := flag.String("lib", "./lib", "Directory containing hooks")
@@ -50,9 +51,12 @@ func main() {
 	}
 
 	cz := containerizer.Containerizer{
-		CommandRunner: linux_command_runner.New(),
-		InitBinPath:   path.Join(binPath, "initd"),
-		InitArgs:      []string{"--socket", socketPath, "--root", *rootFsPath},
+		InitBinPath: path.Join(binPath, "initd"),
+		InitArgs: []string{
+			"--socket", socketPath,
+			"--root", *rootFsPath,
+			"--config", path.Join(*libPath, "../etc/config"),
+		},
 		Execer: &system.Execer{
 			CommandRunner: linux_command_runner.New(),
 			ExtraFiles:    []*os.File{containerReader, containerWriter},
@@ -61,7 +65,8 @@ func main() {
 		Signaller: sync,
 		Waiter:    sync,
 		// Temporary until we merge the hook scripts functionality in Golang
-		LibPath: *libPath,
+		CommandRunner: linux_command_runner.New(),
+		LibPath:       *libPath,
 	}
 
 	err := cz.Create()

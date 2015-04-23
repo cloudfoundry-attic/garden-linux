@@ -11,7 +11,7 @@ type FakeRootFSEnterer struct {
 	EnterStub        func() error
 	enterMutex       sync.RWMutex
 	enterArgsForCall []struct{}
-	enterReturns struct {
+	enterReturns     struct {
 		result1 error
 	}
 }

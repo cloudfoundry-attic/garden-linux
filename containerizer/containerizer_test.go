@@ -7,8 +7,8 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/fake_container_daemon"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/fake_container_execer"
+	"github.com/cloudfoundry-incubator/garden-linux/containerizer/fake_container_initializer"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/fake_rootfs_enterer"
-	"github.com/cloudfoundry-incubator/garden-linux/containerizer/fake_set_uider"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/fake_signaller"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/fake_waiter"
 	"github.com/cloudfoundry-incubator/garden-linux/hook"
@@ -33,13 +33,13 @@ var _ = Describe("Containerizer", func() {
 			hookCommandRunner = &FakeCommandRunner{}
 
 			cz = &containerizer.Containerizer{
-				CommandRunner: hookCommandRunner,
-				Execer:        containerExecer,
-				InitBinPath:   "initd",
-				Signaller:     signaller,
-				Waiter:        waiter,
+				Execer:      containerExecer,
+				InitBinPath: "initd",
+				Signaller:   signaller,
+				Waiter:      waiter,
 				// Temporary until we merge the hook scripts functionality in Golang
-				LibPath: "./lib",
+				CommandRunner: hookCommandRunner,
+				LibPath:       "./lib",
 			}
 		})
 
@@ -143,7 +143,7 @@ var _ = Describe("Containerizer", func() {
 	Describe("Run", func() {
 		var cz *containerizer.Containerizer
 		var rootFS *fake_rootfs_enterer.FakeRootFSEnterer
-		var setUider *fake_set_uider.FakeSetUider
+		var initializer *fake_container_initializer.FakeContainerInitializer
 		var daemon *fake_container_daemon.FakeContainerDaemon
 		var signaller *fake_signaller.FakeSignaller
 		var waiter *fake_waiter.FakeWaiter
@@ -156,17 +156,17 @@ var _ = Describe("Containerizer", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			rootFS = &fake_rootfs_enterer.FakeRootFSEnterer{}
-			setUider = &fake_set_uider.FakeSetUider{}
+			initializer = &fake_container_initializer.FakeContainerInitializer{}
 			daemon = &fake_container_daemon.FakeContainerDaemon{}
 			signaller = &fake_signaller.FakeSignaller{}
 			waiter = &fake_waiter.FakeWaiter{}
 
 			cz = &containerizer.Containerizer{
-				RootFS:    rootFS,
-				SetUider:  setUider,
-				Daemon:    daemon,
-				Signaller: signaller,
-				Waiter:    waiter,
+				RootFS:      rootFS,
+				Initializer: initializer,
+				Daemon:      daemon,
+				Signaller:   signaller,
+				Waiter:      waiter,
 			}
 		})
 
@@ -186,6 +186,12 @@ var _ = Describe("Containerizer", func() {
 
 			It("returns an error", func() {
 				Expect(cz.Run()).To(MatchError("containerizer: Failed to wait for host: Foo"))
+			})
+
+			It("signals the error to the host", func() {
+				cz.Run()
+				Expect(signaller.SignalErrorCallCount()).To(Equal(1))
+				Expect(signaller.SignalErrorArgsForCall(0)).To(Equal(errors.New("containerizer: Failed to wait for host: Foo")))
 			})
 
 			It("does not initialize the daemon", func() {
@@ -209,6 +215,12 @@ var _ = Describe("Containerizer", func() {
 				Expect(cz.Run()).To(MatchError("containerizer: Failed to initialize daemon: Booo"))
 			})
 
+			It("signals the error to the host", func() {
+				cz.Run()
+				Expect(signaller.SignalErrorCallCount()).To(Equal(1))
+				Expect(signaller.SignalErrorArgsForCall(0)).To(Equal(errors.New("containerizer: Failed to initialize daemon: Booo")))
+			})
+
 			It("does not enter rootfs", func() {
 				cz.Run()
 				Expect(rootFS.EnterCallCount()).To(Equal(0))
@@ -229,29 +241,37 @@ var _ = Describe("Containerizer", func() {
 				Expect(cz.Run()).To(MatchError("containerizer: Failed to enter root fs: Opps"))
 			})
 
-			It("does not set uid", func() {
+			It("signals the error to the host", func() {
 				cz.Run()
-				Expect(setUider.SetUidCallCount()).To(Equal(0))
+				Expect(signaller.SignalErrorCallCount()).To(Equal(1))
+				Expect(signaller.SignalErrorArgsForCall(0)).To(Equal(errors.New("containerizer: Failed to enter root fs: Opps")))
+			})
+
+			It("does not initialize", func() {
+				cz.Run()
+				Expect(initializer.InitCallCount()).To(Equal(0))
 			})
 		})
 
-		PIt("setus uid", func() {
+		It("initializes the container", func() {
 			Expect(cz.Run()).To(Succeed())
-			Expect(setUider.SetUidCallCount()).To(Equal(1))
+			Expect(initializer.InitCallCount()).To(Equal(1))
 		})
 
-		PContext("when set uid fails", func() {
+		Context("when container initialization fails", func() {
 			BeforeEach(func() {
-				setUider.SetUidReturns(errors.New("Opps"))
+				initializer.InitReturns(errors.New("Bing"))
 			})
 
 			It("returns an error", func() {
-				Expect(cz.Run()).To(MatchError("containerizer: Failed to set uid: Opps"))
+				err := cz.Run()
+				Expect(err).To(MatchError("containerizer: initializing the container: Bing"))
 			})
 
-			It("does not run the daemon", func() {
+			It("signals the error to the host", func() {
 				cz.Run()
-				Expect(daemon.RunCallCount()).To(Equal(0))
+				Expect(signaller.SignalErrorCallCount()).To(Equal(1))
+				Expect(signaller.SignalErrorArgsForCall(0)).To(Equal(errors.New("containerizer: initializing the container: Bing")))
 			})
 		})
 

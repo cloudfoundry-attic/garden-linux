@@ -11,13 +11,13 @@ type FakeContainerDaemon struct {
 	InitStub        func() error
 	initMutex       sync.RWMutex
 	initArgsForCall []struct{}
-	initReturns struct {
+	initReturns     struct {
 		result1 error
 	}
 	RunStub        func() error
 	runMutex       sync.RWMutex
 	runArgsForCall []struct{}
-	runReturns struct {
+	runReturns     struct {
 		result1 error
 	}
 }

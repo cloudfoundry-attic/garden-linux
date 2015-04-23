@@ -19,7 +19,7 @@ type FakeSignaller struct {
 	SignalSuccessStub        func() error
 	signalSuccessMutex       sync.RWMutex
 	signalSuccessArgsForCall []struct{}
-	signalSuccessReturns struct {
+	signalSuccessReturns     struct {
 		result1 error
 	}
 }

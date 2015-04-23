@@ -3,7 +3,6 @@ package linux_backend
 import (
 	"encoding/json"
 	"net"
-	"os"
 	"os/exec"
 	"strconv"
 
@@ -32,17 +31,17 @@ func RegisterHooks(hs hook.HookSet, runner Runner, config process.Env, container
 		must(configureHostNetwork(config, configurer))
 	})
 
-	hs.Register(hook.CHILD_AFTER_PIVOT, func() {
-		must(configureContainerNetwork(config, configurer))
+	// hs.Register(hook.CHILD_AFTER_PIVOT, func() {
+	// 	must(configureContainerNetwork(config, configurer))
 
-		must(containerInitializer.MountProc())
-		must(containerInitializer.MountTmp())
+	// 	must(containerInitializer.MountProc())
+	// 	must(containerInitializer.MountTmp())
 
-		// Temporary until /etc/seed functionality removed
-		if _, err := os.Stat("/etc/seed"); err == nil {
-			must(exec.Command("/bin/sh", "-c", ". /etc/seed").Run())
-		}
-	})
+	// 	// Temporary until /etc/seed functionality removed
+	// 	if _, err := os.Stat("/etc/seed"); err == nil {
+	// 		must(exec.Command("/bin/sh", "-c", ". /etc/seed").Run())
+	// 	}
+	// })
 }
 
 func configureHostNetwork(config process.Env, configurer network.Configurer) error {

@@ -5,14 +5,11 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path"
-	"syscall"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
-	"github.com/onsi/gomega/gexec"
 )
 
 var _ = Describe("RootfsLinux", func() {
@@ -70,39 +67,3 @@ var _ = Describe("RootfsLinux", func() {
 		Expect(stderr).To(gbytes.Say(fmt.Sprintf("ERROR: Failed to enter root fs: containerizer: validate root file system: %s is not a directory", tmpFile.Name())))
 	})
 })
-
-func runInContainer(stdout, stderr io.Writer, privileged bool, programName string, args ...string) error {
-	container, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/containerizer/system/" + programName)
-	Expect(err).ToNot(HaveOccurred())
-
-	flags := syscall.CLONE_NEWNS
-	if !privileged {
-		flags = flags | syscall.CLONE_NEWUSER
-	}
-
-	cmd := exec.Command(container, args...)
-	cmd.Stdout = stdout
-	cmd.Stderr = stderr
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Cloneflags: uintptr(flags),
-	}
-
-	if !privileged {
-		cmd.SysProcAttr.UidMappings = []syscall.SysProcIDMap{
-			{
-				ContainerID: 0,
-				HostID:      0,
-				Size:        1,
-			},
-		}
-		cmd.SysProcAttr.GidMappings = []syscall.SysProcIDMap{
-			{
-				ContainerID: 0,
-				HostID:      0,
-				Size:        1,
-			},
-		}
-	}
-
-	return cmd.Run()
-}

@@ -23,9 +23,9 @@ type RootFSEnterer interface {
 	Enter() error
 }
 
-//go:generate counterfeiter -o fake_set_uider/SetUider.go . SetUider
-type SetUider interface {
-	SetUid() error
+//go:generate counterfeiter -o fake_container_initializer/FakeContainerInitializer.go . ContainerInitializer
+type ContainerInitializer interface {
+	Init() error
 }
 
 //go:generate counterfeiter -o fake_container_daemon/FakeContainerDaemon.go . ContainerDaemon
@@ -47,17 +47,17 @@ type Waiter interface {
 }
 
 type Containerizer struct {
-	CommandRunner command_runner.CommandRunner
-	InitBinPath   string
-	InitArgs      []string
-	Execer        ContainerExecer
-	RootFS        RootFSEnterer
-	SetUider      SetUider
-	Daemon        ContainerDaemon
-	Signaller     Signaller
-	Waiter        Waiter
+	InitBinPath string
+	InitArgs    []string
+	Execer      ContainerExecer
+	RootFS      RootFSEnterer
+	Initializer ContainerInitializer
+	Daemon      ContainerDaemon
+	Signaller   Signaller
+	Waiter      Waiter
 	// Temporary until we merge the hook scripts functionality in Golang
-	LibPath string
+	CommandRunner command_runner.CommandRunner
+	LibPath       string
 }
 
 func (c *Containerizer) Create() error {
@@ -74,9 +74,8 @@ func (c *Containerizer) Create() error {
 		return fmt.Errorf("containerizer: Failed to create container: %s", err)
 	}
 
-	os.Setenv("PID", strconv.Itoa(pid))
-
 	// Temporary until we merge the hook scripts functionality in Golang
+	os.Setenv("PID", strconv.Itoa(pid))
 	cmd = exec.Command(path.Join(c.LibPath, "hook"), "parent-after-clone")
 	if err := c.CommandRunner.Run(cmd); err != nil {
 		return fmt.Errorf("containerizer: Failed to run `parent-after-clone`: %s", err)
@@ -114,12 +113,11 @@ func (c *Containerizer) Run() error {
 
 	// TODO: TTY stuff (ptmx)
 
-	// if err := c.SetUider.SetUid(); err != nil {
-	// 	containerSide.Write([]byte(fmt.Sprintf("containerizer: Failed to set uid: %s", err)))
-	// 	return fmt.Errorf("containerizer: Failed to set uid: %s", err)
-	// }
-
-	// TODO: Call child-after-pivot hook scripts
+	if err := c.Initializer.Init(); err != nil {
+		err = fmt.Errorf("containerizer: initializing the container: %s", err)
+		c.Signaller.SignalError(err)
+		return err
+	}
 
 	if err := c.Signaller.SignalSuccess(); err != nil {
 		err = fmt.Errorf("containerizer: Failed to signal host: %s", err)

@@ -19,6 +19,7 @@ type Execer struct {
 
 func (e *Execer) Exec(binPath string, args ...string) (int, error) {
 	cmd := exec.Command(binPath, args...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{}
 
 	flags := syscall.CLONE_NEWIPC
 	flags = flags | syscall.CLONE_NEWNET
@@ -28,12 +29,24 @@ func (e *Execer) Exec(binPath string, args ...string) (int, error) {
 
 	if !e.Privileged {
 		flags = flags | syscall.CLONE_NEWUSER
+
+		cmd.SysProcAttr.UidMappings = []syscall.SysProcIDMap{
+			{
+				ContainerID: 0,
+				HostID:      0,
+				Size:        1,
+			},
+		}
+		cmd.SysProcAttr.GidMappings = []syscall.SysProcIDMap{
+			{
+				ContainerID: 0,
+				HostID:      0,
+				Size:        1,
+			},
+		}
 	}
 
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Cloneflags: uintptr(flags),
-	}
-
+	cmd.SysProcAttr.Cloneflags = uintptr(flags)
 	cmd.Stdout = e.Stdout
 	cmd.Stderr = e.Stderr
 	cmd.ExtraFiles = e.ExtraFiles

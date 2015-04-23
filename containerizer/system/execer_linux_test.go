@@ -61,8 +61,28 @@ var _ = Describe("Execer", func() {
 			flags = flags | syscall.CLONE_NEWNS
 			flags = flags | syscall.CLONE_NEWUTS
 			flags = flags | syscall.CLONE_NEWPID
-			flags = flags | syscall.CLONE_NEWUSER
-			Expect(cmd.SysProcAttr.Cloneflags).To(Equal(uintptr(flags)))
+			Expect(int(cmd.SysProcAttr.Cloneflags) & flags).ToNot(Equal(0))
+		})
+
+		Context("when the container is not privileged", func() {
+			It("creates a user namespace", func() {
+				_, err := execer.Exec("something", "smthg")
+				Expect(err).ToNot(HaveOccurred())
+
+				cmd := commandRunner.StartedCommands()[0]
+				Expect(cmd.SysProcAttr).ToNot(BeNil())
+				Expect(int(cmd.SysProcAttr.Cloneflags) & syscall.CLONE_NEWUSER).ToNot(Equal(0))
+			})
+
+			It("sets uid and gid mappings", func() {
+				_, err := execer.Exec("something", "smthg")
+				Expect(err).ToNot(HaveOccurred())
+
+				cmd := commandRunner.StartedCommands()[0]
+				Expect(cmd.SysProcAttr).ToNot(BeNil())
+				Expect(cmd.SysProcAttr.UidMappings).ToNot(BeNil())
+				Expect(cmd.SysProcAttr.GidMappings).ToNot(BeNil())
+			})
 		})
 
 		Context("when the container is privileged", func() {

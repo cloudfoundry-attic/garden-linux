@@ -34,7 +34,7 @@ func main() {
 	}
 	runner := &logging.Runner{linux_command_runner.New(), logger}
 	configurer := network.NewConfigurer(logger.Session("linux_backend: hook.CHILD_AFTER_PIVOT"))
-	linux_backend.RegisterHooks(hook.DefaultHookSet, runner, config, linux_backend.NewContainerInitializer(), configurer)
+	linux_backend.RegisterHooks(hook.DefaultHookSet, runner, config, nil, configurer)
 
 	hook.Main(os.Args[1:])
 }
