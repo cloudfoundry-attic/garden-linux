@@ -76,6 +76,7 @@ func main() {
 
 	env, _ := process.EnvFromFile(*configFilePath)
 	initializer := &system.Initializer{
+		Root: "/",
 		NetworkConfigurer: &networkConfigurer{
 			Config: env,
 		},

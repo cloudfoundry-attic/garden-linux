@@ -5,6 +5,7 @@ import (
 	"os/exec"
 
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
+	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system/fake_configurer"
 )
 
 func must(err error) {
@@ -14,10 +15,10 @@ func must(err error) {
 }
 
 func main() {
+	networkConfigurer := new(fake_configurer.FakeConfigurer)
 	initializer := &system.Initializer{
-		Config: map[string]string{
-			"id": os.Args[1],
-		},
+		NetworkConfigurer: networkConfigurer,
+		Root:              os.Args[1],
 	}
 
 	must(initializer.Init())
