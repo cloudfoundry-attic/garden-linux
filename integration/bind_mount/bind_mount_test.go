@@ -94,7 +94,22 @@ var _ = Describe("A container", func() {
 		})
 
 		AfterEach(func() {
-			err := os.RemoveAll(srcPath)
+			command := exec.Command("mount", "-l")
+			session, err := gexec.Start(command, GinkgoWriter, GinkgoWriter)
+			session.Wait()
+
+			file, err := os.Open("/proc/mounts")
+			if err != nil {
+				panic(err)
+			}
+			content, err := ioutil.ReadAll(file)
+			if err != nil {
+				panic(err)
+			}
+
+			GinkgoWriter.Write(content)
+
+			err = os.RemoveAll(srcPath)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
