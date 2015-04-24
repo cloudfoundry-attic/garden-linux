@@ -30,7 +30,7 @@ func main() {
 	commit := flag.String("commit", "", "Commit SHA to run against")
 	imageId := flag.String("imageID", "", "The ami imageID")
 	user := flag.String("user", "ubuntu", "ssh user")
-	instanceType := flag.String("instanceType", "m3.large", "The aws instance type")
+	instanceType := flag.String("instanceType", "m3.xlarge", "The aws instance type")
 	keyName := flag.String("keyName", "ci_aws_key", "The aws key name")
 	region := flag.String("region", "us-east-1", "The aws region")
 
@@ -59,12 +59,15 @@ func main() {
 	*maxCount = 1
 	minCount := new(int64)
 	*minCount = 1
+	ebsOptimized := new(bool)
+	*ebsOptimized = true
 	instanceSpec := &ec2.RunInstancesInput{
 		ImageID:      imageId,
 		InstanceType: instanceType,
 		KeyName:      keyName,
 		MaxCount:     maxCount,
 		MinCount:     minCount,
+		EBSOptimized: ebsOptimized,
 	}
 	instance := EC2Instance{
 		ec2Client:    ec2Client,
