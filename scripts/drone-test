@@ -28,7 +28,7 @@ make
 
 go install github.com/onsi/ginkgo/ginkgo
 
-ginkgo -r -p -race -cover -keepGoing -nodes=4 integration/bind_mount "$@"
+ginkgo -r -p -race -cover -keepGoing -nodes=4 -v -seed=1429873169 container_pool hook integration/bind_mount "$@"
 
 # don't leak coveralls token
 set +x
