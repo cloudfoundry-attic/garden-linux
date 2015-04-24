@@ -55,6 +55,6 @@ then
     fi
   done
 
-  ./unbindmount.sh
+  ./unbindmount.sh || true
   exit 0
 fi
