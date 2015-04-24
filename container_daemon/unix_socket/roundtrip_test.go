@@ -2,6 +2,7 @@ package unix_socket_test
 
 import (
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"os"
 	"path"
@@ -18,17 +19,20 @@ var _ = Describe("Unix socket", func() {
 		connector         *unix_socket.Connector
 		connectionHandler *fake_connection_handler.FakeConnectionHandler
 		socketPath        string
+
+		sentError error
 	)
 
 	BeforeEach(func() {
 		tmpDir, err := ioutil.TempDir("", "")
 		Expect(err).ToNot(HaveOccurred())
 		socketPath = path.Join(tmpDir, "the_socket_file.sock")
+
+		sentError = nil
+		connectionHandler = &fake_connection_handler.FakeConnectionHandler{}
 	})
 
 	JustBeforeEach(func() {
-		connectionHandler = &fake_connection_handler.FakeConnectionHandler{}
-
 		connector = &unix_socket.Connector{
 			SocketPath: socketPath,
 		}
@@ -91,7 +95,7 @@ var _ = Describe("Unix socket", func() {
 					Expect(err).ToNot(HaveOccurred())
 					stubDone <- true
 
-					return sentFiles, nil
+					return sentFiles, sentError
 				}
 
 				go listener.Listen(connectionHandler)
@@ -110,7 +114,7 @@ var _ = Describe("Unix socket", func() {
 				Expect(recvMsg).To(Equal(sentMsg))
 			})
 
-			FIt("gets back the stream the handler provided", func() {
+			It("gets back the stream the handler provided", func() {
 				sentMsg := map[string]string{"fruit": "apple"}
 				streams, err := connector.Connect(sentMsg)
 				Expect(err).ToNot(HaveOccurred())
@@ -129,7 +133,17 @@ var _ = Describe("Unix socket", func() {
 				Expect(ioutil.ReadAll(streams[1])).Should(Equal([]byte("brocoli brocoli")))
 			})
 
-			PContext("when the handler fails", func() {})
+			Context("when the handler fails", func() {
+				BeforeEach(func() {
+					sentError = errors.New("no cake")
+				})
+
+				FIt("sends back the error from the handler", func() {
+					sentMsg := map[string]string{"fruit": "apple"}
+					_, err := connector.Connect(sentMsg)
+					Expect(err).To(MatchError("no cake"))
+				})
+			})
 		})
 	})
 

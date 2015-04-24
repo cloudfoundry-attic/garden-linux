@@ -161,11 +161,11 @@ var _ = Describe("Creating a container", func() {
 		})
 
 		BeforeEach(func() {
-			privilegedContainer = false
+			privilegedContainer = true
 			rootfs = ""
 		})
 
-		FIt("sources /etc/seed", func() {
+		It("sources /etc/seed", func() {
 			stdout := gbytes.NewBuffer()
 			stderr := gbytes.NewBuffer()
 			process, err := container.Run(garden.ProcessSpec{
@@ -192,7 +192,7 @@ var _ = Describe("Creating a container", func() {
 			Expect(exitStatus).To(Equal(0))
 		})
 
-		FIt("provides /dev/shm as tmpfs in the container", func() {
+		It("provides /dev/shm as tmpfs in the container", func() {
 			process, err := container.Run(garden.ProcessSpec{
 				Path: "dd",
 				Args: []string{"if=/dev/urandom", "of=/dev/shm/some-data", "count=64", "bs=1k"},
@@ -205,7 +205,7 @@ var _ = Describe("Creating a container", func() {
 
 			process, err = container.Run(garden.ProcessSpec{
 				Path: "cat",
-				Args: []string{"/proc/mounts"},
+				Args: []string{"/tmp/proc/mounts"},
 			}, garden.ProcessIO{
 				Stdout: outBuf,
 				Stderr: GinkgoWriter,
@@ -233,7 +233,7 @@ var _ = Describe("Creating a container", func() {
 			})
 		})
 
-		FIt("gives the container a hostname based on its id", func() {
+		It("gives the container a hostname based on its id", func() {
 			stdout := gbytes.NewBuffer()
 
 			_, err := container.Run(garden.ProcessSpec{
@@ -320,8 +320,10 @@ var _ = Describe("Creating a container", func() {
 
 				_, err := container.Run(garden.ProcessSpec{
 					Path: "whoami",
+					//User: "root",
 				}, garden.ProcessIO{
 					Stdout: stdout,
+					Stderr: GinkgoWriter,
 				})
 
 				Expect(err).ToNot(HaveOccurred())

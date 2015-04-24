@@ -1,17 +1,20 @@
 package container_daemon_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
-	"strings"
+	"os/user"
 
+	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_listener"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
+	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system/fake_user"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
 	. "github.com/onsi/ginkgo"
@@ -23,14 +26,29 @@ var _ = Describe("Daemon", func() {
 		daemon   container_daemon.ContainerDaemon
 		listener *fake_listener.FakeListener
 		runner   *fake_command_runner.FakeCommandRunner
+		users    *fake_user.FakeUser
+
+		userLookupError error
 	)
+
+	etcPasswd := map[string]*user.User{
+		"a-user":       &user.User{Uid: "66", Gid: "99"},
+		"another-user": &user.User{Uid: "77", Gid: "88"},
+	}
 
 	BeforeEach(func() {
 		listener = &fake_listener.FakeListener{}
 		runner = fake_command_runner.New()
+		users = new(fake_user.FakeUser)
+		userLookupError = nil
+
+		users.LookupStub = func(name string) (*user.User, error) {
+			return etcPasswd[name], userLookupError
+		}
 
 		daemon = container_daemon.ContainerDaemon{
 			Listener: listener,
+			Users:    users,
 			Runner:   runner,
 		}
 	})
@@ -38,7 +56,6 @@ var _ = Describe("Daemon", func() {
 	Describe("Init", func() {
 		It("initializes the listener", func() {
 			Expect(daemon.Init()).To(Succeed())
-
 			Expect(listener.InitCallCount()).To(Equal(1))
 		})
 
@@ -62,10 +79,24 @@ var _ = Describe("Daemon", func() {
 			var handleFileHandles []*os.File
 			var handlerError error
 
+			var spec *garden.ProcessSpec
+
+			BeforeEach(func() {
+				spec = &garden.ProcessSpec{
+					Path: "fishfinger",
+					Args: []string{
+						"foo", "bar",
+					},
+					User: "a-user",
+				}
+			})
+
 			JustBeforeEach(func() {
 				listener.ListenStub = func(cb unix_socket.ConnectionHandler) error {
-					decoder := json.NewDecoder(strings.NewReader("{\"path\": \"fishfinger\", \"args\": [\"foo\", \"bar\"]}"))
-					handleFileHandles, handlerError = cb.Handle(decoder)
+					b, err := json.Marshal(spec)
+					Expect(err).ToNot(HaveOccurred())
+
+					handleFileHandles, handlerError = cb.Handle(json.NewDecoder(bytes.NewReader(b)))
 
 					return nil
 				}
@@ -78,6 +109,49 @@ var _ = Describe("Daemon", func() {
 					Path: "fishfinger",
 					Args: []string{"foo", "bar"},
 				}))
+			})
+
+			Describe("the spawned process", func() {
+				Context("when the process spec names a user which exists in /etc/passwd", func() {
+					var theExecutedCommand *exec.Cmd
+
+					JustBeforeEach(func() {
+						Expect(runner.StartedCommands()).To(HaveLen(1))
+						theExecutedCommand = runner.StartedCommands()[0]
+					})
+
+					BeforeEach(func() {
+						spec.User = "another-user"
+					})
+
+					It("has the correct uid", func() {
+						Expect(theExecutedCommand.SysProcAttr).ToNot(BeNil())
+						Expect(theExecutedCommand.SysProcAttr.Credential).ToNot(BeNil())
+						Expect(theExecutedCommand.SysProcAttr.Credential.Uid).To(Equal(uint32(77)))
+						Expect(theExecutedCommand.SysProcAttr.Credential.Gid).To(Equal(uint32(88)))
+					})
+				})
+
+				Context("when the process spec names a user which exists in /etc/passwd", func() {
+					BeforeEach(func() {
+						spec.User = "not-a-user"
+					})
+
+					It("returns an informative error", func() {
+						Expect(handlerError).To(MatchError("daemon: failed to lookup user not-a-user"))
+					})
+				})
+
+				Context("when the process spec names a user which exists in /etc/passwd", func() {
+					BeforeEach(func() {
+						spec.User = "not-a-user"
+						userLookupError = errors.New("boom")
+					})
+
+					It("returns an informative error", func() {
+						Expect(handlerError).To(MatchError("daemon: lookup user not-a-user: boom"))
+					})
+				})
 			})
 
 			Context("when the process returns output", func() {
@@ -110,7 +184,7 @@ var _ = Describe("Daemon", func() {
 				})
 
 				It("returns an error", func() {
-					Expect(handlerError).To(MatchError("running command: Banana blue"))
+					Expect(handlerError).To(MatchError("container_daemon: running command: Banana blue"))
 				})
 			})
 		})
@@ -137,7 +211,7 @@ var _ = Describe("Daemon", func() {
 				listener.StopReturns(errors.New("Ping pong"))
 
 				err := daemon.Stop()
-				Expect(err).To(MatchError("container_daemon: stoping the listener: Ping pong"))
+				Expect(err).To(MatchError("container_daemon: stopping the listener: Ping pong"))
 			})
 		})
 	})

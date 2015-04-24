@@ -14,9 +14,9 @@ import (
 func main() {
 	socketPath := flag.String("socket", "./run/wshd.sock", "Path to socket")
 	// ******************** TODO: implement old flags *****************
-	flag.String("user", "", "User to change to")
+	user := flag.String("user", "vcap", "User to change to")
+	dir := flag.String("dir", "", "Working directory for the running process")
 	flag.String("env", "", "Environment variables to set for the command.")
-	flag.String("dir", "", "Working directory for the running process")
 	flag.String("pidfile", "", "File to save container-namespaced pid of spawned process to")
 	flag.Bool("rsh", false, "RSH compatibility mode")
 	// ******************** TODO: imlement old flags *****************
@@ -33,8 +33,8 @@ func main() {
 		Path: extraArgs[0],
 		Args: extraArgs[1:],
 		Env:  []string{"HELLO=1"},
-		Dir:  "/root",
-		User: "root",
+		Dir:  *dir,
+		User: *user,
 	}
 
 	processIO := &garden.ProcessIO{

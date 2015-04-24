@@ -17,17 +17,84 @@ import (
 	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
 )
 
+func main() {
+	socketPath := flag.String("socket", "", "Path for the socket file")
+	rootFsPath := flag.String("root", "", "Path for the root file system directory")
+	configFilePath := flag.String("config", "./etc/config", "Path for the configuration file")
+	cf_lager.AddFlags(flag.CommandLine)
+	flag.Parse()
+
+	if *socketPath == "" {
+		missing("--socket")
+	}
+	if *rootFsPath == "" {
+		missing("--root")
+	}
+
+	sync := &containerizer.PipeSynchronizer{
+		Reader: os.NewFile(uintptr(3), "/dev/a"),
+		Writer: os.NewFile(uintptr(4), "/dev/d"),
+	}
+
+	env, _ := process.EnvFromFile(*configFilePath)
+	initializer := &system.ContainerInitializer{
+		Steps: []system.Initializer{
+			&step{system.Mount{
+				Type: system.Tmpfs,
+				Path: "/dev/shm",
+			}.Mount},
+			&step{system.Mount{
+				Type: system.Proc,
+				Path: "/tmp/proc", // /tmp/proc instead of /proc until uid translation happens..
+			}.Mount},
+			&networkStep{
+				Config: env,
+			},
+		},
+	}
+
+	containerizer := containerizer.Containerizer{
+		RootFS: &system.RootFS{
+			Root: *rootFsPath,
+		},
+		Daemon: &container_daemon.ContainerDaemon{
+			Listener: &unix_socket.Listener{
+				SocketPath: *socketPath,
+			},
+			Runner: linux_command_runner.New(),
+			Users:  system.LibContainerUser{},
+		},
+		Initializer: initializer,
+		Waiter:      sync,
+		Signaller:   sync,
+	}
+
+	err := containerizer.Run()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to run containerizer: %s\n", err)
+		os.Exit(2)
+	}
+}
+
 func missing(flagName string) {
 	fmt.Fprintf(os.Stderr, "%s is required\n", flagName)
 	flag.Usage()
 	os.Exit(1)
 }
 
-type networkConfigurer struct {
+type step struct {
+	fn func() error
+}
+
+func (s *step) Init() error {
+	return s.fn()
+}
+
+type networkStep struct {
 	Config map[string]string
 }
 
-func (nc *networkConfigurer) Configure() error {
+func (nc *networkStep) Init() error {
 	_, ipNet, err := net.ParseCIDR(nc.Config["network_cidr"])
 	if err != nil {
 		return err
@@ -53,53 +120,4 @@ func (nc *networkConfigurer) Configure() error {
 	}
 
 	return nil
-}
-
-func main() {
-	socketPath := flag.String("socket", "", "Path for the socket file")
-	rootFsPath := flag.String("root", "", "Path for the root file system directory")
-	configFilePath := flag.String("config", "./etc/config", "Path for the configuration file")
-	cf_lager.AddFlags(flag.CommandLine)
-	flag.Parse()
-
-	if *socketPath == "" {
-		missing("--socket")
-	}
-	if *rootFsPath == "" {
-		missing("--root")
-	}
-
-	sync := &containerizer.PipeSynchronizer{
-		Reader: os.NewFile(uintptr(3), "/dev/a"),
-		Writer: os.NewFile(uintptr(4), "/dev/d"),
-	}
-
-	env, _ := process.EnvFromFile(*configFilePath)
-	initializer := &system.Initializer{
-		Root: "/",
-		NetworkConfigurer: &networkConfigurer{
-			Config: env,
-		},
-	}
-
-	containerizer := containerizer.Containerizer{
-		RootFS: &system.RootFS{
-			Root: *rootFsPath,
-		},
-		Daemon: &container_daemon.ContainerDaemon{
-			Listener: &unix_socket.Listener{
-				SocketPath: *socketPath,
-			},
-			Runner: linux_command_runner.New(),
-		},
-		Initializer: initializer,
-		Waiter:      sync,
-		Signaller:   sync,
-	}
-
-	err := containerizer.Run()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to run containerizer: %s\n", err)
-		os.Exit(2)
-	}
 }

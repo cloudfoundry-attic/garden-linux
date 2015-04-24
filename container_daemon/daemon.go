@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
+	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
 	"github.com/cloudfoundry/gunk/command_runner"
 )
 
@@ -20,6 +22,7 @@ type Listener interface {
 
 type ContainerDaemon struct {
 	Listener Listener
+	Users    system.User
 	Runner   command_runner.CommandRunner
 }
 
@@ -42,26 +45,44 @@ func (cd *ContainerDaemon) Run() error {
 
 func (cd *ContainerDaemon) Handle(decoder *json.Decoder) ([]*os.File, error) {
 	var spec garden.ProcessSpec
-
 	decoder.Decode(&spec)
 
 	var pipes [3]struct {
 		r *os.File
 		w *os.File
 	}
+
 	for i := 0; i < 3; i++ {
 		pipes[i].r, pipes[i].w, _ = os.Pipe()
 	}
 
-	cmd := exec.Command(spec.Path, spec.Args...)
-	cmd.Stdin = pipes[0].r
-	cmd.Stdout = pipes[1].w
 	defer pipes[1].w.Close()
-	cmd.Stderr = pipes[2].w
 	defer pipes[2].w.Close()
 
+	var uid, gid uint32
+	if user, err := cd.Users.Lookup(spec.User); err == nil && user != nil {
+		fmt.Sscanf(user.Uid, "%d", &uid) // todo(jz): handle errors
+		fmt.Sscanf(user.Gid, "%d", &gid)
+	} else if err == nil {
+		return nil, fmt.Errorf("container_daemon: failed to lookup user %s", spec.User)
+	} else {
+		return nil, fmt.Errorf("container_daemon: lookup user %s: %s", spec.User, err)
+	}
+
+	cmd := exec.Command(spec.Path, spec.Args...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		Credential: &syscall.Credential{
+			Uid: uid,
+			Gid: gid,
+		},
+	}
+
+	cmd.Stdin = pipes[0].r
+	cmd.Stdout = pipes[1].w
+	cmd.Stderr = pipes[2].w
+
 	if err := cd.Runner.Start(cmd); err != nil {
-		return nil, fmt.Errorf("running command: %s", err)
+		return nil, fmt.Errorf("container_daemon: running command: %s", err)
 	}
 
 	// Hint: use goroutine to wait for process, write error code to extra fd and clean up the pipes
@@ -71,7 +92,7 @@ func (cd *ContainerDaemon) Handle(decoder *json.Decoder) ([]*os.File, error) {
 
 func (cd *ContainerDaemon) Stop() error {
 	if err := cd.Listener.Stop(); err != nil {
-		return fmt.Errorf("container_daemon: stoping the listener: %s", err)
+		return fmt.Errorf("container_daemon: stopping the listener: %s", err)
 	}
 
 	return nil

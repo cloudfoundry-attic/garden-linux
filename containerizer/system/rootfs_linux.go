@@ -22,15 +22,19 @@ func (r *RootFS) Enter() error {
 	}
 
 	oldroot, _ := os.Open("/")
+	defer oldroot.Close()
+
+	rootfs, _ := os.Open(r.Root)
+	defer rootfs.Close()
 
 	syscall.Mount(r.Root, r.Root, "", uintptr(syscall.MS_BIND|syscall.MS_REC), "")
-	os.Chdir(r.Root)
+	rootfs.Chdir()
 	syscall.PivotRoot(".", ".")
 
 	oldroot.Chdir()
 	syscall.Unmount(".", syscall.MNT_DETACH)
 
-	os.Chdir("/")
+	rootfs.Chdir()
 
 	return nil
 }

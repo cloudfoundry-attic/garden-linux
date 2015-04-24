@@ -29,13 +29,20 @@ func (c *Connector) Connect(msg interface{}) ([]io.ReadWriteCloser, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unix_socket: failed to read unix msg: %s (read: %d, %d)", err, n, oobn)
 	}
+
+	if n > 1 {
+		return nil, fmt.Errorf("%d, %s", n, string(b[:n]))
+	}
+
 	scms, err := syscall.ParseSocketControlMessage(oob[:oobn])
 	if err != nil {
 		return nil, fmt.Errorf("unix_socket: failed to parse socket control message: %s", err)
 	}
+
 	if len(scms) < 1 {
 		return nil, fmt.Errorf("unix_socket: no socket control messages sent")
 	}
+
 	scm := scms[0]
 	fds, err := syscall.ParseUnixRights(&scm)
 	if err != nil {

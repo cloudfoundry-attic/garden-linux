@@ -58,7 +58,8 @@ func (l *Listener) Listen(ch ConnectionHandler) error {
 
 			files, err := ch.Handle(decoder)
 			if err != nil {
-				// TODO: Send back the error
+				conn.Write([]byte(err.Error()))
+				return
 			}
 
 			args := make([]int, len(files))
