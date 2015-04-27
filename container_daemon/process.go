@@ -8,8 +8,9 @@ import (
 )
 
 type Process struct {
-	pid            int
-	exitCodeStream io.Reader
+	pid int
+
+	exitCode <-chan int
 }
 
 //go:generate counterfeiter -o fake_connector/FakeConnector.go . Connector
@@ -35,7 +36,14 @@ func NewProcess(connector Connector, processSpec *garden.ProcessSpec, processIO 
 		go io.Copy(processIO.Stderr, fds[2])
 	}
 
-	return &Process{}, nil
+	exitChan := make(chan int)
+	go func(exitFd io.Reader, exitChan chan<- int) {
+		b := make([]byte, 1)
+		exitFd.Read(b)
+		exitChan <- int(b[0])
+	}(fds[3], exitChan)
+
+	return &Process{exitCode: exitChan}, nil
 }
 
 func (p *Process) Pid() int {
@@ -43,5 +51,5 @@ func (p *Process) Pid() int {
 }
 
 func (p *Process) Wait() (int, error) {
-	return 0, nil
+	return <-p.exitCode, nil
 }

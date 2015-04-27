@@ -64,29 +64,29 @@ func (c *Containerizer) Create() error {
 	// Temporary until we merge the hook scripts functionality in Golang
 	cmd := exec.Command(path.Join(c.LibPath, "hook"), "parent-before-clone")
 	if err := c.CommandRunner.Run(cmd); err != nil {
-		return fmt.Errorf("containerizer: Failed to run `parent-before-clone`: %s", err)
+		return fmt.Errorf("containerizer: run `parent-before-clone`: %s", err)
 	}
 
 	// TODO: Set hard rlimits
 
 	pid, err := c.Execer.Exec(c.InitBinPath, c.InitArgs...)
 	if err != nil {
-		return fmt.Errorf("containerizer: Failed to create container: %s", err)
+		return fmt.Errorf("containerizer: create container: %s", err)
 	}
 
 	// Temporary until we merge the hook scripts functionality in Golang
 	os.Setenv("PID", strconv.Itoa(pid))
 	cmd = exec.Command(path.Join(c.LibPath, "hook"), "parent-after-clone")
 	if err := c.CommandRunner.Run(cmd); err != nil {
-		return fmt.Errorf("containerizer: Failed to run `parent-after-clone`: %s", err)
+		return fmt.Errorf("containerizer: run `parent-after-clone`: %s", err)
 	}
 
 	if err := c.Signaller.SignalSuccess(); err != nil {
-		return fmt.Errorf("containerizer: Failed to send success singnal to the container: %s", err)
+		return fmt.Errorf("containerizer: send success singnal to the container: %s", err)
 	}
 
 	if err := c.Waiter.Wait(timeout); err != nil {
-		return fmt.Errorf("containerizer: Failed to wait for container: %s", err)
+		return fmt.Errorf("containerizer: wait for container: %s", err)
 	}
 
 	return nil
@@ -94,19 +94,19 @@ func (c *Containerizer) Create() error {
 
 func (c *Containerizer) Run() error {
 	if err := c.Waiter.Wait(timeout); err != nil {
-		err = fmt.Errorf("containerizer: Failed to wait for host: %s", err)
+		err = fmt.Errorf("containerizer: wait for host: %s", err)
 		c.Signaller.SignalError(err)
 		return err
 	}
 
 	if err := c.Daemon.Init(); err != nil {
-		err = fmt.Errorf("containerizer: Failed to initialize daemon: %s", err)
+		err = fmt.Errorf("containerizer: initialize daemon: %s", err)
 		c.Signaller.SignalError(err)
 		return err
 	}
 
 	if err := c.RootFS.Enter(); err != nil {
-		err = fmt.Errorf("containerizer: Failed to enter root fs: %s", err)
+		err = fmt.Errorf("containerizer: enter root fs: %s", err)
 		c.Signaller.SignalError(err)
 		return err
 	}
@@ -120,13 +120,13 @@ func (c *Containerizer) Run() error {
 	}
 
 	if err := c.Signaller.SignalSuccess(); err != nil {
-		err = fmt.Errorf("containerizer: Failed to signal host: %s", err)
+		err = fmt.Errorf("containerizer: signal host: %s", err)
 		c.Signaller.SignalError(err)
 		return err
 	}
 
 	if err := c.Daemon.Run(); err != nil {
-		err = fmt.Errorf("containerizer: Failed to run daemon: %s", err)
+		err = fmt.Errorf("containerizer: run daemon: %s", err)
 		c.Signaller.SignalError(err)
 		return err
 	}

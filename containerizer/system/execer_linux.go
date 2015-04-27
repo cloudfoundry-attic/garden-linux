@@ -9,7 +9,7 @@ import (
 	"github.com/cloudfoundry/gunk/command_runner"
 )
 
-type Execer struct {
+type NamespacingExecer struct {
 	CommandRunner command_runner.CommandRunner
 	Stdout        io.Writer
 	Stderr        io.Writer
@@ -17,7 +17,7 @@ type Execer struct {
 	Privileged    bool
 }
 
-func (e *Execer) Exec(binPath string, args ...string) (int, error) {
+func (e *NamespacingExecer) Exec(binPath string, args ...string) (int, error) {
 	cmd := exec.Command(binPath, args...)
 	cmd.SysProcAttr = &syscall.SysProcAttr{}
 
@@ -34,21 +34,21 @@ func (e *Execer) Exec(binPath string, args ...string) (int, error) {
 			{
 				ContainerID: 0,
 				HostID:      0,
-				Size:        1,
+				Size:        100000,
 			},
 		}
 		cmd.SysProcAttr.GidMappings = []syscall.SysProcIDMap{
 			{
 				ContainerID: 0,
 				HostID:      0,
-				Size:        1,
+				Size:        100000,
 			},
 		}
 	}
 
 	cmd.SysProcAttr.Cloneflags = uintptr(flags)
-	cmd.Stdout = e.Stdout
-	cmd.Stderr = e.Stderr
+	// cmd.Stdout = e.Stdout
+	// cmd.Stderr = e.Stderr
 	cmd.ExtraFiles = e.ExtraFiles
 
 	e.CommandRunner.Start(cmd)

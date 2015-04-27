@@ -22,6 +22,7 @@ var _ = Describe("RootfsLinux", func() {
 
 		stdout := gbytes.NewBuffer()
 		Expect(runInContainer(io.MultiWriter(stdout, GinkgoWriter), GinkgoWriter, true, "fake_container", rootfsDir)).To(Succeed())
+		Expect(stdout).ToNot(gbytes.Say("home"))
 		Expect(stdout).To(gbytes.Say("potato"))
 	})
 
@@ -34,6 +35,7 @@ var _ = Describe("RootfsLinux", func() {
 
 		stdout := gbytes.NewBuffer()
 		Expect(runInContainer(io.MultiWriter(stdout, GinkgoWriter), GinkgoWriter, false, "fake_container", rootfsDir)).To(Succeed())
+		Expect(stdout).ToNot(gbytes.Say("home"))
 		Expect(stdout).To(gbytes.Say("potato"))
 	})
 

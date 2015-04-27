@@ -12,6 +12,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
+	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_exit_checker"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_listener"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system/fake_user"
@@ -23,10 +24,11 @@ import (
 
 var _ = Describe("Daemon", func() {
 	var (
-		daemon   container_daemon.ContainerDaemon
-		listener *fake_listener.FakeListener
-		runner   *fake_command_runner.FakeCommandRunner
-		users    *fake_user.FakeUser
+		daemon      container_daemon.ContainerDaemon
+		listener    *fake_listener.FakeListener
+		exitChecker *fake_exit_checker.FakeExitChecker
+		runner      *fake_command_runner.FakeCommandRunner
+		users       *fake_user.FakeUser
 
 		userLookupError error
 	)
@@ -39,6 +41,7 @@ var _ = Describe("Daemon", func() {
 	BeforeEach(func() {
 		listener = &fake_listener.FakeListener{}
 		runner = fake_command_runner.New()
+		exitChecker = new(fake_exit_checker.FakeExitChecker)
 		users = new(fake_user.FakeUser)
 		userLookupError = nil
 
@@ -46,10 +49,13 @@ var _ = Describe("Daemon", func() {
 			return etcPasswd[name], userLookupError
 		}
 
+		exitChecker.CheckReturns(43, nil)
+
 		daemon = container_daemon.ContainerDaemon{
-			Listener: listener,
-			Users:    users,
-			Runner:   runner,
+			Listener:    listener,
+			Users:       users,
+			ExitChecker: exitChecker,
+			Runner:      runner,
 		}
 	})
 
@@ -138,7 +144,7 @@ var _ = Describe("Daemon", func() {
 					})
 
 					It("returns an informative error", func() {
-						Expect(handlerError).To(MatchError("daemon: failed to lookup user not-a-user"))
+						Expect(handlerError).To(MatchError("container_daemon: failed to lookup user not-a-user"))
 					})
 				})
 
@@ -149,7 +155,7 @@ var _ = Describe("Daemon", func() {
 					})
 
 					It("returns an informative error", func() {
-						Expect(handlerError).To(MatchError("daemon: lookup user not-a-user: boom"))
+						Expect(handlerError).To(MatchError("container_daemon: lookup user not-a-user: boom"))
 					})
 				})
 			})
@@ -162,6 +168,7 @@ var _ = Describe("Daemon", func() {
 						cmd.Stdout.Write([]byte("Banana doo"))
 						cmd.Stderr.Write([]byte("Banana goo"))
 						cmdStdin = cmd.Stdin
+
 						return nil
 					})
 				})
@@ -173,6 +180,13 @@ var _ = Describe("Daemon", func() {
 					handleFileHandles[0].Write([]byte("the stdin"))
 					handleFileHandles[0].Close()
 					Expect(ioutil.ReadAll(cmdStdin)).To(Equal([]byte("the stdin")))
+				})
+
+				It("returns the exit status in an extra stream", func() {
+					b := make([]byte, 1)
+					handleFileHandles[3].Read(b)
+
+					Expect(b).To(Equal([]byte{43}))
 				})
 			})
 

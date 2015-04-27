@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
@@ -13,9 +12,9 @@ import (
 
 func main() {
 	socketPath := flag.String("socket", "./run/wshd.sock", "Path to socket")
-	// ******************** TODO: implement old flags *****************
 	user := flag.String("user", "vcap", "User to change to")
-	dir := flag.String("dir", "", "Working directory for the running process")
+	// ******************** TODO: implement old flags *****************
+	dir := flag.String("dir", "/home/vcap", "Working directory for the running process")
 	flag.String("env", "", "Environment variables to set for the command.")
 	flag.String("pidfile", "", "File to save container-namespaced pid of spawned process to")
 	flag.Bool("rsh", false, "RSH compatibility mode")
@@ -58,8 +57,6 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Waiting for process to complete: %s", err)
 		os.Exit(255)
 	}
-
-	time.Sleep(1 * time.Second)
 
 	os.Exit(exitCode)
 }

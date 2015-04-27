@@ -23,7 +23,6 @@ import (
 )
 
 var _ = Describe("Creating a container", func() {
-
 	Describe("Overlapping networks", func() {
 		Context("when the requested Network overlaps the dynamic allocation range", func() {
 			It("returns an error message naming the overlapped range", func() {
@@ -205,7 +204,7 @@ var _ = Describe("Creating a container", func() {
 
 			process, err = container.Run(garden.ProcessSpec{
 				Path: "cat",
-				Args: []string{"/tmp/proc/mounts"},
+				Args: []string{"/proc/mounts"},
 			}, garden.ProcessIO{
 				Stdout: outBuf,
 				Stderr: GinkgoWriter,
@@ -320,7 +319,6 @@ var _ = Describe("Creating a container", func() {
 
 				_, err := container.Run(garden.ProcessSpec{
 					Path: "whoami",
-					//User: "root",
 				}, garden.ProcessIO{
 					Stdout: stdout,
 					Stderr: GinkgoWriter,
@@ -485,7 +483,7 @@ var _ = Describe("Creating a container", func() {
 				})
 			})
 
-			Measure("it should stream stdout and stderr efficiently", func(b Benchmarker) {
+			PMeasure("it should stream stdout and stderr efficiently", func(b Benchmarker) {
 				b.Time("(baseline) streaming 50M of stdout to /dev/null", func() {
 					stdout := gbytes.NewBuffer()
 					stderr := gbytes.NewBuffer()
@@ -520,6 +518,43 @@ var _ = Describe("Creating a container", func() {
 
 				Expect(time.Seconds()).To(BeNumerically("<", 1))
 			}, 10)
+
+			It("streams output back and reports the exit status (without env variables)", func() {
+				stdout := gbytes.NewBuffer()
+				stderr := gbytes.NewBuffer()
+
+				process, err := container.Run(garden.ProcessSpec{
+					Path: "sh",
+					Args: []string{"-c", "sleep 0.5; echo hello; sleep 0.5; echo goodbye >&2; sleep 0.5; exit 42"},
+				}, garden.ProcessIO{
+					Stdout: stdout,
+					Stderr: stderr,
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				Eventually(stdout).Should(gbytes.Say("hello\n"))
+				Eventually(stderr).Should(gbytes.Say("goodbye\n"))
+				Expect(process.Wait()).To(Equal(42))
+			})
+
+			It("streams output back and reports the exit status", func() {
+				stdout := gbytes.NewBuffer()
+				stderr := gbytes.NewBuffer()
+
+				process, err := container.Run(garden.ProcessSpec{
+					Path: "sh",
+					Args: []string{"-c", "sleep 0.5; echo $FIRST; sleep 0.5; echo $SECOND >&2; sleep 0.5; exit 42"},
+					Env:  []string{"FIRST=hello", "SECOND=goodbye"},
+				}, garden.ProcessIO{
+					Stdout: stdout,
+					Stderr: stderr,
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				Eventually(stdout).Should(gbytes.Say("hello\n"))
+				Eventually(stderr).Should(gbytes.Say("goodbye\n"))
+				Expect(process.Wait()).To(Equal(42))
+			})
 
 			It("streams output back and reports the exit status", func() {
 				stdout := gbytes.NewBuffer()
@@ -865,6 +900,7 @@ var _ = Describe("Creating a container", func() {
 						},
 					}, garden.ProcessIO{
 						Stdout: stdout,
+						Stderr: GinkgoWriter,
 					})
 					Expect(err).ToNot(HaveOccurred())
 

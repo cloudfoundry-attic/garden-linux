@@ -24,9 +24,7 @@ func main() {
 	libPath := flag.String("lib", "./lib", "Directory containing hooks")
 	rootFsPath := flag.String("root", "", "Directory that will become root in the new mount namespace")
 	userNsFlag := flag.String("userns", "enabled", "If specified, use user namespacing")
-	// ******************** TODO: remove old flags *****************
-	flag.String("title", "", "")
-	// ******************** TODO: remove old flags *****************
+	flag.String("title", "", "") // todo: potentially remove this if unused
 	flag.Parse()
 
 	if *rootFsPath == "" {
@@ -57,7 +55,7 @@ func main() {
 			"--root", *rootFsPath,
 			"--config", path.Join(*libPath, "../etc/config"),
 		},
-		Execer: &system.Execer{
+		Execer: &system.NamespacingExecer{
 			CommandRunner: linux_command_runner.New(),
 			ExtraFiles:    []*os.File{containerReader, containerWriter},
 			Privileged:    privileged,

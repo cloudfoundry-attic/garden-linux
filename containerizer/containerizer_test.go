@@ -76,7 +76,7 @@ var _ = Describe("Containerizer", func() {
 			})
 
 			It("returns an error", func() {
-				Expect(cz.Create()).To(MatchError("containerizer: Failed to create container: Oh my gawsh"))
+				Expect(cz.Create()).To(MatchError("containerizer: create container: Oh my gawsh"))
 			})
 
 			// Temporary until we merge the hook scripts functionality in Golang
@@ -115,7 +115,7 @@ var _ = Describe("Containerizer", func() {
 			})
 
 			It("returns an error", func() {
-				Expect(cz.Create()).To(MatchError("containerizer: Failed to send success singnal to the container: Dooo"))
+				Expect(cz.Create()).To(MatchError("containerizer: send success singnal to the container: Dooo"))
 			})
 
 			It("does not wait for the container", func() {
@@ -135,7 +135,7 @@ var _ = Describe("Containerizer", func() {
 			})
 
 			It("returns an error", func() {
-				Expect(cz.Create()).To(MatchError("containerizer: Failed to wait for container: Foo"))
+				Expect(cz.Create()).To(MatchError("containerizer: wait for container: Foo"))
 			})
 		})
 	})
@@ -185,13 +185,13 @@ var _ = Describe("Containerizer", func() {
 			})
 
 			It("returns an error", func() {
-				Expect(cz.Run()).To(MatchError("containerizer: Failed to wait for host: Foo"))
+				Expect(cz.Run()).To(MatchError("containerizer: wait for host: Foo"))
 			})
 
 			It("signals the error to the host", func() {
 				cz.Run()
 				Expect(signaller.SignalErrorCallCount()).To(Equal(1))
-				Expect(signaller.SignalErrorArgsForCall(0)).To(Equal(errors.New("containerizer: Failed to wait for host: Foo")))
+				Expect(signaller.SignalErrorArgsForCall(0)).To(Equal(errors.New("containerizer: wait for host: Foo")))
 			})
 
 			It("does not initialize the daemon", func() {
@@ -212,13 +212,13 @@ var _ = Describe("Containerizer", func() {
 			})
 
 			It("returns an error", func() {
-				Expect(cz.Run()).To(MatchError("containerizer: Failed to initialize daemon: Booo"))
+				Expect(cz.Run()).To(MatchError("containerizer: initialize daemon: Booo"))
 			})
 
 			It("signals the error to the host", func() {
 				cz.Run()
 				Expect(signaller.SignalErrorCallCount()).To(Equal(1))
-				Expect(signaller.SignalErrorArgsForCall(0)).To(Equal(errors.New("containerizer: Failed to initialize daemon: Booo")))
+				Expect(signaller.SignalErrorArgsForCall(0)).To(Equal(errors.New("containerizer: initialize daemon: Booo")))
 			})
 
 			It("does not enter rootfs", func() {
@@ -238,13 +238,13 @@ var _ = Describe("Containerizer", func() {
 			})
 
 			It("returns an error", func() {
-				Expect(cz.Run()).To(MatchError("containerizer: Failed to enter root fs: Opps"))
+				Expect(cz.Run()).To(MatchError("containerizer: enter root fs: Opps"))
 			})
 
 			It("signals the error to the host", func() {
 				cz.Run()
 				Expect(signaller.SignalErrorCallCount()).To(Equal(1))
-				Expect(signaller.SignalErrorArgsForCall(0)).To(Equal(errors.New("containerizer: Failed to enter root fs: Opps")))
+				Expect(signaller.SignalErrorArgsForCall(0)).To(Equal(errors.New("containerizer: enter root fs: Opps")))
 			})
 
 			It("does not initialize", func() {
@@ -286,7 +286,7 @@ var _ = Describe("Containerizer", func() {
 			})
 
 			It("returns an error", func() {
-				Expect(cz.Run()).To(MatchError("containerizer: Failed to signal host: Dooo"))
+				Expect(cz.Run()).To(MatchError("containerizer: signal host: Dooo"))
 			})
 
 			It("does not run the daemon", func() {
@@ -305,7 +305,7 @@ var _ = Describe("Containerizer", func() {
 			It("return an error", func() {
 				daemon.RunReturns(errors.New("Bump"))
 				err := cz.Run()
-				Expect(err).To(MatchError("containerizer: Failed to run daemon: Bump"))
+				Expect(err).To(MatchError("containerizer: run daemon: Bump"))
 			})
 		})
 	})

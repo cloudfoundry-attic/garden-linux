@@ -20,10 +20,16 @@ type Listener interface {
 	Stop() error
 }
 
+//go:generate counterfeiter -o fake_exit_checker/FakeExitChecker.go . ExitChecker
+type Waiter interface {
+	Wait(cmd *exec.Cmd) (byte, error)
+}
+
 type ContainerDaemon struct {
 	Listener Listener
 	Users    system.User
 	Runner   command_runner.CommandRunner
+	Waiter   Waiter
 }
 
 // This method should be called from the host namespace, to open the socket file in the right file system.
@@ -47,17 +53,17 @@ func (cd *ContainerDaemon) Handle(decoder *json.Decoder) ([]*os.File, error) {
 	var spec garden.ProcessSpec
 	decoder.Decode(&spec)
 
-	var pipes [3]struct {
+	var pipes [4]struct {
 		r *os.File
 		w *os.File
 	}
 
-	for i := 0; i < 3; i++ {
+	for i := 0; i < 4; i++ {
 		pipes[i].r, pipes[i].w, _ = os.Pipe()
 	}
 
-	defer pipes[1].w.Close()
-	defer pipes[2].w.Close()
+	// defer pipes[1].w.Close()
+	// defer pipes[2].w.Close()
 
 	var uid, gid uint32
 	if user, err := cd.Users.Lookup(spec.User); err == nil && user != nil {
@@ -85,9 +91,16 @@ func (cd *ContainerDaemon) Handle(decoder *json.Decoder) ([]*os.File, error) {
 		return nil, fmt.Errorf("container_daemon: running command: %s", err)
 	}
 
+	go func(runner command_runner.CommandRunner, exit Waiter, cmd *exec.Cmd) {
+		e, _ := exit.Wait(cmd)
+		defer pipes[3].w.Close()
+
+		pipes[3].w.Write([]byte{e})
+	}(cd.Runner, cd.Waiter, cmd)
+
 	// Hint: use goroutine to wait for process, write error code to extra fd and clean up the pipes
 
-	return []*os.File{pipes[0].w, pipes[1].r, pipes[2].r}, nil
+	return []*os.File{pipes[0].w, pipes[1].r, pipes[2].r, pipes[3].r}, nil
 }
 
 func (cd *ContainerDaemon) Stop() error {

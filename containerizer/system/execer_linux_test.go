@@ -14,7 +14,7 @@ import (
 )
 
 var _ = Describe("Execer", func() {
-	var execer *system.Execer
+	var execer *system.NamespacingExecer
 	var commandRunner *fake_command_runner.FakeCommandRunner
 
 	BeforeEach(func() {
@@ -24,7 +24,7 @@ var _ = Describe("Execer", func() {
 		}
 		commandRunner.RunInjectsProcessToCmd(process)
 
-		execer = &system.Execer{
+		execer = &system.NamespacingExecer{
 			CommandRunner: commandRunner,
 		}
 	})

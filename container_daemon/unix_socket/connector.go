@@ -31,7 +31,7 @@ func (c *Connector) Connect(msg interface{}) ([]io.ReadWriteCloser, error) {
 	}
 
 	if n > 1 {
-		return nil, fmt.Errorf("%d, %s", n, string(b[:n]))
+		return nil, fmt.Errorf("%s", string(b[:n]))
 	}
 
 	scms, err := syscall.ParseSocketControlMessage(oob[:oobn])

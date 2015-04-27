@@ -18,6 +18,7 @@ var _ = Describe("Process", func() {
 
 	BeforeEach(func() {
 		socketConnector = &fake_connector.FakeConnector{}
+		socketConnector.ConnectReturns([]io.ReadWriteCloser{nil, nil, nil, gbytes.NewBuffer()}, nil)
 	})
 
 	It("sends the correct process payload to the server", func() {
@@ -36,7 +37,7 @@ var _ = Describe("Process", func() {
 
 	It("streams stdout back", func() {
 		remoteStdout := gbytes.NewBuffer()
-		socketConnector.ConnectReturns([]io.ReadWriteCloser{nil, remoteStdout, nil}, nil)
+		socketConnector.ConnectReturns([]io.ReadWriteCloser{nil, remoteStdout, nil, gbytes.NewBuffer()}, nil)
 
 		spec := garden.ProcessSpec{
 			Path: "/bin/echo",
@@ -55,7 +56,7 @@ var _ = Describe("Process", func() {
 
 	It("streams stderr back", func() {
 		remoteStderr := gbytes.NewBuffer()
-		socketConnector.ConnectReturns([]io.ReadWriteCloser{nil, nil, remoteStderr}, nil)
+		socketConnector.ConnectReturns([]io.ReadWriteCloser{nil, nil, remoteStderr, gbytes.NewBuffer()}, nil)
 
 		spec := garden.ProcessSpec{
 			Path: "/bin/echo",
@@ -76,7 +77,7 @@ var _ = Describe("Process", func() {
 
 	It("streams stdin over", func() {
 		remoteStdin := gbytes.NewBuffer()
-		socketConnector.ConnectReturns([]io.ReadWriteCloser{remoteStdin, nil, nil}, nil)
+		socketConnector.ConnectReturns([]io.ReadWriteCloser{remoteStdin, nil, nil, gbytes.NewBuffer()}, nil)
 
 		spec := garden.ProcessSpec{
 			Path: "/bin/echo",
@@ -93,6 +94,22 @@ var _ = Describe("Process", func() {
 
 		sentStdin.Write([]byte("Hello world"))
 		Eventually(remoteStdin).Should(gbytes.Say("Hello world"))
+	})
+
+	It("waits for and reports the correct exit status", func() {
+		remoteExitFd := gbytes.NewBuffer()
+		socketConnector.ConnectReturns([]io.ReadWriteCloser{nil, nil, nil, remoteExitFd}, nil)
+
+		spec := garden.ProcessSpec{
+			Path: "/bin/echo",
+			Args: []string{"Hello world"},
+		}
+
+		process, err := NewProcess(socketConnector, &spec, &garden.ProcessIO{})
+		Expect(err).ToNot(HaveOccurred())
+
+		remoteExitFd.Write([]byte{42})
+		Expect(process.Wait()).To(Equal(42))
 	})
 
 	Context("when it fails to connect", func() {

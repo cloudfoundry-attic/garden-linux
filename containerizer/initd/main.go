@@ -45,26 +45,29 @@ func main() {
 			}.Mount},
 			&step{system.Mount{
 				Type: system.Proc,
-				Path: "/tmp/proc", // /tmp/proc instead of /proc until uid translation happens..
+				Path: "/proc",
 			}.Mount},
-			&networkStep{
-				Config: env,
-			},
+			&step{func() error {
+				return setupNetwork(env)
+			}},
 		},
+	}
+
+	daemon := &container_daemon.ContainerDaemon{
+		Listener: &unix_socket.Listener{
+			SocketPath: *socketPath,
+		},
+		Runner: linux_command_runner.New(),
+		Waiter: &system.PidWaiter{}, // must use this rather than standard golang wait to catch zombies
+		Users:  system.LibContainerUser{},
 	}
 
 	containerizer := containerizer.Containerizer{
 		RootFS: &system.RootFS{
 			Root: *rootFsPath,
 		},
-		Daemon: &container_daemon.ContainerDaemon{
-			Listener: &unix_socket.Listener{
-				SocketPath: *socketPath,
-			},
-			Runner: linux_command_runner.New(),
-			Users:  system.LibContainerUser{},
-		},
 		Initializer: initializer,
+		Daemon:      daemon,
 		Waiter:      sync,
 		Signaller:   sync,
 	}
@@ -82,25 +85,13 @@ func missing(flagName string) {
 	os.Exit(1)
 }
 
-type step struct {
-	fn func() error
-}
-
-func (s *step) Init() error {
-	return s.fn()
-}
-
-type networkStep struct {
-	Config map[string]string
-}
-
-func (nc *networkStep) Init() error {
-	_, ipNet, err := net.ParseCIDR(nc.Config["network_cidr"])
+func setupNetwork(env process.Env) error {
+	_, ipNet, err := net.ParseCIDR(env["network_cidr"])
 	if err != nil {
 		return err
 	}
 
-	mtu, err := strconv.ParseInt(nc.Config["container_iface_mtu"], 0, 64)
+	mtu, err := strconv.ParseInt(env["container_iface_mtu"], 0, 64)
 	if err != nil {
 		return err
 	}
@@ -108,10 +99,10 @@ func (nc *networkStep) Init() error {
 	logger, _ := cf_lager.New("hook")
 	configurer := network.NewConfigurer(logger.Session("linux_backend: hook.CHILD_AFTER_PIVOT"))
 	err = configurer.ConfigureContainer(&network.ContainerConfig{
-		Hostname:      nc.Config["id"],
-		ContainerIntf: nc.Config["network_container_iface"],
-		ContainerIP:   net.ParseIP(nc.Config["network_container_ip"]),
-		GatewayIP:     net.ParseIP(nc.Config["network_host_ip"]),
+		Hostname:      env["id"],
+		ContainerIntf: env["network_container_iface"],
+		ContainerIP:   net.ParseIP(env["network_container_ip"]),
+		GatewayIP:     net.ParseIP(env["network_host_ip"]),
 		Subnet:        ipNet,
 		Mtu:           int(mtu),
 	})
@@ -120,4 +111,12 @@ func (nc *networkStep) Init() error {
 	}
 
 	return nil
+}
+
+type step struct {
+	fn func() error
+}
+
+func (s *step) Init() error {
+	return s.fn()
 }
