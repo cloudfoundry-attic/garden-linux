@@ -33,6 +33,29 @@ var _ = Describe("Rootfs container create parameter", func() {
 		}
 	})
 
+	Context("without a default rootfs", func() {
+		BeforeEach(func() {
+			args = []string{"--rootfs", ""}
+		})
+
+		It("without a rootfs in container spec, the container creation fails", func() {
+			var err error
+
+			container, err = client.Create(garden.ContainerSpec{RootFSPath: ""})
+			Ω(err).Should(HaveOccurred())
+			Ω(err).Should(MatchError(ContainSubstring(
+				"RootFSPath: is a required parameter, since no default rootfs was provided to the server. To provide a default rootfs, use the --rootfs flag on startup.",
+			)))
+		})
+
+		It("with a rootfs in container spec, the container is created successfully", func() {
+			var err error
+
+			container, err = client.Create(garden.ContainerSpec{RootFSPath: os.Getenv("GARDEN_TEST_ROOTFS")})
+			Ω(err).ShouldNot(HaveOccurred())
+		})
+	})
+
 	Context("with a default rootfs", func() {
 		It("the container is created successfully", func() {
 			var err error
