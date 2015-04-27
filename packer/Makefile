@@ -12,7 +12,7 @@ ubuntu-docker: rootfs-tars
 	packer build -only=docker garden-ci/garden-ci.json
 
 ubuntu-vagrant: rootfs-tars
-	packer build -except=docker garden-ci/garden-ci.json
+	packer build -only=garden-ci-virtualbox-iso garden-ci/garden-ci.json
 
 ubuntu-ami: rootfs-tars
 	packer build -only=amazon-ebs garden-ci/garden-ci.json
