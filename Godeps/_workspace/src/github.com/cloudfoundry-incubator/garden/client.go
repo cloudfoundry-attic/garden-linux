@@ -69,6 +69,20 @@ func (err ContainerNotFoundError) Error() string {
 	return fmt.Sprintf("unknown handle: %s", err.Handle)
 }
 
+func NewServiceUnavailableError(cause string) error {
+	return &ServiceUnavailableError{
+		Cause: cause,
+	}
+}
+
+type ServiceUnavailableError struct {
+	Cause string
+}
+
+func (err *ServiceUnavailableError) Error() string {
+	return err.Cause
+}
+
 // ContainerSpec specifies the parameters for creating a container. All parameters are optional.
 type ContainerSpec struct {
 

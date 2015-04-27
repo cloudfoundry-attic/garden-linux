@@ -108,6 +108,28 @@ var _ = Describe("Connection", func() {
 				Ω(err).Should(HaveOccurred())
 			})
 		})
+
+		Context("when the request fails with special error code http.StatusServiceUnavailable", func() {
+			BeforeEach(func() {
+				server.AppendHandlers(
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("GET", "/ping"),
+						ghttp.RespondWith(http.StatusServiceUnavailable, "Special Error Message"),
+					),
+				)
+			})
+
+			It("should return an error without the http info in the error message", func() {
+				err := connection.Ping()
+				Ω(err).Should(MatchError("Special Error Message"))
+			})
+
+			It("should return an error of the appropriate type", func() {
+				err := connection.Ping()
+				_, ok := err.(*garden.ServiceUnavailableError)
+				Ω(ok).Should(BeTrue())
+			})
+		})
 	})
 
 	Describe("Getting capacity", func() {

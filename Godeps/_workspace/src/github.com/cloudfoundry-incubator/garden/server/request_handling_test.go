@@ -244,6 +244,27 @@ var _ = Describe("When a client connects", func() {
 				Ω(err).Should(HaveOccurred())
 			})
 		})
+
+		Context("when creating the container fails with a ServiceUnavailableError", func() {
+			var err error
+
+			BeforeEach(func() {
+				serverBackend.CreateReturns(nil, garden.NewServiceUnavailableError("special error"))
+
+				_, err = apiClient.Create(garden.ContainerSpec{
+					Handle: "some-handle",
+				})
+			})
+
+			It("client returns an error with a well formed error msg", func() {
+				Ω(err).Should(MatchError("special error"))
+			})
+
+			It("client returns an error of type ServiceUnavailableError", func() {
+				_, ok := err.(*garden.ServiceUnavailableError)
+				Ω(ok).Should(BeTrue())
+			})
+		})
 	})
 
 	Context("and the client sends a destroy request", func() {
