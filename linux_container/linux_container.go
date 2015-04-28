@@ -252,6 +252,8 @@ func (c *LinuxContainer) Snapshot(out io.Writer) error {
 		)
 	}
 
+	properties, _ := c.Properties()
+
 	snapshot := ContainerSnapshot{
 		ID:     c.id,
 		Handle: c.handle,
@@ -281,7 +283,7 @@ func (c *LinuxContainer) Snapshot(out io.Writer) error {
 
 		Processes: processSnapshots,
 
-		Properties: c.Properties(),
+		Properties: properties,
 
 		EnvVars: c.env.Array(),
 	}
@@ -439,18 +441,14 @@ func (c *LinuxContainer) Stop(kill bool) error {
 	return nil
 }
 
-func (c *LinuxContainer) Properties() garden.Properties {
+func (c *LinuxContainer) Properties() (garden.Properties, error) {
 	c.propertiesMutex.RLock()
 	defer c.propertiesMutex.RUnlock()
 
-	return c.properties
+	return c.properties, nil
 }
 
-func (c *LinuxContainer) GetProperties() (garden.Properties, error) {
-	return c.Properties(), nil
-}
-
-func (c *LinuxContainer) GetProperty(key string) (string, error) {
+func (c *LinuxContainer) Property(key string) (string, error) {
 	c.propertiesMutex.RLock()
 	defer c.propertiesMutex.RUnlock()
 
@@ -523,10 +521,12 @@ func (c *LinuxContainer) Info() (garden.ContainerInfo, error) {
 		processIDs = append(processIDs, process.ID())
 	}
 
+	properties, _ := c.Properties()
+
 	info := garden.ContainerInfo{
 		State:         string(c.State()),
 		Events:        c.Events(),
-		Properties:    c.Properties(),
+		Properties:    properties,
 		ContainerPath: c.path,
 		ProcessIDs:    processIDs,
 		MappedPorts:   mappedPorts,

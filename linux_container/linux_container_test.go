@@ -566,7 +566,7 @@ var _ = Describe("Linux containers", func() {
 	Describe("Properties", func() {
 		Describe("CRUD", func() {
 			It("can get a property", func() {
-				value, err := container.GetProperty("property-name")
+				value, err := container.Property("property-name")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(value).To(Equal("property-value"))
 			})
@@ -587,7 +587,7 @@ var _ = Describe("Linux containers", func() {
 			})
 
 			It("returns an error when the property is undefined", func() {
-				_, err := container.GetProperty("some-other-property")
+				_, err := container.Property("some-other-property")
 				Expect(err).To(Equal(linux_container.UndefinedPropertyError{"some-other-property"}))
 				Expect(err).To(MatchError("property does not exist: some-other-property"))
 			})
@@ -595,7 +595,7 @@ var _ = Describe("Linux containers", func() {
 			It("can set a new property", func() {
 				err := container.SetProperty("some-other-property", "some-other-value")
 				Expect(err).ToNot(HaveOccurred())
-				value, err := container.GetProperty("some-other-property")
+				value, err := container.Property("some-other-property")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(value).To(Equal("some-other-value"))
 			})
@@ -604,7 +604,7 @@ var _ = Describe("Linux containers", func() {
 				err := container.SetProperty("property-name", "some-other-new-value")
 				Expect(err).ToNot(HaveOccurred())
 
-				value, err := container.GetProperty("property-name")
+				value, err := container.Property("property-name")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(value).To(Equal("some-other-new-value"))
 			})
@@ -622,12 +622,12 @@ var _ = Describe("Linux containers", func() {
 				It("removes the property", func() {
 					Expect(err).ToNot(HaveOccurred())
 
-					_, err = container.GetProperty("property-name")
+					_, err = container.Property("property-name")
 					Expect(err).To(Equal(linux_container.UndefinedPropertyError{"property-name"}))
 				})
 
 				It("does not remove other properties", func() {
-					value, err := container.GetProperty("other-property-name")
+					value, err := container.Property("other-property-name")
 					Expect(err).ToNot(HaveOccurred())
 					Expect(value).To(Equal("some-other-value"))
 				})
@@ -641,7 +641,7 @@ var _ = Describe("Linux containers", func() {
 		})
 
 		It("can return all properties as a map", func() {
-			properties, err := container.GetProperties()
+			properties, err := container.Properties()
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(properties).To(Equal(garden.Properties{"property-name": "property-value"}))
@@ -651,7 +651,8 @@ var _ = Describe("Linux containers", func() {
 			err := container.SetProperty("some-property", "some-value")
 			Expect(err).ToNot(HaveOccurred())
 
-			properties := container.Properties()
+			properties, err := container.Properties()
+			Expect(err).ToNot(HaveOccurred())
 			Expect(properties["some-property"]).To(Equal("some-value"))
 
 			err = container.SetProperty("some-property", "some-other-value")
@@ -666,7 +667,7 @@ var _ = Describe("Linux containers", func() {
 			})
 
 			It("reading a property fails in the expected way", func() {
-				_, err := container.GetProperty("property-name")
+				_, err := container.Property("property-name")
 				Expect(err).To(Equal(linux_container.UndefinedPropertyError{"property-name"}))
 			})
 
@@ -674,7 +675,7 @@ var _ = Describe("Linux containers", func() {
 				err := container.SetProperty("some-other-property", "some-other-value")
 				Expect(err).ToNot(HaveOccurred())
 
-				value, err := container.GetProperty("some-other-property")
+				value, err := container.Property("some-other-property")
 				Expect(err).ToNot(HaveOccurred())
 				Expect(value).To(Equal("some-other-value"))
 			})
@@ -700,7 +701,9 @@ var _ = Describe("Linux containers", func() {
 			info, err := container.Info()
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(info.Properties).To(Equal(container.Properties()))
+			properties, err := container.Properties()
+			Expect(info.Properties).To(Equal(properties))
+			Expect(err).ToNot(HaveOccurred())
 		})
 
 		It("returns the container's network info", func() {

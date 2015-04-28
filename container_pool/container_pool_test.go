@@ -312,7 +312,7 @@ var _ = Describe("Container pool", func() {
 			})
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(container.GetProperties()).To(Equal(properties))
+			Expect(container.Properties()).To(Equal(properties))
 		})
 
 		It("sets up iptable filters for the container", func() {
@@ -1066,7 +1066,7 @@ var _ = Describe("Container pool", func() {
 			Expect(container.ID()).To(Equal("some-restored-id"))
 			Expect(container.Handle()).To(Equal("some-restored-handle"))
 			Expect(container.GraceTime()).To(Equal(1 * time.Second))
-			Expect(container.GetProperties()).To(Equal(garden.Properties(map[string]string{
+			Expect(container.Properties()).To(Equal(garden.Properties(map[string]string{
 				"foo": "bar",
 			})))
 
