@@ -153,17 +153,165 @@ var _ = Describe("RepositoryFetcher", func() {
 				setupSuccessfulFetch(endpoint1)
 			})
 
-			It("retrieves the registry from the registry provider based on the host of the repo url", func() {
+			It("retrieves the registry from the registry provider based on the host and port of the repo url", func() {
+				fakeRegistryProvider.ApplyDefaultHostnameReturns("some-registry:4444")
+
 				fetcher.Fetch(logger, parseURL("some-scheme://some-registry:4444/some-repo"), "some-tag")
+
+				Expect(fakeRegistryProvider.ApplyDefaultHostnameCallCount()).To(Equal(1))
+				Expect(fakeRegistryProvider.ApplyDefaultHostnameArgsForCall(0)).To(Equal("some-registry:4444"))
+
 				Expect(fakeRegistryProvider.ProvideRegistryCallCount()).To(Equal(1))
 				Expect(fakeRegistryProvider.ProvideRegistryArgsForCall(0)).To(Equal("some-registry:4444"))
 			})
 
 			Context("when retrieving a session from the registry provider errors", func() {
-				It("returns error", func() {
+				It("returns the error, suitably wrapped", func() {
+					fakeRegistryProvider.ApplyDefaultHostnameReturns("some-registry:4444")
 					fakeRegistryProvider.ProvideRegistryReturns(nil, errors.New("an error"))
+
 					_, _, _, err := fetcher.Fetch(logger, parseURL("some-scheme://some-registry:4444/some-repo"), "some-tag")
-					Expect(err).To(MatchError("an error"))
+					Expect(err).To(MatchError("repository_fetcher: ProvideRegistry: could not fetch image some-repo from registry some-registry:4444: an error"))
+				})
+			})
+
+			It("gets the repository data from the registry", func() {
+				fakeRegistryProvider.ApplyDefaultHostnameReturns("some-registry:4444")
+
+				fakeRegistry := new(fakes.FakeRegistry)
+				fakeRegistryProvider.ProvideRegistryReturns(fakeRegistry, nil)
+				testRepositoryData := &registry.RepositoryData{}
+				fakeRegistry.GetRepositoryDataReturns(testRepositoryData, nil)
+
+				fetcher.Fetch(logger, parseURL("some-scheme://some-registry:4444/some-repo"), "some-tag")
+				Expect(fakeRegistry.GetRepositoryDataCallCount()).To(Equal(1))
+				Expect(fakeRegistry.GetRepositoryDataArgsForCall(0)).To(Equal("some-repo"))
+			})
+
+			Context("when getting the repository data from the registry errors", func() {
+				It("returns the error, suitably wrapped", func() {
+					fakeRegistryProvider.ApplyDefaultHostnameReturns("some-registry:4444")
+
+					fakeRegistry := new(fakes.FakeRegistry)
+					fakeRegistryProvider.ProvideRegistryReturns(fakeRegistry, nil)
+					fakeRegistry.GetRepositoryDataReturns(nil, errors.New("an error"))
+
+					_, _, _, err := fetcher.Fetch(logger, parseURL("some-scheme://some-registry:4444/some-repo"), "some-tag")
+					Expect(err).To(MatchError("repository_fetcher: GetRepositoryData: could not fetch image some-repo from registry some-registry:4444: an error"))
+				})
+			})
+
+			It("gets the remote tags from the registry", func() {
+				fakeRegistryProvider.ApplyDefaultHostnameReturns("some-registry:4444")
+
+				testEndpoints := []string{"endpoint1", "endpoint2"}
+				testTokens := []string{"token1", "token2"}
+
+				fakeRegistry := new(fakes.FakeRegistry)
+				fakeRegistryProvider.ProvideRegistryReturns(fakeRegistry, nil)
+				testRepositoryData := &registry.RepositoryData{
+					Endpoints: testEndpoints,
+					Tokens:    testTokens,
+				}
+				fakeRegistry.GetRepositoryDataReturns(testRepositoryData, nil)
+
+				fetcher.Fetch(logger, parseURL("some-scheme://some-registry:4444/some-repo"), "some-tag")
+				Expect(fakeRegistry.GetRemoteTagsCallCount()).To(Equal(1))
+
+				registries, repository, token := fakeRegistry.GetRemoteTagsArgsForCall(0)
+				Expect(registries).To(Equal(testEndpoints))
+				Expect(repository).To(Equal("some-repo"))
+				Expect(token).To(Equal(testTokens))
+			})
+
+			Context("when getting the remote tags from the registry errors", func() {
+				It("returns the error, suitably wrapped", func() {
+					fakeRegistryProvider.ApplyDefaultHostnameReturns("some-registry:4444")
+
+					testEndpoints := []string{"endpoint1", "endpoint2"}
+					testTokens := []string{"token1", "token2"}
+
+					fakeRegistry := new(fakes.FakeRegistry)
+					fakeRegistryProvider.ProvideRegistryReturns(fakeRegistry, nil)
+					testRepositoryData := &registry.RepositoryData{
+						Endpoints: testEndpoints,
+						Tokens:    testTokens,
+					}
+					fakeRegistry.GetRepositoryDataReturns(testRepositoryData, nil)
+					fakeRegistry.GetRemoteTagsReturns(nil, errors.New("oh no!"))
+
+					_, _, _, err := fetcher.Fetch(logger, parseURL("some-scheme://some-registry:4444/some-repo"), "some-tag")
+					Expect(err).To(MatchError("repository_fetcher: GetRemoteTags: could not fetch image some-repo from registry some-registry:4444: oh no!"))
+				})
+			})
+
+			It("dereferences the tag correctly", func() {
+				fakeRegistryProvider.ApplyDefaultHostnameReturns("some-registry:4444")
+
+				testEndpoints := []string{"endpoint1", "endpoint2"}
+				testTokens := []string{"token1", "token2"}
+
+				fakeRegistry := new(fakes.FakeRegistry)
+				fakeRegistryProvider.ProvideRegistryReturns(fakeRegistry, nil)
+				testRepositoryData := &registry.RepositoryData{
+					Endpoints: testEndpoints,
+					Tokens:    testTokens,
+				}
+				testRemoteTags := map[string]string{"tagKey": "tagValue"}
+				fakeRegistry.GetRepositoryDataReturns(testRepositoryData, nil)
+				fakeRegistry.GetRemoteTagsReturns(testRemoteTags, nil)
+
+				fetcher.Fetch(logger, parseURL("some-scheme://some-registry:4444/some-repo"), "some-tag")
+
+				registries, repository, token := fakeRegistry.GetRemoteTagsArgsForCall(0)
+				Expect(registries).To(Equal(testEndpoints))
+				Expect(repository).To(Equal("some-repo"))
+				Expect(token).To(Equal(testTokens))
+			})
+
+			Context("when the tag is not found", func() {
+				It("returns a suitable error", func() {
+					fakeRegistryProvider.ApplyDefaultHostnameReturns("some-registry:4444")
+
+					testEndpoints := []string{"endpoint1", "endpoint2"}
+					testTokens := []string{"token1", "token2"}
+
+					fakeRegistry := new(fakes.FakeRegistry)
+					fakeRegistryProvider.ProvideRegistryReturns(fakeRegistry, nil)
+					testRepositoryData := &registry.RepositoryData{
+						Endpoints: testEndpoints,
+						Tokens:    testTokens,
+					}
+					testRemoteTags := map[string]string{"tagKey": "tagValue"}
+					fakeRegistry.GetRepositoryDataReturns(testRepositoryData, nil)
+					fakeRegistry.GetRemoteTagsReturns(testRemoteTags, nil)
+
+					_, _, _, err := fetcher.Fetch(logger, parseURL("some-scheme://some-registry:4444/some-repo"), "some-tag")
+					Expect(err).To(MatchError("repository_fetcher: looking up tag: could not fetch image some-repo from registry some-registry:4444: unknown tag: some-tag"))
+				})
+			})
+
+			Context("when there are no endpoints", func() {
+				It("returns a suitable error", func() {
+				})
+			})
+
+			Context("when there are two endpoints", func() {
+				Context("and the first endpoint returns the image", func() {
+					It("returns that image", func() {
+					})
+				})
+
+				Context("and the first endpoint errors", func() {
+					Context("and the second endpoint returns the image", func() {
+						It("ignores the error and tries the second endpoint", func() {
+						})
+					})
+
+					Context("and the second endpoint errors", func() {
+						It("returns the error, suitably wrapped", func() {
+						})
+					})
 				})
 			})
 		})

@@ -13,7 +13,7 @@ import (
 
 var _ = Describe("RepositoryProvider", func() {
 	var receivedHost string
-	var receievedInsecureRegistries []string
+	var receivedInsecureRegistries []string
 	var receivedEndpoint *registry.Endpoint
 	var endpointReturnsError error
 	var sessionReturnsError error
@@ -23,7 +23,7 @@ var _ = Describe("RepositoryProvider", func() {
 
 	BeforeEach(func() {
 		receivedHost = ""
-		receievedInsecureRegistries = nil
+		receivedInsecureRegistries = nil
 		receivedEndpoint = nil
 
 		endpointReturnsError = nil
@@ -32,7 +32,7 @@ var _ = Describe("RepositoryProvider", func() {
 		returnedEndpoint = &registry.Endpoint{}
 		RegistryNewEndpoint = func(host string, insecure []string) (*registry.Endpoint, error) {
 			receivedHost = host
-			receievedInsecureRegistries = insecure
+			receivedInsecureRegistries = insecure
 			return returnedEndpoint, endpointReturnsError
 		}
 
@@ -44,6 +44,13 @@ var _ = Describe("RepositoryProvider", func() {
 	})
 
 	Context("when the hostname is empty", func() {
+		It("uses the default host and port", func() {
+			provider := NewRepositoryProvider("the-default-host:11", nil)
+			hostname := provider.ApplyDefaultHostname("")
+
+			Expect(hostname).To(Equal("the-default-host:11"))
+		})
+
 		It("creates a new endpoint based on the default host and port", func() {
 			provider := NewRepositoryProvider("the-default-host:11", nil)
 			provider.ProvideRegistry("")
@@ -53,7 +60,14 @@ var _ = Describe("RepositoryProvider", func() {
 	})
 
 	Context("when the hostname is not empty", func() {
-		It("creates a new endpoint based on the host and port", func() {
+		It("uses the passed in host and port", func() {
+			provider := NewRepositoryProvider("", nil)
+			hostname := provider.ApplyDefaultHostname("the-registry-host:44")
+
+			Expect(hostname).To(Equal("the-registry-host:44"))
+		})
+
+		It("creates a new endpoint based on the supplied host and port", func() {
 			provider := NewRepositoryProvider("", nil)
 			provider.ProvideRegistry("the-registry-host:44")
 
@@ -66,7 +80,7 @@ var _ = Describe("RepositoryProvider", func() {
 			provider := NewRepositoryProvider("", []string{"insecure1", "insecure2"})
 			provider.ProvideRegistry("the-registry-host:44")
 
-			Expect(receievedInsecureRegistries).To(Equal([]string{"insecure1", "insecure2"}))
+			Expect(receivedInsecureRegistries).To(Equal([]string{"insecure1", "insecure2"}))
 		})
 	})
 
