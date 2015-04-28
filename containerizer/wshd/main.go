@@ -6,17 +6,15 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
+	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
+	"github.com/cloudfoundry-incubator/garden-linux/old/cgroups_manager"
+	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
 )
-
-func missing(flagName string) {
-	fmt.Fprintf(os.Stderr, "%s is required\n", flagName)
-	flag.Usage()
-	os.Exit(1)
-}
 
 // TODO: Catch the system errors and panic
 func main() {
@@ -48,6 +46,11 @@ func main() {
 		Writer: hostWriter,
 	}
 
+	runtime.LockOSThread()
+
+	env, _ := process.EnvFromFile(path.Join(*libPath, "../etc/config"))
+	enterCgroups(env["id"])
+
 	cz := containerizer.Containerizer{
 		InitBinPath: path.Join(binPath, "initd"),
 		InitArgs: []string{
@@ -72,4 +75,22 @@ func main() {
 		fmt.Fprintf(os.Stderr, "Failed to create container: %s", err)
 		os.Exit(2)
 	}
+}
+
+func enterCgroups(id string) {
+	cgroupPath := os.Getenv("GARDEN_CGROUP_PATH") // fixme: better way to include config vars.. at least better to save to etc/config
+	cgroupMgr := cgroups_manager.New(cgroupPath, id)
+	if err := cgroupMgr.Setup("cpuset", "cpu", "cpuacct", "devices", "memory"); err != nil {
+		panic(err)
+	}
+
+	if err := cgroupMgr.Add(syscall.Gettid(), "cpuset", "cpu"); err != nil {
+		panic(err)
+	}
+}
+
+func missing(flagName string) {
+	fmt.Fprintf(os.Stderr, "%s is required\n", flagName)
+	flag.Usage()
+	os.Exit(1)
 }

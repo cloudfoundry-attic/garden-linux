@@ -3,6 +3,7 @@ package system_test
 import (
 	"io/ioutil"
 	"os"
+	"os/exec"
 	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
@@ -22,7 +23,11 @@ var _ = Describe("Execer", func() {
 		process := &os.Process{
 			Pid: 12,
 		}
-		commandRunner.RunInjectsProcessToCmd(process)
+
+		commandRunner.WhenRunning(fake_command_runner.CommandSpec{}, func(cmd *exec.Cmd) error {
+			cmd.Process = process
+			return nil
+		})
 
 		execer = &system.NamespacingExecer{
 			CommandRunner: commandRunner,

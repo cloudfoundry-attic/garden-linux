@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
 	. "github.com/onsi/ginkgo"
@@ -13,7 +14,7 @@ import (
 	"github.com/onsi/gomega/gbytes"
 )
 
-var _ = Describe("Mount", func() {
+var _ = FDescribe("Mount", func() {
 	var dest string
 
 	BeforeEach(func() {
@@ -32,7 +33,7 @@ var _ = Describe("Mount", func() {
 				stderr := gbytes.NewBuffer()
 				Expect(
 					runInContainer(GinkgoWriter, io.MultiWriter(stderr, GinkgoWriter),
-						privileged, "fake_mounter", "not-a-mount-type", dest, "cat", "/proc/mounts"),
+						privileged, "fake_mounter", "not-a-mount-type", dest, "0", "cat", "/proc/mounts"),
 				).To(Succeed())
 
 				Expect(stderr).To(gbytes.Say("error: mount not-a-mount-type on %s: no such device", dest))
@@ -43,10 +44,22 @@ var _ = Describe("Mount", func() {
 			stdout := gbytes.NewBuffer()
 			Expect(
 				runInContainer(io.MultiWriter(stdout, GinkgoWriter), GinkgoWriter,
-					privileged, "fake_mounter", string(system.Tmpfs), dest, "cat", "/proc/mounts"),
+					privileged, "fake_mounter", string(system.Tmpfs), dest, "0", "cat", "/proc/mounts"),
 			).To(Succeed())
 
 			Expect(stdout).To(gbytes.Say(fmt.Sprintf("tmpfs %s tmpfs", dest)))
+		})
+
+		Context("when flags are supplied", func() {
+			It("mounts using the flags", func() {
+				stdout := gbytes.NewBuffer()
+				Expect(
+					runInContainer(io.MultiWriter(stdout, GinkgoWriter), GinkgoWriter,
+						privileged, "fake_mounter", string(system.Tmpfs), dest, fmt.Sprintf("%d", syscall.MS_NODEV), "cat", "/proc/mounts"),
+				).To(Succeed())
+
+				Expect(stdout).To(gbytes.Say(fmt.Sprintf("tmpfs %s tmpfs rw,nodev", dest)))
+			})
 		})
 
 		Context("when the destination does not already exist", func() {
@@ -54,7 +67,7 @@ var _ = Describe("Mount", func() {
 				stdout := gbytes.NewBuffer()
 				Expect(
 					runInContainer(io.MultiWriter(stdout, GinkgoWriter), GinkgoWriter,
-						privileged, "fake_mounter", string(system.Tmpfs), filepath.Join(dest, "foo"), "cat", "/proc/mounts"),
+						privileged, "fake_mounter", string(system.Tmpfs), filepath.Join(dest, "foo"), "0", "cat", "/proc/mounts"),
 				).To(Succeed())
 
 				Expect(stdout).To(gbytes.Say(fmt.Sprintf("tmpfs %s/foo tmpfs", dest)))
@@ -67,7 +80,7 @@ var _ = Describe("Mount", func() {
 				stderr := gbytes.NewBuffer()
 				Expect(
 					runInContainer(GinkgoWriter, io.MultiWriter(stderr, GinkgoWriter),
-						privileged, "fake_mounter", "tmpfs", filepath.Join(dest, "foo"), "cat", "/proc/mounts"),
+						privileged, "fake_mounter", "tmpfs", filepath.Join(dest, "foo"), "0", "cat", "/proc/mounts"),
 				).To(Succeed())
 
 				Expect(stderr).To(gbytes.Say("error: mount: create mount point directory %s/foo: ", dest))

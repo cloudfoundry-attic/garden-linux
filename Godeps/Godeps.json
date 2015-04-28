@@ -232,11 +232,6 @@
 			"Rev": "7ce34f58cbd4884634a0f1f82c4aaab1168ea0de"
 		},
 		{
-			"ImportPath": "github.com/docker/libcontainer/user",
-			"Comment": "v1.2.0-162-g7ce34f5",
-			"Rev": "7ce34f58cbd4884634a0f1f82c4aaab1168ea0de"
-		},
-		{
 			"ImportPath": "github.com/docker/libtrust",
 			"Rev": "9f61d4554f6af00705c15714f4711f3019da7760"
 		},

@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"syscall"
 
 	"github.com/cloudfoundry-incubator/cf-lager"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
@@ -14,7 +15,6 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
 	"github.com/cloudfoundry-incubator/garden-linux/network"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
-	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
 )
 
 func main() {
@@ -23,6 +23,8 @@ func main() {
 	configFilePath := flag.String("config", "./etc/config", "Path for the configuration file")
 	cf_lager.AddFlags(flag.CommandLine)
 	flag.Parse()
+
+	logger, _ := cf_lager.New("init")
 
 	if *socketPath == "" {
 		missing("--socket")
@@ -37,11 +39,17 @@ func main() {
 	}
 
 	env, _ := process.EnvFromFile(*configFilePath)
+
+	reaper := system.StartReaper(logger)
+	defer reaper.Stop()
+
 	initializer := &system.ContainerInitializer{
+		//Logger: logger,
 		Steps: []system.Initializer{
 			&step{system.Mount{
-				Type: system.Tmpfs,
-				Path: "/dev/shm",
+				Type:  system.Tmpfs,
+				Flags: syscall.MS_NODEV,
+				Path:  "/dev/shm",
 			}.Mount},
 			&step{system.Mount{
 				Type: system.Proc,
@@ -50,6 +58,10 @@ func main() {
 			&step{func() error {
 				return setupNetwork(env)
 			}},
+			&container_daemon.ShellRunnerStep{
+				Runner: reaper,
+				Path:   "/etc/seed",
+			},
 		},
 	}
 
@@ -57,8 +69,7 @@ func main() {
 		Listener: &unix_socket.Listener{
 			SocketPath: *socketPath,
 		},
-		Runner: linux_command_runner.New(),
-		Waiter: &system.PidWaiter{}, // must use this rather than standard golang wait to catch zombies
+		Runner: reaper,
 		Users:  system.LibContainerUser{},
 	}
 

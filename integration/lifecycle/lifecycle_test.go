@@ -894,7 +894,7 @@ var _ = Describe("Creating a container", func() {
 						# sync with test, and allow trap to fire when not sleeping
 						while true; do
 							echo waiting
-							sleep 0.5
+							sleep 1
 						done
 						`,
 						},

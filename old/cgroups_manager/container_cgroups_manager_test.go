@@ -4,6 +4,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"strings"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -22,6 +23,84 @@ var _ = Describe("Container cgroups", func() {
 		cgroupsPath = tmpdir
 
 		cgroupsManager = cgroups_manager.New(cgroupsPath, "some-container-id")
+	})
+
+	Describe("setup cgroups", func() {
+		It("creates a cgroups directory for each subsystem", func() {
+			err := cgroupsManager.Setup("memory", "cpu")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(path.Join(cgroupsPath, "memory", "instance-some-container-id")).To(BeADirectory())
+			Expect(path.Join(cgroupsPath, "cpu", "instance-some-container-id")).To(BeADirectory())
+		})
+
+		Context("when the subsystems contain cpuset", func() {
+			It("initializes the cpuset.cpus and cpuset.mems based on the system cgroup", func() {
+				Expect(os.MkdirAll(path.Join(cgroupsPath, "cpuset"), 0755)).To(Succeed())
+
+				Expect(ioutil.WriteFile(path.Join(cgroupsPath, "cpuset", "cpuset.cpus"), []byte("the cpuset cpus"), 0600)).To(Succeed())
+				Expect(ioutil.WriteFile(path.Join(cgroupsPath, "cpuset", "cpuset.mems"), []byte("the cpuset mems"), 0600)).To(Succeed())
+
+				err := cgroupsManager.Setup("memory", "cpu", "cpuset")
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(ioutil.ReadFile(path.Join(
+					cgroupsPath,
+					"cpuset",
+					"instance-some-container-id",
+					"cpuset.cpus"))).
+					To(Equal([]byte("the cpuset cpus")))
+
+				Expect(ioutil.ReadFile(path.Join(
+					cgroupsPath,
+					"cpuset",
+					"instance-some-container-id",
+					"cpuset.mems"))).
+					To(Equal([]byte("the cpuset mems")))
+			})
+		})
+	})
+
+	Describe("adding a process", func() {
+		It("writes the process to the tasks file", func() {
+			containerMemoryCgroupsPath := path.Join(cgroupsPath, "memory", "instance-some-container-id")
+			err := os.MkdirAll(containerMemoryCgroupsPath, 0755)
+			Expect(err).ToNot(HaveOccurred())
+
+			err = cgroupsManager.Add(1235, "memory")
+			Expect(err).ToNot(HaveOccurred())
+
+			err = cgroupsManager.Add(1237, "memory")
+			Expect(err).ToNot(HaveOccurred())
+
+			value, err := ioutil.ReadFile(path.Join(containerMemoryCgroupsPath, "tasks"))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(strings.Split(string(value), "\n")).To(ContainElement("1235"))
+			Expect(strings.Split(string(value), "\n")).To(ContainElement("1237"))
+		})
+
+		Context("when multiple subsystem are provided", func() {
+			It("writes the process to task file for each subsystem", func() {
+				containerMemoryCgroupsPath := path.Join(cgroupsPath, "memory", "instance-some-container-id")
+				err := os.MkdirAll(containerMemoryCgroupsPath, 0755)
+				Expect(err).ToNot(HaveOccurred())
+
+				containerCpuCgroupsPath := path.Join(cgroupsPath, "cpu", "instance-some-container-id")
+				err = os.MkdirAll(containerCpuCgroupsPath, 0755)
+				Expect(err).ToNot(HaveOccurred())
+
+				err = cgroupsManager.Add(1235, "memory", "cpu")
+				Expect(err).ToNot(HaveOccurred())
+
+				value, err := ioutil.ReadFile(path.Join(containerMemoryCgroupsPath, "tasks"))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(strings.Split(string(value), "\n")).To(ContainElement("1235"))
+
+				value, err = ioutil.ReadFile(path.Join(containerCpuCgroupsPath, "tasks"))
+				Expect(err).ToNot(HaveOccurred())
+				Expect(strings.Split(string(value), "\n")).To(ContainElement("1235"))
+			})
+		})
 	})
 
 	Describe("setting", func() {

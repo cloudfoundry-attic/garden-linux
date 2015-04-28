@@ -9,10 +9,17 @@ type FakeCgroupsManager struct {
 	id          string
 
 	SetError error
+	AddError error
 
 	setValues    []SetValue
+	addValues    []AddValue
 	getCallbacks []GetCallback
 	setCallbacks []SetCallback
+}
+
+type AddValue struct {
+	Pid        int
+	Subsystems []string
 }
 
 type SetValue struct {
@@ -38,6 +45,14 @@ func New(cgroupsPath, id string) *FakeCgroupsManager {
 		cgroupsPath: cgroupsPath,
 		id:          id,
 	}
+}
+
+func (m *FakeCgroupsManager) Add(pid int, subsystems ...string) error {
+	if m.AddError != nil {
+		return m.AddError
+	}
+	m.addValues = append(m.addValues, AddValue{pid, subsystems})
+	return nil
 }
 
 func (m *FakeCgroupsManager) Set(subsystem, name, value string) error {
@@ -74,6 +89,10 @@ func (m *FakeCgroupsManager) Get(subsytem, name string) (string, error) {
 
 func (m *FakeCgroupsManager) SubsystemPath(subsystem string) string {
 	return path.Join(m.cgroupsPath, subsystem, "instance-"+m.id)
+}
+
+func (m *FakeCgroupsManager) AddedValues() []AddValue {
+	return m.addValues
 }
 
 func (m *FakeCgroupsManager) SetValues() []SetValue {

@@ -47,8 +47,6 @@ func (e *NamespacingExecer) Exec(binPath string, args ...string) (int, error) {
 	}
 
 	cmd.SysProcAttr.Cloneflags = uintptr(flags)
-	// cmd.Stdout = e.Stdout
-	// cmd.Stderr = e.Stderr
 	cmd.ExtraFiles = e.ExtraFiles
 
 	e.CommandRunner.Start(cmd)

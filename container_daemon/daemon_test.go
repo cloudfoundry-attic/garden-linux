@@ -12,23 +12,20 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_exit_checker"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_listener"
+	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_runner"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system/fake_user"
-	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
-	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("Daemon", func() {
 	var (
-		daemon      container_daemon.ContainerDaemon
-		listener    *fake_listener.FakeListener
-		exitChecker *fake_exit_checker.FakeExitChecker
-		runner      *fake_command_runner.FakeCommandRunner
-		users       *fake_user.FakeUser
+		daemon   container_daemon.ContainerDaemon
+		listener *fake_listener.FakeListener
+		runner   *fake_runner.FakeRunner
+		users    *fake_user.FakeUser
 
 		userLookupError error
 	)
@@ -40,8 +37,7 @@ var _ = Describe("Daemon", func() {
 
 	BeforeEach(func() {
 		listener = &fake_listener.FakeListener{}
-		runner = fake_command_runner.New()
-		exitChecker = new(fake_exit_checker.FakeExitChecker)
+		runner = new(fake_runner.FakeRunner)
 		users = new(fake_user.FakeUser)
 		userLookupError = nil
 
@@ -49,13 +45,12 @@ var _ = Describe("Daemon", func() {
 			return etcPasswd[name], userLookupError
 		}
 
-		exitChecker.CheckReturns(43, nil)
+		runner.WaitReturns(43, nil)
 
 		daemon = container_daemon.ContainerDaemon{
-			Listener:    listener,
-			Users:       users,
-			ExitChecker: exitChecker,
-			Runner:      runner,
+			Listener: listener,
+			Users:    users,
+			Runner:   runner,
 		}
 	})
 
@@ -111,10 +106,7 @@ var _ = Describe("Daemon", func() {
 			})
 
 			It("spawns a process", func() {
-				Expect(runner).To(HaveStartedExecuting(fake_command_runner.CommandSpec{
-					Path: "fishfinger",
-					Args: []string{"foo", "bar"},
-				}))
+				Expect(runner.StartCallCount()).To(Equal(1))
 			})
 
 			Describe("the spawned process", func() {
@@ -122,12 +114,17 @@ var _ = Describe("Daemon", func() {
 					var theExecutedCommand *exec.Cmd
 
 					JustBeforeEach(func() {
-						Expect(runner.StartedCommands()).To(HaveLen(1))
-						theExecutedCommand = runner.StartedCommands()[0]
+						Expect(runner.StartCallCount()).To(Equal(1))
+						theExecutedCommand = runner.StartArgsForCall(0)
 					})
 
 					BeforeEach(func() {
 						spec.User = "another-user"
+					})
+
+					It("has the correct path and args", func() {
+						Expect(theExecutedCommand.Path).To(Equal("fishfinger"))
+						Expect(theExecutedCommand.Args).To(Equal([]string{"fishfinger", "foo", "bar"}))
 					})
 
 					It("has the correct uid", func() {
@@ -164,13 +161,13 @@ var _ = Describe("Daemon", func() {
 				var cmdStdin io.Reader
 
 				BeforeEach(func() {
-					runner.WhenRunning(fake_command_runner.CommandSpec{}, func(cmd *exec.Cmd) error {
+					runner.StartStub = func(cmd *exec.Cmd) error {
 						cmd.Stdout.Write([]byte("Banana doo"))
 						cmd.Stderr.Write([]byte("Banana goo"))
 						cmdStdin = cmd.Stdin
 
 						return nil
-					})
+					}
 				})
 
 				It("returns the streams from the spawned process", func() {
@@ -192,9 +189,9 @@ var _ = Describe("Daemon", func() {
 
 			Context("when command runner fails", func() {
 				BeforeEach(func() {
-					runner.WhenRunning(fake_command_runner.CommandSpec{}, func(cmd *exec.Cmd) error {
+					runner.StartStub = func(cmd *exec.Cmd) error {
 						return errors.New("Banana blue")
-					})
+					}
 				})
 
 				It("returns an error", func() {

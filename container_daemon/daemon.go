@@ -3,14 +3,15 @@ package container_daemon
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
+	"runtime"
 	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
-	"github.com/cloudfoundry/gunk/command_runner"
 )
 
 //go:generate counterfeiter -o fake_listener/FakeListener.go . Listener
@@ -20,16 +21,16 @@ type Listener interface {
 	Stop() error
 }
 
-//go:generate counterfeiter -o fake_exit_checker/FakeExitChecker.go . ExitChecker
-type Waiter interface {
+//go:generate counterfeiter -o fake_runner/fake_runner.go . Runner
+type Runner interface {
+	Start(cmd *exec.Cmd) error
 	Wait(cmd *exec.Cmd) (byte, error)
 }
 
 type ContainerDaemon struct {
 	Listener Listener
 	Users    system.User
-	Runner   command_runner.CommandRunner
-	Waiter   Waiter
+	Runner   Runner
 }
 
 // This method should be called from the host namespace, to open the socket file in the right file system.
@@ -62,8 +63,8 @@ func (cd *ContainerDaemon) Handle(decoder *json.Decoder) ([]*os.File, error) {
 		pipes[i].r, pipes[i].w, _ = os.Pipe()
 	}
 
-	// defer pipes[1].w.Close()
-	// defer pipes[2].w.Close()
+	defer pipes[1].w.Close()
+	defer pipes[2].w.Close()
 
 	var uid, gid uint32
 	if user, err := cd.Users.Lookup(spec.User); err == nil && user != nil {
@@ -91,12 +92,12 @@ func (cd *ContainerDaemon) Handle(decoder *json.Decoder) ([]*os.File, error) {
 		return nil, fmt.Errorf("container_daemon: running command: %s", err)
 	}
 
-	go func(runner command_runner.CommandRunner, exit Waiter, cmd *exec.Cmd) {
-		e, _ := exit.Wait(cmd)
+	go func(runner Runner, cmd *exec.Cmd) {
+		e, _ := runner.Wait(cmd)
 		defer pipes[3].w.Close()
 
 		pipes[3].w.Write([]byte{e})
-	}(cd.Runner, cd.Waiter, cmd)
+	}(cd.Runner, cmd)
 
 	// Hint: use goroutine to wait for process, write error code to extra fd and clean up the pipes
 
