@@ -137,9 +137,8 @@ var _ = Describe("Rootfs container create parameter", func() {
 							RootFSPath: fmt.Sprintf("docker://%s:%s/busybox", dockerRegistryIP, dockerRegistryPort),
 						})
 
-						Expect(err).To(MatchError(ContainSubstring("-insecureDockerRegistryList")))
 						Expect(err).To(MatchError(ContainSubstring(
-							"Unable to fetch RootFS image from docker://%s:%s", dockerRegistryIP, dockerRegistryPort,
+							"Registry %s:%s is missing from -insecureDockerRegistryList ([])", dockerRegistryIP, dockerRegistryPort,
 						)))
 					})
 				})

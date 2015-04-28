@@ -8,6 +8,7 @@ import (
 //go:generate counterfeiter . RegistryProvider
 type RegistryProvider interface {
 	ProvideRegistry(hostname string) (Registry, error)
+	ApplyDefaultHostname(hostname string) string
 }
 
 type InsecureRegistryError struct {
@@ -18,8 +19,9 @@ type InsecureRegistryError struct {
 
 func (err InsecureRegistryError) Error() string {
 	return fmt.Sprintf(
-		"Unable to fetch RootFS image: To enable insecure access from this host, add it to the -insecureDockerRegistryList on boot.",
+		"Registry %s is missing from -insecureDockerRegistryList (%v)",
 		err.Endpoint,
+		err.InsecureRegistries,
 	)
 }
 
@@ -28,28 +30,35 @@ type registryProvider struct {
 	InsecureRegistries []string
 }
 
+func (rp registryProvider) ApplyDefaultHostname(hostname string) string {
+	if hostname == "" {
+		return rp.DefaultHostname
+	}
+	return hostname
+}
+
 func (rp registryProvider) ProvideRegistry(hostname string) (Registry, error) {
 	var err error
 
-	if hostname == "" {
-		hostname = rp.DefaultHostname
-	}
+	hostname = rp.ApplyDefaultHostname(hostname)
 
 	endpoint, err := RegistryNewEndpoint(hostname, rp.InsecureRegistries)
 	if err != nil && strings.Contains(err.Error(), "--insecure-registry") {
-		return &RegistryStringer{nil, hostname}, &InsecureRegistryError{
+		return nil, &InsecureRegistryError{
 			Cause:              err,
 			Endpoint:           hostname,
 			InsecureRegistries: rp.InsecureRegistries,
 		}
 	} else if err != nil {
-		//return nil, err
-		return &RegistryStringer{nil, hostname}, err
+		return nil, err
 	}
 
 	registry, err := RegistryNewSession(nil, nil, endpoint, true)
+	if err != nil {
+		return nil, err
+	}
 
-	return &RegistryStringer{registry, hostname}, err
+	return registry, nil
 }
 
 func NewRepositoryProvider(defaultHostname string, insecureRegistries []string) RegistryProvider {
