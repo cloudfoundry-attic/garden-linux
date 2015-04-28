@@ -48,13 +48,17 @@ var _ = Describe("Creating a container", func() {
 		It("returns a helpful error message when image not found from default registry", func() {
 			client = startGarden()
 			_, err := client.Create(garden.ContainerSpec{RootFSPath: "docker:///cloudfoundry/doesnotexist"})
-			Expect(err.Error()).To(ContainSubstring("could not fetch cloudfoundry/doesnotexist image from https://index.docker.io/v1/ registry"))
+			Expect(err.Error()).To(ContainSubstring("could not fetch image cloudfoundry/doesnotexist from registry https://index.docker.io/v1/"))
 		})
 
-		It("returns a helpful error message when image not found from custom registry", func() {
+		It("returns a helpful error message when registry does not exist", func() {
 			client = startGarden()
-			_, err := client.Create(garden.ContainerSpec{RootFSPath: "docker://example.com/cloudfoundry/doesnotexist"})
-			Expect(err.Error()).To(ContainSubstring("could not fetch cloudfoundry/doesnotexist image from example.com registry"))
+
+			// Note: Using a valid url that is not a docker registry would make the test assertion below fail due to a bug in
+			//       docker https://github.com/docker/docker/blob/v1.3.3/registry/endpoint.go#L107-L157
+			//       eg. client.Create(garden.ContainerSpec{RootFSPath: "docker://example.com/cloudfoundry/doesnotexist"})
+			_, err := client.Create(garden.ContainerSpec{RootFSPath: "docker://does-not.exist/cloudfoundry/doesnotexist"})
+			Expect(err.Error()).To(ContainSubstring("could not fetch image cloudfoundry/doesnotexist from registry does-not.exist"))
 		})
 	})
 

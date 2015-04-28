@@ -27,21 +27,13 @@ var RegistryNewEndpoint = registry.NewEndpoint
 var RegistryNewSession = registry.NewSession
 
 // apes docker's *registry.Registry
+//go:generate counterfeiter . Registry
 type Registry interface {
 	GetRepositoryData(repoName string) (*registry.RepositoryData, error)
 	GetRemoteTags(registries []string, repository string, token []string) (map[string]string, error)
 	GetRemoteHistory(imageID string, registry string, token []string) ([]string, error)
 	GetRemoteImageJSON(imageID string, registry string, token []string) ([]byte, int, error)
 	GetRemoteImageLayer(imageID string, registry string, token []string, size int64) (io.ReadCloser, error)
-}
-
-type RegistryStringer struct {
-	*registry.Session // inherit all the registry methods (Session as receiver on methods)
-	endpoint          string
-}
-
-func (r RegistryStringer) String() string {
-	return r.endpoint
 }
 
 // apes docker's *graph.Graph
@@ -95,8 +87,8 @@ func New(registry RegistryProvider, graph Graph) RepositoryFetcher {
 	}
 }
 
-func (fetcher *DockerRepositoryFetcher) CommonError(registry Registry, reponame string, err error) error {
-	return garden.FailedToFetchError{Cause: fmt.Errorf("repository_fetcher: could not fetch %s image from %v registry: %s", reponame, registry, err)}
+func fetchError(context, registry, reponame string, err error) error {
+	return garden.NewServiceUnavailableError(fmt.Sprintf("repository_fetcher: %s: could not fetch image %s from registry %s: %s", context, reponame, registry, err))
 }
 
 func (fetcher *DockerRepositoryFetcher) Fetch(
@@ -111,25 +103,28 @@ func (fetcher *DockerRepositoryFetcher) Fetch(
 
 	fLog.Debug("fetching")
 
-	registry, err := fetcher.registryProvider.ProvideRegistry(repoURL.Host)
+	path := repoURL.Path[1:]
+	hostname := fetcher.registryProvider.ApplyDefaultHostname(repoURL.Host)
+
+	registry, err := fetcher.registryProvider.ProvideRegistry(hostname)
 	if err != nil {
 		logger.Error("failed-to-construct-registry-endpoint", err)
-		return "", nil, nil, fetcher.CommonError(registry, repoURL.Path[1:], err)
+		return "", nil, nil, fetchError("ProvideRegistry", hostname, path, err)
 	}
 
-	repoData, err := registry.GetRepositoryData(repoURL.Path[1:])
+	repoData, err := registry.GetRepositoryData(path)
 	if err != nil {
-		return "", nil, nil, fetcher.CommonError(registry, repoURL.Path[1:], err)
+		return "", nil, nil, fetchError("GetRepositoryData", hostname, path, err)
 	}
 
-	tagsList, err := registry.GetRemoteTags(repoData.Endpoints, repoURL.Path[1:], repoData.Tokens)
+	tagsList, err := registry.GetRemoteTags(repoData.Endpoints, path, repoData.Tokens)
 	if err != nil {
-		return "", nil, nil, err
+		return "", nil, nil, fetchError("GetRemoteTags", hostname, path, err)
 	}
 
 	imgID, ok := tagsList[tag]
 	if !ok {
-		return "", nil, nil, fetcher.CommonError(registry, repoURL.Path[1:], fmt.Errorf("unknown tag: %v:", tag))
+		return "", nil, nil, fetchError("looking up tag", hostname, path, fmt.Errorf("unknown tag: %v", tag))
 	}
 
 	token := repoData.Tokens
@@ -140,7 +135,8 @@ func (fetcher *DockerRepositoryFetcher) Fetch(
 			"image":    imgID,
 		})
 
-		image, err := fetcher.fetchFromEndpoint(fLog, registry, endpoint, imgID, token)
+		var image *dockerImage
+		image, err = fetcher.fetchFromEndpoint(fLog, registry, endpoint, imgID, token)
 		if err == nil {
 			fLog.Debug("fetched", lager.Data{
 				"endpoint": endpoint,
@@ -153,7 +149,7 @@ func (fetcher *DockerRepositoryFetcher) Fetch(
 		}
 	}
 
-	return "", nil, nil, fetcher.CommonError(registry, repoURL.Path[1:], fmt.Errorf("all endpoints failed: %v", err))
+	return "", nil, nil, fetchError("fetchFromEndPoint", hostname, path, fmt.Errorf("all endpoints failed: %v", err))
 }
 
 func (fetcher *DockerRepositoryFetcher) fetchFromEndpoint(logger lager.Logger, registry Registry, endpoint string, imgID string, token []string) (*dockerImage, error) {

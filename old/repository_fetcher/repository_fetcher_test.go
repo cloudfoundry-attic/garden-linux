@@ -62,6 +62,7 @@ var _ = Describe("RepositoryFetcher", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		fakeRegistryProvider = new(fakes.FakeRegistryProvider)
+		fakeRegistryProvider.ApplyDefaultHostnameReturns("some-repo")
 		fakeRegistryProvider.ProvideRegistryReturns(registry, nil)
 		fetcher = New(fakeRegistryProvider, graph)
 
@@ -151,19 +152,25 @@ var _ = Describe("RepositoryFetcher", func() {
 		Describe("connecting to the correct registry", func() {
 			BeforeEach(func() {
 				setupSuccessfulFetch(endpoint1)
+				fakeRegistryProvider.ApplyDefaultHostnameReturns("some-registry:4444")
 			})
 
-			It("retrieves the registry from the registry provider based on the host of the repo url", func() {
+			It("retrieves the registry from the registry provider based on the host and port of the repo url", func() {
 				fetcher.Fetch(logger, parseURL("some-scheme://some-registry:4444/some-repo"), "some-tag")
+
+				Expect(fakeRegistryProvider.ApplyDefaultHostnameCallCount()).To(Equal(1))
+				Expect(fakeRegistryProvider.ApplyDefaultHostnameArgsForCall(0)).To(Equal("some-registry:4444"))
+
 				Expect(fakeRegistryProvider.ProvideRegistryCallCount()).To(Equal(1))
 				Expect(fakeRegistryProvider.ProvideRegistryArgsForCall(0)).To(Equal("some-registry:4444"))
 			})
 
 			Context("when retrieving a session from the registry provider errors", func() {
-				It("returns error", func() {
+				It("returns the error, suitably wrapped", func() {
 					fakeRegistryProvider.ProvideRegistryReturns(nil, errors.New("an error"))
+
 					_, _, _, err := fetcher.Fetch(logger, parseURL("some-scheme://some-registry:4444/some-repo"), "some-tag")
-					Expect(err).To(MatchError("an error"))
+					Expect(err).To(MatchError("repository_fetcher: ProvideRegistry: could not fetch image some-repo from registry some-registry:4444: an error"))
 				})
 			})
 		})
@@ -243,7 +250,7 @@ var _ = Describe("RepositoryFetcher", func() {
 							parseURL("scheme://host/some-repo"),
 							"some-tag",
 						)
-						Expect(err).To(HaveOccurred())
+						Expect(err.Error()).To(ContainSubstring("repository_fetcher: fetchFromEndPoint: could not fetch image some-repo from registry some-repo: all endpoints failed:"))
 					})
 				})
 			})
@@ -327,7 +334,7 @@ var _ = Describe("RepositoryFetcher", func() {
 					parseURL("scheme://host/some-repo"),
 					"some-tag",
 				)
-				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("repository_fetcher: GetRepositoryData: could not fetch image some-repo from registry some-repo:"))
 			})
 		})
 
@@ -374,7 +381,7 @@ var _ = Describe("RepositoryFetcher", func() {
 						parseURL("scheme://host/some-repo"),
 						"some-tag",
 					)
-					Expect(err).To(HaveOccurred())
+					Expect(err.Error()).To(ContainSubstring("repository_fetcher: GetRemoteTags: could not fetch image some-repo from registry some-repo:"))
 				})
 			})
 		})
