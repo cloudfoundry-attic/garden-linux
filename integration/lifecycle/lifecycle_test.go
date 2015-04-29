@@ -127,6 +127,7 @@ var _ = Describe("Creating a container", func() {
 
 		var privilegedContainer bool
 		var rootfs string
+		var shouldCreateVcap bool
 
 		JustBeforeEach(func() {
 			client = startGarden()
@@ -135,6 +136,16 @@ var _ = Describe("Creating a container", func() {
 
 			container, err = client.Create(garden.ContainerSpec{Privileged: privilegedContainer, RootFSPath: rootfs})
 			Expect(err).ToNot(HaveOccurred())
+
+			if shouldCreateVcap {
+				process, err := container.Run(garden.ProcessSpec{
+					Path: "/usr/sbin/adduser",
+					User: "root",
+					Args: []string{"-D", "vcap"},
+				}, garden.ProcessIO{})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(process.Wait()).To(Equal(0))
+			}
 		})
 
 		AfterEach(func() {
@@ -145,6 +156,7 @@ var _ = Describe("Creating a container", func() {
 
 		BeforeEach(func() {
 			privilegedContainer = false
+			shouldCreateVcap = true
 			rootfs = ""
 		})
 
@@ -154,7 +166,6 @@ var _ = Describe("Creating a container", func() {
 				Args: []string{"-e", "/tmp/ran-seed"},
 			}, garden.ProcessIO{})
 			Expect(err).ToNot(HaveOccurred())
-
 			Expect(process.Wait()).To(Equal(0))
 		})
 
@@ -311,6 +322,7 @@ var _ = Describe("Creating a container", func() {
 				Context("and there is no /root directory in the image", func() {
 					BeforeEach(func() {
 						rootfs = "docker:///onsi/grace-busybox"
+						shouldCreateVcap = false
 					})
 
 					It("still allows running as root", func() {

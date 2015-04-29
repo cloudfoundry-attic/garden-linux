@@ -23,6 +23,7 @@ var _ = Describe("A container with a grace time", func() {
 			process, err := container.Run(garden.ProcessSpec{
 				Path: "sleep",
 				Args: []string{"5"},
+				User: "root",
 			}, garden.ProcessIO{})
 			Expect(err).ToNot(HaveOccurred())
 

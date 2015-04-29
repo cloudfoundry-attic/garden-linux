@@ -166,6 +166,7 @@ func startDockerRegistry(dockerRegistryIP string, dockerRegistryPort string) gar
 			"MIRROR_SOURCE_INDEX=https://index.docker.io",
 		},
 		Path: "docker-registry",
+		User: "root",
 	}, garden.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
 	Expect(err).ToNot(HaveOccurred())
 

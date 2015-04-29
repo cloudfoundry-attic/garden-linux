@@ -31,6 +31,14 @@ var _ = Describe("Through a restart", func() {
 
 		container, err = client.Create(garden.ContainerSpec{Privileged: privileged})
 		Expect(err).ToNot(HaveOccurred())
+
+		process, err := container.Run(garden.ProcessSpec{
+			Path: "/usr/sbin/adduser",
+			User: "root",
+			Args: []string{"-D", "vcap"},
+		}, garden.ProcessIO{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(process.Wait()).To(Equal(0))
 	})
 
 	AfterEach(func() {
@@ -477,7 +485,9 @@ var _ = Describe("Through a restart", func() {
 	})
 
 	Describe("a container's user", func() {
-		It("does not get reused", func() {
+
+		// there is no special non-root user that we create anymore. Does this test make sense?
+		PIt("does not get reused", func() {
 			idA := gbytes.NewBuffer()
 			idB := gbytes.NewBuffer()
 
@@ -495,6 +505,13 @@ var _ = Describe("Through a restart", func() {
 
 			otherContainer, err := client.Create(garden.ContainerSpec{})
 			Expect(err).ToNot(HaveOccurred())
+			addVcapUserProcess, err := otherContainer.Run(garden.ProcessSpec{
+				Path: "/usr/sbin/adduser",
+				User: "root",
+				Args: []string{"-D", "vcap"},
+			}, garden.ProcessIO{})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(addVcapUserProcess.Wait()).To(Equal(0))
 
 			processB, err := otherContainer.Run(garden.ProcessSpec{
 				Path: "id",

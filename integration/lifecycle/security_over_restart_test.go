@@ -81,6 +81,7 @@ var _ = Describe("Denying access to network ranges", func() {
 		process, err := container.Run(garden.ProcessSpec{
 			Path: "sh",
 			Args: []string{"-c", script},
+			User: "root",
 		}, garden.ProcessIO{
 			Stdout: GinkgoWriter,
 			Stderr: GinkgoWriter,

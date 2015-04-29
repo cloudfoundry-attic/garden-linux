@@ -22,6 +22,7 @@ var _ = Describe("Security", func() {
 
 			_, err = container.Run(garden.ProcessSpec{
 				Path: "sleep",
+				User: "root",
 				Args: []string{"989898"},
 			}, garden.ProcessIO{
 				Stdout: GinkgoWriter,
@@ -32,6 +33,7 @@ var _ = Describe("Security", func() {
 			psout := gbytes.NewBuffer()
 			ps, err := container.Run(garden.ProcessSpec{
 				Path: "sh",
+				User: "root",
 				Args: []string{"-c", "ps -a"},
 			}, garden.ProcessIO{
 				Stdout: psout,
@@ -70,6 +72,7 @@ var _ = Describe("Security", func() {
 			process, err := container.Run(
 				garden.ProcessSpec{
 					Path: "/hello",
+					User: "root",
 				},
 				garden.ProcessIO{
 					Stdout: stdout,
@@ -150,6 +153,7 @@ var _ = Describe("Security", func() {
 		runInContainer := func(container garden.Container, script string) garden.Process {
 			process, err := container.Run(garden.ProcessSpec{
 				Path: "sh",
+				User: "root",
 				Args: []string{"-c", script},
 			}, garden.ProcessIO{
 				Stdout: GinkgoWriter,

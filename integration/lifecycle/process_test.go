@@ -16,6 +16,14 @@ var _ = Describe("Process", func() {
 		var err error
 		container, err = client.Create(garden.ContainerSpec{})
 		Expect(err).ToNot(HaveOccurred())
+
+		process, err := container.Run(garden.ProcessSpec{
+			Path: "/usr/sbin/adduser",
+			User: "root",
+			Args: []string{"-D", "vcap"},
+		}, garden.ProcessIO{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(process.Wait()).To(Equal(0))
 	})
 
 	Describe("signalling", func() {

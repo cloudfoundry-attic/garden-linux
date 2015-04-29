@@ -132,21 +132,6 @@ else
   cp /etc/resolv.conf $rootfs_path/etc/
 fi
 
-
-# Add vcap user if not already present
-if ! chroot $rootfs_path id vcap >/dev/null 2>&1; then
-  mkdir -p $rootfs_path/home
-
-  shell=/bin/sh
-  if [ -f $rootfs_path/bin/bash ]; then
-    shell=/bin/bash
-  fi
-
-  touch $rootfs_path/etc/passwd
-  touch $rootfs_path/etc/group
-  useradd -R $rootfs_path -m -u $user_uid -s $shell vcap
-fi
-
 # workaround aufs limitations by copying /root directory out and back
 # in order to get it a new inode. This is the only way to prevent the
 # ownership in the read-only layer affecting the read-write layer. Later
@@ -163,6 +148,14 @@ rm -rf "$rootfs_path/tmp/root"
 # differ and if /root exists
 if [ -d "$rootfs_path/root" ] && [ "$root_uid" -ne 0 ]; then
   chown -R --from=0:0 $root_uid:$root_uid "$rootfs_path/root" || true # ignore failures
+fi
+
+if [ -d "$rootfs_path/etc" ] && [ "$root_uid" -ne 0 ]; then
+  chown -R --from=0:0 $root_uid:$root_uid "$rootfs_path/etc"
+fi
+
+if [ -d "$rootfs_path/home" ] && [ "$root_uid" -ne 0 ]; then
+  chown --from=0:0 $root_uid:$root_uid "$rootfs_path/home"
 fi
 
 exit 0

@@ -61,6 +61,14 @@ var _ = Describe("When nested", func() {
 		})
 		Expect(err).ToNot(HaveOccurred())
 
+		process, err := container.Run(garden.ProcessSpec{
+			Path: "useradd",
+			User: "root",
+			Args: []string{"-m", "vcap"},
+		}, garden.ProcessIO{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(process.Wait()).To(Equal(0))
+
 		nestedServerOutput := gbytes.NewBuffer()
 
 		extraMounts := ""
@@ -117,6 +125,7 @@ var _ = Describe("When nested", func() {
 		nestedOutput := gbytes.NewBuffer()
 		_, err = nestedContainer.Run(garden.ProcessSpec{
 			Path: "/bin/echo",
+			User: "root",
 			Args: []string{
 				"I am nested!",
 			},
