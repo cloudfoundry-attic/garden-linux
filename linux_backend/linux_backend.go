@@ -190,9 +190,14 @@ func (b *LinuxBackend) BulkInfo(handles []string) (map[string]garden.ContainerIn
 	infos := make(map[string]garden.ContainerInfoEntry)
 	for _, container := range containers {
 		info, err := container.Info()
-		infos[container.Handle()] = garden.ContainerInfoEntry{
-			Info: info,
-			Err:  err,
+		if err != nil {
+			infos[container.Handle()] = garden.ContainerInfoEntry{
+				Err: garden.NewError(err.Error()),
+			}
+		} else {
+			infos[container.Handle()] = garden.ContainerInfoEntry{
+				Info: info,
+			}
 		}
 	}
 
@@ -205,9 +210,14 @@ func (b *LinuxBackend) BulkMetrics(handles []string) (map[string]garden.Containe
 	metrics := make(map[string]garden.ContainerMetricsEntry)
 	for _, container := range containers {
 		metric, err := container.Metrics()
-		metrics[container.Handle()] = garden.ContainerMetricsEntry{
-			Metrics: metric,
-			Err:     err,
+		if err != nil {
+			metrics[container.Handle()] = garden.ContainerMetricsEntry{
+				Err: garden.NewError(err.Error()),
+			}
+		} else {
+			metrics[container.Handle()] = garden.ContainerMetricsEntry{
+				Metrics: metric,
+			}
 		}
 	}
 
