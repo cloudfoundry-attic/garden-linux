@@ -96,8 +96,7 @@ func New(registry RegistryProvider, graph Graph) RepositoryFetcher {
 }
 
 func (fetcher *DockerRepositoryFetcher) CommonError(registry Registry, reponame string, err error) error {
-	tmpErr := fmt.Errorf("repository fetcher: could not fetch %s image from %v registry: %s", reponame, registry, err)
-	return garden.FailedToFetchError{Cause: tmpErr}
+	return garden.FailedToFetchError{Cause: fmt.Errorf("repository_fetcher: could not fetch %s image from %v registry: %s", reponame, registry, err)}
 }
 
 func (fetcher *DockerRepositoryFetcher) Fetch(

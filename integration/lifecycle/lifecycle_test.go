@@ -44,7 +44,7 @@ var _ = Describe("Creating a container", func() {
 		})
 	})
 
-	Describe("Docker image download in a container", func() {
+	Describe("Docker image download", func() {
 		It("returns a helpful error message when image not found from default registry", func() {
 			client = startGarden()
 			_, err := client.Create(garden.ContainerSpec{RootFSPath: "docker:///cloudfoundry/doesnotexist"})
