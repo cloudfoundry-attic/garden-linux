@@ -10,7 +10,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = FDescribe("ProcessReaper", func() {
+var _ = Describe("ProcessReaper", func() {
 	var reaper *system.ProcessReaper
 
 	BeforeEach(func() {

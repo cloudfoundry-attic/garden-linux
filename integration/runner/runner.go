@@ -40,7 +40,6 @@ func New(network, addr string, bin, binPath, rootFSPath, graphPath string, argv 
 		os.TempDir(),
 		fmt.Sprintf("test-garden-%d", ginkgo.GinkgoParallelNode()),
 	)
-
 	if graphPath == "" {
 		graphPath = filepath.Join(tmpDir, "graph")
 	}

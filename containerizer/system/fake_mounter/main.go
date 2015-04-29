@@ -23,6 +23,7 @@ func main() {
 
 	if err := mnt.Mount(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %s", err)
+		os.Exit(99)
 	}
 
 	cmd := exec.Command(os.Args[4], os.Args[5:]...)

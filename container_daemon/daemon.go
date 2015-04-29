@@ -3,10 +3,8 @@ package container_daemon
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
-	"runtime"
 	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden"
