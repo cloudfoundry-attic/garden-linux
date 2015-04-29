@@ -387,7 +387,12 @@ int child_fork(msg_request_t *req, int in, int out, int err) {
     sigprocmask(SIG_SETMASK, &mask, NULL);
 
     execvpe(argv[0], argv, envp);
-    perror("execvpe");
+    if (ENOENT == errno){
+		fprintf(stderr, "ERROR: could not find %s in env PATH which is set to %s", argv[0], getenv("PATH"));
+	}
+	else{
+		fprintf(stderr, "ERROR: error running %s: %s", argv[0], strerror(errno));
+	}
 
 error:
     exit(255);
