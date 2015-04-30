@@ -13,6 +13,40 @@ function mountOnTmpfs()
 	echo /tmp$original
 }
 
+function prepareBtrfs()
+{
+    apt-get update
+    apt-get install -y asciidoc xmlto --no-install-recommends
+    apt-get install -y pkg-config autoconf
+    apt-get build-dep -y btrfs-tools
+    mkdir -p $HOME/btrfs
+    pushd $HOME/btrfs
+        git clone git://git.kernel.org/pub/scm/linux/kernel/git/kdave/btrfs-progs.git
+        cd btrfs-progs
+        ./autogen.sh
+        ./configure
+        make
+        make install
+    popd
+}
+
+function mountBtrfs()
+{
+    dd if=/dev/zero of=/opt/dev0-backstore bs=1M count=3000
+    mknod /dev/fake-dev0 b 7 200
+    losetup /dev/fake-dev0 /opt/dev0-backstore || return
+    mkfs.btrfs /opt/dev0-backstore
+    rm -fr /tmp
+    mkdir /tmp
+    mount -t btrfs /dev/fake-dev0 /tmp
+}
+
+if [ ! -f /usr/include/btrfs/version.h ]
+then
+    prepareBtrfs
+    mountBtrfs || true # does not work on concourse
+fi
+
 export GARDEN_TEST_ROOTFS=$(mountOnTmpfs /opt/warden/rootfs)
 
 [ -d /opt/warden/nestable-rootfs ] && export GARDEN_NESTABLE_TEST_ROOTFS=$(mountOnTmpfs /opt/warden/nestable-rootfs)

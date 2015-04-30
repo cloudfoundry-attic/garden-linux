@@ -14,6 +14,7 @@ import (
 
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/docker/docker/daemon/graphdriver"
+	_ "github.com/docker/docker/daemon/graphdriver/btrfs"
 	_ "github.com/docker/docker/daemon/graphdriver/vfs"
 	"github.com/docker/docker/graph"
 	"github.com/docker/docker/registry"
