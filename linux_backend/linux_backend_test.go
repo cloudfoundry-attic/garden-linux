@@ -531,7 +531,7 @@ var _ = Describe("LinuxBackend", func() {
 						},
 					},
 					container2.Handle(): garden.ContainerInfoEntry{
-						Err: errors.New("Oh no!"),
+						Err: garden.NewError("Oh no!"),
 					},
 				}))
 			})
@@ -623,7 +623,7 @@ var _ = Describe("LinuxBackend", func() {
 						},
 					},
 					container2.Handle(): garden.ContainerMetricsEntry{
-						Err: errors.New("Oh no!"),
+						Err: garden.NewError("Oh no!"),
 					},
 				}))
 			})
