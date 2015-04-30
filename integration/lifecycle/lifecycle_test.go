@@ -602,27 +602,6 @@ var _ = Describe("Creating a container", func() {
 				}
 			})
 
-			Context("with a memory limit", func() {
-				JustBeforeEach(func() {
-					err := container.LimitMemory(garden.MemoryLimits{
-						LimitInBytes: 64 * 1024 * 1024,
-					})
-					Expect(err).ToNot(HaveOccurred())
-				})
-
-				Context("when the process writes too much to /dev/shm", func() {
-					It("is killed", func() {
-						process, err := container.Run(garden.ProcessSpec{
-							Path: "dd",
-							Args: []string{"if=/dev/urandom", "of=/dev/shm/too-big", "bs=1M", "count=65"},
-						}, garden.ProcessIO{})
-						Expect(err).ToNot(HaveOccurred())
-
-						Expect(process.Wait()).ToNot(Equal(0))
-					})
-				})
-			})
-
 			Context("with a tty", func() {
 				It("executes the process with a raw tty with the given window size", func() {
 					stdout := gbytes.NewBuffer()
