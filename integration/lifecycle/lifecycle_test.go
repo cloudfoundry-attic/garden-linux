@@ -298,7 +298,22 @@ var _ = Describe("Creating a container", func() {
 		})
 
 		Context("and running a process", func() {
-			It("runs as the vcap user by default", func() {
+			It("fails to run with a proper message if a the given process is not found in $PATH", func() {
+				stderr := gbytes.NewBuffer()
+
+				process, err := container.Run(garden.ProcessSpec{
+					Path: "asdf",
+					Env:  []string{"PATH=/usr/sbin:/usr/bin:/sbin:/bin"},
+				}, garden.ProcessIO{
+					Stderr: stderr,
+				})
+
+				Expect(err).ToNot(HaveOccurred())
+				Eventually(stderr).Should(gbytes.Say("ERROR: could not find asdf in env PATH which is set to /usr/sbin:/usr/bin:/sbin:/bin"))
+				Expect(process.Wait()).To(Equal(255))
+			})
+
+			It("and runs as the vcap user by default", func() {
 				stdout := gbytes.NewBuffer()
 
 				_, err := container.Run(garden.ProcessSpec{
