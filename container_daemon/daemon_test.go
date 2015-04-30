@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"os/user"
@@ -22,10 +21,11 @@ import (
 
 var _ = Describe("Daemon", func() {
 	var (
-		daemon   container_daemon.ContainerDaemon
-		listener *fake_listener.FakeListener
-		runner   *fake_runner.FakeRunner
-		users    *fake_user.FakeUser
+		daemon         container_daemon.ContainerDaemon
+		listener       *fake_listener.FakeListener
+		runner         *fake_runner.FakeRunner
+		exitStatusChan chan byte
+		users          *fake_user.FakeUser
 
 		userLookupError error
 	)
@@ -39,13 +39,16 @@ var _ = Describe("Daemon", func() {
 		listener = &fake_listener.FakeListener{}
 		runner = new(fake_runner.FakeRunner)
 		users = new(fake_user.FakeUser)
+		exitStatusChan = make(chan byte)
 		userLookupError = nil
 
 		users.LookupStub = func(name string) (*user.User, error) {
 			return etcPasswd[name], userLookupError
 		}
 
-		runner.WaitReturns(43, nil)
+		runner.WaitStub = func(cmd *exec.Cmd) (byte, error) {
+			return <-exitStatusChan, nil
+		}
 
 		daemon = container_daemon.ContainerDaemon{
 			Listener: listener,
@@ -105,36 +108,77 @@ var _ = Describe("Daemon", func() {
 				daemon.Run()
 			})
 
-			It("spawns a process", func() {
-				Expect(runner.StartCallCount()).To(Equal(1))
-			})
-
-			Describe("the spawned process", func() {
-				Context("when the process spec names a user which exists in /etc/passwd", func() {
-					var theExecutedCommand *exec.Cmd
-
-					JustBeforeEach(func() {
-						Expect(runner.StartCallCount()).To(Equal(1))
-						theExecutedCommand = runner.StartArgsForCall(0)
-					})
-
-					BeforeEach(func() {
-						spec.User = "another-user"
-					})
-
-					It("has the correct path and args", func() {
-						Expect(theExecutedCommand.Path).To(Equal("fishfinger"))
-						Expect(theExecutedCommand.Args).To(Equal([]string{"fishfinger", "foo", "bar"}))
-					})
-
-					It("has the correct uid", func() {
-						Expect(theExecutedCommand.SysProcAttr).ToNot(BeNil())
-						Expect(theExecutedCommand.SysProcAttr.Credential).ToNot(BeNil())
-						Expect(theExecutedCommand.SysProcAttr.Credential.Uid).To(Equal(uint32(77)))
-						Expect(theExecutedCommand.SysProcAttr.Credential.Gid).To(Equal(uint32(88)))
-					})
+			Context("when command runner succeeds", func() {
+				It("spawns a process", func() {
+					Expect(runner.StartCallCount()).To(Equal(1))
+					exitStatusChan <- 0
 				})
 
+				Describe("the spawned process", func() {
+					Context("when the process spec names a user which exists in /etc/passwd", func() {
+						var theExecutedCommand *exec.Cmd
+
+						JustBeforeEach(func() {
+							Expect(runner.StartCallCount()).To(Equal(1))
+							theExecutedCommand = runner.StartArgsForCall(0)
+						})
+
+						BeforeEach(func() {
+							spec.User = "another-user"
+						})
+
+						It("has the correct path and args", func() {
+							Expect(theExecutedCommand.Path).To(Equal("fishfinger"))
+							Expect(theExecutedCommand.Args).To(Equal([]string{"fishfinger", "foo", "bar"}))
+							exitStatusChan <- 0
+						})
+
+						It("has the correct uid", func() {
+							Expect(theExecutedCommand.SysProcAttr).ToNot(BeNil())
+							Expect(theExecutedCommand.SysProcAttr.Credential).ToNot(BeNil())
+							Expect(theExecutedCommand.SysProcAttr.Credential.Uid).To(Equal(uint32(77)))
+							Expect(theExecutedCommand.SysProcAttr.Credential.Gid).To(Equal(uint32(88)))
+							exitStatusChan <- 0
+						})
+					})
+
+				})
+
+				Context("when the process returns output", func() {
+					var cmdStdin io.Reader
+
+					BeforeEach(func() {
+						runner.StartStub = func(cmd *exec.Cmd) error {
+							cmd.Stdout.Write([]byte("Banana doo"))
+							cmd.Stderr.Write([]byte("Banana goo"))
+							cmdStdin = cmd.Stdin
+
+							return nil
+						}
+					})
+
+					It("returns the streams from the spawned process", func() {
+						Expect(checkReaderContent(handleFileHandles[1], "Banana doo")).To(BeTrue())
+						Expect(checkReaderContent(handleFileHandles[2], "Banana goo")).To(BeTrue())
+
+						handleFileHandles[0].Write([]byte("the stdin"))
+						handleFileHandles[0].Close()
+						Expect(checkReaderContent(cmdStdin, "the stdin")).To(BeTrue())
+
+						exitStatusChan <- 0
+					})
+
+					It("returns the exit status in an extra stream", func() {
+						exitStatusChan <- 43
+						b := make([]byte, 1)
+						handleFileHandles[3].Read(b)
+
+						Expect(b).To(Equal([]byte{43}))
+					})
+				})
+			})
+
+			Describe("error handling", func() {
 				Context("when the process spec names a user which exists in /etc/passwd", func() {
 					BeforeEach(func() {
 						spec.User = "not-a-user"
@@ -154,36 +198,6 @@ var _ = Describe("Daemon", func() {
 					It("returns an informative error", func() {
 						Expect(handlerError).To(MatchError("container_daemon: lookup user not-a-user: boom"))
 					})
-				})
-			})
-
-			Context("when the process returns output", func() {
-				var cmdStdin io.Reader
-
-				BeforeEach(func() {
-					runner.StartStub = func(cmd *exec.Cmd) error {
-						cmd.Stdout.Write([]byte("Banana doo"))
-						cmd.Stderr.Write([]byte("Banana goo"))
-						cmdStdin = cmd.Stdin
-
-						return nil
-					}
-				})
-
-				It("returns the streams from the spawned process", func() {
-					Expect(ioutil.ReadAll(handleFileHandles[1])).To(Equal([]byte("Banana doo")))
-					Expect(ioutil.ReadAll(handleFileHandles[2])).To(Equal([]byte("Banana goo")))
-
-					handleFileHandles[0].Write([]byte("the stdin"))
-					handleFileHandles[0].Close()
-					Expect(ioutil.ReadAll(cmdStdin)).To(Equal([]byte("the stdin")))
-				})
-
-				It("returns the exit status in an extra stream", func() {
-					b := make([]byte, 1)
-					handleFileHandles[3].Read(b)
-
-					Expect(b).To(Equal([]byte{43}))
 				})
 			})
 
@@ -227,3 +241,14 @@ var _ = Describe("Daemon", func() {
 		})
 	})
 })
+
+func checkReaderContent(reader io.Reader, content string) bool {
+	buffer := make([]byte, len(content))
+
+	_, err := io.ReadFull(reader, buffer)
+	if err != nil {
+		panic(err)
+	}
+
+	return content == string(buffer)
+}

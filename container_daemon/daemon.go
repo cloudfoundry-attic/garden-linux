@@ -50,19 +50,20 @@ func (cd *ContainerDaemon) Run() error {
 
 func (cd *ContainerDaemon) Handle(decoder *json.Decoder) ([]*os.File, error) {
 	var spec garden.ProcessSpec
-	decoder.Decode(&spec)
+	err := decoder.Decode(&spec)
+	if err != nil {
+		return nil, fmt.Errorf("container_daemon: Decode failed: %s", err)
+	}
 
 	var pipes [4]struct {
 		r *os.File
 		w *os.File
 	}
 
+	// Create four pipes for stdin, stdout, stderr, and the exit status.
 	for i := 0; i < 4; i++ {
 		pipes[i].r, pipes[i].w, _ = os.Pipe()
 	}
-
-	defer pipes[1].w.Close()
-	defer pipes[2].w.Close()
 
 	var uid, gid uint32
 	if user, err := cd.Users.Lookup(spec.User); err == nil && user != nil {
@@ -86,20 +87,44 @@ func (cd *ContainerDaemon) Handle(decoder *json.Decoder) ([]*os.File, error) {
 	cmd.Stdout = pipes[1].w
 	cmd.Stderr = pipes[2].w
 
+	stdinW := pipes[0].w
+	stdoutR := pipes[1].r
+	stderrR := pipes[2].r
+	exitStatusR := pipes[3].r
+
 	if err := cd.Runner.Start(cmd); err != nil {
 		return nil, fmt.Errorf("container_daemon: running command: %s", err)
 	}
 
-	go func(runner Runner, cmd *exec.Cmd) {
-		e, _ := runner.Wait(cmd)
-		defer pipes[3].w.Close()
+	go reportExitStatus(cd.Runner, cmd, pipes[3].w, pipes[2].w, func() {
+		pipes[0].r.Close()
+		for i := 1; i <= 3; i++ {
+			pipes[i].w.Close()
+		}
+	})
 
-		pipes[3].w.Write([]byte{e})
-	}(cd.Runner, cmd)
+	return []*os.File{stdinW, stdoutR, stderrR, exitStatusR}, nil
+}
 
-	// Hint: use goroutine to wait for process, write error code to extra fd and clean up the pipes
+const unknownExitStatus = 255
 
-	return []*os.File{pipes[0].w, pipes[1].r, pipes[2].r, pipes[3].r}, nil
+func reportExitStatus(runner Runner, cmd *exec.Cmd, exitWriter, errWriter *os.File, tidyUp func()) {
+	defer tidyUp()
+	exitStatus, err := runner.Wait(cmd)
+	if err != nil {
+		exitStatus = unknownExitStatus
+		tryToReportErrorf(errWriter, "container_daemon: Wait failed: %s", err)
+	}
+
+	_, err = exitWriter.Write([]byte{exitStatus})
+	if err != nil {
+		tryToReportErrorf(errWriter, "container_daemon: failed to Write exit status: %s", err)
+	}
+}
+
+func tryToReportErrorf(errWriter *os.File, format string, inserts ...interface{}) {
+	message := fmt.Sprintf(format, inserts)
+	errWriter.Write([]byte(message)) // Ignore error - nothing to do.
 }
 
 func (cd *ContainerDaemon) Stop() error {
