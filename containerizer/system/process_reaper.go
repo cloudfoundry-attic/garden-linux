@@ -49,7 +49,7 @@ func (p *ProcessReaper) waitOnce() {
 	wpid, err := syscall.Wait4(-1, &status, 0, &rusage)
 
 	if err != nil {
-		p.log.Error("system: process reaper wait: %s", err)
+		p.log.Error("system: process reaper wait", err)
 	}
 
 	p.mu.Lock()

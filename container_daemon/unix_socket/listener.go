@@ -74,8 +74,6 @@ func (l *Listener) Listen(ch ConnectionHandler) error {
 			}
 		}(conn.(*net.UnixConn), ch)
 	}
-
-	return nil
 }
 
 func (l *Listener) Stop() error {

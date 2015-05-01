@@ -69,8 +69,6 @@ func (ps *PipeSynchronizer) Wait(timeout time.Duration) error {
 	case <-time.After(timeout):
 		return errors.New("synchronizer wait timeout")
 	}
-
-	return nil
 }
 
 func (ps *PipeSynchronizer) IsSignalError(err error) bool {
