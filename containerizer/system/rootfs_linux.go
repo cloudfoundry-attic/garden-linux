@@ -21,29 +21,52 @@ func (r *RootFS) Enter() error {
 		return err
 	}
 
-	oldroot, _ := os.Open("/")
-	defer oldroot.Close()
+	oldroot, err := os.Open("/")
+	if err != nil {
+		return fmt.Errorf("system: failed to open old root filesystem: %s", err)
+	}
+	defer oldroot.Close() // Ignore error
 
-	rootfs, _ := os.Open(r.Root)
-	defer rootfs.Close()
+	rootfs, err := os.Open(r.Root)
+	if err != nil {
+		return fmt.Errorf("system: failed to open root filesystem: %s", err)
+	}
+	defer rootfs.Close() // Ignore error
 
-	syscall.Mount(r.Root, r.Root, "", uintptr(syscall.MS_BIND|syscall.MS_REC), "")
-	rootfs.Chdir()
-	syscall.PivotRoot(".", ".")
+	// Hack: PivotRoot requires r.Root to be a file system, so bind mount r.Root
+	// to itself so r.Root appears to be a file system.
+	if err := syscall.Mount(r.Root, r.Root, "", uintptr(syscall.MS_BIND|syscall.MS_REC), ""); err != nil {
+		return fmt.Errorf("system: failed to bind mount the root filesystem onto itself: %s", err)
+	}
 
-	oldroot.Chdir()
-	syscall.Unmount(".", syscall.MNT_DETACH)
+	if err := rootfs.Chdir(); err != nil {
+		return fmt.Errorf("system: failed to change directory into the bind mounted rootfs dir: %s", err)
+	}
 
-	rootfs.Chdir()
+	if err := syscall.PivotRoot(".", "."); err != nil {
+		return fmt.Errorf("system: failed to pivot root: %s", err)
+	}
+
+	if err := oldroot.Chdir(); err != nil {
+		return fmt.Errorf("system: failed to change directory into the old root filesystem: %s", err)
+	}
+
+	if err := syscall.Unmount(".", syscall.MNT_DETACH); err != nil {
+		return fmt.Errorf("system: failed to unmount the old root filesystem: %s", err)
+	}
+
+	if err := rootfs.Chdir(); err != nil {
+		return fmt.Errorf("system: failed to change directory into the root filesystem: %s", err)
+	}
 
 	return nil
 }
 
 func checkDirectory(dir string) error {
 	if fi, err := os.Stat(dir); err != nil {
-		return fmt.Errorf("containerizer: validate root file system: %v", err)
+		return fmt.Errorf("system: validate root file system: %v", err)
 	} else if !fi.IsDir() {
-		return fmt.Errorf("containerizer: validate root file system: %s is not a directory", dir)
+		return fmt.Errorf("system: validate root file system: %s is not a directory", dir)
 	}
 
 	return nil

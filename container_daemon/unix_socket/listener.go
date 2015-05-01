@@ -52,13 +52,13 @@ func (l *Listener) Listen(ch ConnectionHandler) error {
 		}
 
 		go func(conn *net.UnixConn, ch ConnectionHandler) {
-			defer conn.Close()
+			defer conn.Close() // Ignore error
 
 			decoder := json.NewDecoder(conn)
 
 			files, err := ch.Handle(decoder)
 			if err != nil {
-				conn.Write([]byte(err.Error()))
+				conn.Write([]byte(err.Error())) // Ignore error
 				return
 			}
 
@@ -69,7 +69,8 @@ func (l *Listener) Listen(ch ConnectionHandler) error {
 			resp := syscall.UnixRights(args...)
 			_, _, err = conn.WriteMsgUnix([]byte{}, resp, nil)
 			if err != nil {
-				// TODO: Send back the error
+				conn.Write([]byte(err.Error())) // Ignore error
+				return
 			}
 		}(conn.(*net.UnixConn), ch)
 	}

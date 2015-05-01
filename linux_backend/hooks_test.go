@@ -7,7 +7,6 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden-linux/hook"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
-	linuxBackendFakes "github.com/cloudfoundry-incubator/garden-linux/linux_backend/fakes"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 
 	"io/ioutil"
@@ -29,7 +28,6 @@ var _ = Describe("Hooks", func() {
 	var hooks hook.HookSet
 	var fakeRunner *fake_command_runner.FakeCommandRunner
 	var config process.Env
-	var fakeContainerInitializer *linuxBackendFakes.FakeContainerInitializer
 	var fakeNetworkConfigurer *networkFakes.FakeConfigurer
 
 	BeforeEach(func() {
@@ -45,13 +43,12 @@ var _ = Describe("Hooks", func() {
 			"network_container_iface": "containerIfc",
 			"bridge_iface":            "bridgeName",
 		}
-		fakeContainerInitializer = &linuxBackendFakes.FakeContainerInitializer{}
 		fakeNetworkConfigurer = &networkFakes.FakeConfigurer{}
 	})
 
 	Context("After RegisterHooks has been run", func() {
 		JustBeforeEach(func() {
-			linux_backend.RegisterHooks(hooks, fakeRunner, config, fakeContainerInitializer, fakeNetworkConfigurer)
+			linux_backend.RegisterHooks(hooks, fakeRunner, config, fakeNetworkConfigurer)
 		})
 
 		Context("Inside the host", func() {
@@ -176,90 +173,6 @@ var _ = Describe("Hooks", func() {
 						Expect(func() { hooks.Main(hook.PARENT_AFTER_CLONE) }).To(Panic())
 					})
 				})
-			})
-		})
-
-		Context("Inside the child", func() {
-
-			Context("after pivotting in to the rootfs", func() {
-				It("mounts proc", func() {
-					fakeContainerInitializer.MountProcReturns(nil)
-					Expect(func() { hooks.Main(hook.CHILD_AFTER_PIVOT) }).ToNot(Panic())
-					Expect(fakeContainerInitializer.MountProcCallCount()).To(Equal(1))
-				})
-
-				Context("when mounting proc fails", func() {
-					BeforeEach(func() {
-						fakeContainerInitializer.MountProcReturns(errors.New("oh no!"))
-					})
-
-					It("panics", func() {
-						Expect(func() { hooks.Main(hook.CHILD_AFTER_PIVOT) }).To(Panic())
-					})
-				})
-
-				It("mounts tmp", func() {
-					fakeContainerInitializer.MountTmpReturns(nil)
-					Expect(func() { hooks.Main(hook.CHILD_AFTER_PIVOT) }).ToNot(Panic())
-					Expect(fakeContainerInitializer.MountTmpCallCount()).To(Equal(1))
-				})
-
-				Context("when mounting tmp fails", func() {
-					BeforeEach(func() {
-						fakeContainerInitializer.MountTmpReturns(errors.New("oh no!"))
-					})
-
-					It("panics", func() {
-						Expect(func() { hooks.Main(hook.CHILD_AFTER_PIVOT) }).To(Panic())
-					})
-				})
-
-				It("configures the container's network correctly", func() {
-					Expect(func() { hooks.Main(hook.CHILD_AFTER_PIVOT) }).ToNot(Panic())
-
-					Expect(fakeNetworkConfigurer.ConfigureContainerCallCount()).To(Equal(1))
-
-					networkConfig := fakeNetworkConfigurer.ConfigureContainerArgsForCall(0)
-					Expect(networkConfig.Hostname).To(Equal("someID"))
-					Expect(networkConfig.ContainerIntf).To(Equal("containerIfc"))
-					Expect(networkConfig.ContainerIP).To(Equal(net.ParseIP("1.6.6.6")))
-					Expect(networkConfig.GatewayIP).To(Equal(net.ParseIP("1.2.3.5")))
-
-					_, expectedSubnet, _ := net.ParseCIDR("1.2.3.4/8")
-					Expect(networkConfig.Subnet).To(Equal(expectedSubnet))
-					Expect(networkConfig.Mtu).To(Equal(5000))
-				})
-
-				Context("when the network configurer returns an error", func() {
-					BeforeEach(func() {
-						fakeNetworkConfigurer.ConfigureContainerReturns(errors.New("oh no!"))
-					})
-
-					It("panics", func() {
-						Expect(func() { hooks.Main(hook.CHILD_AFTER_PIVOT) }).To(Panic())
-					})
-				})
-
-				Context("when the network CIDR is badly formatted", func() {
-					BeforeEach(func() {
-						config["network_cidr"] = "1.2.3.4/8/9"
-					})
-
-					It("panics", func() {
-						Expect(func() { hooks.Main(hook.CHILD_AFTER_PIVOT) }).To(Panic())
-					})
-				})
-
-				Context("when the MTU is invalid", func() {
-					BeforeEach(func() {
-						config["container_iface_mtu"] = "x"
-					})
-
-					It("panics", func() {
-						Expect(func() { hooks.Main(hook.CHILD_AFTER_PIVOT) }).To(Panic())
-					})
-				})
-
 			})
 		})
 	})

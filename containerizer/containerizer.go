@@ -75,7 +75,11 @@ func (c *Containerizer) Create() error {
 	}
 
 	// Temporary until we merge the hook scripts functionality in Golang
-	os.Setenv("PID", strconv.Itoa(pid))
+	err = os.Setenv("PID", strconv.Itoa(pid))
+	if err != nil {
+		return fmt.Errorf("containerizer: failed to set PID env var: %s", err)
+	}
+
 	cmd = exec.Command(path.Join(c.LibPath, "hook"), "parent-after-clone")
 	if err := c.CommandRunner.Run(cmd); err != nil {
 		return fmt.Errorf("containerizer: run `parent-after-clone`: %s", err)
@@ -94,42 +98,39 @@ func (c *Containerizer) Create() error {
 
 func (c *Containerizer) Run() error {
 	if err := c.Waiter.Wait(timeout); err != nil {
-		err = fmt.Errorf("containerizer: wait for host: %s", err)
-		c.Signaller.SignalError(err)
-		return err
+		return c.signalErrorf("containerizer: wait for host: %s", err)
 	}
 
 	if err := c.Daemon.Init(); err != nil {
-		err = fmt.Errorf("containerizer: initialize daemon: %s", err)
-		c.Signaller.SignalError(err)
-		return err
+		return c.signalErrorf("containerizer: initialize daemon: %s", err)
 	}
 
 	if err := c.RootFS.Enter(); err != nil {
-		err = fmt.Errorf("containerizer: enter root fs: %s", err)
-		c.Signaller.SignalError(err)
-		return err
+		return c.signalErrorf("containerizer: enter root fs: %s", err)
 	}
 
 	// TODO: TTY stuff (ptmx)
 
 	if err := c.Initializer.Init(); err != nil {
-		err = fmt.Errorf("containerizer: initializing the container: %s", err)
-		c.Signaller.SignalError(err)
-		return err
+		return c.signalErrorf("containerizer: initializing the container: %s", err)
 	}
 
 	if err := c.Signaller.SignalSuccess(); err != nil {
-		err = fmt.Errorf("containerizer: signal host: %s", err)
-		c.Signaller.SignalError(err)
-		return err
+		return c.signalErrorf("containerizer: signal host: %s", err)
 	}
 
 	if err := c.Daemon.Run(); err != nil {
-		err = fmt.Errorf("containerizer: run daemon: %s", err)
-		c.Signaller.SignalError(err)
-		return err
+		return c.signalErrorf("containerizer: run daemon: %s", err)
 	}
 
 	return nil
+}
+
+func (c *Containerizer) signalErrorf(format string, err error) error {
+	err = fmt.Errorf(format, err)
+
+	if signalErr := c.Signaller.SignalError(err); signalErr != nil {
+		err = fmt.Errorf("containerizer: signal error: %s (while signalling %s)", signalErr, err)
+	}
+	return err
 }

@@ -25,7 +25,7 @@ func main() {
 	extraArgs := flag.Args()
 	if len(extraArgs) == 0 {
 		fmt.Fprintf(os.Stderr, "Command name not provided.")
-		os.Exit(255)
+		os.Exit(container_daemon.UnknownExitStatus)
 	}
 
 	processSpec := &garden.ProcessSpec{
@@ -49,13 +49,13 @@ func main() {
 	proc, err := container_daemon.NewProcess(connector, processSpec, processIO)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Starting process: %s", err)
-		os.Exit(255)
+		os.Exit(container_daemon.UnknownExitStatus)
 	}
 
 	exitCode, err := proc.Wait()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Waiting for process to complete: %s", err)
-		os.Exit(255)
+		os.Exit(container_daemon.UnknownExitStatus)
 	}
 
 	os.Exit(exitCode)

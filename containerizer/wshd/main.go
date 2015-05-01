@@ -29,7 +29,11 @@ func main() {
 		missing("--root")
 	}
 
-	binPath, _ := filepath.Abs(filepath.Dir(os.Args[0]))
+	binPath, err := filepath.Abs(filepath.Dir(os.Args[0]))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "wshd: failed to obtain absolute path: %s", err)
+		os.Exit(6)
+	}
 
 	socketPath := path.Join(*runPath, "wshd.sock")
 
@@ -38,8 +42,17 @@ func main() {
 		privileged = true
 	}
 
-	containerReader, hostWriter, _ := os.Pipe()
-	hostReader, containerWriter, _ := os.Pipe()
+	containerReader, hostWriter, err := os.Pipe()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "wshd: failed to create pipe: %s", err)
+		os.Exit(5)
+	}
+
+	hostReader, containerWriter, err := os.Pipe()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "wshd: failed to create pipe: %s", err)
+		os.Exit(4)
+	}
 
 	sync := &containerizer.PipeSynchronizer{
 		Reader: hostReader,
@@ -48,7 +61,12 @@ func main() {
 
 	runtime.LockOSThread()
 
-	env, _ := process.EnvFromFile(path.Join(*libPath, "../etc/config"))
+	env, err := process.EnvFromFile(path.Join(*libPath, "../etc/config"))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "wshd: failed to read env from config file: %s", err)
+		os.Exit(3)
+	}
+
 	enterCgroups(env["id"])
 
 	cz := containerizer.Containerizer{
@@ -70,7 +88,7 @@ func main() {
 		LibPath:       *libPath,
 	}
 
-	err := cz.Create()
+	err = cz.Create()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create container: %s", err)
 		os.Exit(2)

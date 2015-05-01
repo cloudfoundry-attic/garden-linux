@@ -62,7 +62,10 @@ func (cd *ContainerDaemon) Handle(decoder *json.Decoder) ([]*os.File, error) {
 
 	// Create four pipes for stdin, stdout, stderr, and the exit status.
 	for i := 0; i < 4; i++ {
-		pipes[i].r, pipes[i].w, _ = os.Pipe()
+		pipes[i].r, pipes[i].w, err = os.Pipe()
+		if err != nil {
+			return nil, fmt.Errorf("container_daemon: Failed to create pipe: %s", err)
+		}
 	}
 
 	var uid, gid uint32
@@ -97,22 +100,20 @@ func (cd *ContainerDaemon) Handle(decoder *json.Decoder) ([]*os.File, error) {
 	}
 
 	go reportExitStatus(cd.Runner, cmd, pipes[3].w, pipes[2].w, func() {
-		pipes[0].r.Close()
+		pipes[0].r.Close() // Ignore error
 		for i := 1; i <= 3; i++ {
-			pipes[i].w.Close()
+			pipes[i].w.Close() // Ignore error
 		}
 	})
 
 	return []*os.File{stdinW, stdoutR, stderrR, exitStatusR}, nil
 }
 
-const unknownExitStatus = 255
-
 func reportExitStatus(runner Runner, cmd *exec.Cmd, exitWriter, errWriter *os.File, tidyUp func()) {
 	defer tidyUp()
 	exitStatus, err := runner.Wait(cmd)
 	if err != nil {
-		exitStatus = unknownExitStatus
+		exitStatus = UnknownExitStatus
 		tryToReportErrorf(errWriter, "container_daemon: Wait failed: %s", err)
 	}
 

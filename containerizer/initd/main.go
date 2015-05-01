@@ -38,7 +38,11 @@ func main() {
 		Writer: os.NewFile(uintptr(4), "/dev/d"),
 	}
 
-	env, _ := process.EnvFromFile(*configFilePath)
+	env, err := process.EnvFromFile(*configFilePath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "initd: failed to get env from config file: %s\n", err)
+		os.Exit(2)
+	}
 
 	reaper := system.StartReaper(logger)
 	defer reaper.Stop()
@@ -83,15 +87,15 @@ func main() {
 		Signaller:   sync,
 	}
 
-	err := containerizer.Run()
+	err = containerizer.Run()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to run containerizer: %s\n", err)
+		fmt.Fprintf(os.Stderr, "initd: failed to run containerizer: %s\n", err)
 		os.Exit(2)
 	}
 }
 
 func missing(flagName string) {
-	fmt.Fprintf(os.Stderr, "%s is required\n", flagName)
+	fmt.Fprintf(os.Stderr, "initd: %s is required\n", flagName)
 	flag.Usage()
 	os.Exit(1)
 }
@@ -99,12 +103,12 @@ func missing(flagName string) {
 func setupNetwork(env process.Env) error {
 	_, ipNet, err := net.ParseCIDR(env["network_cidr"])
 	if err != nil {
-		return err
+		return fmt.Errorf("initd: failed to parse network CIDR: %s", err)
 	}
 
 	mtu, err := strconv.ParseInt(env["container_iface_mtu"], 0, 64)
 	if err != nil {
-		return err
+		return fmt.Errorf("initd: failed to parse container interface MTU: %s", err)
 	}
 
 	logger, _ := cf_lager.New("hook")
@@ -118,7 +122,7 @@ func setupNetwork(env process.Env) error {
 		Mtu:           int(mtu),
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("initd: failed to configure container network: %s", err)
 	}
 
 	return nil

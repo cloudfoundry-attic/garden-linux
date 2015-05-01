@@ -18,10 +18,17 @@ func (c *Connector) Connect(msg interface{}) ([]io.ReadWriteCloser, error) {
 	if err != nil {
 		return nil, fmt.Errorf("unix_socket: connect to server socket: %s", err)
 	}
-	defer conn.Close()
+	defer conn.Close() // Ignore error
 
-	msgJson, _ := json.Marshal(msg)
-	conn.Write(msgJson)
+	msgJson, err := json.Marshal(msg)
+	if err != nil {
+		return nil, fmt.Errorf("unix_socket: failed to marshal json message: %s", err)
+	}
+
+	_, err = conn.Write(msgJson)
+	if err != nil {
+		return nil, fmt.Errorf("unix_socket: failed to write to connection: %s", err)
+	}
 
 	var b [2048]byte
 	var oob [2048]byte

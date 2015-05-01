@@ -6,6 +6,8 @@ import (
 	"os/exec"
 	"syscall"
 
+	"fmt"
+
 	"github.com/cloudfoundry/gunk/command_runner"
 )
 
@@ -49,7 +51,9 @@ func (e *NamespacingExecer) Exec(binPath string, args ...string) (int, error) {
 	cmd.SysProcAttr.Cloneflags = uintptr(flags)
 	cmd.ExtraFiles = e.ExtraFiles
 
-	e.CommandRunner.Start(cmd)
+	if err := e.CommandRunner.Start(cmd); err != nil {
+		return 0, fmt.Errorf("system: failed to start the supplied command: %s", err)
+	}
 
 	return cmd.Process.Pid, nil
 }
