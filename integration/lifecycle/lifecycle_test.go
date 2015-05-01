@@ -721,6 +721,22 @@ var _ = Describe("Creating a container", func() {
 				})
 			})
 
+			Context("with a working directory that does not exist", func() {
+				It("changing to given directory fails, process returns with exit status 255 and provides proper error message in stderr", func() {
+					stderr := gbytes.NewBuffer()
+
+					process, err := container.Run(garden.ProcessSpec{
+						Path: "sh",
+						Dir:  "/asdf",
+					}, garden.ProcessIO{
+						Stderr: stderr,
+					})
+					Expect(err).ToNot(HaveOccurred())
+					Eventually(stderr).Should(gbytes.Say("ERROR: failed to change directory to /asdf: No such file or directory"))
+					Expect(process.Wait()).To(Equal(255))
+				})
+			})
+
 			Context("and then attaching to it", func() {
 				It("streams output and the exit status to the attached request", func(done Done) {
 					stdout1 := gbytes.NewBuffer()

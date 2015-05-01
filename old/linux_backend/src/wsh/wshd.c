@@ -376,7 +376,7 @@ int child_fork(msg_request_t *req, int in, int out, int err) {
     if (strlen(req->dir.path)) {
       rv = chdir(req->dir.path);
       if (rv == -1) {
-        perror("chdir");
+        fprintf(stderr, "ERROR: failed to change directory to %s: %s", req->dir.path, strerror(errno));
         goto error;
       }
     }
