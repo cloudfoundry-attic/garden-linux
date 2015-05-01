@@ -16,6 +16,7 @@ import (
 	"github.com/cloudfoundry/gunk/localip"
 	"github.com/docker/docker/daemon/graphdriver"
 	_ "github.com/docker/docker/daemon/graphdriver/btrfs"
+	_ "github.com/docker/docker/daemon/graphdriver/vfs"
 	"github.com/docker/docker/graph"
 	"github.com/docker/docker/registry"
 	"github.com/pivotal-golang/clock"
