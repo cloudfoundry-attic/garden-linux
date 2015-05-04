@@ -333,7 +333,7 @@ int child_fork(msg_request_t *req, int in, int out, int err) {
 
     pw = getpwnam(user);
     if (pw == NULL) {
-      perror("getpwnam");
+      fprintf(stderr, "ERROR: user %s does not exist", req->user.name);
       goto error;
     }
 

@@ -311,6 +311,21 @@ var _ = Describe("Creating a container", func() {
 				Eventually(stdout).Should(gbytes.Say("vcap\n"))
 			})
 
+			It("and fails with a proper message if a username is given which does not exist", func() {
+				stderr := gbytes.NewBuffer()
+
+				process, err := container.Run(garden.ProcessSpec{
+					Path: "ls",
+					User: "asdf",
+				}, garden.ProcessIO{
+					Stderr: stderr,
+				})
+
+				Expect(err).ToNot(HaveOccurred())
+				Eventually(stderr).Should(gbytes.Say("ERROR: user asdf does not exist"))
+				Expect(process.Wait()).To(Equal(255))
+			})
+
 			Context("when root is requested", func() {
 				It("runs as root inside the container", func() {
 					stdout := gbytes.NewBuffer()
