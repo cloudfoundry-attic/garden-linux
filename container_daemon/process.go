@@ -17,11 +17,11 @@ type Process struct {
 
 //go:generate counterfeiter -o fake_connector/FakeConnector.go . Connector
 type Connector interface {
-	Connect(msg interface{}) ([]io.ReadWriteCloser, error)
+	Connect(msg interface{}) ([]io.ReadWriteCloser, int, error)
 }
 
 func NewProcess(connector Connector, processSpec *garden.ProcessSpec, processIO *garden.ProcessIO) (*Process, error) {
-	fds, err := connector.Connect(processSpec)
+	fds, pid, err := connector.Connect(processSpec)
 	if err != nil {
 		return nil, fmt.Errorf("container_daemon: connect to socket: %s", err)
 	}
@@ -52,7 +52,7 @@ func NewProcess(connector Connector, processSpec *garden.ProcessSpec, processIO 
 		exitChan <- int(b[0])
 	}(fds[3], exitChan, processIO)
 
-	return &Process{exitCode: exitChan}, nil
+	return &Process{pid: pid, exitCode: exitChan}, nil
 }
 
 func (p *Process) Pid() int {

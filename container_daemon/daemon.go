@@ -52,11 +52,11 @@ func (cd *ContainerDaemon) Run() error {
 	return nil
 }
 
-func (cd *ContainerDaemon) Handle(decoder *json.Decoder) ([]*os.File, error) {
+func (cd *ContainerDaemon) Handle(decoder *json.Decoder) ([]*os.File, int, error) {
 	var spec garden.ProcessSpec
 	err := decoder.Decode(&spec)
 	if err != nil {
-		return nil, fmt.Errorf("container_daemon: Decode failed: %s", err)
+		return nil, 0, fmt.Errorf("container_daemon: Decode failed: %s", err)
 	}
 
 	var pipes [4]struct {
@@ -68,7 +68,7 @@ func (cd *ContainerDaemon) Handle(decoder *json.Decoder) ([]*os.File, error) {
 	for i := 0; i < 4; i++ {
 		pipes[i].r, pipes[i].w, err = os.Pipe()
 		if err != nil {
-			return nil, fmt.Errorf("container_daemon: Failed to create pipe: %s", err)
+			return nil, 0, fmt.Errorf("container_daemon: Failed to create pipe: %s", err)
 		}
 	}
 
@@ -79,9 +79,9 @@ func (cd *ContainerDaemon) Handle(decoder *json.Decoder) ([]*os.File, error) {
 		spec.Env = append(spec.Env, "USER="+spec.User)
 		spec.Env = append(spec.Env, "HOME="+user.HomeDir)
 	} else if err == nil {
-		return nil, fmt.Errorf("container_daemon: failed to lookup user %s", spec.User)
+		return nil, 0, fmt.Errorf("container_daemon: failed to lookup user %s", spec.User)
 	} else {
-		return nil, fmt.Errorf("container_daemon: lookup user %s: %s", spec.User, err)
+		return nil, 0, fmt.Errorf("container_daemon: lookup user %s: %s", spec.User, err)
 	}
 
 	hasPath := false
@@ -121,7 +121,7 @@ func (cd *ContainerDaemon) Handle(decoder *json.Decoder) ([]*os.File, error) {
 	exitStatusR := pipes[3].r
 
 	if err := cd.Runner.Start(cmd); err != nil {
-		return nil, fmt.Errorf("container_daemon: running command: %s", err)
+		return nil, 0, fmt.Errorf("container_daemon: running command: %s", err)
 	}
 
 	go reportExitStatus(cd.Runner, cmd, pipes[3].w, pipes[2].w, func() {
@@ -131,7 +131,7 @@ func (cd *ContainerDaemon) Handle(decoder *json.Decoder) ([]*os.File, error) {
 		}
 	})
 
-	return []*os.File{stdinW, stdoutR, stderrR, exitStatusR}, nil
+	return []*os.File{stdinW, stdoutR, stderrR, exitStatusR}, cmd.Process.Pid, nil
 }
 
 func reportExitStatus(runner Runner, cmd *exec.Cmd, exitWriter, errWriter *os.File, tidyUp func()) {

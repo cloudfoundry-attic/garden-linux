@@ -12,7 +12,7 @@ import (
 
 //go:generate counterfeiter -o fake_connection_handler/FakeConnectionHandler.go . ConnectionHandler
 type ConnectionHandler interface {
-	Handle(decoder *json.Decoder) ([]*os.File, error)
+	Handle(decoder *json.Decoder) ([]*os.File, int, error)
 }
 
 type Listener struct {
@@ -20,6 +20,11 @@ type Listener struct {
 	runningMutex sync.RWMutex
 	running      bool
 	listener     net.Listener
+}
+
+type Response struct {
+	ErrMessage string
+	Pid        int
 }
 
 // This method should be called from the host namespace, to open the socket file in the right file system.
@@ -56,24 +61,31 @@ func (l *Listener) Listen(ch ConnectionHandler) error {
 
 			decoder := json.NewDecoder(conn)
 
-			files, err := ch.Handle(decoder)
-			if err != nil {
-				conn.Write([]byte(err.Error())) // Ignore error
-				return
-			}
-
-			args := make([]int, len(files))
-			for i, f := range files {
-				args[i] = int(f.Fd())
-			}
-			resp := syscall.UnixRights(args...)
-			_, _, err = conn.WriteMsgUnix([]byte{}, resp, nil)
-			if err != nil {
-				conn.Write([]byte(err.Error())) // Ignore error
-				return
-			}
+			files, pid, err := ch.Handle(decoder)
+			writeData(conn, files, pid, err)
 		}(conn.(*net.UnixConn), ch)
 	}
+}
+
+func writeData(conn *net.UnixConn, files []*os.File, pid int, responseErr error) {
+	var errMsg string = ""
+	if responseErr != nil {
+		errMsg = responseErr.Error()
+	}
+	response := &Response{
+		Pid:        pid,
+		ErrMessage: errMsg,
+	}
+
+	responseJson, _ := json.Marshal(response) // Ignore error
+
+	args := make([]int, len(files))
+	for i, f := range files {
+		args[i] = int(f.Fd())
+	}
+	resp := syscall.UnixRights(args...)
+
+	conn.WriteMsgUnix(responseJson, resp, nil) // Ignore error
 }
 
 func (l *Listener) Stop() error {

@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"sync"
 
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket/fake_connection_handler"
@@ -19,8 +20,9 @@ var _ = Describe("Unix socket", func() {
 		connector         *unix_socket.Connector
 		connectionHandler *fake_connection_handler.FakeConnectionHandler
 		socketPath        string
-
-		sentError error
+		sentPid           int
+		sentError         error
+		sentErrorMutex    sync.Mutex
 	)
 
 	BeforeEach(func() {
@@ -28,7 +30,10 @@ var _ = Describe("Unix socket", func() {
 		Expect(err).ToNot(HaveOccurred())
 		socketPath = path.Join(tmpDir, "the_socket_file.sock")
 
+		sentErrorMutex.Lock()
+		defer sentErrorMutex.Unlock()
 		sentError = nil
+		sentPid = 0
 		connectionHandler = &fake_connection_handler.FakeConnectionHandler{}
 	})
 
@@ -65,17 +70,21 @@ var _ = Describe("Unix socket", func() {
 		})
 	})
 
-	PDescribe("Listener.Stop", func() {})
+	PDescribe("Listener.Stop", func() {
+		It("should ", func() {
+
+		})
+	})
 
 	Describe("Connect", func() {
 		Context("when the server is not running", func() {
 			It("fails to connect", func() {
-				_, err := connector.Connect(nil)
+				_, _, err := connector.Connect(nil)
 				Expect(err).To(MatchError(ContainSubstring("unix_socket: connect to server socket")))
 			})
 		})
 
-		FContext("when the server is running", func() {
+		Context("when the server is running", func() {
 			var recvMsg map[string]string
 			var sentFiles []*os.File
 			var stubDone chan bool
@@ -86,16 +95,19 @@ var _ = Describe("Unix socket", func() {
 				f1, _ := ioutil.TempFile("", "")
 				f2, _ := ioutil.TempFile("", "")
 				sentFiles = []*os.File{f1, f2}
+				sentPid = 123
 
 				stubDone = make(chan bool, 1)
 
-				connectionHandler.HandleStub = func(decoder *json.Decoder) ([]*os.File, error) {
+				connectionHandler.HandleStub = func(decoder *json.Decoder) ([]*os.File, int, error) {
 					defer GinkgoRecover()
 					err := decoder.Decode(&recvMsg)
 					Expect(err).ToNot(HaveOccurred())
 					stubDone <- true
 
-					return sentFiles, sentError
+					sentErrorMutex.Lock()
+					defer sentErrorMutex.Unlock()
+					return sentFiles, sentPid, sentError
 				}
 
 				go listener.Listen(connectionHandler)
@@ -107,7 +119,7 @@ var _ = Describe("Unix socket", func() {
 
 			It("calls the handler with the sent message", func() {
 				sentMsg := map[string]string{"fruit": "apple"}
-				_, err := connector.Connect(sentMsg)
+				_, _, err := connector.Connect(sentMsg)
 				Expect(err).ToNot(HaveOccurred())
 
 				Eventually(stubDone).Should(Receive())
@@ -116,7 +128,7 @@ var _ = Describe("Unix socket", func() {
 
 			It("gets back the stream the handler provided", func() {
 				sentMsg := map[string]string{"fruit": "apple"}
-				streams, err := connector.Connect(sentMsg)
+				streams, _, err := connector.Connect(sentMsg)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(stubDone).To(Receive())
@@ -133,14 +145,25 @@ var _ = Describe("Unix socket", func() {
 				Expect(ioutil.ReadAll(streams[1])).Should(Equal([]byte("brocoli brocoli")))
 			})
 
+			It("gets back the pid the handler provided", func() {
+				sentMsg := map[string]string{"fruit": "apple"}
+				_, pid, err := connector.Connect(sentMsg)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(stubDone).To(Receive())
+				Expect(pid).To(Equal(sentPid))
+			})
+
 			Context("when the handler fails", func() {
 				BeforeEach(func() {
+					sentErrorMutex.Lock()
+					defer sentErrorMutex.Unlock()
 					sentError = errors.New("no cake")
 				})
 
-				FIt("sends back the error from the handler", func() {
+				It("sends back the error from the handler", func() {
 					sentMsg := map[string]string{"fruit": "apple"}
-					_, err := connector.Connect(sentMsg)
+					_, _, err := connector.Connect(sentMsg)
 					Expect(err).To(MatchError("no cake"))
 				})
 			})

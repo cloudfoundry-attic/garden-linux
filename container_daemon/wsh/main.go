@@ -53,6 +53,8 @@ func main() {
 		os.Exit(container_daemon.UnknownExitStatus)
 	}
 
+	// write proc.Pid() to pidfile
+
 	exitCode, err := proc.Wait()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Waiting for process to complete: %s", err)
