@@ -289,14 +289,14 @@ func Main() {
 
 	rootFSNamespacer := &rootfs_provider.UidNamespacer{
 		Logger: logger,
-		Copier: &rootfs_provider.ShellOutCp{},
 		Translator: rootfs_provider.NewUidTranslator(
 			uidMappings,
 			uidMappings,
 		).Translate,
 	}
 
-	dockerRootFSProvider, err := rootfs_provider.NewDocker(repoFetcher, graphDriver, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock())
+	copier := &rootfs_provider.ShellOutCp{}
+	dockerRootFSProvider, err := rootfs_provider.NewDocker(repoFetcher, graphDriver, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, copier, clock.NewClock())
 	if err != nil {
 		logger.Fatal("failed-to-construct-docker-rootfs-provider", err)
 	}

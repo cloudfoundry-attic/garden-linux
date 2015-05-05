@@ -6,6 +6,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden-linux/old/repository_fetcher/fake_repository_fetcher"
 	. "github.com/cloudfoundry-incubator/garden-linux/old/rootfs_provider"
+	"github.com/cloudfoundry-incubator/garden-linux/old/rootfs_provider/fake_copier"
 	"github.com/cloudfoundry-incubator/garden-linux/old/rootfs_provider/fake_graph_driver"
 	"github.com/cloudfoundry-incubator/garden-linux/old/rootfs_provider/fake_namespacer"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
@@ -37,6 +38,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 		fakeGraphDriver       *fake_graph_driver.FakeGraphDriver
 		fakeNamespacer        *fake_namespacer.FakeNamespacer
 		fakeVolumeCreator     *FakeVolumeCreator
+		fakeCopier            *fake_copier.FakeCopier
 		fakeClock             *fakeclock.FakeClock
 
 		provider RootFSProvider
@@ -49,6 +51,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 		fakeGraphDriver = &fake_graph_driver.FakeGraphDriver{}
 		fakeVolumeCreator = &FakeVolumeCreator{}
 		fakeNamespacer = &fake_namespacer.FakeNamespacer{}
+		fakeCopier = new(fake_copier.FakeCopier)
 		fakeClock = fakeclock.NewFakeClock(time.Now())
 
 		var err error
@@ -57,6 +60,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 			fakeGraphDriver,
 			fakeVolumeCreator,
 			fakeNamespacer,
+			fakeCopier,
 			fakeClock,
 		)
 		Expect(err).ToNot(HaveOccurred())
@@ -136,7 +140,12 @@ var _ = Describe("DockerRootFSProvider", func() {
 					Expect(parent).To(Equal("some-image-id@namespaced"))
 
 					Expect(fakeNamespacer.NamespaceCallCount()).To(Equal(1))
-					src, dst := fakeNamespacer.NamespaceArgsForCall(0)
+					dst := fakeNamespacer.NamespaceArgsForCall(0)
+					Expect(dst).To(Equal("/mount/point/some-image-id@namespaced"))
+
+					// for aufs, need to copy rather than just layering
+					Expect(fakeCopier.CopyCallCount()).To(Equal(1))
+					src, dst := fakeCopier.CopyArgsForCall(0)
 					Expect(src).To(Equal("/mount/point/some-image-id"))
 					Expect(dst).To(Equal("/mount/point/some-image-id@namespaced"))
 
@@ -148,10 +157,26 @@ var _ = Describe("DockerRootFSProvider", func() {
 						},
 					))
 				})
+
+				Context("when the copy fails", func() {
+					BeforeEach(func() {
+						fakeCopier.CopyReturns(errors.New("copy failed!"))
+					})
+
+					It("returns the error", func() {
+						_, _, err := provider.ProvideRootFS(
+							logger,
+							"some-id",
+							parseURL("docker:///some-repository-name"),
+							true,
+						)
+						Expect(err).To(MatchError("copy failed!"))
+					})
+				})
 			})
 
 			Context("and the image has already been translated", func() {
-				It("reuses the translated layer", func() {
+				BeforeEach(func() {
 					fakeRepositoryFetcher.FetchResult = "some-image-id"
 					fakeGraphDriver.GetStub = func(id, label string) (string, error) {
 						return "/mount/point/" + id, nil
@@ -160,7 +185,9 @@ var _ = Describe("DockerRootFSProvider", func() {
 					fakeGraphDriver.ExistsStub = func(id string) bool {
 						return id == "some-image-id@namespaced"
 					}
+				})
 
+				It("reuses the translated layer", func() {
 					mountpoint, envvars, err := provider.ProvideRootFS(
 						logger,
 						"some-id",
@@ -191,8 +218,6 @@ var _ = Describe("DockerRootFSProvider", func() {
 						},
 					))
 				})
-
-				PIt("does not run namespace translation again", func() {})
 			})
 		})
 
@@ -273,6 +298,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 					fakeGraphDriver,
 					fakeVolumeCreator,
 					fakeNamespacer,
+					fakeCopier,
 					fakeClock,
 				)
 				Expect(err).ToNot(HaveOccurred())

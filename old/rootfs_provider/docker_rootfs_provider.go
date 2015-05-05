@@ -2,7 +2,9 @@ package rootfs_provider
 
 import (
 	"errors"
+	"fmt"
 	"net/url"
+	"os/exec"
 	"time"
 
 	"github.com/docker/docker/daemon/graphdriver"
@@ -18,6 +20,7 @@ type dockerRootFSProvider struct {
 	volumeCreator VolumeCreator
 	repoFetcher   repository_fetcher.RepositoryFetcher
 	namespacer    Namespacer
+	copier        Copier
 	clock         clock.Clock
 
 	fallback RootFSProvider
@@ -30,11 +33,17 @@ type GraphDriver interface {
 	graphdriver.Driver
 }
 
+//go:generate counterfeiter -o fake_copier/fake_copier.go . Copier
+type Copier interface {
+	Copy(src, dest string) error
+}
+
 func NewDocker(
 	repoFetcher repository_fetcher.RepositoryFetcher,
 	graphDriver GraphDriver,
 	volumeCreator VolumeCreator,
 	namespacer Namespacer,
+	copier Copier,
 	clock clock.Clock,
 ) (RootFSProvider, error) {
 	return &dockerRootFSProvider{
@@ -42,11 +51,12 @@ func NewDocker(
 		graphDriver:   graphDriver,
 		volumeCreator: volumeCreator,
 		namespacer:    namespacer,
+		copier:        copier,
 		clock:         clock,
 	}, nil
 }
 
-func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id string, url *url.URL, namespace bool) (string, process.Env, error) {
+func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id string, url *url.URL, shouldNamespace bool) (string, process.Env, error) {
 	if len(url.Path) == 0 {
 		return "", nil, ErrInvalidDockerURL
 	}
@@ -61,31 +71,10 @@ func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id stri
 		return "", nil, err
 	}
 
-	namespacedImageID := imageID + "@namespaced"
-	if namespace && !provider.graphDriver.Exists(namespacedImageID) {
-		originalRootfs, err := provider.graphDriver.Get(imageID, "")
-		if err != nil {
+	if shouldNamespace {
+		if imageID, err = provider.namespace(imageID); err != nil {
 			return "", nil, err
 		}
-
-		err = provider.graphDriver.Create(namespacedImageID, "") // empty layer
-		if err != nil {
-			return "", nil, err
-		}
-
-		namespacedRootfs, err := provider.graphDriver.Get(namespacedImageID, "") // path where empty layer is
-		if err != nil {
-			return "", nil, err
-		}
-
-		err = provider.namespacer.Namespace(originalRootfs, namespacedRootfs)
-		if err != nil {
-			return "", nil, err
-		}
-	}
-
-	if namespace {
-		imageID = namespacedImageID
 	}
 
 	err = provider.graphDriver.Create(id, imageID)
@@ -105,6 +94,56 @@ func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id stri
 	}
 
 	return rootPath, envvars, nil
+}
+
+func (provider *dockerRootFSProvider) namespace(imageID string) (string, error) {
+	namespacedImageID := imageID + "@namespaced"
+	if !provider.graphDriver.Exists(namespacedImageID) {
+		if err := provider.createNamespacedLayer(namespacedImageID, imageID); err != nil {
+			return "", err
+		}
+	}
+
+	return namespacedImageID, nil
+}
+
+func (provider *dockerRootFSProvider) createNamespacedLayer(id string, parentId string) error {
+	var err error
+	var path string
+	if path, err = provider.createAufsWorkaroundLayer(id, parentId); err != nil {
+		return err
+	}
+
+	return provider.namespacer.Namespace(path)
+}
+
+// aufs directory permissions dont overlay cleanly, so we create an empty layer
+// and copy the parent layer in while namespacing (rather than just creating a
+// regular overlay layer and doing the namespacing directly inside it)
+func (provider *dockerRootFSProvider) createAufsWorkaroundLayer(id, parentId string) (string, error) {
+	errs := func(err error) (string, error) {
+		return "", err
+	}
+
+	originalRootfs, err := provider.graphDriver.Get(parentId, "")
+	if err != nil {
+		return errs(err)
+	}
+
+	if err := provider.graphDriver.Create(id, ""); err != nil { // empty layer
+		return errs(err)
+	}
+
+	namespacedRootfs, err := provider.graphDriver.Get(id, "") // path where empty layer is
+	if err != nil {
+		return errs(err)
+	}
+
+	if err := provider.copier.Copy(originalRootfs, namespacedRootfs); err != nil {
+		return errs(err)
+	}
+
+	return namespacedRootfs, nil
 }
 
 func (provider *dockerRootFSProvider) CleanupRootFS(logger lager.Logger, id string) error {
@@ -128,4 +167,17 @@ func (provider *dockerRootFSProvider) CleanupRootFS(logger lager.Logger, id stri
 	}
 
 	return err
+}
+
+type ShellOutCp struct {
+	WorkDir string
+}
+
+func (s ShellOutCp) Copy(src, dest string) error {
+	cmd := exec.Command("sh", "-c", fmt.Sprintf("cp -a %s/* %s/", src, dest))
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+
+	return nil
 }

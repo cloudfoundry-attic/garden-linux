@@ -8,26 +8,24 @@ import (
 )
 
 type FakeNamespacer struct {
-	NamespaceStub        func(src, dest string) error
+	NamespaceStub        func(rootfsPath string) error
 	namespaceMutex       sync.RWMutex
 	namespaceArgsForCall []struct {
-		src  string
-		dest string
+		rootfsPath string
 	}
 	namespaceReturns struct {
 		result1 error
 	}
 }
 
-func (fake *FakeNamespacer) Namespace(src string, dest string) error {
+func (fake *FakeNamespacer) Namespace(rootfsPath string) error {
 	fake.namespaceMutex.Lock()
 	fake.namespaceArgsForCall = append(fake.namespaceArgsForCall, struct {
-		src  string
-		dest string
-	}{src, dest})
+		rootfsPath string
+	}{rootfsPath})
 	fake.namespaceMutex.Unlock()
 	if fake.NamespaceStub != nil {
-		return fake.NamespaceStub(src, dest)
+		return fake.NamespaceStub(rootfsPath)
 	} else {
 		return fake.namespaceReturns.result1
 	}
@@ -39,10 +37,10 @@ func (fake *FakeNamespacer) NamespaceCallCount() int {
 	return len(fake.namespaceArgsForCall)
 }
 
-func (fake *FakeNamespacer) NamespaceArgsForCall(i int) (string, string) {
+func (fake *FakeNamespacer) NamespaceArgsForCall(i int) string {
 	fake.namespaceMutex.RLock()
 	defer fake.namespaceMutex.RUnlock()
-	return fake.namespaceArgsForCall[i].src, fake.namespaceArgsForCall[i].dest
+	return fake.namespaceArgsForCall[i].rootfsPath
 }
 
 func (fake *FakeNamespacer) NamespaceReturns(result1 error) {
