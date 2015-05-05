@@ -100,6 +100,7 @@ var _ = Describe("Container pool", func() {
 				"":     defaultFakeRootFSProvider,
 				"fake": fakeRootFSProvider,
 			},
+			700000,
 			net.ParseIP("1.2.3.4"),
 			345,
 			fakeSubnetPool,
@@ -350,9 +351,9 @@ var _ = Describe("Container pool", func() {
 								"network_cidr_suffix=30",
 								"network_container_ip=10.2.0.1",
 								"network_host_ip=10.2.0.2",
-								"root_uid=600000",
+								"root_uid=700000",
 								"rootfs_path=/provided/rootfs/path",
-								"user_uid=701000",
+								"user_uid=710001",
 							},
 						},
 					))
@@ -407,9 +408,9 @@ var _ = Describe("Container pool", func() {
 							"network_cidr_suffix=30",
 							"network_container_ip=10.2.0.1",
 							"network_host_ip=10.2.0.2",
-							"root_uid=600000",
+							"root_uid=700000",
 							"rootfs_path=/provided/rootfs/path",
-							"user_uid=701000",
+							"user_uid=710001",
 						},
 					},
 				))
@@ -441,9 +442,9 @@ var _ = Describe("Container pool", func() {
 							"network_cidr_suffix=29",
 							"network_container_ip=10.3.0.2",
 							"network_host_ip=10.3.0.6",
-							"root_uid=600000",
+							"root_uid=700000",
 							"rootfs_path=/provided/rootfs/path",
-							"user_uid=701000",
+							"user_uid=710001",
 						},
 					},
 				))
@@ -984,7 +985,7 @@ var _ = Describe("Container pool", func() {
 		var buf *bytes.Buffer
 
 		var containerNetwork *linux_backend.Network
-		var rootUID uint32
+		var rootUID int
 		var bridgeName string
 
 		BeforeEach(func() {

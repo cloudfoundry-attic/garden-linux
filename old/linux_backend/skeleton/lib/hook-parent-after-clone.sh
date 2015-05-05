@@ -13,11 +13,11 @@ source etc/config
 if [ "$root_uid" -ne 0 ]
 then
 cat > /proc/$PID/uid_map <<EOF
-0 $root_uid 600000
+0 $root_uid 65534
 EOF
 
 cat > /proc/$PID/gid_map <<EOF
-0 $root_uid 600000
+0 $root_uid 65534
 EOF
 fi
 

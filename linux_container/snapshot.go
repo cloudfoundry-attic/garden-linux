@@ -38,8 +38,8 @@ type LimitsSnapshot struct {
 }
 
 type ResourcesSnapshot struct {
-	UserUID uint32
-	RootUID uint32
+	UserUID int
+	RootUID int
 	Network *linux_backend.Network
 	Bridge  string
 	Ports   []uint32

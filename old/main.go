@@ -114,16 +114,10 @@ var portPoolSize = flag.Uint(
 	"size of port pool used for mapped container ports",
 )
 
-var uidPoolStart = flag.Uint(
-	"uidPoolStart",
-	10000,
-	"start of per-container user ids",
-)
-
-var uidPoolSize = flag.Uint(
-	"uidPoolSize",
-	256,
-	"size of the uid pool",
+var uidMappingOffset = flag.Int(
+	"uidMappingOffset",
+	600000,
+	"start of mapped UID range for unprivileged containers (the root user in an unprivileged container will have this host uid)",
 )
 
 var networkPool = flag.String("networkPool",
@@ -287,12 +281,20 @@ func Main() {
 		),
 	}
 
+	uidMappings := rootfs_provider.MappingList{{
+		FromID: 0,
+		ToID:   *uidMappingOffset,
+		Size:   65534, // map an almost-16-bit range
+	}}
+
 	rootFSNamespacer := &rootfs_provider.UidNamespacer{
 		Logger: logger,
 		Copier: &rootfs_provider.ShellOutCp{},
 		Translator: rootfs_provider.NewUidTranslator(
-			rootfs_provider.DefaultUIDMap,
-			rootfs_provider.DefaultGIDMap).Translate}
+			uidMappings,
+			uidMappings,
+		).Translate,
+	}
 
 	dockerRootFSProvider, err := rootfs_provider.NewDocker(repoFetcher, graphDriver, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock())
 	if err != nil {
@@ -331,6 +333,7 @@ func Main() {
 		*depotPath,
 		config,
 		rootFSProviders,
+		*uidMappingOffset,
 		parsedExternalIP,
 		*mtu,
 		subnetPool,

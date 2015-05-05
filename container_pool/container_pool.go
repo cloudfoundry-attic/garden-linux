@@ -37,6 +37,8 @@ import (
 
 var ErrUnknownRootFSProvider = errors.New("unknown rootfs provider")
 
+var vcapUid int = 10001
+
 //go:generate counterfeiter -o fake_container_pool/FakeFilterProvider.go . FilterProvider
 type FilterProvider interface {
 	ProvideFilter(containerId string) network.Filter
@@ -61,7 +63,8 @@ type LinuxContainerPool struct {
 	denyNetworks  []string
 	allowNetworks []string
 
-	rootfsProviders map[string]rootfs_provider.RootFSProvider
+	rootfsProviders    map[string]rootfs_provider.RootFSProvider
+	uidNamespaceOffset int
 
 	subnetPool SubnetPool
 
@@ -87,6 +90,7 @@ func New(
 	binPath, depotPath string,
 	sysconfig sysconfig.Config,
 	rootfsProviders map[string]rootfs_provider.RootFSProvider,
+	uidNamespaceOffset int,
 	externalIP net.IP,
 	mtu int,
 	subnetPool SubnetPool,
@@ -106,7 +110,8 @@ func New(
 
 		sysconfig: sysconfig,
 
-		rootfsProviders: rootfsProviders,
+		rootfsProviders:    rootfsProviders,
+		uidNamespaceOffset: uidNamespaceOffset,
 
 		allowNetworks: allowNetworks,
 		denyNetworks:  denyNetworks,
@@ -480,13 +485,13 @@ func (p *LinuxContainerPool) acquirePoolResources(spec garden.ContainerSpec, id 
 
 func (p *LinuxContainerPool) acquireUID(resources *linux_backend.Resources, privileged bool) error {
 	if !privileged {
-		resources.UserUID = 101000 + 600000 //TODO: these should not be hard coded
-		resources.RootUID = 600000
+		resources.UserUID = vcapUid + p.uidNamespaceOffset
+		resources.RootUID = p.uidNamespaceOffset
 		return nil
 	}
 
 	resources.RootUID = 0
-	resources.UserUID = 10001
+	resources.UserUID = vcapUid
 	return nil
 }
 

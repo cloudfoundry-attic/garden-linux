@@ -35,8 +35,8 @@ func (n *Network) UnmarshalJSON(b []byte) error {
 }
 
 type Resources struct {
-	UserUID    uint32
-	RootUID    uint32
+	UserUID    int
+	RootUID    int
 	Network    *Network
 	Bridge     string
 	Ports      []uint32
@@ -46,8 +46,8 @@ type Resources struct {
 }
 
 func NewResources(
-	useruid uint32,
-	rootuid uint32,
+	useruid int,
+	rootuid int,
 	network *Network,
 	bridge string,
 	ports []uint32,

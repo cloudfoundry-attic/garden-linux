@@ -17,7 +17,7 @@ type FakeQuotaManager struct {
 
 	MountPointResult string
 
-	Limited map[uint32]garden.DiskLimits
+	Limited map[int]garden.DiskLimits
 
 	enabled bool
 
@@ -26,13 +26,13 @@ type FakeQuotaManager struct {
 
 func New() *FakeQuotaManager {
 	return &FakeQuotaManager{
-		Limited: make(map[uint32]garden.DiskLimits),
+		Limited: make(map[int]garden.DiskLimits),
 
 		enabled: true,
 	}
 }
 
-func (m *FakeQuotaManager) SetLimits(logger lager.Logger, uid uint32, limits garden.DiskLimits) error {
+func (m *FakeQuotaManager) SetLimits(logger lager.Logger, uid int, limits garden.DiskLimits) error {
 	if m.SetLimitsError != nil {
 		return m.SetLimitsError
 	}
@@ -45,7 +45,7 @@ func (m *FakeQuotaManager) SetLimits(logger lager.Logger, uid uint32, limits gar
 	return nil
 }
 
-func (m *FakeQuotaManager) GetLimits(logger lager.Logger, uid uint32) (garden.DiskLimits, error) {
+func (m *FakeQuotaManager) GetLimits(logger lager.Logger, uid int) (garden.DiskLimits, error) {
 	if m.GetLimitsError != nil {
 		return garden.DiskLimits{}, m.GetLimitsError
 	}
@@ -56,7 +56,7 @@ func (m *FakeQuotaManager) GetLimits(logger lager.Logger, uid uint32) (garden.Di
 	return m.GetLimitsResult, nil
 }
 
-func (m *FakeQuotaManager) GetUsage(logger lager.Logger, uid uint32) (garden.ContainerDiskStat, error) {
+func (m *FakeQuotaManager) GetUsage(logger lager.Logger, uid int) (garden.ContainerDiskStat, error) {
 	if m.GetUsageError != nil {
 		return garden.ContainerDiskStat{}, m.GetUsageError
 	}

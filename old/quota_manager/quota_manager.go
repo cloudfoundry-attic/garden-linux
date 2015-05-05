@@ -14,9 +14,9 @@ import (
 )
 
 type QuotaManager interface {
-	SetLimits(logger lager.Logger, uid uint32, limits garden.DiskLimits) error
-	GetLimits(logger lager.Logger, uid uint32) (garden.DiskLimits, error)
-	GetUsage(logger lager.Logger, uid uint32) (garden.ContainerDiskStat, error)
+	SetLimits(logger lager.Logger, uid int, limits garden.DiskLimits) error
+	GetLimits(logger lager.Logger, uid int) (garden.DiskLimits, error)
+	GetUsage(logger lager.Logger, uid int) (garden.ContainerDiskStat, error)
 
 	MountPoint() string
 	Disable()
@@ -49,7 +49,7 @@ func (m *LinuxQuotaManager) Disable() {
 	m.enabled = false
 }
 
-func (m *LinuxQuotaManager) SetLimits(logger lager.Logger, uid uint32, limits garden.DiskLimits) error {
+func (m *LinuxQuotaManager) SetLimits(logger lager.Logger, uid int, limits garden.DiskLimits) error {
 	if !m.enabled {
 		return nil
 	}
@@ -81,7 +81,7 @@ func (m *LinuxQuotaManager) SetLimits(logger lager.Logger, uid uint32, limits ga
 	)
 }
 
-func (m *LinuxQuotaManager) GetLimits(logger lager.Logger, uid uint32) (garden.DiskLimits, error) {
+func (m *LinuxQuotaManager) GetLimits(logger lager.Logger, uid int) (garden.DiskLimits, error) {
 	if !m.enabled {
 		return garden.DiskLimits{}, nil
 	}
@@ -130,7 +130,7 @@ func (m *LinuxQuotaManager) GetLimits(logger lager.Logger, uid uint32) (garden.D
 	return limits, err
 }
 
-func (m *LinuxQuotaManager) GetUsage(logger lager.Logger, uid uint32) (garden.ContainerDiskStat, error) {
+func (m *LinuxQuotaManager) GetUsage(logger lager.Logger, uid int) (garden.ContainerDiskStat, error) {
 	if !m.enabled {
 		return garden.ContainerDiskStat{}, nil
 	}

@@ -114,7 +114,6 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 	gardenArgs = appendDefaultFlag(gardenArgs, "--networkPool", fmt.Sprintf("10.250.%d.0/24", ginkgo.GinkgoParallelNode()))
 	gardenArgs = appendDefaultFlag(gardenArgs, "--portPoolStart", strconv.Itoa(51000+(1000*ginkgo.GinkgoParallelNode())))
 	gardenArgs = appendDefaultFlag(gardenArgs, "--portPoolSize", "1000")
-	gardenArgs = appendDefaultFlag(gardenArgs, "--uidPoolStart", strconv.Itoa(10000*ginkgo.GinkgoParallelNode()))
 	gardenArgs = appendDefaultFlag(gardenArgs, "--tag", strconv.Itoa(ginkgo.GinkgoParallelNode()))
 
 	var signal os.Signal
