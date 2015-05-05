@@ -113,7 +113,7 @@ func setupNetwork(env process.Env) error {
 	}
 
 	logger, _ := cf_lager.New("hook")
-	configurer := network.NewConfigurer(logger.Session("linux_backend: hook.CHILD_AFTER_PIVOT"))
+	configurer := network.NewConfigurer(logger.Session("initd: hook.CHILD_AFTER_PIVOT"))
 	err = configurer.ConfigureContainer(&network.ContainerConfig{
 		Hostname:      env["id"],
 		ContainerIntf: env["network_container_iface"],

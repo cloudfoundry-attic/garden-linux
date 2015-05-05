@@ -6,6 +6,9 @@ import (
 	"os/exec"
 	"strconv"
 
+	"fmt"
+	"os"
+
 	"github.com/cloudfoundry-incubator/garden-linux/hook"
 	"github.com/cloudfoundry-incubator/garden-linux/network"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
@@ -37,10 +40,11 @@ func configureHostNetwork(config process.Env, configurer network.Configurer) err
 		return err
 	}
 
-	// Temporary until PID is passed in from Go rewrite of wshd.
-	containerPid, _ := pidFromFile("../run/wshd.pid")
+	// Temporary until PID is passed in as a parameter.
+	var containerPid int
+	_, err = fmt.Sscanf(os.Getenv("PID"), "%d", &containerPid)
 	if err != nil {
-		return err
+		return fmt.Errorf("linux_backend: can't parse PID string from ENV: %v", err)
 	}
 
 	err = configurer.ConfigureHost(&network.HostConfig{

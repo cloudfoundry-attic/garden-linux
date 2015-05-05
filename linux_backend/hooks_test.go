@@ -2,18 +2,13 @@ package linux_backend_test
 
 import (
 	"errors"
-	"fmt"
 	"os/exec"
 
 	"github.com/cloudfoundry-incubator/garden-linux/hook"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 
-	"io/ioutil"
-
 	"os"
-
-	"path/filepath"
 
 	"net"
 
@@ -79,23 +74,7 @@ var _ = Describe("Hooks", func() {
 				var oldWd, testDir string
 
 				BeforeEach(func() {
-					// Write wshd.pid to a suitable temporary directory and change directory so that
-					// the PID file is in ../run.
-					var err error
-					oldWd, err = os.Getwd()
-					Expect(err).NotTo(HaveOccurred())
-
-					testDir, err = ioutil.TempDir("", "test")
-					Expect(err).NotTo(HaveOccurred())
-					runDir := filepath.Join(testDir, "run")
-					os.MkdirAll(runDir, 0755)
-
-					err = ioutil.WriteFile(filepath.Join(runDir, "wshd.pid"), []byte(fmt.Sprintf("%d\n", 99)), 0755)
-					Expect(err).NotTo(HaveOccurred())
-
-					libDir := filepath.Join(testDir, "lib")
-					os.MkdirAll(libDir, 0755)
-					os.Chdir(libDir)
+					os.Setenv("PID", "99")
 				})
 
 				AfterEach(func() {
