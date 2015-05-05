@@ -11,12 +11,13 @@ import (
 )
 
 type FakeRootFSProvider struct {
-	ProvideRootFSStub        func(logger lager.Logger, id string, rootfs *url.URL) (mountpoint string, envvar process.Env, err error)
+	ProvideRootFSStub        func(logger lager.Logger, id string, rootfs *url.URL, namespaced bool) (mountpoint string, envvar process.Env, err error)
 	provideRootFSMutex       sync.RWMutex
 	provideRootFSArgsForCall []struct {
-		logger lager.Logger
-		id     string
-		rootfs *url.URL
+		logger     lager.Logger
+		id         string
+		rootfs     *url.URL
+		namespaced bool
 	}
 	provideRootFSReturns struct {
 		result1 string
@@ -34,16 +35,17 @@ type FakeRootFSProvider struct {
 	}
 }
 
-func (fake *FakeRootFSProvider) ProvideRootFS(logger lager.Logger, id string, rootfs *url.URL) (mountpoint string, envvar process.Env, err error) {
+func (fake *FakeRootFSProvider) ProvideRootFS(logger lager.Logger, id string, rootfs *url.URL, namespaced bool) (mountpoint string, envvar process.Env, err error) {
 	fake.provideRootFSMutex.Lock()
 	fake.provideRootFSArgsForCall = append(fake.provideRootFSArgsForCall, struct {
-		logger lager.Logger
-		id     string
-		rootfs *url.URL
-	}{logger, id, rootfs})
+		logger     lager.Logger
+		id         string
+		rootfs     *url.URL
+		namespaced bool
+	}{logger, id, rootfs, namespaced})
 	fake.provideRootFSMutex.Unlock()
 	if fake.ProvideRootFSStub != nil {
-		return fake.ProvideRootFSStub(logger, id, rootfs)
+		return fake.ProvideRootFSStub(logger, id, rootfs, namespaced)
 	} else {
 		return fake.provideRootFSReturns.result1, fake.provideRootFSReturns.result2, fake.provideRootFSReturns.result3
 	}
@@ -55,10 +57,10 @@ func (fake *FakeRootFSProvider) ProvideRootFSCallCount() int {
 	return len(fake.provideRootFSArgsForCall)
 }
 
-func (fake *FakeRootFSProvider) ProvideRootFSArgsForCall(i int) (lager.Logger, string, *url.URL) {
+func (fake *FakeRootFSProvider) ProvideRootFSArgsForCall(i int) (lager.Logger, string, *url.URL, bool) {
 	fake.provideRootFSMutex.RLock()
 	defer fake.provideRootFSMutex.RUnlock()
-	return fake.provideRootFSArgsForCall[i].logger, fake.provideRootFSArgsForCall[i].id, fake.provideRootFSArgsForCall[i].rootfs
+	return fake.provideRootFSArgsForCall[i].logger, fake.provideRootFSArgsForCall[i].id, fake.provideRootFSArgsForCall[i].rootfs, fake.provideRootFSArgsForCall[i].namespaced
 }
 
 func (fake *FakeRootFSProvider) ProvideRootFSReturns(result1 string, result2 process.Env, result3 error) {

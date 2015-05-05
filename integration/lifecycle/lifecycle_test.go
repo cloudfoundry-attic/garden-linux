@@ -150,7 +150,6 @@ var _ = Describe("Creating a container", func() {
 			client = startGarden()
 
 			var err error
-
 			container, err = client.Create(garden.ContainerSpec{Privileged: privilegedContainer, RootFSPath: rootfs})
 			Expect(err).ToNot(HaveOccurred())
 		})
@@ -192,6 +191,7 @@ var _ = Describe("Creating a container", func() {
 				Args: []string{"/proc/mounts"},
 			}, garden.ProcessIO{
 				Stdout: outBuf,
+				Stderr: GinkgoWriter,
 			})
 			Expect(err).ToNot(HaveOccurred())
 
@@ -320,6 +320,7 @@ var _ = Describe("Creating a container", func() {
 						User: "root",
 					}, garden.ProcessIO{
 						Stdout: stdout,
+						Stderr: GinkgoWriter,
 					})
 
 					Expect(err).ToNot(HaveOccurred())
@@ -341,7 +342,7 @@ var _ = Describe("Creating a container", func() {
 					})
 				})
 
-				Context("by default", func() {
+				Context("by default (unprivileged)", func() {
 					It("does not get root privileges on host resources", func() {
 						process, err := container.Run(garden.ProcessSpec{
 							Path: "sh",
@@ -362,6 +363,62 @@ var _ = Describe("Creating a container", func() {
 						Expect(err).ToNot(HaveOccurred())
 
 						Expect(process.Wait()).To(Equal(0))
+					})
+
+					Context("with a docker image", func() {
+						BeforeEach(func() {
+							rootfs = "docker:///cloudfoundry/preexisting_users"
+						})
+
+						It("sees root-owned files in the rootfs as owned by the container's root user", func() {
+							stdout := gbytes.NewBuffer()
+							process, err := container.Run(garden.ProcessSpec{
+								User: "root",
+								Path: "sh",
+								Args: []string{"-c", `ls -l /sbin | grep -v wsh | grep -v hook`},
+							}, garden.ProcessIO{Stdout: stdout})
+							Expect(err).ToNot(HaveOccurred())
+
+							Expect(process.Wait()).To(Equal(0))
+							Expect(stdout).NotTo(gbytes.Say("nobody"))
+							Expect(stdout).NotTo(gbytes.Say("65534"))
+							Expect(stdout).To(gbytes.Say(" root "))
+						})
+
+						It("sees alice-owned files as owned by alice", func() {
+							stdout := gbytes.NewBuffer()
+							process, err := container.Run(garden.ProcessSpec{
+								User: "alice",
+								Path: "sh",
+								Args: []string{"-c", `ls -l /home/alice`},
+							}, garden.ProcessIO{Stdout: stdout})
+							Expect(err).ToNot(HaveOccurred())
+
+							Expect(process.Wait()).To(Equal(0))
+							Expect(stdout).To(gbytes.Say(" alice "))
+							Expect(stdout).To(gbytes.Say(" alicesfile"))
+						})
+
+						It("lets alice write in /home/alice", func() {
+							process, err := container.Run(garden.ProcessSpec{
+								User: "alice",
+								Path: "touch",
+								Args: []string{"/home/alice/newfile"},
+							}, garden.ProcessIO{})
+							Expect(err).ToNot(HaveOccurred())
+							Expect(process.Wait()).To(Equal(0))
+						})
+
+						It("lets root write to files in the /root directory", func() {
+							process, err := container.Run(garden.ProcessSpec{
+								User: "root",
+								Path: "sh",
+								Args: []string{"-c", `touch /root/potato`},
+							}, garden.ProcessIO{})
+							Expect(err).ToNot(HaveOccurred())
+
+							Expect(process.Wait()).To(Equal(0))
+						})
 					})
 				})
 
@@ -390,6 +447,21 @@ var _ = Describe("Creating a container", func() {
 						Expect(err).ToNot(HaveOccurred())
 
 						Expect(process.Wait()).To(Equal(0))
+					})
+
+					It("sees root-owned files in the rootfs as owned by the container's root user", func() {
+						stdout := gbytes.NewBuffer()
+						process, err := container.Run(garden.ProcessSpec{
+							User: "root",
+							Path: "sh",
+							Args: []string{"-c", `ls -l /sbin | grep -v wsh | grep -v hook`},
+						}, garden.ProcessIO{Stdout: io.MultiWriter(GinkgoWriter, stdout)})
+						Expect(err).ToNot(HaveOccurred())
+
+						Expect(process.Wait()).To(Equal(0))
+						Expect(stdout).NotTo(gbytes.Say("nobody"))
+						Expect(stdout).NotTo(gbytes.Say("65534"))
+						Expect(stdout).To(gbytes.Say(" root "))
 					})
 				})
 			})
@@ -890,12 +962,12 @@ var _ = Describe("Creating a container", func() {
 			})
 
 			It("creates the files in the container, as the vcap user", func() {
-				err := container.StreamIn("/tmp/some/container/dir", tarStream)
+				err := container.StreamIn("/home/vcap", tarStream)
 				Expect(err).ToNot(HaveOccurred())
 
 				process, err := container.Run(garden.ProcessSpec{
 					Path: "test",
-					Args: []string{"-f", "/tmp/some/container/dir/some-temp-dir/some-temp-file"},
+					Args: []string{"-f", "/home/vcap/some-temp-dir/some-temp-file"},
 				}, garden.ProcessIO{})
 				Expect(err).ToNot(HaveOccurred())
 
@@ -904,7 +976,7 @@ var _ = Describe("Creating a container", func() {
 				output := gbytes.NewBuffer()
 				process, err = container.Run(garden.ProcessSpec{
 					Path: "ls",
-					Args: []string{"-al", "/tmp/some/container/dir/some-temp-dir/some-temp-file"},
+					Args: []string{"-al", "/home/vcap/some-temp-dir/some-temp-file"},
 				}, garden.ProcessIO{
 					Stdout: output,
 				})
@@ -916,6 +988,8 @@ var _ = Describe("Creating a container", func() {
 				Expect(output).To(gbytes.Say("vcap"))
 				Expect(output).To(gbytes.Say("vcap"))
 			})
+
+			PIt("can create files in /tmp")
 
 			Context("in a privileged container", func() {
 				BeforeEach(func() {
@@ -1036,6 +1110,22 @@ var _ = Describe("Creating a container", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Eventually(iptables, "2s").Should(gexec.Exit())
 				Expect(iptables).ToNot(gbytes.Say(handle))
+			})
+
+			It("destroys multiple containers based on same rootfs", func() {
+				c1, err := client.Create(garden.ContainerSpec{
+					RootFSPath: "docker:///busybox",
+					Privileged: false,
+				})
+				Expect(err).ToNot(HaveOccurred())
+				c2, err := client.Create(garden.ContainerSpec{
+					RootFSPath: "docker:///busybox",
+					Privileged: false,
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(client.Destroy(c1.Handle())).To(Succeed())
+				Expect(client.Destroy(c2.Handle())).To(Succeed())
 			})
 
 			It("should not leak network namespace", func() {

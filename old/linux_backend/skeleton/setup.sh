@@ -53,11 +53,15 @@ EOS
 
 if [ ! -d $rootfs_path/proc ]; then
   mkdir -p $rootfs_path/proc
+  chown $root_uid:$root_uid $rootfs_path/proc
   chmod 0755 $rootfs_path/proc
 fi
 
+#chown $root:0 $rootfs_path/proc
+
 if [ ! -d $rootfs_path/dev ]; then
   mkdir -p $rootfs_path/dev
+  chown $root_uid:$root_uid $rootfs_path/dev
   chmod 0755 $rootfs_path/dev
 fi
 
@@ -66,6 +70,7 @@ rm -rf $rootfs_path/dev/*
 
 if [ ! -d $rootfs_path/dev/shm ]; then
   mkdir $rootfs_path/dev/shm
+  chown $root_uid:$root_uid $rootfs_path/dev/shm
   chmod 1777 $rootfs_path/dev/shm
 fi
 
@@ -144,7 +149,9 @@ if ! chroot $rootfs_path id vcap >/dev/null 2>&1; then
 
   touch $rootfs_path/etc/passwd
   touch $rootfs_path/etc/group
-  useradd -R $rootfs_path -m -u $user_uid -s $shell vcap
+  useradd -R $rootfs_path -m -u 101000 -U -s $shell vcap
+  vcap_uid=$(($root_uid + 101000))
+  chown $vcap_uid:$vcap_uid $rootfs_path/home/vcap
 fi
 
 # workaround aufs limitations by copying /root directory out and back

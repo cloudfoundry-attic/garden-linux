@@ -55,5 +55,8 @@ then
     fi
   done
 
+  umount -l $rootfs_path/dev/pts || true
+
   exit 0
 fi
+

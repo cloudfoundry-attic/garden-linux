@@ -182,7 +182,9 @@ int main(int argc, char **argv) {
   /* create destination directory */
   rv = mkdir_p_as(destination, pw->pw_uid, pw->pw_gid);
   if(rv == -1) {
-    perror("mkdir_p_as");
+    char msg[1024];
+    sprintf(msg, "mkdir_p_as %d %d", pw->pw_uid, pw->pw_gid);
+    perror(msg);
     return 1;
   }
 
@@ -225,13 +227,13 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  rv = setgid(pw->pw_uid);
+  rv = setgid(pw->pw_gid);
   if(rv == -1) {
     perror("setgid");
     return 1;
   }
 
-  rv = setuid(pw->pw_gid);
+  rv = setuid(pw->pw_uid);
   if(rv == -1) {
     perror("setuid");
     return 1;

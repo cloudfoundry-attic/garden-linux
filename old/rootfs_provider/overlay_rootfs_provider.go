@@ -35,7 +35,7 @@ func NewOverlay(
 	}
 }
 
-func (provider *overlayRootFSProvider) ProvideRootFS(logger lager.Logger, id string, rootfs *url.URL) (string, process.Env, error) {
+func (provider *overlayRootFSProvider) ProvideRootFS(logger lager.Logger, id string, rootfs *url.URL, namespace bool) (string, process.Env, error) {
 	rootFSPath := provider.defaultRootFS
 	if rootfs.Path != "" {
 		rootFSPath = rootfs.Path

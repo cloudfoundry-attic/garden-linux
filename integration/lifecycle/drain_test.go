@@ -476,38 +476,6 @@ var _ = Describe("Through a restart", func() {
 		})
 	})
 
-	Describe("a container's user", func() {
-		It("does not get reused", func() {
-			idA := gbytes.NewBuffer()
-			idB := gbytes.NewBuffer()
-
-			processA, err := container.Run(garden.ProcessSpec{
-				Path: "id",
-				Args: []string{"-u"},
-			}, garden.ProcessIO{
-				Stdout: idA,
-			})
-			Expect(err).ToNot(HaveOccurred())
-
-			Expect(processA.Wait()).To(Equal(0))
-
-			restartGarden(gardenArgs...)
-
-			otherContainer, err := client.Create(garden.ContainerSpec{})
-			Expect(err).ToNot(HaveOccurred())
-
-			processB, err := otherContainer.Run(garden.ProcessSpec{
-				Path: "id",
-				Args: []string{"-u"},
-			}, garden.ProcessIO{Stdout: idB})
-			Expect(err).ToNot(HaveOccurred())
-
-			Expect(processB.Wait()).To(Equal(0))
-
-			Expect(idA.Contents()).ToNot(Equal(idB.Contents()))
-		})
-	})
-
 	Describe("a container's grace time", func() {
 		BeforeEach(func() {
 			gardenArgs = []string{"--containerGraceTime", "5s"}

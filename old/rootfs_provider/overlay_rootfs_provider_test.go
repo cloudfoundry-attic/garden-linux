@@ -33,7 +33,7 @@ var _ = Describe("OverlayRootfsProvider", func() {
 	Describe("ProvideRootFS", func() {
 		Context("with no path given", func() {
 			It("executes overlay.sh create with the default rootfs", func() {
-				rootfs, _, err := provider.ProvideRootFS(logger, "some-id", parseURL(""))
+				rootfs, _, err := provider.ProvideRootFS(logger, "some-id", parseURL(""), false)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(rootfs).To(Equal("/some/overlays/path/some-id/rootfs"))
 
@@ -49,7 +49,7 @@ var _ = Describe("OverlayRootfsProvider", func() {
 
 		Context("with a path given", func() {
 			It("executes overlay.sh create with the given rootfs", func() {
-				rootfs, _, err := provider.ProvideRootFS(logger, "some-id", parseURL("/some/given/rootfs"))
+				rootfs, _, err := provider.ProvideRootFS(logger, "some-id", parseURL("/some/given/rootfs"), false)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(rootfs).To(Equal("/some/overlays/path/some-id/rootfs"))
 
@@ -80,7 +80,7 @@ var _ = Describe("OverlayRootfsProvider", func() {
 				})
 
 				It("returns the error message from stderr", func() {
-					_, _, err := provider.ProvideRootFS(logger, "some-id", parseURL("/some/given/rootfs"))
+					_, _, err := provider.ProvideRootFS(logger, "some-id", parseURL("/some/given/rootfs"), false)
 					Expect(err).To(MatchError("overlay.sh: oh no!, this cake is not fresh"))
 				})
 			})

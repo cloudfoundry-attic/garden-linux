@@ -17,6 +17,7 @@ type dockerRootFSProvider struct {
 	graphDriver   graphdriver.Driver
 	volumeCreator VolumeCreator
 	repoFetcher   repository_fetcher.RepositoryFetcher
+	namespacer    Namespacer
 	clock         clock.Clock
 
 	fallback RootFSProvider
@@ -33,17 +34,19 @@ func NewDocker(
 	repoFetcher repository_fetcher.RepositoryFetcher,
 	graphDriver GraphDriver,
 	volumeCreator VolumeCreator,
+	namespacer Namespacer,
 	clock clock.Clock,
 ) (RootFSProvider, error) {
 	return &dockerRootFSProvider{
 		repoFetcher:   repoFetcher,
 		graphDriver:   graphDriver,
 		volumeCreator: volumeCreator,
+		namespacer:    namespacer,
 		clock:         clock,
 	}, nil
 }
 
-func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id string, url *url.URL) (string, process.Env, error) {
+func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id string, url *url.URL, namespace bool) (string, process.Env, error) {
 	if len(url.Path) == 0 {
 		return "", nil, ErrInvalidDockerURL
 	}
@@ -56,6 +59,33 @@ func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id stri
 	imageID, envvars, volumes, err := provider.repoFetcher.Fetch(logger, url, tag)
 	if err != nil {
 		return "", nil, err
+	}
+
+	namespacedImageID := imageID + "@namespaced"
+	if namespace && !provider.graphDriver.Exists(namespacedImageID) {
+		originalRootfs, err := provider.graphDriver.Get(imageID, "")
+		if err != nil {
+			return "", nil, err
+		}
+
+		err = provider.graphDriver.Create(namespacedImageID, "") // empty layer
+		if err != nil {
+			return "", nil, err
+		}
+
+		namespacedRootfs, err := provider.graphDriver.Get(namespacedImageID, "") // path where empty layer is
+		if err != nil {
+			return "", nil, err
+		}
+
+		err = provider.namespacer.Namespace(originalRootfs, namespacedRootfs)
+		if err != nil {
+			return "", nil, err
+		}
+	}
+
+	if namespace {
+		imageID = namespacedImageID
 	}
 
 	err = provider.graphDriver.Create(id, imageID)

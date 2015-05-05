@@ -36,8 +36,13 @@ type Runner struct {
 }
 
 func New(network, addr string, bin, binPath, rootFSPath, graphPath string, argv ...string) *Runner {
+	tmpDir := filepath.Join(
+		os.TempDir(),
+		fmt.Sprintf("test-garden-%d", ginkgo.GinkgoParallelNode()),
+	)
+
 	if graphPath == "" {
-		graphPath = os.TempDir()
+		graphPath = filepath.Join(tmpDir, "graph")
 	}
 
 	return &Runner{
@@ -49,11 +54,8 @@ func New(network, addr string, bin, binPath, rootFSPath, graphPath string, argv 
 
 		binPath:    binPath,
 		rootFSPath: rootFSPath,
-		graphPath:  filepath.Join(graphPath, fmt.Sprintf("test-garden-%d", ginkgo.GinkgoParallelNode())),
-		tmpdir: filepath.Join(
-			os.TempDir(),
-			fmt.Sprintf("test-garden-%d", ginkgo.GinkgoParallelNode()),
-		),
+		graphPath:  graphPath,
+		tmpdir:     tmpDir,
 	}
 }
 
@@ -78,6 +80,7 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 	}
 
 	MustMountTmpfs(overlaysPath)
+	MustMountTmpfs(r.graphPath)
 
 	var appendDefaultFlag = func(ar []string, key, value string) []string {
 		for _, a := range r.argv {

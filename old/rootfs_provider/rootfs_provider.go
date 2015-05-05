@@ -9,6 +9,6 @@ import (
 
 //go:generate counterfeiter -o fake_rootfs_provider/fake_rootfs_provider.go . RootFSProvider
 type RootFSProvider interface {
-	ProvideRootFS(logger lager.Logger, id string, rootfs *url.URL) (mountpoint string, envvar process.Env, err error)
+	ProvideRootFS(logger lager.Logger, id string, rootfs *url.URL, namespaced bool) (mountpoint string, envvar process.Env, err error)
 	CleanupRootFS(logger lager.Logger, id string) error
 }
