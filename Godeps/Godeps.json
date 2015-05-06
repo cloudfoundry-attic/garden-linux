@@ -254,8 +254,8 @@
 		},
 		{
 			"ImportPath": "github.com/onsi/ginkgo",
-			"Comment": "v1.1.0-38-g5ed93e4",
-			"Rev": "5ed93e443a4b7dfe9f5e95ca87e6082e503021d2"
+			"Comment": "v1.2.0-beta",
+			"Rev": "0efbdc3a60137c0757b84e994a56037378170913"
 		},
 		{
 			"ImportPath": "github.com/onsi/gomega",
