@@ -6,6 +6,8 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
+	"syscall"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -39,6 +41,25 @@ var _ = Describe("RootfsLinux", func() {
 		Expect(stdout).To(gbytes.Say("potato"))
 	})
 
+	It("pivots in to a given rootfs containing bind mounts", func() {
+		rootfsDir, err := ioutil.TempDir("", "rootfs")
+		Expect(err).ToNot(HaveOccurred())
+		defer os.RemoveAll(rootfsDir)
+		Expect(os.Mkdir(filepath.Join(rootfsDir, "a-bind-mount"), 0755)).To(Succeed())
+
+		bindMount, err := ioutil.TempDir("", "bnds")
+		Expect(err).ToNot(HaveOccurred())
+		defer os.RemoveAll(bindMount)
+
+		Expect(syscall.Mount(bindMount, path.Join(rootfsDir, "a-bind-mount"), "", uintptr(syscall.MS_BIND), "")).To(Succeed())
+
+		stdout := gbytes.NewBuffer()
+		out := io.MultiWriter(stdout, GinkgoWriter)
+		Expect(runInContainer(out, out, false, "fake_container", rootfsDir)).To(Succeed())
+		Expect(stdout).ToNot(gbytes.Say("home"))
+		Expect(stdout).To(gbytes.Say("a-bind-mount"))
+	})
+
 	It("unmounts the old rootfs", func() {
 		rootfsDir, err := ioutil.TempDir("", "rootfs")
 		Expect(err).ToNot(HaveOccurred())
@@ -53,7 +74,7 @@ var _ = Describe("RootfsLinux", func() {
 		stderr := gbytes.NewBuffer()
 		err := runInContainer(GinkgoWriter, io.MultiWriter(stderr, GinkgoWriter), false, "fake_container", "does-not-exist-blah-blah")
 		Expect(err).To(HaveOccurred())
-		Expect(stderr).To(gbytes.Say("ERROR: Failed to enter root fs: containerizer: validate root file system: stat does-not-exist-blah-blah: no such file or directory"))
+		Expect(stderr).To(gbytes.Say("ERROR: Failed to enter root fs: system: validate root file system: stat does-not-exist-blah-blah: no such file or directory"))
 	})
 
 	It("returns an error when the rootfs is not a directory", func() {
@@ -66,6 +87,6 @@ var _ = Describe("RootfsLinux", func() {
 		stderr := gbytes.NewBuffer()
 		err = runInContainer(GinkgoWriter, io.MultiWriter(stderr, GinkgoWriter), false, "fake_container", tmpFile.Name())
 		Expect(err).To(HaveOccurred())
-		Expect(stderr).To(gbytes.Say(fmt.Sprintf("ERROR: Failed to enter root fs: containerizer: validate root file system: %s is not a directory", tmpFile.Name())))
+		Expect(stderr).To(gbytes.Say(fmt.Sprintf("ERROR: Failed to enter root fs: system: validate root file system: %s is not a directory", tmpFile.Name())))
 	})
 })

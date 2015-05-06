@@ -27,17 +27,17 @@ func (r *RootFS) Enter() error {
 	}
 	defer oldroot.Close() // Ignore error
 
-	rootfs, err := os.Open(r.Root)
-	if err != nil {
-		return fmt.Errorf("system: failed to open root filesystem: %s", err)
-	}
-	defer rootfs.Close() // Ignore error
-
 	// Hack: PivotRoot requires r.Root to be a file system, so bind mount r.Root
 	// to itself so r.Root appears to be a file system.
 	if err := syscall.Mount(r.Root, r.Root, "", uintptr(syscall.MS_BIND|syscall.MS_REC), ""); err != nil {
 		return fmt.Errorf("system: failed to bind mount the root filesystem onto itself: %s", err)
 	}
+
+	rootfs, err := os.Open(r.Root)
+	if err != nil {
+		return fmt.Errorf("system: failed to open root filesystem: %s", err)
+	}
+	defer rootfs.Close() // Ignore error
 
 	if err := rootfs.Chdir(); err != nil {
 		return fmt.Errorf("system: failed to change directory into the bind mounted rootfs dir: %s", err)
