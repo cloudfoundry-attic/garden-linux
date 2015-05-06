@@ -90,7 +90,7 @@ var _ = Describe("Denying access to network ranges", func() {
 		return process
 	}
 
-	It("makes that block of ip addresses inaccessible to the container", func() {
+	PIt("makes that block of ip addresses inaccessible to the container", func() {
 		runInContainer(blockedListener, "nc -l 0.0.0.0:12345")
 		runInContainer(unblockedListener, "nc -l 0.0.0.0:12345")
 		runInContainer(allowedListener, "nc -l 0.0.0.0:12345")

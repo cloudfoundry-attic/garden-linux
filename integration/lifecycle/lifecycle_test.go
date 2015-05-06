@@ -22,8 +22,8 @@ import (
 	archiver "github.com/pivotal-golang/archiver/extractor/test_helper"
 )
 
-var _ = Describe("Creating a container", func() {
-	Describe("Overlapping networks", func() {
+var _ = FDescribe("Creating a container", func() {
+	PDescribe("Overlapping networks", func() {
 		Context("when the requested Network overlaps the dynamic allocation range", func() {
 			It("returns an error message naming the overlapped range", func() {
 				client = startGarden("--networkPool", "1.2.3.0/24")
@@ -43,7 +43,7 @@ var _ = Describe("Creating a container", func() {
 		})
 	})
 
-	Describe("Docker image download", func() {
+	PDescribe("Docker image download", func() {
 		It("returns a helpful error message when image not found from default registry", func() {
 			client = startGarden()
 			_, err := client.Create(garden.ContainerSpec{RootFSPath: "docker:///cloudfoundry/doesnotexist"})
@@ -71,7 +71,7 @@ var _ = Describe("Creating a container", func() {
 			return stdout.Contents()
 		}
 
-		It("does not leave residual bridges", func() {
+		PIt("does not leave residual bridges", func() {
 			client = startGarden()
 
 			bridgePrefix := fmt.Sprintf("w%db-", GinkgoParallelNode())
@@ -121,7 +121,7 @@ var _ = Describe("Creating a container", func() {
 	})
 
 	Context("when the container fails to start", func() {
-		It("does not leave resources around", func() {
+		PIt("does not leave resources around", func() {
 			client = startGarden()
 			client.Create(garden.ContainerSpec{
 				BindMounts: []garden.BindMount{{
@@ -252,7 +252,7 @@ var _ = Describe("Creating a container", func() {
 					rootfs = "docker:///cloudfoundry/with-volume"
 				})
 
-				It("creates the volume directory, if it does not already exist", func() {
+				PIt("creates the volume directory, if it does not already exist", func() {
 					stdout := gbytes.NewBuffer()
 					process, err := container.Run(garden.ProcessSpec{
 						Path: "ls",
@@ -279,7 +279,7 @@ var _ = Describe("Creating a container", func() {
 					rootfs = "docker:///cloudfoundry/with-volume"
 				})
 
-				It("$PATH is taken from the docker image", func() {
+				PIt("$PATH is taken from the docker image", func() {
 					stdout := gbytes.NewBuffer()
 					process, err := container.Run(garden.ProcessSpec{
 						Path: "/bin/sh",
@@ -295,7 +295,7 @@ var _ = Describe("Creating a container", func() {
 					Expect(stdout).To(gbytes.Say("/usr/local/bin:/usr/bin:/bin:/from-dockerfile"))
 				})
 
-				It("$TEST is taken from the docker image", func() {
+				PIt("$TEST is taken from the docker image", func() {
 					stdout := gbytes.NewBuffer()
 					process, err := container.Run(garden.ProcessSpec{
 						Path: "/bin/sh",
@@ -314,7 +314,7 @@ var _ = Describe("Creating a container", func() {
 		})
 
 		Context("and running a process", func() {
-			It("runs as the vcap user by default", func() {
+			PIt("runs as the vcap user by default", func() {
 				stdout := gbytes.NewBuffer()
 
 				_, err := container.Run(garden.ProcessSpec{
@@ -329,7 +329,7 @@ var _ = Describe("Creating a container", func() {
 			})
 
 			Context("when root is requested", func() {
-				It("runs as root inside the container", func() {
+				PIt("runs as root inside the container", func() {
 					stdout := gbytes.NewBuffer()
 
 					_, err := container.Run(garden.ProcessSpec{
@@ -360,7 +360,7 @@ var _ = Describe("Creating a container", func() {
 				})
 
 				Context("by default (unprivileged)", func() {
-					It("does not get root privileges on host resources", func() {
+					PIt("does not get root privileges on host resources", func() {
 						process, err := container.Run(garden.ProcessSpec{
 							Path: "sh",
 							User: "root",
@@ -387,7 +387,7 @@ var _ = Describe("Creating a container", func() {
 							rootfs = "docker:///cloudfoundry/preexisting_users"
 						})
 
-						It("sees root-owned files in the rootfs as owned by the container's root user", func() {
+						PIt("sees root-owned files in the rootfs as owned by the container's root user", func() {
 							stdout := gbytes.NewBuffer()
 							process, err := container.Run(garden.ProcessSpec{
 								User: "root",
@@ -402,7 +402,7 @@ var _ = Describe("Creating a container", func() {
 							Expect(stdout).To(gbytes.Say(" root "))
 						})
 
-						It("sees alice-owned files as owned by alice", func() {
+						PIt("sees alice-owned files as owned by alice", func() {
 							stdout := gbytes.NewBuffer()
 							process, err := container.Run(garden.ProcessSpec{
 								User: "alice",
@@ -466,7 +466,7 @@ var _ = Describe("Creating a container", func() {
 						Expect(process.Wait()).To(Equal(0))
 					})
 
-					It("sees root-owned files in the rootfs as owned by the container's root user", func() {
+					PIt("sees root-owned files in the rootfs as owned by the container's root user", func() {
 						stdout := gbytes.NewBuffer()
 						process, err := container.Run(garden.ProcessSpec{
 							User: "root",
@@ -519,7 +519,7 @@ var _ = Describe("Creating a container", func() {
 				Expect(time.Seconds()).To(BeNumerically("<", 1))
 			}, 10)
 
-			It("streams output back and reports the exit status (without env variables)", func() {
+			PIt("streams output back and reports the exit status (without env variables)", func() {
 				stdout := gbytes.NewBuffer()
 				stderr := gbytes.NewBuffer()
 
@@ -537,7 +537,7 @@ var _ = Describe("Creating a container", func() {
 				Expect(process.Wait()).To(Equal(42))
 			})
 
-			It("streams output back and reports the exit status", func() {
+			PIt("streams output back and reports the exit status", func() {
 				stdout := gbytes.NewBuffer()
 				stderr := gbytes.NewBuffer()
 
@@ -556,7 +556,7 @@ var _ = Describe("Creating a container", func() {
 				Expect(process.Wait()).To(Equal(42))
 			})
 
-			It("streams output back and reports the exit status", func() {
+			PIt("streams output back and reports the exit status", func() {
 				stdout := gbytes.NewBuffer()
 				stderr := gbytes.NewBuffer()
 
@@ -575,7 +575,7 @@ var _ = Describe("Creating a container", func() {
 				Expect(process.Wait()).To(Equal(42))
 			})
 
-			It("sends a TERM signal to the process if requested", func() {
+			PIt("sends a TERM signal to the process if requested", func() {
 				stdout := gbytes.NewBuffer()
 
 				process, err := container.Run(garden.ProcessSpec{
@@ -600,7 +600,7 @@ var _ = Describe("Creating a container", func() {
 				Expect(process.Wait()).To(Equal(42))
 			})
 
-			It("sends a KILL signal to the process if requested", func() {
+			PIt("sends a KILL signal to the process if requested", func() {
 				stdout := gbytes.NewBuffer()
 
 				process, err := container.Run(garden.ProcessSpec{
@@ -622,7 +622,7 @@ var _ = Describe("Creating a container", func() {
 				Expect(process.Wait()).ToNot(Equal(0))
 			})
 
-			It("avoids a race condition when sending a kill signal", func(done Done) {
+			PIt("avoids a race condition when sending a kill signal", func(done Done) {
 				stdout := gbytes.NewBuffer()
 
 				for i := 0; i < 200; i++ {
@@ -641,7 +641,7 @@ var _ = Describe("Creating a container", func() {
 				close(done)
 			}, 30.0)
 
-			It("collects the process's full output, even if it exits quickly after", func() {
+			PIt("collects the process's full output, even if it exits quickly after", func() {
 				for i := 0; i < 100; i++ {
 					stdout := gbytes.NewBuffer()
 
@@ -666,7 +666,7 @@ var _ = Describe("Creating a container", func() {
 				}
 			})
 
-			It("streams input to the process's stdin", func() {
+			PIt("streams input to the process's stdin", func() {
 				stdout := gbytes.NewBuffer()
 
 				process, err := container.Run(garden.ProcessSpec{
@@ -737,7 +737,7 @@ var _ = Describe("Creating a container", func() {
 				})
 
 				Context("when the process writes too much to /dev/shm", func() {
-					It("is killed", func() {
+					PIt("is killed", func() {
 						process, err := container.Run(garden.ProcessSpec{
 							Path: "dd",
 							Args: []string{"if=/dev/urandom", "of=/dev/shm/too-big", "bs=1M", "count=65"},
@@ -749,7 +749,7 @@ var _ = Describe("Creating a container", func() {
 				})
 			})
 
-			Context("with a tty", func() {
+			PContext("with a tty", func() {
 				It("executes the process with a raw tty with the given window size", func() {
 					stdout := gbytes.NewBuffer()
 
@@ -831,7 +831,7 @@ var _ = Describe("Creating a container", func() {
 			})
 
 			Context("with a working directory", func() {
-				It("executes with the working directory as the dir", func() {
+				PIt("executes with the working directory as the dir", func() {
 					stdout := gbytes.NewBuffer()
 
 					process, err := container.Run(garden.ProcessSpec{
@@ -848,7 +848,7 @@ var _ = Describe("Creating a container", func() {
 			})
 
 			Context("and then attaching to it", func() {
-				It("streams output and the exit status to the attached request", func(done Done) {
+				PIt("streams output and the exit status to the attached request", func(done Done) {
 					stdout1 := gbytes.NewBuffer()
 					stdout2 := gbytes.NewBuffer()
 
@@ -881,7 +881,7 @@ var _ = Describe("Creating a container", func() {
 			})
 
 			Context("and then sending a Stop request", func() {
-				It("terminates all running processes", func() {
+				PIt("terminates all running processes", func() {
 					stdout := gbytes.NewBuffer()
 
 					process, err := container.Run(garden.ProcessSpec{
@@ -912,7 +912,7 @@ var _ = Describe("Creating a container", func() {
 					Expect(process.Wait()).To(Equal(42))
 				})
 
-				It("recursively terminates all child processes", func(done Done) {
+				PIt("recursively terminates all child processes", func(done Done) {
 					defer close(done)
 
 					stdout := gbytes.NewBuffer()
@@ -954,7 +954,7 @@ var _ = Describe("Creating a container", func() {
 				}, 15)
 
 				Context("when a process does not die 10 seconds after receiving SIGTERM", func() {
-					It("is forcibly killed", func(done Done) {
+					PIt("is forcibly killed", func(done Done) {
 						defer close(done)
 
 						process, err := container.Run(garden.ProcessSpec{
@@ -1016,7 +1016,7 @@ var _ = Describe("Creating a container", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			It("creates the files in the container, as the vcap user", func() {
+			PIt("creates the files in the container, as the vcap user", func() {
 				err := container.StreamIn("/home/vcap", tarStream)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -1051,7 +1051,7 @@ var _ = Describe("Creating a container", func() {
 					privilegedContainer = true
 				})
 
-				It("streams in relative to the default run directory", func() {
+				PIt("streams in relative to the default run directory", func() {
 					err := container.StreamIn(".", tarStream)
 					Expect(err).ToNot(HaveOccurred())
 
@@ -1065,7 +1065,7 @@ var _ = Describe("Creating a container", func() {
 				})
 			})
 
-			It("streams in relative to the default run directory", func() {
+			PIt("streams in relative to the default run directory", func() {
 				err := container.StreamIn(".", tarStream)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -1087,7 +1087,7 @@ var _ = Describe("Creating a container", func() {
 			})
 
 			Context("and then copying them out", func() {
-				It("streams the directory", func() {
+				PIt("streams the directory", func() {
 					process, err := container.Run(garden.ProcessSpec{
 						Path: "sh",
 						Args: []string{"-c", `mkdir -p some-outer-dir/some-inner-dir && touch some-outer-dir/some-inner-dir/some-file`},
@@ -1111,7 +1111,7 @@ var _ = Describe("Creating a container", func() {
 				})
 
 				Context("with a trailing slash", func() {
-					It("streams the contents of the directory", func() {
+					PIt("streams the contents of the directory", func() {
 						process, err := container.Run(garden.ProcessSpec{
 							Path: "sh",
 							Args: []string{"-c", `mkdir -p some-container-dir && touch some-container-dir/some-file`},
@@ -1167,7 +1167,7 @@ var _ = Describe("Creating a container", func() {
 				Expect(iptables).ToNot(gbytes.Say(handle))
 			})
 
-			It("destroys multiple containers based on same rootfs", func() {
+			PIt("destroys multiple containers based on same rootfs", func() {
 				c1, err := client.Create(garden.ContainerSpec{
 					RootFSPath: "docker:///busybox",
 					Privileged: false,

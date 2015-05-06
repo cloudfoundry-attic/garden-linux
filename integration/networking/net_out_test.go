@@ -178,7 +178,7 @@ var _ = Describe("Net Out", func() {
 			})
 		}
 
-		Context("containers in the same subnet", func() {
+		PContext("containers in the same subnet", func() {
 			JustBeforeEach(func() {
 				var err error
 				otherContainer, err = client.Create(garden.ContainerSpec{Network: containerNetwork})
@@ -200,7 +200,7 @@ var _ = Describe("Net Out", func() {
 			})
 		})
 
-		Context("containers in distinct subnets", func() {
+		PContext("containers in distinct subnets", func() {
 			var otherContainerNetwork string
 
 			JustBeforeEach(func() {

@@ -70,7 +70,7 @@ var _ = Describe("Resource limits", func() {
 			})
 		})
 
-		Context("with a non-privileged container", func() {
+		PContext("with a non-privileged container", func() {
 			BeforeEach(func() {
 				privilegedContainer = false
 			})
@@ -122,7 +122,7 @@ var _ = Describe("Resource limits", func() {
 			})
 		})
 
-		Context("with a non-privileged container", func() {
+		PContext("with a non-privileged container", func() {
 			BeforeEach(func() {
 				privilegedContainer = false
 			})

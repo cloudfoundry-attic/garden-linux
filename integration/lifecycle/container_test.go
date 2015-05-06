@@ -25,7 +25,7 @@ var _ = Describe("Container operations", func() {
 	})
 
 	Context("with a default rootfs", func() {
-		It("the container is created successfully", func() {
+		PIt("the container is created successfully", func() {
 			var err error
 
 			container, err = client.Create(garden.ContainerSpec{RootFSPath: ""})

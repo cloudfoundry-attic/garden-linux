@@ -14,7 +14,7 @@ import (
 )
 
 var _ = Describe("Security", func() {
-	Describe("Isolating PIDs", func() {
+	PDescribe("Isolating PIDs", func() {
 		It("isolates processes so that only process from inside the container are visible", func() {
 			client = startGarden()
 			container, err := client.Create(garden.ContainerSpec{})
@@ -44,7 +44,7 @@ var _ = Describe("Security", func() {
 		})
 	})
 
-	Context("with a empty rootfs", func() {
+	PContext("with a empty rootfs", func() {
 		var emptyRootFSPath string
 
 		BeforeEach(func() {
@@ -87,7 +87,7 @@ var _ = Describe("Security", func() {
 		})
 	})
 
-	Describe("Denying access to network ranges", func() {
+	PDescribe("Denying access to network ranges", func() {
 		var (
 			blockedListener   garden.Container
 			blockedListenerIP string = fmt.Sprintf("11.0.%d.1", GinkgoParallelNode())

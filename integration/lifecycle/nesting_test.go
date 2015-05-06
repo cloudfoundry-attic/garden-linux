@@ -106,7 +106,7 @@ var _ = Describe("When nested", func() {
 		return container, nestedGardenAddress
 	}
 
-	It("can start a nested garden-linux and run a container inside it", func() {
+	PIt("can start a nested garden-linux and run a container inside it", func() {
 		container, nestedGardenAddress := startNestedGarden(true)
 		defer client.Destroy(container.Handle())
 
@@ -126,7 +126,7 @@ var _ = Describe("When nested", func() {
 		Eventually(nestedOutput, "30s").Should(gbytes.Say("I am nested!"))
 	})
 
-	It("returns helpful error message when depot directory fstype cannot be nested", func() {
+	PIt("returns helpful error message when depot directory fstype cannot be nested", func() {
 		container, nestedGardenAddress := startNestedGarden(false)
 		defer client.Destroy(container.Handle())
 

@@ -74,7 +74,7 @@ var _ = Describe("The Garden server", func() {
 		return goroutineCount
 	}
 
-	Describe("repeatedly running processes", func() {
+	PDescribe("repeatedly running processes", func() {
 		Measure("does not leak goroutines", func(b Benchmarker) {
 			for i := 1; i <= iterations; i++ {
 				process, err := container.Run(garden.ProcessSpec{
@@ -102,7 +102,7 @@ var _ = Describe("The Garden server", func() {
 		}, 1)
 	})
 
-	Describe("repeatedly attaching to a running process", func() {
+	PDescribe("repeatedly attaching to a running process", func() {
 		var processID uint32
 
 		BeforeEach(func() {
@@ -159,7 +159,7 @@ var _ = Describe("The Garden server", func() {
 		}, 1)
 	})
 
-	Describe("streaming output from a chatty job", func() {
+	PDescribe("streaming output from a chatty job", func() {
 		streamCounts := []int{0}
 
 		for i := 1; i <= numStreams; i *= 2 {

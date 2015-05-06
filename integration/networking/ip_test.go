@@ -64,7 +64,7 @@ var _ = Describe("IP settings", func() {
 		}
 	})
 
-	Context("when the Network parameter is a subnet address", func() {
+	PContext("when the Network parameter is a subnet address", func() {
 		BeforeEach(func() {
 			containerNetwork1 = fmt.Sprintf("10.%d.0.0/24", GinkgoParallelNode())
 		})
@@ -91,7 +91,7 @@ var _ = Describe("IP settings", func() {
 		})
 	})
 
-	Context("when the Network parameter is not a subnet address", func() {
+	PContext("when the Network parameter is not a subnet address", func() {
 		BeforeEach(func() {
 			containerNetwork1 = fmt.Sprintf("10.%d.0.2/24", GinkgoParallelNode())
 		})
@@ -118,7 +118,7 @@ var _ = Describe("IP settings", func() {
 		})
 	})
 
-	Describe("the container's network", func() {
+	PDescribe("the container's network", func() {
 		BeforeEach(func() {
 			containerNetwork1 = fmt.Sprintf("10.%d.0.0/24", GinkgoParallelNode())
 		})
@@ -133,7 +133,7 @@ var _ = Describe("IP settings", func() {
 		})
 	})
 
-	Describe("another container on the same subnet", func() {
+	PDescribe("another container on the same subnet", func() {
 		BeforeEach(func() {
 			containerNetwork1 = fmt.Sprintf("10.%d.0.0/24", GinkgoParallelNode())
 			containerNetwork2 = containerNetwork1
@@ -203,7 +203,7 @@ var _ = Describe("IP settings", func() {
 		})
 	})
 
-	Describe("host's network", func() {
+	PDescribe("host's network", func() {
 		Context("when host access is explicitly allowed", func() {
 			BeforeEach(func() {
 				containerNetwork1 = fmt.Sprintf("10.%d.0.8/30", GinkgoParallelNode())
@@ -237,7 +237,7 @@ var _ = Describe("IP settings", func() {
 		})
 	})
 
-	Describe("the container's external ip", func() {
+	PDescribe("the container's external ip", func() {
 		It("is the external IP of its host", func() {
 			info1, err := container1.Info()
 			Expect(err).ToNot(HaveOccurred())

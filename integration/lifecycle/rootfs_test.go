@@ -33,7 +33,7 @@ var _ = Describe("Rootfs container create parameter", func() {
 		}
 	})
 
-	Context("without a default rootfs", func() {
+	PContext("without a default rootfs", func() {
 		BeforeEach(func() {
 			args = []string{"--rootfs", ""}
 		})
@@ -57,7 +57,7 @@ var _ = Describe("Rootfs container create parameter", func() {
 	})
 
 	Context("with a default rootfs", func() {
-		It("the container is created successfully", func() {
+		PIt("the container is created successfully", func() {
 			var err error
 
 			container, err = client.Create(garden.ContainerSpec{RootFSPath: ""})
@@ -65,7 +65,7 @@ var _ = Describe("Rootfs container create parameter", func() {
 		})
 	})
 
-	Context("with a docker rootfs URI", func() {
+	PContext("with a docker rootfs URI", func() {
 		Context("not containing a host", func() {
 			It("the container is created successfully", func() {
 				var err error

@@ -18,7 +18,7 @@ var _ = Describe("Process", func() {
 		Expect(err).ToNot(HaveOccurred())
 	})
 
-	Describe("signalling", func() {
+	PDescribe("signalling", func() {
 
 		It("a process can be sent SIGTERM immediately after having been started", func() {
 			stdout := gbytes.NewBuffer()
