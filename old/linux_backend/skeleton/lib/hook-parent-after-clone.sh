@@ -74,7 +74,7 @@ do
     echo "c 10:200 rwm" > $instance_path/devices.allow
     # /dev/fuse
     echo "c 10:229 rwm" > $instance_path/devices.allow
-    # /dev/fuse
+    # any loopback device
     echo "b 7:* rwm" > $instance_path/devices.allow
   fi
 
