@@ -5,6 +5,11 @@ set -x
 
 repoPath=$(cd $(dirname $BASH_SOURCE)/.. && pwd)
 
+if [ -z $GOROOT ]; then
+  export GOROOT=/usr/local/go
+  export PATH=$GOROOT/bin:$PATH
+fi
+
 if [ -z $GOPATH ]; then
   export GOPATH=$repoPath/Godeps/_workspace:$HOME/go
   export PATH=$GOPATH/bin:$PATH
