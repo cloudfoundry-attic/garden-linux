@@ -1,6 +1,6 @@
 {
 	"ImportPath": "github.com/cloudfoundry-incubator/garden-linux",
-	"GoVersion": "go1.4",
+	"GoVersion": "go1.4.2",
 	"Packages": [
 		"./..."
 	],
@@ -13,6 +13,34 @@
 			"ImportPath": "github.com/Sirupsen/logrus",
 			"Comment": "v0.6.0-5-gf92b795",
 			"Rev": "f92b7950b372b1db80bd3527e4d40e42555fe6c2"
+		},
+		{
+			"ImportPath": "github.com/awslabs/aws-sdk-go/aws",
+			"Rev": "876a0d58f03015fb59eb3667c6e846590029bacd"
+		},
+		{
+			"ImportPath": "github.com/awslabs/aws-sdk-go/internal/endpoints",
+			"Rev": "876a0d58f03015fb59eb3667c6e846590029bacd"
+		},
+		{
+			"ImportPath": "github.com/awslabs/aws-sdk-go/internal/protocol/ec2query",
+			"Rev": "876a0d58f03015fb59eb3667c6e846590029bacd"
+		},
+		{
+			"ImportPath": "github.com/awslabs/aws-sdk-go/internal/protocol/query/queryutil",
+			"Rev": "876a0d58f03015fb59eb3667c6e846590029bacd"
+		},
+		{
+			"ImportPath": "github.com/awslabs/aws-sdk-go/internal/protocol/xml/xmlutil",
+			"Rev": "876a0d58f03015fb59eb3667c6e846590029bacd"
+		},
+		{
+			"ImportPath": "github.com/awslabs/aws-sdk-go/internal/signer/v4",
+			"Rev": "876a0d58f03015fb59eb3667c6e846590029bacd"
+		},
+		{
+			"ImportPath": "github.com/awslabs/aws-sdk-go/service/ec2",
+			"Rev": "876a0d58f03015fb59eb3667c6e846590029bacd"
 		},
 		{
 			"ImportPath": "github.com/bmizerany/pat",
@@ -208,10 +236,6 @@
 			"Rev": "9f61d4554f6af00705c15714f4711f3019da7760"
 		},
 		{
-			"ImportPath": "github.com/gogo/protobuf/proto",
-			"Rev": "d59ce9ecb817e6fbca932115f03520207f5a8a07"
-		},
-		{
 			"ImportPath": "github.com/gorilla/context",
 			"Rev": "14f550f51af52180c2eefed15e5fd18d63c0a64a"
 		},
@@ -251,10 +275,6 @@
 			"Rev": "09a71f6eb2dcc1c2335e37ceb78a91c6f618d561"
 		},
 		{
-			"ImportPath": "github.com/pkg/term/termios",
-			"Rev": "e43fe36b3c6c38b682d86badb217aa95d7e86f4b"
-		},
-		{
 			"ImportPath": "github.com/tchap/go-patricia/patricia",
 			"Comment": "v1.0.1",
 			"Rev": "f64d0a63cd3363481c898faa9339de04d12213f9"
@@ -266,6 +286,14 @@
 		{
 			"ImportPath": "github.com/tedsuo/rata",
 			"Rev": "9946bb39c19484e199efb807da145063323e6502"
+		},
+		{
+			"ImportPath": "github.com/vaughan0/go-ini",
+			"Rev": "a98ad7ee00ec53921f08832bc06ecf7fd600e6a1"
+		},
+		{
+			"ImportPath": "golang.org/x/crypto/ssh",
+			"Rev": "59435533c88bd0b1254c738244da1fe96b59d05d"
 		}
 	]
 }
