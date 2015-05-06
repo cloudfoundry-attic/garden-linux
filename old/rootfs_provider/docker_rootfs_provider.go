@@ -81,7 +81,7 @@ func (provider *dockerRootFSProvider) CleanupRootFS(logger lager.Logger, id stri
 	provider.graphDriver.Put(id)
 
 	var err error
-	maxAttempts := 10
+	maxAttempts := 1
 
 	for errorCount := 0; errorCount < maxAttempts; errorCount++ {
 		err = provider.graphDriver.Remove(id)

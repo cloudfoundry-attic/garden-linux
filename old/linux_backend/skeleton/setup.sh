@@ -152,12 +152,12 @@ fi
 # ownership in the read-only layer affecting the read-write layer. Later
 # versions of aufs support a dirperm1 mount option which should allow us
 # to remove this workaround.
-rm -rf "$rootfs_path/tmp/root" || true # just in case
-[ -d "$rootfs_path/root" ] && cp -r "$rootfs_path/root" "$rootfs_path/tmp/root"
-if rm -r "$rootfs_path/root" 2>&1; then
-  mv "$rootfs_path/tmp/root" "$rootfs_path/root"
-fi
-rm -rf "$rootfs_path/tmp/root"
+# rm -rf "$rootfs_path/tmp/root" || true # just in case
+# [ -d "$rootfs_path/root" ] && cp -r "$rootfs_path/root" "$rootfs_path/tmp/root"
+# if rm -r "$rootfs_path/root" 2>&1; then
+#   mv "$rootfs_path/tmp/root" "$rootfs_path/root"
+# fi
+# rm -rf "$rootfs_path/tmp/root"
 
 # change the root user id in the rootfs /root dir to the container root uid if they
 # differ and if /root exists
