@@ -11,14 +11,26 @@
 #include <stdio.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <linux/sched.h>
+
+#define _GNU_SOURCE             /* See feature_test_macros(7) */
+#include <sched.h>
+#include <syscall.h>
+
 #include <string.h>
 #include <sys/param.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 
- #include "pwd.h"
+#include "pwd.h"
+
+/* for all those debian systems with new kernels and old glibc */
+#if !defined(HAVE_SETNS) && defined(SYS_setns)
+static inline int setns(int fd, int nstype)
+{
+  return syscall(__NR_setns, fd, nstype);
+}
+#endif
 
 /* create a directory; chown only if newly created */
 int mkdir_as(const char *dir, uid_t uid, gid_t gid) {
