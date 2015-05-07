@@ -1016,7 +1016,7 @@ var _ = FDescribe("Creating a container", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			PIt("creates the files in the container, as the vcap user", func() {
+			It("creates the files in the container, as the vcap user", func() {
 				err := container.StreamIn("/home/vcap", tarStream)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -1051,7 +1051,7 @@ var _ = FDescribe("Creating a container", func() {
 					privilegedContainer = true
 				})
 
-				PIt("streams in relative to the default run directory", func() {
+				It("streams in relative to the default run directory", func() {
 					err := container.StreamIn(".", tarStream)
 					Expect(err).ToNot(HaveOccurred())
 
@@ -1065,7 +1065,7 @@ var _ = FDescribe("Creating a container", func() {
 				})
 			})
 
-			PIt("streams in relative to the default run directory", func() {
+			It("streams in relative to the default run directory", func() {
 				err := container.StreamIn(".", tarStream)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -1087,7 +1087,7 @@ var _ = FDescribe("Creating a container", func() {
 			})
 
 			Context("and then copying them out", func() {
-				PIt("streams the directory", func() {
+				It("streams the directory", func() {
 					process, err := container.Run(garden.ProcessSpec{
 						Path: "sh",
 						Args: []string{"-c", `mkdir -p some-outer-dir/some-inner-dir && touch some-outer-dir/some-inner-dir/some-file`},
@@ -1111,7 +1111,7 @@ var _ = FDescribe("Creating a container", func() {
 				})
 
 				Context("with a trailing slash", func() {
-					PIt("streams the contents of the directory", func() {
+					It("streams the contents of the directory", func() {
 						process, err := container.Run(garden.ProcessSpec{
 							Path: "sh",
 							Args: []string{"-c", `mkdir -p some-container-dir && touch some-container-dir/some-file`},

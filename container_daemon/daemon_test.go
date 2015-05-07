@@ -92,6 +92,7 @@ var _ = Describe("Daemon", func() {
 						"foo", "bar",
 					},
 					User: "a-user",
+					Dir:  "some-dir",
 					Env:  []string{"foo=bar", "baz=barry"},
 				}
 			})
@@ -147,8 +148,12 @@ var _ = Describe("Daemon", func() {
 							Expect(theExecutedCommand.Env).To(ContainElement("baz=barry"))
 							exitStatusChan <- 0
 						})
-					})
 
+						It("has the supplied dir", func() {
+							Expect(theExecutedCommand.Dir).To(Equal("some-dir"))
+							exitStatusChan <- 0
+						})
+					})
 				})
 
 				Context("when the process returns output", func() {
