@@ -7,6 +7,7 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer"
@@ -69,6 +70,12 @@ func main() {
 
 	enterCgroups(env["id"])
 
+	uidMappingOffset, err := strconv.Atoi(env["root_uid"])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "wshd: failed to parse uid mapping offset from etc/config: %s", err)
+		os.Exit(7)
+	}
+
 	cz := containerizer.Containerizer{
 		InitBinPath: path.Join(binPath, "initd"),
 		InitArgs: []string{
@@ -77,9 +84,10 @@ func main() {
 			"--config", path.Join(*libPath, "../etc/config"),
 		},
 		Execer: &system.NamespacingExecer{
-			CommandRunner: linux_command_runner.New(),
-			ExtraFiles:    []*os.File{containerReader, containerWriter},
-			Privileged:    privileged,
+			CommandRunner:    linux_command_runner.New(),
+			ExtraFiles:       []*os.File{containerReader, containerWriter},
+			Privileged:       privileged,
+			UidMappingOffset: uidMappingOffset,
 		},
 		Signaller: sync,
 		Waiter:    sync,

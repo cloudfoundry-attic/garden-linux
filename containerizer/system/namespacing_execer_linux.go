@@ -11,9 +11,10 @@ import (
 )
 
 type NamespacingExecer struct {
-	CommandRunner command_runner.CommandRunner
-	ExtraFiles    []*os.File
-	Privileged    bool
+	CommandRunner    command_runner.CommandRunner
+	ExtraFiles       []*os.File
+	Privileged       bool
+	UidMappingOffset int
 }
 
 func (e *NamespacingExecer) Exec(binPath string, args ...string) (int, error) {
@@ -32,15 +33,15 @@ func (e *NamespacingExecer) Exec(binPath string, args ...string) (int, error) {
 		cmd.SysProcAttr.UidMappings = []syscall.SysProcIDMap{
 			{
 				ContainerID: 0,
-				HostID:      600000,
-				Size:        100000,
+				HostID:      e.UidMappingOffset,
+				Size:        65534,
 			},
 		}
 		cmd.SysProcAttr.GidMappings = []syscall.SysProcIDMap{
 			{
 				ContainerID: 0,
-				HostID:      600000,
-				Size:        100000,
+				HostID:      e.UidMappingOffset,
+				Size:        65545,
 			},
 		}
 

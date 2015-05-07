@@ -29,7 +29,8 @@ var _ = Describe("Execer", func() {
 		})
 
 		execer = &system.NamespacingExecer{
-			CommandRunner: commandRunner,
+			CommandRunner:    commandRunner,
+			UidMappingOffset: 101,
 		}
 	})
 
@@ -95,9 +96,8 @@ var _ = Describe("Execer", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				cmd := commandRunner.StartedCommands()[0]
-				Expect(cmd.SysProcAttr).ToNot(BeNil())
-				Expect(cmd.SysProcAttr.UidMappings).ToNot(BeNil())
-				Expect(cmd.SysProcAttr.GidMappings).ToNot(BeNil())
+				Expect(cmd.SysProcAttr.UidMappings[0].HostID).To(Equal(101))
+				Expect(cmd.SysProcAttr.GidMappings[0].HostID).To(Equal(101))
 			})
 		})
 
