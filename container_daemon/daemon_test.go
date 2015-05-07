@@ -145,6 +145,7 @@ var _ = Describe("Daemon", func() {
 						It("has the supplied env vars", func() {
 							Expect(theExecutedCommand.Env).To(ContainElement("foo=bar"))
 							Expect(theExecutedCommand.Env).To(ContainElement("baz=barry"))
+							exitStatusChan <- 0
 						})
 					})
 
