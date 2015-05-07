@@ -79,6 +79,7 @@ func (cd *ContainerDaemon) Handle(decoder *json.Decoder) ([]*os.File, error) {
 	}
 
 	cmd := exec.Command(spec.Path, spec.Args...)
+	cmd.Env = spec.Env
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Credential: &syscall.Credential{
 			Uid: uid,

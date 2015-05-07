@@ -519,7 +519,7 @@ var _ = FDescribe("Creating a container", func() {
 				Expect(time.Seconds()).To(BeNumerically("<", 1))
 			}, 10)
 
-			PIt("streams output back and reports the exit status (without env variables)", func() {
+			It("streams output back and reports the exit status (without env variables)", func() {
 				stdout := gbytes.NewBuffer()
 				stderr := gbytes.NewBuffer()
 
@@ -537,7 +537,7 @@ var _ = FDescribe("Creating a container", func() {
 				Expect(process.Wait()).To(Equal(42))
 			})
 
-			PIt("streams output back and reports the exit status", func() {
+			It("streams output back and reports the exit status", func() {
 				stdout := gbytes.NewBuffer()
 				stderr := gbytes.NewBuffer()
 

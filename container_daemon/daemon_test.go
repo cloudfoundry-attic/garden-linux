@@ -92,6 +92,7 @@ var _ = Describe("Daemon", func() {
 						"foo", "bar",
 					},
 					User: "a-user",
+					Env:  []string{"foo=bar", "baz=barry"},
 				}
 			})
 
@@ -139,6 +140,11 @@ var _ = Describe("Daemon", func() {
 							Expect(theExecutedCommand.SysProcAttr.Credential.Uid).To(Equal(uint32(77)))
 							Expect(theExecutedCommand.SysProcAttr.Credential.Gid).To(Equal(uint32(88)))
 							exitStatusChan <- 0
+						})
+
+						It("has the supplied env vars", func() {
+							Expect(theExecutedCommand.Env).To(ContainElement("foo=bar"))
+							Expect(theExecutedCommand.Env).To(ContainElement("baz=barry"))
 						})
 					})
 

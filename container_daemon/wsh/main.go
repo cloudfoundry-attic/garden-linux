@@ -11,11 +11,12 @@ import (
 )
 
 func main() {
+	var envVars container_daemon.StringList
 	socketPath := flag.String("socket", "./run/wshd.sock", "Path to socket")
 	user := flag.String("user", "vcap", "User to change to")
 	// ******************** TODO: implement old flags *****************
 	dir := flag.String("dir", "/home/vcap", "Working directory for the running process")
-	flag.String("env", "", "Environment variables to set for the command.")
+	flag.Var(&envVars, "env", "Environment variables to set for the command.")
 	flag.String("pidfile", "", "File to save container-namespaced pid of spawned process to")
 	flag.Bool("rsh", false, "RSH compatibility mode")
 	// ******************** TODO: imlement old flags *****************
@@ -31,7 +32,7 @@ func main() {
 	processSpec := &garden.ProcessSpec{
 		Path: extraArgs[0],
 		Args: extraArgs[1:],
-		Env:  []string{"HELLO=1"},
+		Env:  envVars.List,
 		Dir:  *dir,
 		User: *user,
 	}
