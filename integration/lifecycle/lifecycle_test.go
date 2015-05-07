@@ -538,7 +538,7 @@ var _ = Describe("Creating a container", func() {
 				Expect(process.Wait()).To(Equal(42))
 			})
 
-			PIt("sends a TERM signal to the process if requested", func() {
+			FIt("sends a TERM signal to the process if requested", func() {
 				stdout := gbytes.NewBuffer()
 
 				process, err := container.Run(garden.ProcessSpec{
@@ -563,7 +563,7 @@ var _ = Describe("Creating a container", func() {
 				Expect(process.Wait()).To(Equal(42))
 			})
 
-			PIt("sends a KILL signal to the process if requested", func() {
+			FIt("sends a KILL signal to the process if requested", func() {
 				stdout := gbytes.NewBuffer()
 
 				process, err := container.Run(garden.ProcessSpec{
@@ -585,7 +585,7 @@ var _ = Describe("Creating a container", func() {
 				Expect(process.Wait()).ToNot(Equal(0))
 			})
 
-			PIt("avoids a race condition when sending a kill signal", func(done Done) {
+			FIt("avoids a race condition when sending a kill signal", func(done Done) {
 				stdout := gbytes.NewBuffer()
 
 				for i := 0; i < 200; i++ {
