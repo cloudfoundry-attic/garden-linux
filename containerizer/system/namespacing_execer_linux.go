@@ -21,6 +21,9 @@ type NamespacingExecer struct {
 
 func (e *NamespacingExecer) Exec(binPath string, args ...string) (int, error) {
 	cmd := exec.Command(binPath, args...)
+
+	cmd.Stdout, cmd.Stderr = e.Stdout, e.Stderr
+
 	cmd.SysProcAttr = &syscall.SysProcAttr{}
 
 	flags := syscall.CLONE_NEWIPC

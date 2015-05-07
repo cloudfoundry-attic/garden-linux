@@ -218,7 +218,7 @@ setup_fs
 		}, 10).ShouldNot(HaveOccurred())
 	})
 
-	It("starts the daemon as a session leader with process isolation and the given title", func() {
+	PIt("starts the daemon as a session leader with process isolation and the given title", func() {
 		ps := exec.Command(wsh, "--socket", socketPath, "/bin/ps", "-o", "pid,comm")
 
 		psSession, err := Start(ps, GinkgoWriter, GinkgoWriter)
@@ -228,7 +228,7 @@ setup_fs
 		Eventually(psSession).Should(Exit(0))
 	})
 
-	It("starts the daemon with mount space isolation", func() {
+	PIt("starts the daemon with mount space isolation", func() {
 		mkdir := exec.Command(wsh, "--socket", socketPath, "/bin/mkdir", "/home/vcap/lawn")
 		mkdirSession, err := Start(mkdir, GinkgoWriter, GinkgoWriter)
 		Expect(err).ToNot(HaveOccurred())
@@ -251,7 +251,7 @@ setup_fs
 		Expect(catSession).ToNot(Say("gnome"))
 	})
 
-	It("places the daemon in each cgroup subsystem", func() {
+	PIt("places the daemon in each cgroup subsystem", func() {
 		cat := exec.Command(wsh, "--socket", socketPath, "sh", "-c", "cat /proc/$$/cgroup")
 		catSession, err := Start(cat, GinkgoWriter, GinkgoWriter)
 		Expect(err).ToNot(HaveOccurred())
@@ -263,7 +263,7 @@ setup_fs
 		Expect(catSession.Out.Contents()).To(MatchRegexp(`\bmemory\b`))
 	})
 
-	It("starts the daemon with network namespace isolation", func() {
+	PIt("starts the daemon with network namespace isolation", func() {
 		ifconfig := exec.Command(wsh, "--socket", socketPath, "/sbin/ifconfig", "lo:0", "1.2.3.4", "up")
 		ifconfigSession, err := Start(ifconfig, GinkgoWriter, GinkgoWriter)
 		Expect(err).ToNot(HaveOccurred())
@@ -276,7 +276,7 @@ setup_fs
 		Expect(localIfconfigSession).ToNot(Say("lo:0"))
 	})
 
-	It("starts the daemon with a new IPC namespace", func() {
+	PIt("starts the daemon with a new IPC namespace", func() {
 		err = copyFile(shmTest, path.Join(mntDir, "sbin", "shmtest"))
 		Expect(err).ToNot(HaveOccurred())
 
@@ -303,7 +303,7 @@ setup_fs
 		Eventually(createLocal).Should(Exit(0))
 	})
 
-	It("starts the daemon with a new UTS namespace", func() {
+	PIt("starts the daemon with a new UTS namespace", func() {
 		hostname := exec.Command(wsh, "--socket", socketPath, "/bin/hostname", "newhostname")
 		hostnameSession, err := Start(hostname, GinkgoWriter, GinkgoWriter)
 		Expect(err).ToNot(HaveOccurred())
@@ -315,7 +315,7 @@ setup_fs
 		Expect(localHostnameSession).ToNot(Say("newhostname"))
 	})
 
-	It("does not leak any shared memory to the child", func() {
+	PIt("does not leak any shared memory to the child", func() {
 		ipcs, err := Start(
 			exec.Command(wsh, "--socket", socketPath, "ipcs"),
 			GinkgoWriter,
@@ -326,7 +326,7 @@ setup_fs
 		Expect(ipcs).ToNot(Say("deadbeef"))
 	})
 
-	It("ensures /tmp is world-writable", func() {
+	PIt("ensures /tmp is world-writable", func() {
 		ls, err := Start(
 			exec.Command(wsh, "--socket", socketPath, "ls", "-al", "/tmp"),
 			GinkgoWriter,
@@ -338,7 +338,7 @@ setup_fs
 		Expect(ls).To(Say(`drwxrwxrwt`))
 	})
 
-	It("unmounts /tmp/garden-host* in the child", func() {
+	PIt("unmounts /tmp/garden-host* in the child", func() {
 		cat := exec.Command(wsh, "--socket", socketPath, "/bin/cat", "/proc/mounts")
 
 		catSession, err := Start(cat, GinkgoWriter, GinkgoWriter)
@@ -348,7 +348,7 @@ setup_fs
 		Expect(catSession).ToNot(Say(" /tmp/garden-host"))
 	})
 
-	Context("when mount points on the host are deleted", func() {
+	PContext("when mount points on the host are deleted", func() {
 		BeforeEach(func() {
 			tmpdir, err := ioutil.TempDir("", "wshd-bogus-mount")
 			Expect(err).ToNot(HaveOccurred())
@@ -388,7 +388,7 @@ setup_fs
 		})
 	})
 
-	Context("when running a command in a working dir", func() {
+	PContext("when running a command in a working dir", func() {
 		It("executes with setuid and setgid", func() {
 			pwd := exec.Command(wsh, "--socket", socketPath, "--dir", "/usr", "pwd")
 
@@ -400,7 +400,7 @@ setup_fs
 		})
 	})
 
-	Context("when running without specifying a --pidfile", func() {
+	PContext("when running without specifying a --pidfile", func() {
 		It("should exit cleanly with the correct status", func() {
 			pwd := exec.Command(wsh, "--socket", socketPath, "--dir", "/usr", "/bin/sh", "-c", "exit 3")
 
@@ -415,7 +415,7 @@ setup_fs
 		})
 	})
 
-	It("allows children to receive SIGCHLD when grandchildren die", func() {
+	PIt("allows children to receive SIGCHLD when grandchildren die", func() {
 		trap := exec.Command(wsh, "--socket", socketPath, "--dir", "/usr", "/bin/sh", "-c", "trap 'echo caught sigchld' SIGCHLD; $(ls / >/dev/null 2>&1); sleep 5;")
 
 		trapSession, err := Start(trap, GinkgoWriter, GinkgoWriter)
@@ -424,7 +424,7 @@ setup_fs
 		Eventually(trapSession).Should(Say("caught sigchld"))
 	})
 
-	Context("when running a command as a user", func() {
+	PContext("when running a command as a user", func() {
 		It("executes with setuid and setgid", func() {
 			sh := exec.Command(wsh, "--socket", socketPath, "--user", "vcap", "/bin/sh", "-c", "id -u; id -g")
 
@@ -533,7 +533,7 @@ setup_fs
 		})
 	})
 
-	Context("when running a command as root", func() {
+	PContext("when running a command as root", func() {
 		It("executes with setuid and setgid", func() {
 			sh := exec.Command(wsh, "--socket", socketPath, "--user", "root", "/bin/sh", "-c", "id -u; id -g")
 
@@ -581,7 +581,7 @@ setup_fs
 		})
 	})
 
-	Context("when piping stdin", func() {
+	PContext("when piping stdin", func() {
 		It("terminates when the input stream terminates", func() {
 			sh := exec.Command(wsh, "--socket", socketPath, "/bin/sh")
 
@@ -599,7 +599,7 @@ setup_fs
 		})
 	})
 
-	Context("setting rlimits", func() {
+	PContext("setting rlimits", func() {
 		shouldSetRlimit := func(env []string, limitQueryCmd, expectedValue string) {
 			ulimit := exec.Command(wsh, "--socket", socketPath, "--user", "root", "/bin/sh", "-c", limitQueryCmd)
 			ulimit.Env = env
