@@ -8,7 +8,6 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/fake_container_daemon"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/fake_container_execer"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/fake_container_initializer"
-	"github.com/cloudfoundry-incubator/garden-linux/containerizer/fake_rootfs_enterer"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/fake_signaller"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/fake_waiter"
 	"github.com/cloudfoundry-incubator/garden-linux/hook"
@@ -33,6 +32,7 @@ var _ = Describe("Containerizer", func() {
 			hookCommandRunner = &FakeCommandRunner{}
 
 			cz = &containerizer.Containerizer{
+				RootfsPath:  "some-rootfs",
 				Execer:      containerExecer,
 				InitBinPath: "initd",
 				Signaller:   signaller,
@@ -57,6 +57,23 @@ var _ = Describe("Containerizer", func() {
 					Path: "lib/hook",
 					Args: []string{
 						string(hook.PARENT_AFTER_CLONE),
+					},
+				},
+			))
+		})
+
+		It("spawns the pivoter process in to the container", func() {
+			containerExecer.ExecReturns(42, nil)
+
+			Expect(cz.Create()).To(Succeed())
+			Expect(hookCommandRunner).To(HaveExecutedSerially(
+				CommandSpec{
+					Path: "lib/pivotter",
+					Args: []string{
+						"-rootfs", "some-rootfs",
+					},
+					Env: []string{
+						"TARGET_NS_PID=42",
 					},
 				},
 			))
@@ -142,7 +159,6 @@ var _ = Describe("Containerizer", func() {
 
 	Describe("Run", func() {
 		var cz *containerizer.Containerizer
-		var rootFS *fake_rootfs_enterer.FakeRootFSEnterer
 		var initializer *fake_container_initializer.FakeContainerInitializer
 		var daemon *fake_container_daemon.FakeContainerDaemon
 		var signaller *fake_signaller.FakeSignaller
@@ -155,14 +171,13 @@ var _ = Describe("Containerizer", func() {
 			workingDirectory, err = os.Getwd()
 			Expect(err).ToNot(HaveOccurred())
 
-			rootFS = &fake_rootfs_enterer.FakeRootFSEnterer{}
 			initializer = &fake_container_initializer.FakeContainerInitializer{}
 			daemon = &fake_container_daemon.FakeContainerDaemon{}
 			signaller = &fake_signaller.FakeSignaller{}
 			waiter = &fake_waiter.FakeWaiter{}
 
 			cz = &containerizer.Containerizer{
-				RootFS:      rootFS,
+				RootfsPath:  "",
 				Initializer: initializer,
 				Daemon:      daemon,
 				Signaller:   signaller,
@@ -194,9 +209,9 @@ var _ = Describe("Containerizer", func() {
 				Expect(signaller.SignalErrorArgsForCall(0)).To(Equal(errors.New("containerizer: wait for host: Foo")))
 			})
 
-			It("does not initialize the daemon", func() {
+			It("don't initialize the container", func() {
 				cz.Run()
-				Expect(daemon.InitCallCount()).To(Equal(0))
+				Expect(initializer.InitCallCount()).To(Equal(0))
 			})
 		})
 
@@ -219,37 +234,6 @@ var _ = Describe("Containerizer", func() {
 				cz.Run()
 				Expect(signaller.SignalErrorCallCount()).To(Equal(1))
 				Expect(signaller.SignalErrorArgsForCall(0)).To(Equal(errors.New("containerizer: initialize daemon: Booo")))
-			})
-
-			It("does not enter rootfs", func() {
-				cz.Run()
-				Expect(rootFS.EnterCallCount()).To(Equal(0))
-			})
-		})
-
-		It("enters the rootfs", func() {
-			Expect(cz.Run()).To(Succeed())
-			Expect(rootFS.EnterCallCount()).To(Equal(1))
-		})
-
-		Context("when enter rootfs fails", func() {
-			BeforeEach(func() {
-				rootFS.EnterReturns(errors.New("Opps"))
-			})
-
-			It("returns an error", func() {
-				Expect(cz.Run()).To(MatchError("containerizer: enter root fs: Opps"))
-			})
-
-			It("signals the error to the host", func() {
-				cz.Run()
-				Expect(signaller.SignalErrorCallCount()).To(Equal(1))
-				Expect(signaller.SignalErrorArgsForCall(0)).To(Equal(errors.New("containerizer: enter root fs: Opps")))
-			})
-
-			It("does not initialize", func() {
-				cz.Run()
-				Expect(initializer.InitCallCount()).To(Equal(0))
 			})
 		})
 

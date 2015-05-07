@@ -22,7 +22,7 @@ func (step *ShellRunnerStep) Init() error {
 	}
 
 	if status, err := step.Runner.Wait(command); err != nil || status != 0 {
-		return fmt.Errorf("waiting for command %s: %s", step.Path, err)
+		return fmt.Errorf("waiting for command %s: exit status %d: %s", step.Path, status, err)
 	}
 
 	return nil

@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -50,7 +51,7 @@ type Containerizer struct {
 	InitBinPath string
 	InitArgs    []string
 	Execer      ContainerExecer
-	RootFS      RootFSEnterer
+	RootfsPath  string
 	Initializer ContainerInitializer
 	Daemon      ContainerDaemon
 	Signaller   Signaller
@@ -85,6 +86,12 @@ func (c *Containerizer) Create() error {
 		return fmt.Errorf("containerizer: run `parent-after-clone`: %s", err)
 	}
 
+	pivotter := exec.Command(filepath.Join(c.LibPath, "pivotter"), "-rootfs", c.RootfsPath)
+	pivotter.Env = append(pivotter.Env, fmt.Sprintf("TARGET_NS_PID=%d", pid))
+	if err := c.CommandRunner.Run(pivotter); err != nil {
+		return fmt.Errorf("containerizer: run pivotter: %s", err)
+	}
+
 	if err := c.Signaller.SignalSuccess(); err != nil {
 		return fmt.Errorf("containerizer: send success singnal to the container: %s", err)
 	}
@@ -97,16 +104,12 @@ func (c *Containerizer) Create() error {
 }
 
 func (c *Containerizer) Run() error {
-	if err := c.Waiter.Wait(timeout); err != nil {
-		return c.signalErrorf("containerizer: wait for host: %s", err)
-	}
-
 	if err := c.Daemon.Init(); err != nil {
 		return c.signalErrorf("containerizer: initialize daemon: %s", err)
 	}
 
-	if err := c.RootFS.Enter(); err != nil {
-		return c.signalErrorf("containerizer: enter root fs: %s", err)
+	if err := c.Waiter.Wait(timeout); err != nil {
+		return c.signalErrorf("containerizer: wait for host: %s", err)
 	}
 
 	// TODO: TTY stuff (ptmx)

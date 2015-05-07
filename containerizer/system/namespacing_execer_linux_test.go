@@ -11,7 +11,6 @@ import (
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/onsi/gomega/gbytes"
 )
 
 var _ = Describe("Execer", func() {
@@ -79,6 +78,18 @@ var _ = Describe("Execer", func() {
 				Expect(int(cmd.SysProcAttr.Cloneflags) & syscall.CLONE_NEWUSER).ToNot(Equal(0))
 			})
 
+			It("spawns as UID 0 (so that the process is run as container-root rather than 'nobody')", func() {
+				_, err := execer.Exec("something", "smthg")
+				Expect(err).ToNot(HaveOccurred())
+
+				cmd := commandRunner.StartedCommands()[0]
+				Expect(cmd.SysProcAttr).ToNot(BeNil())
+				Expect(cmd.SysProcAttr.Credential).To(Equal(&syscall.Credential{
+					Uid: 0,
+					Gid: 0,
+				}))
+			})
+
 			It("sets uid and gid mappings", func() {
 				_, err := execer.Exec("something", "smthg")
 				Expect(err).ToNot(HaveOccurred())
@@ -115,18 +126,6 @@ var _ = Describe("Execer", func() {
 			cmd := commandRunner.StartedCommands()[0]
 			Expect(cmd.ExtraFiles).To(HaveLen(1))
 			Expect(cmd.ExtraFiles[0]).To(Equal(tmpFile))
-		})
-
-		It("sets stdout and stderr", func() {
-			execer.Stdout = gbytes.NewBuffer()
-			execer.Stderr = gbytes.NewBuffer()
-
-			_, err := execer.Exec("somthing", "fast")
-			Expect(err).ToNot(HaveOccurred())
-
-			cmd := commandRunner.StartedCommands()[0]
-			Expect(cmd.Stdout).To(Equal(execer.Stdout))
-			Expect(cmd.Stderr).To(Equal(execer.Stderr))
 		})
 	})
 })

@@ -17,6 +17,9 @@ fi
 
 ./net.sh setup
 
+mkdir -p ./run
+chmod 777 ./run
+
 if [ "$root_uid" -eq 0 ]
 then
   ./bin/wshd --run ./run --lib ./lib --root $rootfs_path --title "wshd: $id" --userns disabled

@@ -1,7 +1,6 @@
 package system
 
 import (
-	"io"
 	"os"
 	"os/exec"
 	"syscall"
@@ -13,17 +12,12 @@ import (
 
 type NamespacingExecer struct {
 	CommandRunner command_runner.CommandRunner
-	Stdout        io.Writer
-	Stderr        io.Writer
 	ExtraFiles    []*os.File
 	Privileged    bool
 }
 
 func (e *NamespacingExecer) Exec(binPath string, args ...string) (int, error) {
 	cmd := exec.Command(binPath, args...)
-
-	cmd.Stdout, cmd.Stderr = e.Stdout, e.Stderr
-
 	cmd.SysProcAttr = &syscall.SysProcAttr{}
 
 	flags := syscall.CLONE_NEWIPC
@@ -38,16 +32,21 @@ func (e *NamespacingExecer) Exec(binPath string, args ...string) (int, error) {
 		cmd.SysProcAttr.UidMappings = []syscall.SysProcIDMap{
 			{
 				ContainerID: 0,
-				HostID:      0,
+				HostID:      600000,
 				Size:        100000,
 			},
 		}
 		cmd.SysProcAttr.GidMappings = []syscall.SysProcIDMap{
 			{
 				ContainerID: 0,
-				HostID:      0,
+				HostID:      600000,
 				Size:        100000,
 			},
+		}
+
+		cmd.SysProcAttr.Credential = &syscall.Credential{
+			Uid: 0,
+			Gid: 0,
 		}
 	}
 

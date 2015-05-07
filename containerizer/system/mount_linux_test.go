@@ -83,7 +83,7 @@ var _ = Describe("Mount", func() {
 						privileged, "fake_mounter", "tmpfs", filepath.Join(dest, "foo"), "0", "cat", "/proc/mounts"),
 				).To(HaveOccurred())
 
-				Expect(stderr).To(gbytes.Say("error: system: create mount point directory %s/foo: mkdir %s/foo: not a directory", dest, dest))
+				Expect(stderr).To(gbytes.Say("error: system: create mount point directory %s/foo: ", dest))
 			})
 		})
 	}

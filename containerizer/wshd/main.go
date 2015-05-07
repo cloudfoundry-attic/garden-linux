@@ -86,6 +86,7 @@ func main() {
 		// Temporary until we merge the hook scripts functionality in Golang
 		CommandRunner: linux_command_runner.New(),
 		LibPath:       *libPath,
+		RootfsPath:    *rootFsPath,
 	}
 
 	err = cz.Create()

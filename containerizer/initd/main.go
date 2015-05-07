@@ -48,7 +48,6 @@ func main() {
 	defer reaper.Stop()
 
 	initializer := &system.ContainerInitializer{
-		//Logger: logger,
 		Steps: []system.Initializer{
 			&step{system.Mount{
 				Type:  system.Tmpfs,
@@ -56,9 +55,13 @@ func main() {
 				Path:  "/dev/shm",
 			}.Mount},
 			&step{system.Mount{
-				Type: system.Proc,
-				Path: "/proc",
+				Type:  system.Proc,
+				Flags: syscall.MS_NOSUID | syscall.MS_NODEV | syscall.MS_NOEXEC,
+				Path:  "/proc",
 			}.Mount},
+			&step{system.Unmount{
+				Dir: "/tmp/garden-host",
+			}.Unmount},
 			&step{func() error {
 				return setupNetwork(env)
 			}},
@@ -78,9 +81,7 @@ func main() {
 	}
 
 	containerizer := containerizer.Containerizer{
-		RootFS: &system.RootFS{
-			Root: *rootFsPath,
-		},
+		RootfsPath:  *rootFsPath,
 		Initializer: initializer,
 		Daemon:      daemon,
 		Waiter:      sync,
