@@ -55,6 +55,7 @@ func (c *LinuxContainer) Run(spec garden.ProcessSpec, processIO garden.ProcessIO
 		Runner:        c.runner,
 		ContainerPath: c.path,
 		PidFilePath:   pidfile,
+		Logger:        c.logger,
 	}
 
 	args = append(args, spec.Path)

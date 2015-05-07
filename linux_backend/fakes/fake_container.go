@@ -193,19 +193,19 @@ type FakeContainer struct {
 		result1 garden.Metrics
 		result2 error
 	}
-	PropertiesStub        func() (garden.Properties, error)
-	propertiesMutex       sync.RWMutex
-	propertiesArgsForCall []struct{}
-	propertiesReturns     struct {
+	GetPropertiesStub        func() (garden.Properties, error)
+	getPropertiesMutex       sync.RWMutex
+	getPropertiesArgsForCall []struct{}
+	getPropertiesReturns     struct {
 		result1 garden.Properties
 		result2 error
 	}
-	PropertyStub        func(name string) (string, error)
-	propertyMutex       sync.RWMutex
-	propertyArgsForCall []struct {
+	GetPropertyStub        func(name string) (string, error)
+	getPropertyMutex       sync.RWMutex
+	getPropertyArgsForCall []struct {
 		name string
 	}
-	propertyReturns struct {
+	getPropertyReturns struct {
 		result1 string
 		result2 error
 	}
@@ -914,59 +914,59 @@ func (fake *FakeContainer) MetricsReturns(result1 garden.Metrics, result2 error)
 	}{result1, result2}
 }
 
-func (fake *FakeContainer) Properties() (garden.Properties, error) {
-	fake.propertiesMutex.Lock()
-	fake.propertiesArgsForCall = append(fake.propertiesArgsForCall, struct{}{})
-	fake.propertiesMutex.Unlock()
-	if fake.PropertiesStub != nil {
-		return fake.PropertiesStub()
+func (fake *FakeContainer) GetProperties() (garden.Properties, error) {
+	fake.getPropertiesMutex.Lock()
+	fake.getPropertiesArgsForCall = append(fake.getPropertiesArgsForCall, struct{}{})
+	fake.getPropertiesMutex.Unlock()
+	if fake.GetPropertiesStub != nil {
+		return fake.GetPropertiesStub()
 	} else {
-		return fake.propertiesReturns.result1, fake.propertiesReturns.result2
+		return fake.getPropertiesReturns.result1, fake.getPropertiesReturns.result2
 	}
 }
 
-func (fake *FakeContainer) PropertiesCallCount() int {
-	fake.propertiesMutex.RLock()
-	defer fake.propertiesMutex.RUnlock()
-	return len(fake.propertiesArgsForCall)
+func (fake *FakeContainer) GetPropertiesCallCount() int {
+	fake.getPropertiesMutex.RLock()
+	defer fake.getPropertiesMutex.RUnlock()
+	return len(fake.getPropertiesArgsForCall)
 }
 
-func (fake *FakeContainer) PropertiesReturns(result1 garden.Properties, result2 error) {
-	fake.PropertiesStub = nil
-	fake.propertiesReturns = struct {
+func (fake *FakeContainer) GetPropertiesReturns(result1 garden.Properties, result2 error) {
+	fake.GetPropertiesStub = nil
+	fake.getPropertiesReturns = struct {
 		result1 garden.Properties
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeContainer) Property(name string) (string, error) {
-	fake.propertyMutex.Lock()
-	fake.propertyArgsForCall = append(fake.propertyArgsForCall, struct {
+func (fake *FakeContainer) GetProperty(name string) (string, error) {
+	fake.getPropertyMutex.Lock()
+	fake.getPropertyArgsForCall = append(fake.getPropertyArgsForCall, struct {
 		name string
 	}{name})
-	fake.propertyMutex.Unlock()
-	if fake.PropertyStub != nil {
-		return fake.PropertyStub(name)
+	fake.getPropertyMutex.Unlock()
+	if fake.GetPropertyStub != nil {
+		return fake.GetPropertyStub(name)
 	} else {
-		return fake.propertyReturns.result1, fake.propertyReturns.result2
+		return fake.getPropertyReturns.result1, fake.getPropertyReturns.result2
 	}
 }
 
-func (fake *FakeContainer) PropertyCallCount() int {
-	fake.propertyMutex.RLock()
-	defer fake.propertyMutex.RUnlock()
-	return len(fake.propertyArgsForCall)
+func (fake *FakeContainer) GetPropertyCallCount() int {
+	fake.getPropertyMutex.RLock()
+	defer fake.getPropertyMutex.RUnlock()
+	return len(fake.getPropertyArgsForCall)
 }
 
-func (fake *FakeContainer) PropertyArgsForCall(i int) string {
-	fake.propertyMutex.RLock()
-	defer fake.propertyMutex.RUnlock()
-	return fake.propertyArgsForCall[i].name
+func (fake *FakeContainer) GetPropertyArgsForCall(i int) string {
+	fake.getPropertyMutex.RLock()
+	defer fake.getPropertyMutex.RUnlock()
+	return fake.getPropertyArgsForCall[i].name
 }
 
-func (fake *FakeContainer) PropertyReturns(result1 string, result2 error) {
-	fake.PropertyStub = nil
-	fake.propertyReturns = struct {
+func (fake *FakeContainer) GetPropertyReturns(result1 string, result2 error) {
+	fake.GetPropertyStub = nil
+	fake.getPropertyReturns = struct {
 		result1 string
 		result2 error
 	}{result1, result2}

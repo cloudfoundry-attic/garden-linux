@@ -394,6 +394,7 @@ var _ = Describe("Linux containers", func() {
 				ContainerPath: containerDir,
 				Runner:        fakeRunner,
 				PidFilePath:   containerDir + "/processes/456.pid",
+				Logger:        lagertest.NewTestLogger("test"),
 			}))
 		})
 

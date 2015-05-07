@@ -538,7 +538,8 @@ var _ = Describe("Creating a container", func() {
 				Expect(process.Wait()).To(Equal(42))
 			})
 
-			FIt("sends a TERM signal to the process if requested", func() {
+			It("sends a TERM signal to the process if requested", func() {
+
 				stdout := gbytes.NewBuffer()
 
 				process, err := container.Run(garden.ProcessSpec{
@@ -563,7 +564,7 @@ var _ = Describe("Creating a container", func() {
 				Expect(process.Wait()).To(Equal(42))
 			})
 
-			FIt("sends a KILL signal to the process if requested", func() {
+			It("sends a KILL signal to the process if requested", func() {
 				stdout := gbytes.NewBuffer()
 
 				process, err := container.Run(garden.ProcessSpec{
@@ -585,8 +586,9 @@ var _ = Describe("Creating a container", func() {
 				Expect(process.Wait()).ToNot(Equal(0))
 			})
 
-			FIt("avoids a race condition when sending a kill signal", func(done Done) {
+			It("avoids a race condition when sending a kill signal", func(done Done) {
 				stdout := gbytes.NewBuffer()
+				stderr := gbytes.NewBuffer()
 
 				for i := 0; i < 200; i++ {
 					process, err := container.Run(garden.ProcessSpec{
@@ -594,12 +596,15 @@ var _ = Describe("Creating a container", func() {
 						Args: []string{"-c", `while true; do echo -n "x"; sleep 1; done`},
 					}, garden.ProcessIO{
 						Stdout: io.MultiWriter(GinkgoWriter, stdout),
-						Stderr: GinkgoWriter,
+						Stderr: io.MultiWriter(GinkgoWriter, stderr),
 					})
 					Expect(err).ToNot(HaveOccurred())
 
+					println("before signal")
 					Expect(process.Signal(garden.SignalKill)).To(Succeed())
+					println("after signal")
 					Expect(process.Wait()).To(Equal(255))
+					println("after wait")
 				}
 				close(done)
 			}, 30.0)

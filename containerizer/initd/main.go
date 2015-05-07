@@ -18,6 +18,13 @@ import (
 )
 
 func main() {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Fprintf(os.Stderr, "initd: panicked: %s\n", r)
+			os.Exit(4)
+		}
+	}()
+
 	socketPath := flag.String("socket", "", "Path for the socket file")
 	rootFsPath := flag.String("root", "", "Path for the root file system directory")
 	configFilePath := flag.String("config", "./etc/config", "Path for the configuration file")
@@ -41,7 +48,7 @@ func main() {
 	env, err := process.EnvFromFile(*configFilePath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "initd: failed to get env from config file: %s\n", err)
-		os.Exit(2)
+		os.Exit(3)
 	}
 
 	reaper := system.StartReaper(logger)

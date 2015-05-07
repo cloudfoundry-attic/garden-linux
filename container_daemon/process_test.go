@@ -16,9 +16,11 @@ import (
 var _ = Describe("Process", func() {
 	var socketConnector *fake_connector.FakeConnector
 
+	const testPid = 67
+
 	BeforeEach(func() {
 		socketConnector = &fake_connector.FakeConnector{}
-		socketConnector.ConnectReturns([]io.ReadWriteCloser{nil, nil, nil, gbytes.NewBuffer()}, nil)
+		socketConnector.ConnectReturns([]io.ReadWriteCloser{nil, nil, nil, gbytes.NewBuffer()}, testPid, nil)
 	})
 
 	It("sends the correct process payload to the server", func() {
@@ -35,9 +37,19 @@ var _ = Describe("Process", func() {
 		Expect(socketConnector.ConnectArgsForCall(0)).To(Equal(spec))
 	})
 
+	It("returns the PID of the spawned process", func() {
+		spec := &garden.ProcessSpec{
+			Path: "/bin/echo",
+			Args: []string{"Hello world"},
+		}
+
+		proc, _ := NewProcess(socketConnector, spec, nil)
+		Expect(proc.Pid()).To(Equal(testPid))
+	})
+
 	It("streams stdout back", func() {
 		remoteStdout := gbytes.NewBuffer()
-		socketConnector.ConnectReturns([]io.ReadWriteCloser{nil, remoteStdout, nil, gbytes.NewBuffer()}, nil)
+		socketConnector.ConnectReturns([]io.ReadWriteCloser{nil, remoteStdout, nil, gbytes.NewBuffer()}, 0, nil)
 
 		spec := garden.ProcessSpec{
 			Path: "/bin/echo",
@@ -56,7 +68,7 @@ var _ = Describe("Process", func() {
 
 	It("streams stderr back", func() {
 		remoteStderr := gbytes.NewBuffer()
-		socketConnector.ConnectReturns([]io.ReadWriteCloser{nil, nil, remoteStderr, gbytes.NewBuffer()}, nil)
+		socketConnector.ConnectReturns([]io.ReadWriteCloser{nil, nil, remoteStderr, gbytes.NewBuffer()}, 0, nil)
 
 		spec := garden.ProcessSpec{
 			Path: "/bin/echo",
@@ -77,7 +89,7 @@ var _ = Describe("Process", func() {
 
 	It("streams stdin over", func() {
 		remoteStdin := gbytes.NewBuffer()
-		socketConnector.ConnectReturns([]io.ReadWriteCloser{remoteStdin, nil, nil, gbytes.NewBuffer()}, nil)
+		socketConnector.ConnectReturns([]io.ReadWriteCloser{remoteStdin, nil, nil, gbytes.NewBuffer()}, 0, nil)
 
 		spec := garden.ProcessSpec{
 			Path: "/bin/echo",
@@ -98,7 +110,7 @@ var _ = Describe("Process", func() {
 
 	It("waits for and reports the correct exit status", func() {
 		remoteExitFd := gbytes.NewBuffer()
-		socketConnector.ConnectReturns([]io.ReadWriteCloser{nil, nil, nil, remoteExitFd}, nil)
+		socketConnector.ConnectReturns([]io.ReadWriteCloser{nil, nil, nil, remoteExitFd}, 0, nil)
 
 		spec := garden.ProcessSpec{
 			Path: "/bin/echo",
@@ -114,7 +126,7 @@ var _ = Describe("Process", func() {
 
 	Context("when it fails to connect", func() {
 		It("returns an error", func() {
-			socketConnector.ConnectReturns(nil, errors.New("Hoy hoy"))
+			socketConnector.ConnectReturns(nil, 0, errors.New("Hoy hoy"))
 
 			spec := garden.ProcessSpec{
 				Path: "/bin/echo",

@@ -9,18 +9,19 @@ import (
 )
 
 type FakeConnector struct {
-	ConnectStub        func(msg interface{}) ([]io.ReadWriteCloser, error)
+	ConnectStub        func(msg interface{}) ([]io.ReadWriteCloser, int, error)
 	connectMutex       sync.RWMutex
 	connectArgsForCall []struct {
 		msg interface{}
 	}
 	connectReturns struct {
 		result1 []io.ReadWriteCloser
-		result2 error
+		result2 int
+		result3 error
 	}
 }
 
-func (fake *FakeConnector) Connect(msg interface{}) ([]io.ReadWriteCloser, error) {
+func (fake *FakeConnector) Connect(msg interface{}) ([]io.ReadWriteCloser, int, error) {
 	fake.connectMutex.Lock()
 	fake.connectArgsForCall = append(fake.connectArgsForCall, struct {
 		msg interface{}
@@ -29,7 +30,7 @@ func (fake *FakeConnector) Connect(msg interface{}) ([]io.ReadWriteCloser, error
 	if fake.ConnectStub != nil {
 		return fake.ConnectStub(msg)
 	} else {
-		return fake.connectReturns.result1, fake.connectReturns.result2
+		return fake.connectReturns.result1, fake.connectReturns.result2, fake.connectReturns.result3
 	}
 }
 
@@ -45,12 +46,13 @@ func (fake *FakeConnector) ConnectArgsForCall(i int) interface{} {
 	return fake.connectArgsForCall[i].msg
 }
 
-func (fake *FakeConnector) ConnectReturns(result1 []io.ReadWriteCloser, result2 error) {
+func (fake *FakeConnector) ConnectReturns(result1 []io.ReadWriteCloser, result2 int, result3 error) {
 	fake.ConnectStub = nil
 	fake.connectReturns = struct {
 		result1 []io.ReadWriteCloser
-		result2 error
-	}{result1, result2}
+		result2 int
+		result3 error
+	}{result1, result2, result3}
 }
 
 var _ container_daemon.Connector = new(FakeConnector)

@@ -20,6 +20,7 @@ type Connector interface {
 	Connect(msg interface{}) ([]io.ReadWriteCloser, int, error)
 }
 
+// Spawns a process
 func NewProcess(connector Connector, processSpec *garden.ProcessSpec, processIO *garden.ProcessIO) (*Process, error) {
 	fds, pid, err := connector.Connect(processSpec)
 	if err != nil {
@@ -41,12 +42,12 @@ func NewProcess(connector Connector, processSpec *garden.ProcessSpec, processIO 
 	exitChan := make(chan int)
 	go func(exitFd io.Reader, exitChan chan<- int, processIO *garden.ProcessIO) {
 		b := make([]byte, 1)
-		_, err := exitFd.Read(b)
-		if err != nil {
+		n, err := exitFd.Read(b)
+		if n == 0 && err != nil {
 			b[0] = UnknownExitStatus
 
 			if processIO != nil && processIO.Stderr != nil { // This will only be false in tests
-				fmt.Fprintf(processIO.Stderr, "container_daemon: failed to read exit status: %s", err) // Ignore error
+				fmt.Fprintf(processIO.Stderr, "container_daemon: failed to read exit status: %s\n", err) // Ignore error
 			}
 		}
 		exitChan <- int(b[0])

@@ -22,14 +22,17 @@ import (
 
 var _ = Describe("Daemon", func() {
 	var (
-		daemon         container_daemon.ContainerDaemon
-		listener       *fake_listener.FakeListener
-		runner         *fake_runner.FakeRunner
-		exitStatusChan chan byte
-		users          *fake_user.FakeUser
+		daemon              container_daemon.ContainerDaemon
+		listener            *fake_listener.FakeListener
+		runner              *fake_runner.FakeRunner
+		pidSettingStartStub func(cmd *exec.Cmd) error
+		exitStatusChan      chan byte
+		users               *fake_user.FakeUser
 
 		userLookupError error
 	)
+
+	const testPid = 3
 
 	etcPasswd := map[string]*user.User{
 		"a-user":       &user.User{Uid: "66", Gid: "99"},
@@ -40,6 +43,12 @@ var _ = Describe("Daemon", func() {
 	BeforeEach(func() {
 		listener = &fake_listener.FakeListener{}
 		runner = new(fake_runner.FakeRunner)
+		pidSettingStartStub = func(cmd *exec.Cmd) error {
+			cmd.Process = &os.Process{
+				Pid: testPid,
+			}
+			return nil
+		}
 		users = new(fake_user.FakeUser)
 		exitStatusChan = make(chan byte)
 		userLookupError = nil
@@ -47,6 +56,8 @@ var _ = Describe("Daemon", func() {
 		users.LookupStub = func(name string) (*user.User, error) {
 			return etcPasswd[name], userLookupError
 		}
+
+		runner.StartStub = pidSettingStartStub
 
 		runner.WaitStub = func(cmd *exec.Cmd) (byte, error) {
 			return <-exitStatusChan, nil
@@ -87,6 +98,8 @@ var _ = Describe("Daemon", func() {
 
 			var spec *garden.ProcessSpec
 
+			var pid int
+
 			BeforeEach(func() {
 				spec = &garden.ProcessSpec{
 					Path: "fishfinger",
@@ -104,7 +117,7 @@ var _ = Describe("Daemon", func() {
 					b, err := json.Marshal(spec)
 					Expect(err).ToNot(HaveOccurred())
 
-					handleFileHandles, handlerError = cb.Handle(json.NewDecoder(bytes.NewReader(b)))
+					handleFileHandles, pid, handlerError = cb.Handle(json.NewDecoder(bytes.NewReader(b)))
 
 					return nil
 				}
@@ -115,6 +128,11 @@ var _ = Describe("Daemon", func() {
 			Context("when command runner succeeds", func() {
 				It("spawns a process", func() {
 					Expect(runner.StartCallCount()).To(Equal(1))
+					exitStatusChan <- 0
+				})
+
+				It("returns the PID of the spawned process", func() {
+					Expect(pid).To(Equal(testPid))
 					exitStatusChan <- 0
 				})
 
@@ -209,7 +227,7 @@ var _ = Describe("Daemon", func() {
 							cmd.Stderr.Write([]byte("Banana goo"))
 							cmdStdin = cmd.Stdin
 
-							return nil
+							return pidSettingStartStub(cmd)
 						}
 					})
 

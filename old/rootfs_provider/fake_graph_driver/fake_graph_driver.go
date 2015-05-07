@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/cloudfoundry-incubator/garden-linux/old/rootfs_provider"
-	"github.com/docker/docker/pkg/archive"
+	"github.com/dotcloud/docker/archive"
 )
 
 type FakeGraphDriver struct {
