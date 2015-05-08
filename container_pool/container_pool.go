@@ -255,6 +255,7 @@ func (p *LinuxContainerPool) Create(spec garden.ContainerSpec) (c linux_backend.
 
 	specEnv, err := process.NewEnv(spec.Env)
 	if err != nil {
+		p.tryReleaseSystemResources(p.logger, id)
 		return nil, err
 	}
 
