@@ -115,6 +115,8 @@ func parseMemoryStat(contents string) (stat garden.ContainerMemoryStat) {
 		}
 	}
 
+	stat.TotalUsageTowardLimit = stat.TotalRss + (stat.TotalCache - stat.TotalInactiveFile)
+
 	return
 }
 
