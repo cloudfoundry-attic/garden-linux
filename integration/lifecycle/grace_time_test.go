@@ -18,7 +18,7 @@ var _ = Describe("A container with a grace time", func() {
 		Expect(err).ToNot(HaveOccurred())
 	})
 
-	PContext("when a request takes longer than the grace time", func() {
+	Context("when a request takes longer than the grace time", func() {
 		It("is not destroyed after the request is over", func() {
 			process, err := container.Run(garden.ProcessSpec{
 				Path: "sleep",
@@ -33,7 +33,7 @@ var _ = Describe("A container with a grace time", func() {
 		})
 	})
 
-	PContext("when no requests are made for longer than the grace time", func() {
+	Context("when no requests are made for longer than the grace time", func() {
 		It("is destroyed", func() {
 			Eventually(func() error {
 				_, err := client.Lookup(container.Handle())

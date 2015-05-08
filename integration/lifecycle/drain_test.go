@@ -40,14 +40,14 @@ var _ = Describe("Through a restart", func() {
 		}
 	})
 
-	PIt("retains the container list", func() {
+	It("retains the container list", func() {
 		restartGarden(gardenArgs...)
 
 		handles := getContainerHandles()
 		Expect(handles).To(ContainElement(container.Handle()))
 	})
 
-	PIt("allows us to run processes in the same container before and after restart", func() {
+	It("allows us to run processes in the same container before and after restart", func() {
 		By("running a process before restart")
 		runEcho(container)
 
@@ -57,7 +57,7 @@ var _ = Describe("Through a restart", func() {
 		runEcho(container)
 	})
 
-	PDescribe("a started process", func() {
+	Describe("a started process", func() {
 		It("continues to stream", func() {
 			process, err := container.Run(garden.ProcessSpec{
 				Path: "sh",
@@ -261,8 +261,8 @@ var _ = Describe("Through a restart", func() {
 		})
 	})
 
-	PDescribe("a memory limit", func() {
-		It("is still enforced", func() {
+	Describe("a memory limit", func() {
+		PIt("is still enforced", func() {
 			err := container.LimitMemory(garden.MemoryLimits{4 * 1024 * 1024})
 			Expect(err).ToNot(HaveOccurred())
 
@@ -282,7 +282,7 @@ var _ = Describe("Through a restart", func() {
 		})
 	})
 
-	PDescribe("a container's active job", func() {
+	Describe("a container's active job", func() {
 		It("is still tracked", func() {
 			process, err := container.Run(garden.ProcessSpec{
 				Path: "sh",
@@ -299,8 +299,8 @@ var _ = Describe("Through a restart", func() {
 		})
 	})
 
-	PDescribe("a container's list of events", func() {
-		It("is still reported", func() {
+	Describe("a container's list of events", func() {
+		PIt("is still reported", func() {
 			err := container.LimitMemory(garden.MemoryLimits{4 * 1024 * 1024})
 			Expect(err).ToNot(HaveOccurred())
 
@@ -329,8 +329,8 @@ var _ = Describe("Through a restart", func() {
 		})
 	})
 
-	PDescribe("a container's properties", func() {
-		PIt("are retained", func() {
+	Describe("a container's properties", func() {
+		It("are retained", func() {
 			containerWithProperties, err := client.Create(garden.ContainerSpec{
 				Properties: garden.Properties{
 					"foo": "bar",
@@ -352,7 +352,7 @@ var _ = Describe("Through a restart", func() {
 		})
 	})
 
-	PDescribe("a container's state", func() {
+	Describe("a container's state", func() {
 		It("is still reported", func() {
 			info, err := container.Info()
 			Expect(err).ToNot(HaveOccurred())
@@ -378,8 +378,8 @@ var _ = Describe("Through a restart", func() {
 		})
 	})
 
-	PDescribe("a container's network", func() {
-		PIt("does not get reused", func() {
+	Describe("a container's network", func() {
+		It("does not get reused", func() {
 			infoA, err := container.Info()
 			Expect(err).ToNot(HaveOccurred())
 
@@ -458,8 +458,8 @@ var _ = Describe("Through a restart", func() {
 
 	})
 
-	PDescribe("a container's mapped port", func() {
-		PIt("does not get reused", func() {
+	Describe("a container's mapped port", func() {
+		It("does not get reused", func() {
 			netInAHost, netInAContainer, err := container.NetIn(0, 0)
 			Expect(err).ToNot(HaveOccurred())
 
@@ -476,7 +476,7 @@ var _ = Describe("Through a restart", func() {
 		})
 	})
 
-	PDescribe("a container's grace time", func() {
+	Describe("a container's grace time", func() {
 		BeforeEach(func() {
 			gardenArgs = []string{"--containerGraceTime", "5s"}
 		})
@@ -490,7 +490,7 @@ var _ = Describe("Through a restart", func() {
 		})
 	})
 
-	PDescribe("a privileged container", func() {
+	Describe("a privileged container", func() {
 		BeforeEach(func() {
 			privileged = true
 		})

@@ -10,7 +10,7 @@ import (
 	"github.com/onsi/gomega/gbytes"
 )
 
-var _ = Describe("Resource limits", func() {
+var _ = PDescribe("Resource limits", func() {
 	var (
 		container           garden.Container
 		privilegedContainer bool

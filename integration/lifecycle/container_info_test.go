@@ -13,7 +13,7 @@ var _ = Describe("Container information", func() {
 		client = startGarden()
 	})
 
-	PDescribe("for many containers", func() {
+	Describe("for many containers", func() {
 		handles := []string{"handle1", "handle2"}
 		BeforeEach(func() {
 			_, err := client.Create(garden.ContainerSpec{
@@ -49,7 +49,7 @@ var _ = Describe("Container information", func() {
 		})
 	})
 
-	PDescribe("for a single container", func() {
+	Describe("for a single container", func() {
 		var container garden.Container
 
 		BeforeEach(func() {
@@ -123,7 +123,7 @@ var _ = Describe("Container information", func() {
 			})
 		})
 
-		PDescribe("listing container info", func() {
+		Describe("listing container info", func() {
 			var undesiredHandles []string
 
 			BeforeEach(func() {
