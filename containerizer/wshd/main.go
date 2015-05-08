@@ -8,11 +8,9 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
-	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
-	"github.com/cloudfoundry-incubator/garden-linux/old/cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
 )
@@ -68,8 +66,6 @@ func main() {
 		os.Exit(3)
 	}
 
-	enterCgroups(env["id"])
-
 	uidMappingOffset, err := strconv.Atoi(env["root_uid"])
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "wshd: failed to parse uid mapping offset from etc/config: %s", err)
@@ -101,18 +97,6 @@ func main() {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create container: %s", err)
 		os.Exit(2)
-	}
-}
-
-func enterCgroups(id string) {
-	cgroupPath := os.Getenv("GARDEN_CGROUP_PATH") // fixme: better way to include config vars.. at least better to save to etc/config
-	cgroupMgr := cgroups_manager.New(cgroupPath, id)
-	if err := cgroupMgr.Setup("cpuset", "cpu", "cpuacct", "devices", "memory"); err != nil {
-		panic(err)
-	}
-
-	if err := cgroupMgr.Add(syscall.Gettid(), "cpuset", "cpu"); err != nil {
-		panic(err)
 	}
 }
 

@@ -74,7 +74,7 @@ do
     echo "c 10:229 rwm" > $instance_path/devices.allow
   fi
 
-  echo $PID > $instance_path/tasks
+  echo $PID > $instance_path/cgroup.procs
 done
 
 echo $PID > ./run/wshd.pid
