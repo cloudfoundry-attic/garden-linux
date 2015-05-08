@@ -5,12 +5,16 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
 )
+
+const DefaultRootPATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+const DefaultUserPath = "/usr/local/bin:/usr/bin:/bin"
 
 //go:generate counterfeiter -o fake_listener/FakeListener.go . Listener
 type Listener interface {
@@ -72,10 +76,29 @@ func (cd *ContainerDaemon) Handle(decoder *json.Decoder) ([]*os.File, error) {
 	if user, err := cd.Users.Lookup(spec.User); err == nil && user != nil {
 		fmt.Sscanf(user.Uid, "%d", &uid) // todo(jz): handle errors
 		fmt.Sscanf(user.Gid, "%d", &gid)
+		spec.Env = append(spec.Env, "USER="+spec.User)
+		spec.Env = append(spec.Env, "HOME="+user.HomeDir)
 	} else if err == nil {
 		return nil, fmt.Errorf("container_daemon: failed to lookup user %s", spec.User)
 	} else {
 		return nil, fmt.Errorf("container_daemon: lookup user %s: %s", spec.User, err)
+	}
+
+	hasPath := false
+	for _, env := range spec.Env {
+		parts := strings.SplitN(env, "=", 2)
+		if parts[0] == "PATH" {
+			hasPath = true
+			break
+		}
+	}
+
+	if !hasPath {
+		if uid == 0 {
+			spec.Env = append(spec.Env, fmt.Sprintf("PATH=%s", DefaultRootPATH))
+		} else {
+			spec.Env = append(spec.Env, fmt.Sprintf("PATH=%s", DefaultUserPath))
+		}
 	}
 
 	cmd := exec.Command(spec.Path, spec.Args...)

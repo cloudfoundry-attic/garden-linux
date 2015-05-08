@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -32,7 +33,8 @@ var _ = Describe("Daemon", func() {
 
 	etcPasswd := map[string]*user.User{
 		"a-user":       &user.User{Uid: "66", Gid: "99"},
-		"another-user": &user.User{Uid: "77", Gid: "88"},
+		"another-user": &user.User{Uid: "77", Gid: "88", HomeDir: "/the/home/dir"},
+		"a-root-user":  &user.User{},
 	}
 
 	BeforeEach(func() {
@@ -147,6 +149,48 @@ var _ = Describe("Daemon", func() {
 							Expect(theExecutedCommand.Env).To(ContainElement("foo=bar"))
 							Expect(theExecutedCommand.Env).To(ContainElement("baz=barry"))
 							exitStatusChan <- 0
+						})
+
+						It("sets the USER environment variable", func() {
+							Expect(theExecutedCommand.Env).To(ContainElement("USER=another-user"))
+							exitStatusChan <- 0
+						})
+
+						It("sets the HOME environment variable to the home dir in /etc/passwd", func() {
+							Expect(theExecutedCommand.Env).To(ContainElement("HOME=/the/home/dir"))
+							exitStatusChan <- 0
+						})
+
+						Context("when the ENV does not contain a PATH", func() {
+							Context("and the uid is not 0", func() {
+								It("appends the DefaultUserPATH to the environment", func() {
+									Expect(theExecutedCommand.Env).To(ContainElement(fmt.Sprintf("PATH=%s", container_daemon.DefaultUserPath)))
+									exitStatusChan <- 0
+								})
+							})
+
+							Context("and the uid is 0", func() {
+								BeforeEach(func() {
+									spec.User = "a-root-user"
+								})
+
+								It("appends the DefaultRootPATH to the environment", func() {
+									Expect(theExecutedCommand.Env).To(ContainElement(fmt.Sprintf("PATH=%s", container_daemon.DefaultRootPATH)))
+									exitStatusChan <- 0
+								})
+							})
+
+							Context("when the ENV already contains a PATH", func() {
+								BeforeEach(func() {
+									spec.Env = []string{"PATH=cake"}
+								})
+
+								It("is not overridden", func() {
+									Expect(theExecutedCommand.Env).To(ContainElement("PATH=cake"))
+									Expect(theExecutedCommand.Env).NotTo(ContainElement(fmt.Sprintf("PATH=%s", container_daemon.DefaultUserPath)))
+									exitStatusChan <- 0
+								})
+							})
 						})
 
 						It("has the supplied dir", func() {
