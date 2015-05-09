@@ -5,12 +5,9 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
-	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
-	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
 )
 
 const DefaultRootPATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
@@ -23,16 +20,21 @@ type Listener interface {
 	Stop() error
 }
 
-//go:generate counterfeiter -o fake_runner/fake_runner.go . Runner
-type Runner interface {
-	Start(cmd *exec.Cmd) error
-	Wait(cmd *exec.Cmd) (byte, error)
+//go:generate counterfeiter -o fake_cmdpreparer/fake_cmdpreparer.go . CmdPreparer
+type CmdPreparer interface {
+	PrepareCmd(garden.ProcessSpec) (*exec.Cmd, error)
+}
+
+//go:generate counterfeiter -o fake_spawner/FakeSpawner.go . Spawner
+type Spawner interface {
+	Spawn(cmd *exec.Cmd, withTty bool) ([]*os.File, error)
 }
 
 type ContainerDaemon struct {
-	Listener Listener
-	Users    system.User
-	Runner   Runner
+	Listener    Listener
+	CmdPreparer CmdPreparer
+
+	Spawner Spawner
 }
 
 // This method should be called from the host namespace, to open the socket file in the right file system.
@@ -52,105 +54,31 @@ func (cd *ContainerDaemon) Run() error {
 	return nil
 }
 
-func (cd *ContainerDaemon) Handle(decoder *json.Decoder) ([]*os.File, int, error) {
+func (cd *ContainerDaemon) Handle(decoder *json.Decoder) (fds []*os.File, pid int, err error) {
+	defer func() {
+		if recoveredErr := recover(); recoveredErr != nil {
+			err = fmt.Errorf("container_daemon: recovered panic: %s", recoveredErr)
+		}
+	}()
+
 	var spec garden.ProcessSpec
-	err := decoder.Decode(&spec)
+	err = decoder.Decode(&spec)
 	if err != nil {
-		return nil, 0, fmt.Errorf("container_daemon: Decode failed: %s", err)
+		return nil, 0, fmt.Errorf("container_daemon: decode process spec: %s", err)
 	}
 
-	var pipes [4]struct {
-		r *os.File
-		w *os.File
-	}
-
-	// Create four pipes for stdin, stdout, stderr, and the exit status.
-	for i := 0; i < 4; i++ {
-		pipes[i].r, pipes[i].w, err = os.Pipe()
-		if err != nil {
-			return nil, 0, fmt.Errorf("container_daemon: Failed to create pipe: %s", err)
-		}
-	}
-
-	var uid, gid uint32
-	if user, err := cd.Users.Lookup(spec.User); err == nil && user != nil {
-		fmt.Sscanf(user.Uid, "%d", &uid) // todo(jz): handle errors
-		fmt.Sscanf(user.Gid, "%d", &gid)
-		spec.Env = append(spec.Env, "USER="+spec.User)
-		spec.Env = append(spec.Env, "HOME="+user.HomeDir)
-	} else if err == nil {
-		return nil, 0, fmt.Errorf("container_daemon: failed to lookup user %s", spec.User)
-	} else {
-		return nil, 0, fmt.Errorf("container_daemon: lookup user %s: %s", spec.User, err)
-	}
-
-	hasPath := false
-	for _, env := range spec.Env {
-		parts := strings.SplitN(env, "=", 2)
-		if parts[0] == "PATH" {
-			hasPath = true
-			break
-		}
-	}
-
-	if !hasPath {
-		if uid == 0 {
-			spec.Env = append(spec.Env, fmt.Sprintf("PATH=%s", DefaultRootPATH))
-		} else {
-			spec.Env = append(spec.Env, fmt.Sprintf("PATH=%s", DefaultUserPath))
-		}
-	}
-
-	cmd := exec.Command(spec.Path, spec.Args...)
-	cmd.Env = spec.Env
-	cmd.Dir = spec.Dir
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Credential: &syscall.Credential{
-			Uid: uid,
-			Gid: gid,
-		},
-	}
-
-	cmd.Stdin = pipes[0].r
-	cmd.Stdout = pipes[1].w
-	cmd.Stderr = pipes[2].w
-
-	stdinW := pipes[0].w
-	stdoutR := pipes[1].r
-	stderrR := pipes[2].r
-	exitStatusR := pipes[3].r
-
-	if err := cd.Runner.Start(cmd); err != nil {
-		return nil, 0, fmt.Errorf("container_daemon: running command: %s", err)
-	}
-
-	go reportExitStatus(cd.Runner, cmd, pipes[3].w, pipes[2].w, func() {
-		pipes[0].r.Close() // Ignore error
-		for i := 1; i <= 3; i++ {
-			pipes[i].w.Close() // Ignore error
-		}
-	})
-
-	return []*os.File{stdinW, stdoutR, stderrR, exitStatusR}, cmd.Process.Pid, nil
-}
-
-func reportExitStatus(runner Runner, cmd *exec.Cmd, exitWriter, errWriter *os.File, tidyUp func()) {
-	defer tidyUp()
-	exitStatus, err := runner.Wait(cmd)
+	var cmd *exec.Cmd
+	cmd, err = cd.CmdPreparer.PrepareCmd(spec)
 	if err != nil {
-		exitStatus = UnknownExitStatus
-		tryToReportErrorf(errWriter, "container_daemon: Wait failed: %s", err)
+		return nil, 0, err
 	}
 
-	_, err = exitWriter.Write([]byte{exitStatus})
+	fds, err = cd.Spawner.Spawn(cmd, spec.TTY != nil)
 	if err != nil {
-		tryToReportErrorf(errWriter, "container_daemon: failed to Write exit status: %s", err)
+		return nil, 0, err
 	}
-}
 
-func tryToReportErrorf(errWriter *os.File, format string, inserts ...interface{}) {
-	message := fmt.Sprintf(format, inserts)
-	errWriter.Write([]byte(message)) // Ignore error - nothing to do.
+	return fds, cmd.Process.Pid, err
 }
 
 func (cd *ContainerDaemon) Stop() error {

@@ -53,8 +53,8 @@ var _ = Describe("ShellRunnerStep", func() {
 			Expect(err).To(HaveOccurred())
 		})
 
-		It("returns error if fails shell command does not exit 0", func() {
-			runner.WaitReturns(byte(1), nil)
+		It("returns error if shell command does not exit 0", func() {
+			runner.WaitReturns(byte(1))
 
 			step := &ShellRunnerStep{Runner: runner, Path: path}
 			err := step.Init()

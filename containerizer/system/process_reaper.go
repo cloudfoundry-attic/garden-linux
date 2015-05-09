@@ -49,13 +49,17 @@ func (p *ProcessReaper) Start(cmd *exec.Cmd) error {
 	return nil
 }
 
-func (p *ProcessReaper) Wait(cmd *exec.Cmd) (byte, error) {
+func (p *ProcessReaper) Wait(cmd *exec.Cmd) byte {
 	p.mu.Lock()
-	ch := p.waiting[cmd.Process.Pid]
+	ch, ok := p.waiting[cmd.Process.Pid]
+	if !ok {
+		panic("waited on a process that was never started")
+	}
+
 	p.mu.Unlock()
 	found := ch != nil
 	p.log.Info("wait", lager.Data{"pid": cmd.Process.Pid, "found": found})
-	return byte(<-ch), nil
+	return byte(<-ch)
 }
 
 func (p *ProcessReaper) reapAll() {

@@ -31,7 +31,7 @@ func (n *NamespacedSignaller) Signal(signal os.Signal) error {
 	}
 
 	cmd := exec.Command(filepath.Join(n.ContainerPath, "bin/wsh"),
-		"--socket="+filepath.Join(n.ContainerPath, "run/wshd.sock"),
+		"--socket", filepath.Join(n.ContainerPath, "run/wshd.sock"),
 		"kill", fmt.Sprintf("-%d", signal), fmt.Sprintf("%d", pid))
 
 	n.Logger.Debug("NamespacedSignaller.Signal-about-to-run-kill-command", lager.Data{"signal": signal, "cmd": cmd})
@@ -60,7 +60,7 @@ func pidFromFile(pidFilePath string) (int, error) {
 	var pid int
 	_, err = fmt.Sscanf(fileContent, "%d", &pid)
 	if err != nil {
-		return 0, fmt.Errorf("linux_backend: can't parse PID file content (%s): %v", fileContent, err)
+		return 0, fmt.Errorf("linux_backend: can't parse PID file content: %v", err)
 	}
 
 	return pid, nil

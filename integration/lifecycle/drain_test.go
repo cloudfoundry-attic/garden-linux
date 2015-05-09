@@ -79,7 +79,7 @@ var _ = Describe("Through a restart", func() {
 			Eventually(stdout, 5.0).Should(gbytes.Say("hi\n"))
 		})
 
-		It("can still accept stdin", func() {
+		PIt("can still accept stdin", func() {
 			r, w := io.Pipe()
 
 			stdout := gbytes.NewBuffer()
@@ -116,7 +116,7 @@ var _ = Describe("Through a restart", func() {
 			Expect(process.Wait()).To(Equal(0))
 		})
 
-		It("can still have its tty window resized", func() {
+		PIt("can still have its tty window resized", func() {
 			stdout := gbytes.NewBuffer()
 
 			process, err := container.Run(garden.ProcessSpec{
@@ -202,7 +202,7 @@ var _ = Describe("Through a restart", func() {
 			Expect(process1.ID()).ToNot(Equal(process2.ID()))
 		})
 
-		FIt("can still be signalled", func() {
+		PIt("can still be signalled", func() {
 			process, err := container.Run(garden.ProcessSpec{
 				Path: "sh",
 				Args: []string{"-c", `

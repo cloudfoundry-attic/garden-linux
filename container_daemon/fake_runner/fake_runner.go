@@ -17,14 +17,13 @@ type FakeRunner struct {
 	startReturns struct {
 		result1 error
 	}
-	WaitStub        func(cmd *exec.Cmd) (byte, error)
+	WaitStub        func(cmd *exec.Cmd) byte
 	waitMutex       sync.RWMutex
 	waitArgsForCall []struct {
 		cmd *exec.Cmd
 	}
 	waitReturns struct {
 		result1 byte
-		result2 error
 	}
 }
 
@@ -60,7 +59,7 @@ func (fake *FakeRunner) StartReturns(result1 error) {
 	}{result1}
 }
 
-func (fake *FakeRunner) Wait(cmd *exec.Cmd) (byte, error) {
+func (fake *FakeRunner) Wait(cmd *exec.Cmd) byte {
 	fake.waitMutex.Lock()
 	fake.waitArgsForCall = append(fake.waitArgsForCall, struct {
 		cmd *exec.Cmd
@@ -69,7 +68,7 @@ func (fake *FakeRunner) Wait(cmd *exec.Cmd) (byte, error) {
 	if fake.WaitStub != nil {
 		return fake.WaitStub(cmd)
 	} else {
-		return fake.waitReturns.result1, fake.waitReturns.result2
+		return fake.waitReturns.result1
 	}
 }
 
@@ -85,12 +84,11 @@ func (fake *FakeRunner) WaitArgsForCall(i int) *exec.Cmd {
 	return fake.waitArgsForCall[i].cmd
 }
 
-func (fake *FakeRunner) WaitReturns(result1 byte, result2 error) {
+func (fake *FakeRunner) WaitReturns(result1 byte) {
 	fake.WaitStub = nil
 	fake.waitReturns = struct {
 		result1 byte
-		result2 error
-	}{result1, result2}
+	}{result1}
 }
 
 var _ container_daemon.Runner = new(FakeRunner)

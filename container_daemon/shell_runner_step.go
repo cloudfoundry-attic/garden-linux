@@ -21,8 +21,8 @@ func (step *ShellRunnerStep) Init() error {
 		return fmt.Errorf("starting command %s: %s", step.Path, err)
 	}
 
-	if status, err := step.Runner.Wait(command); err != nil || status != 0 {
-		return fmt.Errorf("waiting for command %s: exit status %d: %s", step.Path, status, err)
+	if status := step.Runner.Wait(command); status != 0 {
+		return fmt.Errorf("expected command %s to exit zero, it exited %d", step.Path, status)
 	}
 
 	return nil

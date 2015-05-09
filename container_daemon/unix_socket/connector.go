@@ -14,7 +14,12 @@ type Connector struct {
 	SocketPath string
 }
 
-func (c *Connector) Connect(msg interface{}) ([]io.ReadWriteCloser, int, error) {
+type Fd interface {
+	io.ReadWriteCloser
+	Fd() uintptr
+}
+
+func (c *Connector) Connect(msg interface{}) ([]Fd, int, error) {
 	conn, err := net.Dial("unix", c.SocketPath)
 	if err != nil {
 		return nil, 0, fmt.Errorf("unix_socket: connect to server socket: %s", err)
@@ -31,11 +36,10 @@ func (c *Connector) Connect(msg interface{}) ([]io.ReadWriteCloser, int, error) 
 		return nil, 0, fmt.Errorf("unix_socket: failed to write to connection: %s", err)
 	}
 
-	// Reading OOB data and a PID is specific to running a process. Generalise later?
 	return readData(conn)
 }
 
-func readData(conn net.Conn) ([]io.ReadWriteCloser, int, error) {
+func readData(conn net.Conn) ([]Fd, int, error) {
 	var b [2048]byte
 	var oob [2048]byte
 	var response Response
@@ -53,10 +57,6 @@ func readData(conn net.Conn) ([]io.ReadWriteCloser, int, error) {
 
 		if response.ErrMessage != "" {
 			return nil, 0, errors.New(response.ErrMessage)
-		}
-
-		if response.Pid == 0 {
-			return nil, 0, fmt.Errorf("unix_socket: Invalid response demarshalled: %s", err)
 		}
 	} else {
 		return nil, 0, errors.New("unix_socket: No response received")
@@ -77,7 +77,7 @@ func readData(conn net.Conn) ([]io.ReadWriteCloser, int, error) {
 		return nil, 0, fmt.Errorf("unix_socket: failed to parse unix rights: %s", err)
 	}
 
-	files := make([]io.ReadWriteCloser, len(fds))
+	files := make([]Fd, len(fds))
 	for i, fd := range fds {
 		files[i] = os.NewFile(uintptr(fd), fmt.Sprintf("/dev/fake-fd-%d", i))
 	}

@@ -7,7 +7,6 @@ import (
 	"os"
 	"path"
 	"sync"
-	"time"
 
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket/fake_connection_handler"
@@ -100,17 +99,16 @@ var _ = Describe("Unix socket", func() {
 
 				stubDone = make(chan bool, 1)
 
+				sentFilesCp := sentFiles // avoids data race
+				sentErrorCp := sentError
+				sentPidCp := sentPid
 				connectionHandler.HandleStub = func(decoder *json.Decoder) ([]*os.File, int, error) {
 					defer GinkgoRecover()
 					err := decoder.Decode(&recvMsg)
 					Expect(err).ToNot(HaveOccurred())
-					//stubDone <- true
+					stubDone <- true
 
-					time.Sleep(time.Millisecond * 5)
-
-					sentErrorMutex.Lock()
-					defer sentErrorMutex.Unlock()
-					return sentFiles, sentPid, sentError
+					return sentFilesCp, sentPidCp, sentErrorCp
 				}
 
 				go listener.Listen(connectionHandler)
@@ -148,13 +146,12 @@ var _ = Describe("Unix socket", func() {
 				Expect(ioutil.ReadAll(streams[1])).Should(Equal([]byte("brocoli brocoli")))
 			})
 
-			FIt("gets back the pid the handler provided", func() {
+			It("gets back the pid the handler provided", func() {
 				for i := 0; i < 1000; i++ {
 					sentMsg := map[string]string{"fruit": "apple"}
 					_, pid, err := connector.Connect(sentMsg)
 					Expect(err).ToNot(HaveOccurred())
-
-					//Expect(stubDone).To(Receive())
+					Eventually(stubDone).Should(Receive())
 					Expect(pid).To(Equal(sentPid))
 				}
 			})

@@ -390,12 +390,8 @@ var _ = Describe("Linux containers", func() {
 			})).To(Succeed())
 
 			_, signaller := fakeProcessTracker.RestoreArgsForCall(0)
-			Expect(signaller).To(Equal(&linux_backend.NamespacedSignaller{
-				ContainerPath: containerDir,
-				Runner:        fakeRunner,
-				PidFilePath:   containerDir + "/processes/456.pid",
-				Logger:        lagertest.NewTestLogger("test"),
-			}))
+			Expect(signaller.(*linux_backend.NamespacedSignaller).ContainerPath).To(Equal(containerDir))
+			Expect(signaller.(*linux_backend.NamespacedSignaller).PidFilePath).To(Equal(containerDir + "/processes/456.pid"))
 		})
 
 		It("restores environment variables", func() {

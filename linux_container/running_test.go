@@ -164,12 +164,8 @@ var _ = Describe("Linux containers", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			_, _, _, _, signaller := fakeProcessTracker.RunArgsForCall(0)
-			Expect(signaller).To(Equal(&linux_backend.NamespacedSignaller{
-				ContainerPath: containerDir,
-				Runner:        fakeRunner,
-				PidFilePath:   containerDir + "/processes/1.pid",
-				Logger:        lagertest.NewTestLogger("test"),
-			}))
+			Expect(signaller.(*linux_backend.NamespacedSignaller).ContainerPath).To(Equal(containerDir))
+			Expect(signaller.(*linux_backend.NamespacedSignaller).PidFilePath).To(Equal(containerDir + "/processes/1.pid"))
 		})
 
 		It("uses unique process IDs for each process", func() {

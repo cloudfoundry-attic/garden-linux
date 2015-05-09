@@ -3,61 +3,126 @@ package container_daemon
 import (
 	"fmt"
 	"io"
+	"os"
 
 	"github.com/cloudfoundry-incubator/garden"
+	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
+	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
+	"github.com/docker/docker/pkg/term"
 )
 
 const UnknownExitStatus = 255
 
 type Process struct {
-	pid int
+	Connector  Connector
+	Term       system.Term
+	SigwinchCh <-chan os.Signal
+	Spec       *garden.ProcessSpec
+	IO         *garden.ProcessIO
 
+	// assigned after Start() is called
+	pid      int
+	state    *term.State
 	exitCode <-chan int
 }
 
 //go:generate counterfeiter -o fake_connector/FakeConnector.go . Connector
 type Connector interface {
-	Connect(msg interface{}) ([]io.ReadWriteCloser, int, error)
+	Connect(msg interface{}) ([]unix_socket.Fd, int, error)
 }
 
-// Spawns a process
-func NewProcess(connector Connector, processSpec *garden.ProcessSpec, processIO *garden.ProcessIO) (*Process, error) {
-	fds, pid, err := connector.Connect(processSpec)
+func (p *Process) Start() error {
+	fds, pid, err := p.Connector.Connect(p.Spec)
 	if err != nil {
-		return nil, fmt.Errorf("container_daemon: connect to socket: %s", err)
+		return fmt.Errorf("container_daemon: connect to socket: %s", err)
 	}
 
-	if processIO != nil && processIO.Stdin != nil {
-		go io.Copy(fds[0], processIO.Stdin) // Ignore error
+	p.pid = pid
+
+	if p.Spec.TTY != nil {
+		p.setupPty(fds[0])
+		fwdOverPty(fds[0], p.IO)
+		p.exitCode = waitForExit(fds[1])
+	} else {
+		fwdNoninteractive(fds[0], fds[1], fds[2], p.IO)
+		p.exitCode = waitForExit(fds[3])
 	}
 
-	if processIO != nil && processIO.Stdout != nil {
-		go io.Copy(processIO.Stdout, fds[1]) // Ignore error
-	}
+	return nil
+}
 
-	if processIO != nil && processIO.Stderr != nil {
-		go io.Copy(processIO.Stderr, fds[2]) // Ignore error
-	}
+func (p *Process) setupPty(ptyFd unix_socket.Fd) error {
+	p.state, _ = p.Term.SetRawTerminal(os.Stdin.Fd())
 
+	go p.sigwinchLoop(ptyFd)
+	return p.syncWindowSize(ptyFd)
+}
+
+func (p *Process) sigwinchLoop(ptyFd unix_socket.Fd) {
+	for {
+		select {
+		case <-p.SigwinchCh:
+			p.syncWindowSize(ptyFd)
+		}
+	}
+}
+
+func (p *Process) syncWindowSize(ptyFd unix_socket.Fd) error {
+	winsize, _ := p.Term.GetWinsize(os.Stdin.Fd())
+	return p.Term.SetWinsize(ptyFd.Fd(), winsize)
+}
+
+func waitForExit(exitFd io.ReadWriteCloser) chan int {
 	exitChan := make(chan int)
-	go func(exitFd io.Reader, exitChan chan<- int, processIO *garden.ProcessIO) {
+	go func(exitFd io.Reader, exitChan chan<- int) {
 		b := make([]byte, 1)
 		n, err := exitFd.Read(b)
 		if n == 0 && err != nil {
 			b[0] = UnknownExitStatus
-
-			if processIO != nil && processIO.Stderr != nil { // This will only be false in tests
-				fmt.Fprintf(processIO.Stderr, "container_daemon: failed to read exit status: %s\n", err) // Ignore error
-			}
 		}
-		exitChan <- int(b[0])
-	}(fds[3], exitChan, processIO)
 
-	return &Process{pid: pid, exitCode: exitChan}, nil
+		exitChan <- int(b[0])
+	}(exitFd, exitChan)
+
+	return exitChan
+}
+
+func fwdOverPty(ptyFd io.ReadWriteCloser, processIO *garden.ProcessIO) {
+	if processIO == nil {
+		return
+	}
+
+	if processIO.Stdout != nil {
+		go io.Copy(processIO.Stdout, ptyFd)
+	}
+
+	if processIO.Stdin != nil {
+		go io.Copy(ptyFd, processIO.Stdin)
+	}
+}
+
+func fwdNoninteractive(stdinFd, stdoutFd, stderrFd io.ReadWriteCloser, processIO *garden.ProcessIO) {
+	if processIO != nil && processIO.Stdin != nil {
+		go io.Copy(stdinFd, processIO.Stdin) // Ignore error
+	}
+
+	if processIO != nil && processIO.Stdout != nil {
+		go io.Copy(processIO.Stdout, stdoutFd) // Ignore error
+	}
+
+	if processIO != nil && processIO.Stderr != nil {
+		go io.Copy(processIO.Stderr, stderrFd) // Ignore error
+	}
 }
 
 func (p *Process) Pid() int {
 	return p.pid
+}
+
+func (p *Process) Cleanup() {
+	if p.state != nil {
+		p.Term.RestoreTerminal(os.Stdin.Fd(), p.state)
+	}
 }
 
 func (p *Process) Wait() (int, error) {

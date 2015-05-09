@@ -705,7 +705,7 @@ var _ = Describe("Creating a container", func() {
 				})
 
 				Context("when the process writes too much to /dev/shm", func() {
-					It("is killed", func() {
+					PIt("is killed", func() {
 						process, err := container.Run(garden.ProcessSpec{
 							Path: "dd",
 							Args: []string{"if=/dev/urandom", "of=/dev/shm/too-big", "bs=1M", "count=65"},
@@ -717,7 +717,7 @@ var _ = Describe("Creating a container", func() {
 				})
 			})
 
-			PContext("with a tty", func() {
+			Context("with a tty", func() {
 				It("executes the process with a raw tty with the given window size", func() {
 					stdout := gbytes.NewBuffer()
 
@@ -746,7 +746,7 @@ var _ = Describe("Creating a container", func() {
 					_, err = inW.Write([]byte("\n"))
 					Expect(err).ToNot(HaveOccurred())
 
-					Eventually(stdout).Should(gbytes.Say("rows 456; columns 123;"))
+					Eventually(stdout, "3s").Should(gbytes.Say("rows 456; columns 123;"))
 
 					Expect(process.Wait()).To(Equal(0))
 				})

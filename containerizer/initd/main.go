@@ -83,8 +83,13 @@ func main() {
 		Listener: &unix_socket.Listener{
 			SocketPath: *socketPath,
 		},
-		Runner: reaper,
-		Users:  system.LibContainerUser{},
+		CmdPreparer: &container_daemon.ProcessSpecPreparer{
+			Users: system.LibContainerUser{},
+		},
+		Spawner: &container_daemon.Spawn{
+			Runner: reaper,
+			PTY:    system.KrPty,
+		},
 	}
 
 	containerizer := containerizer.Containerizer{
