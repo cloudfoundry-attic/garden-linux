@@ -76,7 +76,7 @@ var _ = Describe("A container", func() {
 		Expect(allBridges()).ToNot(ContainSubstring(bridgePrefix))
 	})
 
-	PContext("with an invalid source directory", func() {
+	Context("with an invalid source directory", func() {
 		BeforeEach(func() {
 			srcPath = "/does-not-exist"
 			dstPath = "/home/vcap/should-not-be-created"
@@ -87,7 +87,7 @@ var _ = Describe("A container", func() {
 		})
 	})
 
-	PContext("with a host origin bind-mount", func() {
+	Context("with a host origin bind-mount", func() {
 		BeforeEach(func() {
 			srcPath, testFileName = createTestHostDirAndTestFile()
 			bindMountOrigin = garden.BindMountOriginHost
@@ -120,7 +120,7 @@ var _ = Describe("A container", func() {
 				})
 			})
 
-			PContext("and with privileged=false", func() {
+			Context("and with privileged=false", func() {
 				BeforeEach(func() {
 					privilegedContainer = false
 				})
@@ -159,7 +159,7 @@ var _ = Describe("A container", func() {
 				})
 			})
 
-			PContext("and with privileged=false", func() {
+			Context("and with privileged=false", func() {
 				BeforeEach(func() {
 					privilegedContainer = false
 				})
@@ -177,7 +177,7 @@ var _ = Describe("A container", func() {
 		})
 	})
 
-	PContext("with a container origin bind-mount", func() {
+	Context("with a container origin bind-mount", func() {
 		BeforeEach(func() {
 			srcPath = "/home/vcap"
 			bindMountOrigin = garden.BindMountOriginContainer
@@ -209,7 +209,7 @@ var _ = Describe("A container", func() {
 				})
 			})
 
-			PContext("and with privileged=false", func() {
+			Context("and with privileged=false", func() {
 				BeforeEach(func() {
 					privilegedContainer = false
 				})
@@ -249,7 +249,7 @@ var _ = Describe("A container", func() {
 				})
 			})
 
-			PContext("and with privileged=false", func() {
+			Context("and with privileged=false", func() {
 				BeforeEach(func() {
 					privilegedContainer = false
 				})

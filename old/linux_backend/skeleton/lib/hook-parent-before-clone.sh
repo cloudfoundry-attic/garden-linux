@@ -26,3 +26,4 @@ chown $root_uid:$root_uid $rootfs_path/dev/ptmx
 # hack to ensure proc is owned by correct user until translation
 mkdir -p $rootfs_path/proc
 chown $root_uid:$root_uid $rootfs_path/proc
+chmod 777 /tmp
