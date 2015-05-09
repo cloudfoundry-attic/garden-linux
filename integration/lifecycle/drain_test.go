@@ -202,7 +202,7 @@ var _ = Describe("Through a restart", func() {
 			Expect(process1.ID()).ToNot(Equal(process2.ID()))
 		})
 
-		It("can still be signalled", func() {
+		FIt("can still be signalled", func() {
 			process, err := container.Run(garden.ProcessSpec{
 				Path: "sh",
 				Args: []string{"-c", `
