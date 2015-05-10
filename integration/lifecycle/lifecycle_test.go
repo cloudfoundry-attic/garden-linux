@@ -600,11 +600,8 @@ var _ = Describe("Creating a container", func() {
 					})
 					Expect(err).ToNot(HaveOccurred())
 
-					println("before signal")
 					Expect(process.Signal(garden.SignalKill)).To(Succeed())
-					println("after signal")
 					Expect(process.Wait()).To(Equal(255))
-					println("after wait")
 				}
 				close(done)
 			}, 30.0)
@@ -705,7 +702,7 @@ var _ = Describe("Creating a container", func() {
 				})
 
 				Context("when the process writes too much to /dev/shm", func() {
-					PIt("is killed", func() {
+					It("is killed", func() {
 						process, err := container.Run(garden.ProcessSpec{
 							Path: "dd",
 							Args: []string{"if=/dev/urandom", "of=/dev/shm/too-big", "bs=1M", "count=65"},

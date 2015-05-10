@@ -116,7 +116,7 @@ var _ = Describe("Through a restart", func() {
 			Expect(process.Wait()).To(Equal(0))
 		})
 
-		PIt("can still have its tty window resized", func() {
+		It("can still have its tty window resized", func() {
 			stdout := gbytes.NewBuffer()
 
 			process, err := container.Run(garden.ProcessSpec{
@@ -202,7 +202,7 @@ var _ = Describe("Through a restart", func() {
 			Expect(process1.ID()).ToNot(Equal(process2.ID()))
 		})
 
-		PIt("can still be signalled", func() {
+		It("can still be signalled", func() {
 			process, err := container.Run(garden.ProcessSpec{
 				Path: "sh",
 				Args: []string{"-c", `
