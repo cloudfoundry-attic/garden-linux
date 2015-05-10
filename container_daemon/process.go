@@ -18,12 +18,18 @@ type Process struct {
 	Term       system.Term
 	SigwinchCh <-chan os.Signal
 	Spec       *garden.ProcessSpec
+	Pidfile    PidfileWriter
 	IO         *garden.ProcessIO
 
 	// assigned after Start() is called
 	pid      int
 	state    *term.State
 	exitCode <-chan int
+}
+
+type PidfileWriter interface {
+	Write(pid int) error
+	Remove()
 }
 
 //go:generate counterfeiter -o fake_connector/FakeConnector.go . Connector
@@ -37,7 +43,9 @@ func (p *Process) Start() error {
 		return fmt.Errorf("container_daemon: connect to socket: %s", err)
 	}
 
-	p.pid = pid
+	if err := p.Pidfile.Write(pid); err != nil {
+		return fmt.Errorf("container_daemon: write pidfile: %s", err)
+	}
 
 	if p.Spec.TTY != nil {
 		p.setupPty(fds[0])
@@ -72,21 +80,6 @@ func (p *Process) syncWindowSize(ptyFd unix_socket.Fd) error {
 	return p.Term.SetWinsize(ptyFd.Fd(), winsize)
 }
 
-func waitForExit(exitFd io.ReadWriteCloser) chan int {
-	exitChan := make(chan int)
-	go func(exitFd io.Reader, exitChan chan<- int) {
-		b := make([]byte, 1)
-		n, err := exitFd.Read(b)
-		if n == 0 && err != nil {
-			b[0] = UnknownExitStatus
-		}
-
-		exitChan <- int(b[0])
-	}(exitFd, exitChan)
-
-	return exitChan
-}
-
 func fwdOverPty(ptyFd io.ReadWriteCloser, processIO *garden.ProcessIO) {
 	if processIO == nil {
 		return
@@ -115,10 +108,6 @@ func fwdNoninteractive(stdinFd, stdoutFd, stderrFd io.ReadWriteCloser, processIO
 	}
 }
 
-func (p *Process) Pid() int {
-	return p.pid
-}
-
 func (p *Process) Cleanup() {
 	if p.state != nil {
 		p.Term.RestoreTerminal(os.Stdin.Fd(), p.state)
@@ -126,5 +115,22 @@ func (p *Process) Cleanup() {
 }
 
 func (p *Process) Wait() (int, error) {
+	defer p.Pidfile.Remove()
+
 	return <-p.exitCode, nil
+}
+
+func waitForExit(exitFd io.ReadWriteCloser) chan int {
+	exitChan := make(chan int)
+	go func(exitFd io.Reader, exitChan chan<- int) {
+		b := make([]byte, 1)
+		n, err := exitFd.Read(b)
+		if n == 0 && err != nil {
+			b[0] = UnknownExitStatus
+		}
+
+		exitChan <- int(b[0])
+	}(exitFd, exitChan)
+
+	return exitChan
 }

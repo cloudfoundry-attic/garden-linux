@@ -2,7 +2,9 @@ package container_daemon_test
 
 import (
 	"errors"
+	"io/ioutil"
 	"os"
+	"path"
 	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden"
@@ -22,6 +24,7 @@ var _ = Describe("Process", func() {
 	var sigwinchCh chan os.Signal
 
 	var process *Process
+	var pidfile string
 
 	BeforeEach(func() {
 		fakeTerm = new(fake_term.FakeTerm)
@@ -29,6 +32,11 @@ var _ = Describe("Process", func() {
 		socketConnector.ConnectReturns([]unix_socket.Fd{nil, nil, nil, FakeFd(0)}, 0, nil)
 
 		sigwinchCh = make(chan os.Signal)
+
+		tmp, err := ioutil.TempDir("", "pidfile")
+		Expect(err).NotTo(HaveOccurred())
+
+		pidfile = path.Join(tmp, "the-pid-file")
 
 		process = &Process{
 			Connector:  socketConnector,
@@ -38,8 +46,13 @@ var _ = Describe("Process", func() {
 				Path: "/bin/echo",
 				Args: []string{"Hello world"},
 			},
-			IO: nil,
+			Pidfile: Pidfile{pidfile},
+			IO:      nil,
 		}
+	})
+
+	AfterEach(func() {
+		os.Remove(pidfile)
 	})
 
 	It("sends the correct process payload to the server", func() {
@@ -155,13 +168,24 @@ var _ = Describe("Process", func() {
 		})
 	})
 
-	It("returns the PID of the spawned process", func() {
-		socketConnector.ConnectReturns([]unix_socket.Fd{nil, nil, nil, FakeFd(0)}, 123, nil)
+	Context("when a pidfile parameter is supplied", func() {
+		It("writes the PID of the spawned process to the pidfile", func() {
+			socketConnector.ConnectReturns([]unix_socket.Fd{nil, nil, nil, FakeFd(0)}, 123, nil)
 
-		err := process.Start()
-		Expect(err).ToNot(HaveOccurred())
+			err := process.Start()
+			Expect(err).ToNot(HaveOccurred())
 
-		Expect(process.Pid()).To(Equal(123))
+			Expect(pidfile).To(BeAnExistingFile())
+			Expect(ioutil.ReadFile(pidfile)).To(Equal([]byte("123\n")))
+		})
+
+		Context("when writing the pidfile fails", func() {
+			It("returns an error", func() {
+				Expect(os.MkdirAll(pidfile, 0700)) // make writing fail
+				defer os.Remove(pidfile)
+				Expect(process.Start()).To(MatchError(ContainSubstring("container_daemon: write pidfile")))
+			})
+		})
 	})
 
 	It("streams stdout back", func() {
@@ -221,6 +245,20 @@ var _ = Describe("Process", func() {
 
 		remoteExitFd.Write([]byte{42})
 		Expect(process.Wait()).To(Equal(42))
+	})
+
+	Context("when the exit status is returned", func() {
+		It("removes the pidfile", func() {
+			remoteExitFd := FakeFd(0)
+			socketConnector.ConnectReturns([]unix_socket.Fd{nil, nil, nil, remoteExitFd}, 0, nil)
+
+			err := process.Start()
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(pidfile).To(BeAnExistingFile())
+			process.Wait()
+			Expect(pidfile).NotTo(BeAnExistingFile())
+		})
 	})
 
 	Context("when it fails to connect", func() {

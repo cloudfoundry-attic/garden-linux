@@ -7,8 +7,6 @@ import (
 	"os/signal"
 	"syscall"
 
-	"io/ioutil"
-
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
@@ -42,12 +40,21 @@ func main() {
 		signal.Notify(resize, syscall.SIGWINCH)
 	}
 
+	var pidfileWriter container_daemon.PidfileWriter = container_daemon.NoPidfile{}
+	if *pidfile != "" {
+		pidfileWriter = container_daemon.Pidfile{
+			Path: *pidfile,
+		}
+	}
+
 	process := &container_daemon.Process{
 		Connector: &unix_socket.Connector{
 			SocketPath: *socketPath,
 		},
 
 		Term: system.TermPkg{},
+
+		Pidfile: pidfileWriter,
 
 		SigwinchCh: resize,
 
@@ -74,15 +81,6 @@ func main() {
 	}
 
 	defer process.Cleanup()
-
-	if *pidFile != "" {
-		pidString := fmt.Sprintf("%d\n", proc.Pid())
-		err = ioutil.WriteFile(*pidFile, []byte(pidString), 0700)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Writing PID file: %s\n", err)
-			os.Exit(container_daemon.UnknownExitStatus)
-		}
-	}
 
 	exitCode, err := process.Wait()
 	if err != nil {
