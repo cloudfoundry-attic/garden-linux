@@ -433,8 +433,21 @@ var _ = Describe("Creating a container", func() {
 								Args: []string{"-c", `touch /root/potato`},
 							}, garden.ProcessIO{})
 							Expect(err).ToNot(HaveOccurred())
-
 							Expect(process.Wait()).To(Equal(0))
+						})
+
+						It("preserves pre-existing dotfiles from base image", func() {
+							out := gbytes.NewBuffer()
+							process, err := container.Run(garden.ProcessSpec{
+								User: "root",
+								Path: "cat",
+								Args: []string{"/.foo"},
+							}, garden.ProcessIO{
+								Stdout: out,
+							})
+							Expect(err).ToNot(HaveOccurred())
+							Expect(process.Wait()).To(Equal(0))
+							Expect(out).To(gbytes.Say("this is a pre-existing dotfile"))
 						})
 					})
 				})

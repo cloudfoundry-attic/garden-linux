@@ -2,8 +2,8 @@ package rootfs_provider
 
 import (
 	"errors"
-	"fmt"
 	"net/url"
+	"os"
 	"os/exec"
 	"time"
 
@@ -174,10 +174,9 @@ type ShellOutCp struct {
 }
 
 func (s ShellOutCp) Copy(src, dest string) error {
-	cmd := exec.Command("sh", "-c", fmt.Sprintf("cp -a %s/* %s/", src, dest))
-	if err := cmd.Run(); err != nil {
+	if err := os.Remove(dest); err != nil {
 		return err
 	}
 
-	return nil
+	return exec.Command("cp", "-a", src, dest).Run()
 }
