@@ -57,7 +57,8 @@ do
     break
   fi
 
-  subTasks=$(cat $tasks | grep -v $pid)
+  # Compute the children of initd which are not part of the go runtime (i.e. threads of initd).
+  subTasks=$(comm -13 <(ps -p $pid -L | tail -n +2 | awk '{ print $2 }') $tasks)
 
   signal=TERM
   if [[ $(ms) -gt $ms_end ]]; then

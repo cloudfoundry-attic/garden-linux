@@ -858,7 +858,7 @@ var _ = Describe("Creating a container", func() {
 				}, 10.0)
 			})
 
-			PContext("and then sending a Stop request", func() {
+			Context("and then sending a Stop request", func() {
 				It("terminates all running processes", func() {
 					stdout := gbytes.NewBuffer()
 
@@ -890,7 +890,7 @@ var _ = Describe("Creating a container", func() {
 					Expect(process.Wait()).To(Equal(42))
 				})
 
-				PIt("recursively terminates all child processes", func(done Done) {
+				It("recursively terminates all child processes", func(done Done) {
 					defer close(done)
 
 					stdout := gbytes.NewBuffer()
@@ -904,7 +904,7 @@ var _ = Describe("Creating a container", func() {
 						trap wait SIGTERM
 
 						# spawn child that exits when it receives TERM
-						sh -c 'sleep 100 & wait' &
+						sh -c 'trap wait SIGTERM; sleep 100 & wait' &
 
 						# sync with test
 						echo waiting
@@ -931,7 +931,7 @@ var _ = Describe("Creating a container", func() {
 					Expect(time.Since(stoppedAt)).To(BeNumerically("<=", 5*time.Second))
 				}, 15)
 
-				PContext("when a process does not die 10 seconds after receiving SIGTERM", func() {
+				Context("when a process does not die 10 seconds after receiving SIGTERM", func() {
 					It("is forcibly killed", func(done Done) {
 						defer close(done)
 
