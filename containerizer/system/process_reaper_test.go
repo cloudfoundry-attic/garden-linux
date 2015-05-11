@@ -50,8 +50,7 @@ var _ = Describe("ProcessReaper", func() {
 		})
 	})
 
-	// Flakey when run as part of full test suite, so pended..
-	PIt("returns correct exit statuses of short-lived processes", func(done Done) {
+	It("returns correct exit statuses of short-lived processes", func(done Done) {
 		for i := 0; i < 100; i++ {
 			cmd := exec.Command("sh", "-c", "exit 42")
 			Expect(reaper.Start(cmd)).To(Succeed())
@@ -74,8 +73,7 @@ var _ = Describe("ProcessReaper", func() {
 		close(done)
 	}, 10.0)
 
-	// Flakey when run as part of full test suite, so pended..
-	PIt("reaps processes when they terminate in close succession", func(done Done) {
+	It("reaps processes when they terminate in close succession", func(done Done) {
 		for i := 0; i < 100; i++ {
 			cmd := exec.Command("sh", "-c", `while true; do sleep 1; done`)
 			Expect(reaper.Start(cmd)).To(Succeed())

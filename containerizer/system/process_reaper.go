@@ -22,7 +22,7 @@ func StartReaper(logger lager.Logger) *ProcessReaper {
 	p := &ProcessReaper{
 		mu:      new(sync.Mutex),
 		waiting: make(map[int]chan int),
-		sigChld: make(chan os.Signal, 100),
+		sigChld: make(chan os.Signal, 1000),
 		log:     logger,
 	}
 
@@ -36,6 +36,9 @@ func (p *ProcessReaper) Stop() {
 }
 
 func (p *ProcessReaper) Start(cmd *exec.Cmd) error {
+	// Lock before starting the command to ensure p.waiting is set before Wait attempts to read it.
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	if err := cmd.Start(); err != nil {
 		p.log.Error("failed to start", err, lager.Data{"cmd": cmd})
 		return err
@@ -43,20 +46,16 @@ func (p *ProcessReaper) Start(cmd *exec.Cmd) error {
 
 	p.log.Info("started", lager.Data{"pid": cmd.Process.Pid, "cmd": cmd})
 
-	p.mu.Lock()
-	defer p.mu.Unlock()
 	p.waiting[cmd.Process.Pid] = make(chan int, 1)
 	return nil
 }
 
 func (p *ProcessReaper) Wait(cmd *exec.Cmd) byte {
-	p.mu.Lock()
-	ch, ok := p.waiting[cmd.Process.Pid]
+	ch, ok := p.waitChan(cmd.Process.Pid)
 	if !ok {
 		panic("waited on a process that was never started")
 	}
 
-	p.mu.Unlock()
 	found := ch != nil
 	p.log.Info("wait", lager.Data{"pid": cmd.Process.Pid, "found": found})
 	return byte(<-ch)
@@ -87,14 +86,18 @@ func (p *ProcessReaper) reap() {
 
 		p.log.Info("reaped", lager.Data{"pid": wpid, "status": status, "rusage": rusage})
 
-		p.mu.Lock()
-		ch, ok := p.waiting[wpid]
-		p.mu.Unlock()
-		if ok {
+		if ch, ok := p.waitChan(wpid); ok {
 			ch <- status.ExitStatus()
 			p.log.Info("wait-once-sent-exit-status", lager.Data{"pid": wpid, "status": status, "rusage": rusage})
 		} else {
 			p.log.Info("wait-once-not-found", lager.Data{"pid": wpid, "status": status, "rusage": rusage})
 		}
 	}
+}
+
+func (p *ProcessReaper) waitChan(pid int) (chan int, bool) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	wChan, ok := p.waiting[pid]
+	return wChan, ok
 }

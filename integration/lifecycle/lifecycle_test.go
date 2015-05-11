@@ -604,7 +604,7 @@ var _ = Describe("Creating a container", func() {
 					Expect(process.Wait()).To(Equal(255))
 				}
 				close(done)
-			}, 30.0)
+			}, 120.0)
 
 			PIt("collects the process's full output, even if it exits quickly after", func() {
 				for i := 0; i < 100; i++ {
