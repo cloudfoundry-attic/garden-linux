@@ -62,6 +62,45 @@ var _ = Describe("Creating a container", func() {
 		})
 	})
 
+	Describe("concurrent creation of containers based on same docker rootfs", func() {
+
+		It("retains the full rootFS without truncating files", func() {
+			client = startGarden()
+			c1chan := make(chan garden.Container)
+			c2chan := make(chan garden.Container)
+			c3chan := make(chan garden.Container)
+
+			createContainer := func(ch chan<- garden.Container) {
+				defer GinkgoRecover()
+				c, err := client.Create(garden.ContainerSpec{RootFSPath: "docker:///concourse/atc-ci", Privileged: false})
+				Expect(err).ToNot(HaveOccurred())
+				ch <- c
+			}
+
+			runInContainer := func(c garden.Container) {
+				out := gbytes.NewBuffer()
+				process, err := c.Run(garden.ProcessSpec{
+					Path: "go",
+					Args: []string{"version"},
+				}, garden.ProcessIO{
+					Stdout: out,
+					Stderr: out,
+				})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(process.Wait()).To(Equal(0))
+				Eventually(out).Should(gbytes.Say("go version go1.4.2 linux/amd64"))
+			}
+
+			go createContainer(c1chan)
+			go createContainer(c2chan)
+			go createContainer(c3chan)
+
+			runInContainer(<-c1chan)
+			runInContainer(<-c2chan)
+			runInContainer(<-c3chan)
+		})
+	})
+
 	Describe("concurrently destroying", func() {
 		allBridges := func() []byte {
 			stdout := gbytes.NewBuffer()
