@@ -72,7 +72,7 @@ var _ = Describe("Creating a container", func() {
 
 			createContainer := func(ch chan<- garden.Container) {
 				defer GinkgoRecover()
-				c, err := client.Create(garden.ContainerSpec{RootFSPath: "docker:///concourse/atc-ci", Privileged: false})
+				c, err := client.Create(garden.ContainerSpec{RootFSPath: "docker:///cloudfoundry/large_layers", Privileged: false})
 				Expect(err).ToNot(HaveOccurred())
 				ch <- c
 			}
@@ -80,7 +80,8 @@ var _ = Describe("Creating a container", func() {
 			runInContainer := func(c garden.Container) {
 				out := gbytes.NewBuffer()
 				process, err := c.Run(garden.ProcessSpec{
-					Path: "go",
+					User: "vcap",
+					Path: "/usr/local/go/bin/go",
 					Args: []string{"version"},
 				}, garden.ProcessIO{
 					Stdout: out,
