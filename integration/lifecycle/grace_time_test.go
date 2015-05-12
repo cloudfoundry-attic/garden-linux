@@ -21,7 +21,7 @@ var _ = Describe("A container with a grace time", func() {
 	Context("when a request takes longer than the grace time", func() {
 		It("is not destroyed after the request is over", func() {
 			process, err := container.Run(garden.ProcessSpec{
-				User: "vcap",
+				User: "root",
 				Path: "sleep",
 				Args: []string{"5"},
 			}, garden.ProcessIO{})

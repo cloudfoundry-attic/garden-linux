@@ -80,7 +80,7 @@ var _ = Describe("Creating a container", func() {
 			runInContainer := func(c garden.Container) {
 				out := gbytes.NewBuffer()
 				process, err := c.Run(garden.ProcessSpec{
-					User: "vcap",
+					User: "root",
 					Path: "/usr/local/go/bin/go",
 					Args: []string{"version"},
 				}, garden.ProcessIO{
@@ -186,12 +186,27 @@ var _ = Describe("Creating a container", func() {
 		var privilegedContainer bool
 		var rootfs string
 
+		var shouldCreateVcapUser bool
+
 		JustBeforeEach(func() {
 			client = startGarden()
 
 			var err error
 			container, err = client.Create(garden.ContainerSpec{Privileged: privilegedContainer, RootFSPath: rootfs})
 			Expect(err).ToNot(HaveOccurred())
+			if shouldCreateVcapUser {
+				addUser, err := container.Run(garden.ProcessSpec{
+					User: "root",
+					Path: "/usr/sbin/adduser",
+					Args: []string{"-D", "vcap"},
+				}, garden.ProcessIO{})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(addUser.Wait()).To(Equal(0))
+			}
+		})
+
+		BeforeEach(func() {
+			shouldCreateVcapUser = true
 		})
 
 		AfterEach(func() {
@@ -347,6 +362,10 @@ var _ = Describe("Creating a container", func() {
 		Context("and running a process", func() {
 
 			Context("when root is requested", func() {
+				BeforeEach(func() {
+					shouldCreateVcapUser = false
+				})
+
 				It("runs as root inside the container", func() {
 					stdout := gbytes.NewBuffer()
 
@@ -490,6 +509,7 @@ var _ = Describe("Creating a container", func() {
 				Context("when the 'privileged' flag is set on the create call", func() {
 					BeforeEach(func() {
 						privilegedContainer = true
+						shouldCreateVcapUser = false
 					})
 
 					It("gets real root privileges", func() {

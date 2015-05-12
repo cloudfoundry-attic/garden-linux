@@ -21,7 +21,7 @@ var _ = Describe("Security", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			_, err = container.Run(garden.ProcessSpec{
-				User: "vcap",
+				User: "root",
 				Path: "sleep",
 				Args: []string{"989898"},
 			}, garden.ProcessIO{
@@ -32,7 +32,7 @@ var _ = Describe("Security", func() {
 
 			psout := gbytes.NewBuffer()
 			ps, err := container.Run(garden.ProcessSpec{
-				User: "vcap",
+				User: "root",
 				Path: "sh",
 				Args: []string{"-c", "ps -a"},
 			}, garden.ProcessIO{
@@ -71,8 +71,9 @@ var _ = Describe("Security", func() {
 			stderr := gbytes.NewBuffer()
 			process, err := container.Run(
 				garden.ProcessSpec{
-					User: "vcap",
+					User: "root",
 					Path: "/hello",
+					Dir:  "/",
 				},
 				garden.ProcessIO{
 					Stdout: stdout,
@@ -83,10 +84,10 @@ var _ = Describe("Security", func() {
 
 			exitStatus, err := process.Wait()
 			Expect(err).ToNot(HaveOccurred())
-			Expect(exitStatus).To(Equal(0))
 
-			Expect(string(stdout.Contents())).To(Equal("hello from stdout"))
 			Expect(string(stderr.Contents())).To(Equal("hello from stderr"))
+			Expect(string(stdout.Contents())).To(Equal("hello from stdout"))
+			Expect(exitStatus).To(Equal(0))
 		})
 	})
 
@@ -152,7 +153,7 @@ var _ = Describe("Security", func() {
 
 		runInContainer := func(container garden.Container, script string) garden.Process {
 			process, err := container.Run(garden.ProcessSpec{
-				User: "vcap",
+				User: "root",
 				Path: "sh",
 				Args: []string{"-c", script},
 			}, garden.ProcessIO{

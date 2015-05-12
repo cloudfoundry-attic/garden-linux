@@ -32,6 +32,14 @@ var _ = Describe("Resource limits", func() {
 			Privileged: privilegedContainer,
 		})
 		Expect(err).ToNot(HaveOccurred())
+
+		addUser, err := container.Run(garden.ProcessSpec{
+			User: "root",
+			Path: "adduser",
+			Args: []string{"-D", "vcap"},
+		}, garden.ProcessIO{})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(addUser.Wait()).To(Equal(0))
 	})
 
 	AfterEach(func() {

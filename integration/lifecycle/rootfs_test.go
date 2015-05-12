@@ -157,7 +157,7 @@ func startDockerRegistry(dockerRegistryIP string, dockerRegistryPort string) gar
 	Expect(err).ToNot(HaveOccurred())
 
 	_, err = dockerRegistry.Run(garden.ProcessSpec{
-		User: "vcap",
+		User: "root",
 		Env: []string{
 			"DOCKER_REGISTRY_CONFIG=/docker-registry/config/config_sample.yml",
 			fmt.Sprintf("REGISTRY_PORT=%s", dockerRegistryPort),

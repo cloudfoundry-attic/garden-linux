@@ -24,7 +24,7 @@ var _ = Describe("Process", func() {
 			stdout := gbytes.NewBuffer()
 
 			process, err := container.Run(garden.ProcessSpec{
-				User: "vcap",
+				User: "root",
 				Path: "sh",
 				Args: []string{
 					"-c",

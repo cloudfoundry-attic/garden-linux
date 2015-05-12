@@ -39,22 +39,22 @@ var _ = Describe("When nested", func() {
 			BindMounts: []garden.BindMount{
 				{
 					SrcPath: filepath.Dir(gardenBin),
-					DstPath: "/home/vcap/bin/",
+					DstPath: "/root/bin/",
 					Mode:    garden.BindMountModeRO,
 				},
 				{
 					SrcPath: absoluteBinPath,
-					DstPath: "/home/vcap/binpath/bin",
+					DstPath: "/root/binpath/bin",
 					Mode:    garden.BindMountModeRO,
 				},
 				{
 					SrcPath: filepath.Join(absoluteBinPath, "..", "skeleton"),
-					DstPath: "/home/vcap/binpath/skeleton",
+					DstPath: "/root/binpath/skeleton",
 					Mode:    garden.BindMountModeRO,
 				},
 				{
 					SrcPath: rootFSPath,
-					DstPath: "/home/vcap/rootfs",
+					DstPath: "/root/rootfs",
 					Mode:    garden.BindMountModeRO,
 				},
 			},
@@ -72,7 +72,7 @@ var _ = Describe("When nested", func() {
 		_, err = container.Run(garden.ProcessSpec{
 			Path: "sh",
 			User: "root",
-			Dir:  "/home/vcap",
+			Dir:  "/root",
 			Args: []string{
 				"-c",
 				fmt.Sprintf(`
@@ -81,8 +81,8 @@ var _ = Describe("When nested", func() {
 				mount -t tmpfs tmpfs /tmp/containers
 
 				./bin/garden-linux \
-					-bin /home/vcap/binpath/bin \
-					-rootfs /home/vcap/rootfs \
+					-bin /root/binpath/bin \
+					-rootfs /root/rootfs \
 					-depot /tmp/containers \
 					-overlays /tmp/overlays \
 					-snapshots /tmp/snapshots \
@@ -116,7 +116,7 @@ var _ = Describe("When nested", func() {
 
 		nestedOutput := gbytes.NewBuffer()
 		_, err = nestedContainer.Run(garden.ProcessSpec{
-			User: "vcap",
+			User: "root",
 			Path: "/bin/echo",
 			Args: []string{
 				"I am nested!",
