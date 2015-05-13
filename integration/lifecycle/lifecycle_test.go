@@ -1225,7 +1225,7 @@ var _ = Describe("Creating a container", func() {
 				)
 
 				Expect(err).ToNot(HaveOccurred())
-				Expect(cmd.Wait("1s").ExitCode()).To(Equal(0))
+				Expect(cmd.Wait("2s").ExitCode()).To(Equal(0))
 				Expect(stdout.Contents()).To(Equal([]byte{}))
 			})
 		})
