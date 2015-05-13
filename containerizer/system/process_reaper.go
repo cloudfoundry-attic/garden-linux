@@ -39,6 +39,11 @@ func (p *ProcessReaper) Start(cmd *exec.Cmd) error {
 	// Lock before starting the command to ensure p.waiting is set before Wait attempts to read it.
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
+	syscall.Setrlimit(syscall.RLIMIT_NOFILE, &syscall.Rlimit{100000, 100000})
+
+	// TODO: lock current thread to goroutine & unlock after Start
+
 	if err := cmd.Start(); err != nil {
 		p.log.Error("failed to start", err, lager.Data{"cmd": cmd})
 		return err

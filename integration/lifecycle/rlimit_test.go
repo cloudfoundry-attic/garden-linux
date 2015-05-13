@@ -10,7 +10,7 @@ import (
 	"github.com/onsi/gomega/gbytes"
 )
 
-var _ = PDescribe("Resource limits", func() {
+var _ = Describe("Resource limits", func() {
 	var (
 		container           garden.Container
 		privilegedContainer bool
@@ -53,8 +53,8 @@ var _ = PDescribe("Resource limits", func() {
 				privilegedContainer = true
 			})
 
-			It("rlimits can be set", func() {
-				var nofile uint64 = 1000
+			FIt("rlimits can be set", func() {
+				var nofile uint64 = 100000
 				stdout := gbytes.NewBuffer()
 				process, err := container.Run(garden.ProcessSpec{
 					Path: "sh",
@@ -65,7 +65,7 @@ var _ = PDescribe("Resource limits", func() {
 				}, garden.ProcessIO{Stdout: io.MultiWriter(stdout, GinkgoWriter), Stderr: GinkgoWriter})
 				Expect(err).ToNot(HaveOccurred())
 
-				Eventually(stdout).Should(gbytes.Say("1000"))
+				Eventually(stdout).Should(gbytes.Say("100000"))
 				Expect(process.Wait()).To(Equal(0))
 			})
 		})
