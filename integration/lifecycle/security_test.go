@@ -29,18 +29,20 @@ var _ = Describe("Security", func() {
 			})
 			Expect(err).ToNot(HaveOccurred())
 
-			psout := gbytes.NewBuffer()
-			ps, err := container.Run(garden.ProcessSpec{
-				Path: "sh",
-				Args: []string{"-c", "ps -a"},
-			}, garden.ProcessIO{
-				Stdout: psout,
-				Stderr: GinkgoWriter,
-			})
-			Expect(err).ToNot(HaveOccurred())
+			Eventually(func() []string {
+				psout := gbytes.NewBuffer()
+				ps, err := container.Run(garden.ProcessSpec{
+					Path: "sh",
+					Args: []string{"-c", "ps -a"},
+				}, garden.ProcessIO{
+					Stdout: psout,
+					Stderr: GinkgoWriter,
+				})
+				Expect(err).ToNot(HaveOccurred())
 
-			Expect(ps.Wait()).To(Equal(0))
-			Expect(strings.Split(string(psout.Contents()), "\n")).To(HaveLen(6)) // header, wshd, sleep, sh, ps, \n
+				Expect(ps.Wait()).To(Equal(0))
+				return strings.Split(string(psout.Contents()), "\n")
+			}).Should(HaveLen(6)) // header, wshd, sleep, sh, ps, \n
 		})
 	})
 

@@ -76,7 +76,7 @@ var _ = Describe("Through a restart", func() {
 			})
 			Expect(err).ToNot(HaveOccurred())
 
-			Eventually(stdout, 5.0).Should(gbytes.Say("hi\n"))
+			Eventually(stdout, 30.0).Should(gbytes.Say("hi\n"))
 		})
 
 		PIt("can still accept stdin", func() {

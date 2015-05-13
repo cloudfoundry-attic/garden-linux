@@ -63,7 +63,7 @@ func (p *ProcessReaper) Wait(cmd *exec.Cmd) byte {
 
 func (p *ProcessReaper) reapAll() {
 	for {
-		p.log.Debug("reapAll")
+		p.log.Debug("reaper-waiting-for-SIGCHLD")
 		<-p.sigChld
 		p.reap()
 	}
@@ -79,6 +79,7 @@ func (p *ProcessReaper) reap() {
 		if wpid == 0 || (wpid == -1 && err.Error() == "no child processes") {
 			break
 		}
+
 		if err != nil {
 			p.log.Error("reaper-wait-error", err, lager.Data{"wpid": wpid})
 			break

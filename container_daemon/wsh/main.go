@@ -29,8 +29,8 @@ func main() {
 
 	extraArgs := flag.Args()
 	if len(extraArgs) == 0 {
-		fmt.Fprintf(os.Stderr, "command name not provided.")
-		os.Exit(container_daemon.UnknownExitStatus)
+		// Default is to run a shell.
+		extraArgs = []string{"/bin/sh"}
 	}
 
 	var tty *garden.TTYSpec

@@ -96,7 +96,7 @@ func fwdOverPty(ptyFd io.ReadWriteCloser, processIO *garden.ProcessIO) {
 
 func fwdNoninteractive(stdinFd, stdoutFd, stderrFd io.ReadWriteCloser, processIO *garden.ProcessIO) {
 	if processIO != nil && processIO.Stdin != nil {
-		go io.Copy(stdinFd, processIO.Stdin) // Ignore error
+		go copyAndClose(stdinFd, processIO.Stdin) // Ignore error
 	}
 
 	if processIO != nil && processIO.Stdout != nil {
@@ -106,6 +106,12 @@ func fwdNoninteractive(stdinFd, stdoutFd, stderrFd io.ReadWriteCloser, processIO
 	if processIO != nil && processIO.Stderr != nil {
 		go io.Copy(processIO.Stderr, stderrFd) // Ignore error
 	}
+}
+
+func copyAndClose(dst io.WriteCloser, src io.Reader) error {
+	_, err := io.Copy(dst, src)
+	dst.Close() // Ignore error
+	return err
 }
 
 func (p *Process) Cleanup() {
