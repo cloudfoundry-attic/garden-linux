@@ -15,16 +15,11 @@ func (c *LinuxContainer) Run(spec garden.ProcessSpec, processIO garden.ProcessIO
 	wshPath := path.Join(c.path, "bin", "wsh")
 	sockPath := path.Join(c.path, "run", "wshd.sock")
 
-	user := "vcap"
-	if spec.Privileged {
-		user = "root"
+	if spec.User == "" {
+		return nil, fmt.Errorf("linux_container: Run: No user specified when trying to run process %+v", spec)
 	}
 
-	if spec.User != "" {
-		user = spec.User
-	}
-
-	args := []string{"--socket", sockPath, "--user", user}
+	args := []string{"--socket", sockPath, "--user", spec.User}
 
 	specEnv, err := process.NewEnv(spec.Env)
 	if err != nil {

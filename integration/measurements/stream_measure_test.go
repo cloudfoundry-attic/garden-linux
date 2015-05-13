@@ -78,6 +78,7 @@ var _ = Describe("The Garden server", func() {
 		Measure("does not leak goroutines", func(b Benchmarker) {
 			for i := 1; i <= iterations; i++ {
 				process, err := container.Run(garden.ProcessSpec{
+					User: "vcap",
 					Path: "echo",
 					Args: []string{"hi"},
 				}, garden.ProcessIO{})
@@ -107,6 +108,7 @@ var _ = Describe("The Garden server", func() {
 
 		BeforeEach(func() {
 			process, err := container.Run(garden.ProcessSpec{
+				User: "vcap",
 				Path: "cat",
 			}, garden.ProcessIO{})
 			Expect(err).ToNot(HaveOccurred())
@@ -186,6 +188,7 @@ var _ = Describe("The Garden server", func() {
 							defer GinkgoRecover()
 
 							_, err := container.Run(garden.ProcessSpec{
+								User: "vcap",
 								Path: "cat",
 								Args: []string{"/dev/zero"},
 							}, garden.ProcessIO{
@@ -226,7 +229,9 @@ var _ = Describe("The Garden server", func() {
 
 					for i := 0; i < repeats; i++ {
 						b.Time("running a job ("+strconv.Itoa(repeats)+"x)", func() {
-							process, err := newContainer.Run(garden.ProcessSpec{Path: "ls"}, garden.ProcessIO{})
+							process, err := newContainer.Run(garden.ProcessSpec{
+								User: "vcap", Path: "ls",
+							}, garden.ProcessIO{})
 							Expect(err).ToNot(HaveOccurred())
 
 							Expect(process.Wait()).To(Equal(0))

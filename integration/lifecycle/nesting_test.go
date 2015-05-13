@@ -116,6 +116,7 @@ var _ = Describe("When nested", func() {
 
 		nestedOutput := gbytes.NewBuffer()
 		_, err = nestedContainer.Run(garden.ProcessSpec{
+			User: "vcap",
 			Path: "/bin/echo",
 			Args: []string{
 				"I am nested!",

@@ -55,6 +55,7 @@ var _ = Describe("Net Out", func() {
 	runInContainer := func(container garden.Container, script string) (garden.Process, *gbytes.Buffer) {
 		out := gbytes.NewBuffer()
 		process, err := container.Run(garden.ProcessSpec{
+			User: "vcap",
 			Path: "sh",
 			Args: []string{"-c", script},
 		}, garden.ProcessIO{

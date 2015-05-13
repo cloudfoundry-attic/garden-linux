@@ -60,6 +60,7 @@ var _ = Describe("Through a restart", func() {
 	Describe("a started process", func() {
 		It("continues to stream", func() {
 			process, err := container.Run(garden.ProcessSpec{
+				User: "vcap",
 				Path: "sh",
 				Args: []string{"-c", "while true; do echo hi; sleep 0.5; done"},
 			}, garden.ProcessIO{})
@@ -85,6 +86,7 @@ var _ = Describe("Through a restart", func() {
 			stdout := gbytes.NewBuffer()
 
 			process, err := container.Run(garden.ProcessSpec{
+				User: "vcap",
 				Path: "sh",
 				Args: []string{"-c", "cat <&0"},
 			}, garden.ProcessIO{
@@ -120,6 +122,7 @@ var _ = Describe("Through a restart", func() {
 			stdout := gbytes.NewBuffer()
 
 			process, err := container.Run(garden.ProcessSpec{
+				User: "vcap",
 				Path: "sh",
 				Args: []string{
 					"-c",
@@ -186,6 +189,7 @@ var _ = Describe("Through a restart", func() {
 
 		It("does not have its job ID repeated", func() {
 			process1, err := container.Run(garden.ProcessSpec{
+				User: "vcap",
 				Path: "sh",
 				Args: []string{"-c", "while true; do echo hi; sleep 0.5; done"},
 			}, garden.ProcessIO{})
@@ -194,6 +198,7 @@ var _ = Describe("Through a restart", func() {
 			restartGarden(gardenArgs...)
 
 			process2, err := container.Run(garden.ProcessSpec{
+				User: "vcap",
 				Path: "sh",
 				Args: []string{"-c", "while true; do echo hi; sleep 0.5; done"},
 			}, garden.ProcessIO{})
@@ -204,6 +209,7 @@ var _ = Describe("Through a restart", func() {
 
 		It("can still be signalled", func() {
 			process, err := container.Run(garden.ProcessSpec{
+				User: "vcap",
 				Path: "sh",
 				Args: []string{"-c", `
 				  trap 'echo termed; exit 42' SIGTERM
@@ -235,6 +241,7 @@ var _ = Describe("Through a restart", func() {
 			stdout := gbytes.NewBuffer()
 
 			process, err := container.Run(garden.ProcessSpec{
+				User: "vcap",
 				Path: "cat",
 			}, garden.ProcessIO{
 				Stdin:  stdinR,
@@ -269,6 +276,7 @@ var _ = Describe("Through a restart", func() {
 			restartGarden(gardenArgs...)
 
 			process, err := container.Run(garden.ProcessSpec{
+				User: "vcap",
 				Path: "sh",
 				Args: []string{"-c", "echo $(yes | head -c 67108864); echo goodbye; exit 42"},
 			}, garden.ProcessIO{})
@@ -285,6 +293,7 @@ var _ = Describe("Through a restart", func() {
 	Describe("a container's active job", func() {
 		It("is still tracked", func() {
 			process, err := container.Run(garden.ProcessSpec{
+				User: "vcap",
 				Path: "sh",
 				Args: []string{"-c", "while true; do echo hi; sleep 0.5; done"},
 			}, garden.ProcessIO{})
@@ -306,6 +315,7 @@ var _ = Describe("Through a restart", func() {
 
 			// trigger 'out of memory' event
 			process, err := container.Run(garden.ProcessSpec{
+				User: "vcap",
 				Path: "sh",
 				Args: []string{"-c", "echo $(yes | head -c 67108864); echo goodbye; exit 42"},
 			}, garden.ProcessIO{})
@@ -517,6 +527,7 @@ func getContainerHandles() []string {
 func runInContainer(container garden.Container, script string) (garden.Process, *gbytes.Buffer) {
 	out := gbytes.NewBuffer()
 	process, err := container.Run(garden.ProcessSpec{
+		User: "vcap",
 		Path: "sh",
 		Args: []string{"-c", script},
 	}, garden.ProcessIO{
