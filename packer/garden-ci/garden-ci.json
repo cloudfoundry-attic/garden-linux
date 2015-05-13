@@ -120,7 +120,7 @@
     },
     {
       "type": "shell",
-      "inline": ["mkdir /opt/warden/empty"]
+      "inline": ["mkdir -p /opt/warden/empty/etc"]
     },
     {
       "type": "file",
@@ -128,8 +128,18 @@
       "destination": "/opt/warden/empty/hello"
     },
     {
+      "type": "file",
+      "source": "rootfs/empty/passwd",
+      "destination": "/opt/warden/empty/etc/passwd"
+    },
+    {
+      "type": "file",
+      "source": "rootfs/empty/group",
+      "destination": "/opt/warden/empty/etc/group"
+    },
+    {
       "type": "shell",
-      "inline": ["chmod 0777 /opt/warden/empty/hello"]
+      "inline": ["chmod 0777 /opt/warden/empty/hello && chmod 751 /opt/warden/empty/etc && chmod 644 /opt/warden/empty/etc/passwd && chmod 644 /opt/warden/empty/etc/group"]
     },
     {
       "type": "shell",
