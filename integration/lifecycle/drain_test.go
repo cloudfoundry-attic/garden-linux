@@ -262,7 +262,7 @@ var _ = Describe("Through a restart", func() {
 	})
 
 	Describe("a memory limit", func() {
-		PIt("is still enforced", func() {
+		It("is still enforced", func() {
 			err := container.LimitMemory(garden.MemoryLimits{4 * 1024 * 1024})
 			Expect(err).ToNot(HaveOccurred())
 
@@ -300,7 +300,7 @@ var _ = Describe("Through a restart", func() {
 	})
 
 	Describe("a container's list of events", func() {
-		PIt("is still reported", func() {
+		It("is still reported", func() {
 			err := container.LimitMemory(garden.MemoryLimits{4 * 1024 * 1024})
 			Expect(err).ToNot(HaveOccurred())
 
