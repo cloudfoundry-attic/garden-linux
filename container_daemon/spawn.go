@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"syscall"
+	"time"
 )
 
 type Spawn struct {
@@ -86,6 +87,20 @@ func (w *Spawn) spawnNoninteractive(cmd *exec.Cmd) ([]*os.File, error) {
 		return nil, err
 	}
 
+	//		pid := cmd.Process.Pid
+	//	go func( /*pid int, file *os.File*/ ) {
+	//		logFile, err := os.OpenFile(fmt.Sprintf("/tmp/initd-%d-pipe.txt", pid), os.O_CREATE|os.O_SYNC|os.O_WRONLY, 0755)
+	//		if err != nil {
+	//			return
+	//		}
+
+	//		for /*file.Fd() >= 0*/ {
+	//			fmt.Fprintln(logFile, "spawn.go read edn of pipe still open", time.Now().Format(time.RFC3339), cmd)
+	//			time.Sleep(time.Millisecond * 100)
+	//		}
+	//		fmt.Fprintln(logFile, "spawn.go read end of pipe is closed", time.Now().Format(time.RFC3339), cmd)
+	//	}( /*pid, pipes[0].r*/ )
+
 	return []*os.File{pipes[0].w, pipes[1].r, pipes[2].r, exitStatusR}, nil
 }
 
@@ -101,7 +116,16 @@ func wireExit(cmd *exec.Cmd, runner Runner) (*os.File, error) {
 
 	go func() {
 		defer exitW.Close()
+
+		pid := cmd.Process.Pid
+		logFile, err := os.OpenFile(fmt.Sprintf("/tmp/initd-%d-stdout.txt", pid), os.O_CREATE|os.O_SYNC|os.O_WRONLY, 0755)
+		if err != nil {
+			return
+		}
+
+		fmt.Fprintln(logFile, "spawn.go about to issue Wait", fmt.Sprintf("%.9f", float64(time.Now().UnixNano())/1e9), cmd)
 		status := runner.Wait(cmd)
+		fmt.Fprintln(logFile, "spawn.go returned from Wait", fmt.Sprintf("%.9f", float64(time.Now().UnixNano())/1e9), cmd)
 		exitW.Write([]byte{status})
 	}()
 

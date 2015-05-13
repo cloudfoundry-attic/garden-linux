@@ -54,6 +54,18 @@ func (e *NamespacingExecer) Exec(binPath string, args ...string) (int, error) {
 	cmd.SysProcAttr.Cloneflags = uintptr(flags)
 	cmd.ExtraFiles = e.ExtraFiles
 
+	//	if outFile, err := os.OpenFile("/tmp/container-stdout.txt", os.O_CREATE, 0755); err == nil {
+	//		cmd.ExtraFiles = append(cmd.ExtraFiles, outFile)
+	//	} else {
+	//		return 0, fmt.Errorf("system: failed to create stdout log: %s", err)
+	//	}
+	//
+	//	if errFile, err := os.OpenFile("/tmp/container-stderr.txt", os.O_CREATE, 0755); err == nil {
+	//		cmd.ExtraFiles = append(cmd.ExtraFiles, errFile)
+	//	} else {
+	//		return 0, fmt.Errorf("system: failed to create stderr log: %s", err)
+	//	}
+
 	if err := e.CommandRunner.Start(cmd); err != nil {
 		return 0, fmt.Errorf("system: failed to start the supplied command: %s", err)
 	}

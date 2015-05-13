@@ -3,12 +3,19 @@ package system_test
 import (
 	"fmt"
 	"os/exec"
+	"time"
 
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
 	"github.com/pivotal-golang/lager"
 
+	"io"
+	"os"
+
+	"bytes"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gbytes"
 )
 
 var _ = Describe("ProcessReaper", func() {
@@ -89,4 +96,36 @@ var _ = Describe("ProcessReaper", func() {
 		}
 		close(done)
 	}, 10.0)
+
+	FIt("streams input to the process's stdin", func() {
+		stdout := gbytes.NewBuffer()
+
+		pipeR, pipeW, err := os.Pipe()
+		Expect(err).NotTo(HaveOccurred())
+
+		go copyAndClose(pipeW, bytes.NewBufferString("hello\nworld"))
+
+		cmd := exec.Command("sh", "-c", "cat <&0")
+		cmd.Stdin = pipeR
+		cmd.Stdout = stdout
+		cmd.Stderr = GinkgoWriter
+
+		Expect(reaper.Start(cmd)).To(Succeed())
+
+		println("About to issue Eventually", time.Now().Format(time.RFC3339))
+		Eventually(stdout).Should(gbytes.Say("hello\nworld"))
+		println("About to Wait", time.Now().Format(time.RFC3339))
+		exitStatus := reaper.Wait(cmd)
+		Expect(exitStatus).To(Equal(byte(0)))
+		println("Wait completed", time.Now().Format(time.RFC3339))
+	})
 })
+
+func copyAndClose(dst io.WriteCloser, src io.Reader) error {
+	fmt.Fprintln(os.Stderr, "process.go: copyAndClose: about to start copying stdin", time.Now().Format(time.RFC3339))
+	_, err := io.Copy(dst, src)
+	fmt.Fprintln(os.Stderr, "process.go: copyAndClose: ended copying stdin", time.Now().Format(time.RFC3339))
+	dst.Close() // Ignore error
+	fmt.Fprintln(os.Stderr, "process.go: copyAndClose: stdin file descriptor closed", time.Now().Format(time.RFC3339))
+	return err
+}

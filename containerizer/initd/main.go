@@ -15,6 +15,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
 	"github.com/cloudfoundry-incubator/garden-linux/network"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
+	"github.com/pivotal-golang/lager"
 )
 
 func main() {
@@ -50,6 +51,10 @@ func main() {
 		fmt.Fprintf(os.Stderr, "initd: failed to get env from config file: %s\n", err)
 		os.Exit(3)
 	}
+
+	logFile, err := os.OpenFile("/tmp/reaper-log", os.O_CREATE|os.O_SYNC|os.O_WRONLY, 0755)
+
+	logger.RegisterSink(lager.NewWriterSink(logFile, lager.DEBUG))
 
 	reaper := system.StartReaper(logger)
 	defer reaper.Stop()

@@ -644,8 +644,10 @@ var _ = Describe("Creating a container", func() {
 				}
 			})
 
-			PIt("streams input to the process's stdin", func() {
+			FIt("streams input to the process's stdin", func() {
 				stdout := gbytes.NewBuffer()
+
+				time.Sleep(time.Minute)
 
 				process, err := container.Run(garden.ProcessSpec{
 					Path: "sh",
@@ -653,11 +655,15 @@ var _ = Describe("Creating a container", func() {
 				}, garden.ProcessIO{
 					Stdin:  bytes.NewBufferString("hello\nworld"),
 					Stdout: stdout,
+					Stderr: GinkgoWriter,
 				})
 				Expect(err).ToNot(HaveOccurred())
 
+				println("About to issue Eventually", fmt.Sprintf("%.9f", float64(time.Now().UnixNano())/1e9))
 				Eventually(stdout).Should(gbytes.Say("hello\nworld"))
+				println("About to Wait", fmt.Sprintf("%.9f", float64(time.Now().UnixNano())/1e9))
 				Expect(process.Wait()).To(Equal(0))
+				println("Wait completed", fmt.Sprintf("%.9f", float64(time.Now().UnixNano())/1e9))
 			})
 
 			It("does not leak open files", func() {
