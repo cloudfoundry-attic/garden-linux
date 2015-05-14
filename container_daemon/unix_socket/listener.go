@@ -86,6 +86,12 @@ func writeData(conn *net.UnixConn, files []*os.File, pid int, responseErr error)
 	resp := syscall.UnixRights(args...)
 
 	conn.WriteMsgUnix(responseJson, resp, nil) // Ignore error
+
+	// Close the files whose descriptors have been sent to the host to ensure that
+	// a close on the host takes effect in a timely fashion.
+	for _, file := range files {
+		file.Close() // Ignore error
+	}
 }
 
 func (l *Listener) Stop() error {
