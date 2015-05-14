@@ -620,7 +620,7 @@ var _ = Describe("Creating a container", func() {
 			}, 120.0)
 
 			PIt("collects the process's full output, even if it exits quickly after", func() {
-				for i := 0; i < 1; /*00*/ i++ {
+				for i := 0; i < 100 i++ {
 					stdout := gbytes.NewBuffer()
 
 					process, err := container.Run(garden.ProcessSpec{
