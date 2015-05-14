@@ -7,7 +7,9 @@ import (
 	"os/exec"
 	"syscall"
 
+	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
+	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_cmdpreparer"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_ptyopener"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_runner"
 	. "github.com/onsi/ginkgo"
@@ -19,32 +21,68 @@ var _ = Describe("Spawning", func() {
 		runner    *fake_runner.FakeRunner
 		ptyOpener *fake_ptyopener.FakePTYOpener
 		spawner   *container_daemon.Spawn
+		preparer  *fake_cmdpreparer.FakeCmdPreparer
 
 		cmd         *exec.Cmd
 		returnedFds []*os.File
 		returnedErr error
-		withTty     bool
+		returnedPid int
+		spec        garden.ProcessSpec
 	)
 
 	BeforeEach(func() {
-		withTty = false
 		runner = new(fake_runner.FakeRunner)
 		ptyOpener = new(fake_ptyopener.FakePTYOpener)
+		preparer = new(fake_cmdpreparer.FakeCmdPreparer)
 
-		cmd = exec.Command("foo")
+		spec = garden.ProcessSpec{
+			Path: "fishfinger",
+			Args: []string{
+				"foo", "bar",
+			},
+			Dir: "some-dir",
+			Env: []string{"foo=bar", "baz=barry"},
+		}
+
+		cmd = exec.Command("fishfinger", "foo", "bar")
+		cmd.Dir = "some-dir"
+		cmd.Env = []string{"foo=bar", "baz=barry"}
+		preparer.PrepareCmdReturns(cmd, nil)
+
+		runner.StartStub = func(cmd *exec.Cmd) error {
+			cmd.Process = new(os.Process)
+			cmd.Process.Pid = 12
+			return nil
+		}
+
 		spawner = &container_daemon.Spawn{
-			Runner: runner,
-			PTY:    ptyOpener,
+			Runner:      runner,
+			PTY:         ptyOpener,
+			CmdPreparer: preparer,
 		}
 	})
 
 	JustBeforeEach(func() {
-		returnedFds, returnedErr = spawner.Spawn(cmd, withTty)
+		returnedFds, returnedPid, returnedErr = spawner.Spawn(spec)
+	})
+
+	Context("when the preparer returns an error", func() {
+		BeforeEach(func() {
+			preparer.PrepareCmdReturns(nil, errors.New("no cmd"))
+		})
+
+		It("does not start to run the command", func() {
+			Expect(runner.StartCallCount()).To(Equal(0))
+		})
+
+		It("returns an error", func() {
+			Expect(returnedErr).To(HaveOccurred())
+		})
 	})
 
 	Describe("With a TTY", func() {
 		BeforeEach(func() {
-			withTty = true
+			spec.TTY = new(garden.TTYSpec)
 		})
 
 		Context("when a pty cannot be opened", func() {
@@ -127,7 +165,9 @@ var _ = Describe("Spawning", func() {
 				})
 
 				It("does not block", func(done Done) {
-					spawner.Spawn(exec.Command("foo"), withTty)
+					spec = garden.ProcessSpec{Path: "foo"}
+
+					spawner.Spawn(spec)
 					close(block)
 					close(done)
 				})
@@ -141,16 +181,18 @@ var _ = Describe("Spawning", func() {
 		)
 
 		BeforeEach(func() {
-			withTty = false
+			spec.TTY = nil
 		})
 
 		Context("when starting the process succeeds", func() {
 			BeforeEach(func() {
-				cmd = exec.Command("foo")
 				runner.StartStub = func(cmd *exec.Cmd) error {
 					cmd.Stdout.Write([]byte("Banana doo"))
 					cmd.Stderr.Write([]byte("Banana goo"))
 					cmdStdin = cmd.Stdin
+
+					cmd.Process = new(os.Process)
+					cmd.Process.Pid = 12
 
 					return nil
 				}
@@ -200,7 +242,9 @@ var _ = Describe("Spawning", func() {
 			})
 
 			It("does not block", func(done Done) {
-				spawner.Spawn(exec.Command("foo"), withTty)
+				spec = garden.ProcessSpec{Path: "foo"}
+
+				spawner.Spawn(spec)
 				close(block)
 				close(done)
 			})
