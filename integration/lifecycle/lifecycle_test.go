@@ -480,18 +480,20 @@ var _ = Describe("Creating a container", func() {
 					})
 
 					It("sees root-owned files in the rootfs as owned by the container's root user", func() {
-						stdout := gbytes.NewBuffer()
+						stderr := gbytes.NewBuffer()
 						process, err := container.Run(garden.ProcessSpec{
 							User: "root",
 							Path: "sh",
-							Args: []string{"-c", `ls -l /sbin | grep -v wsh | grep -v hook`},
-						}, garden.ProcessIO{Stdout: io.MultiWriter(GinkgoWriter, stdout)})
+							Args: []string{"-c", `ls -l /sbin | grep -v wsh | grep -v hook 1>&2`},
+						}, garden.ProcessIO{Stderr: stderr})
 						Expect(err).ToNot(HaveOccurred())
 
 						Expect(process.Wait()).To(Equal(0))
-						Expect(stdout).NotTo(gbytes.Say("nobody"))
-						Expect(stdout).NotTo(gbytes.Say("65534"))
-						Expect(stdout).To(gbytes.Say(" root "))
+						output := string(stderr.Contents())
+						Expect(output).NotTo(ContainSubstring("nobody"))
+						Expect(output).NotTo(ContainSubstring("65534"))
+						Expect(output).To(ContainSubstring(" root "))
+
 					})
 				})
 			})
