@@ -5,6 +5,8 @@ import (
 	"io"
 	"os"
 
+	"io/ioutil"
+
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
@@ -97,6 +99,7 @@ func fwdOverPty(ptyFd io.ReadWriteCloser, processIO *garden.ProcessIO) {
 func fwdNoninteractive(stdinFd, stdoutFd, stderrFd io.ReadWriteCloser, processIO *garden.ProcessIO) {
 	if processIO != nil && processIO.Stdin != nil {
 		go copyAndClose(stdinFd, processIO.Stdin) // Ignore error
+		//		go diagnosticCopyAndClose(stdinFd, processIO.Stdin) // Ignore error
 	}
 
 	if processIO != nil && processIO.Stdout != nil {
@@ -104,13 +107,63 @@ func fwdNoninteractive(stdinFd, stdoutFd, stderrFd io.ReadWriteCloser, processIO
 	}
 
 	if processIO != nil && processIO.Stderr != nil {
-		go io.Copy(processIO.Stderr, stderrFd) // Ignore error
+		//		go io.Copy(processIO.Stderr, stderrFd)       // Ignore error
+		go copyWithClose(processIO.Stderr, stderrFd) // Ignore error
+		//		go diagnosticCopy(processIO.Stderr, stderrFd, "stderr-diagnosticCopyLog") // Ignore error
 	}
 }
 
 func copyAndClose(dst io.WriteCloser, src io.Reader) error {
 	_, err := io.Copy(dst, src)
 	dst.Close() // Ignore error
+	return err
+}
+
+func copyWithClose(dst io.Writer, src io.Reader) error {
+	_, err := io.Copy(dst, src)
+	if wc, ok := dst.(io.WriteCloser); ok {
+		return wc.Close()
+	}
+	return err
+}
+
+func diagnosticCopyAndClose(dst io.WriteCloser, src io.Reader) error {
+	err := diagnosticCopy(dst, src, "stdin-diagnosticCopyLog")
+	dst.Close() // Ignore error
+	return err
+}
+
+func diagnosticCopy(dst io.Writer, src io.Reader, logFileName string) error {
+	log, oe := ioutil.TempFile("/tmp", logFileName)
+	if oe != nil {
+		return oe
+	}
+	defer log.Close()
+
+	var err error = nil
+	buf := make([]byte, 32*1024)
+	for {
+		nr, er := src.Read(buf)
+		fmt.Fprintln(log, `!!!!! diagnosticCopy received "`, string(buf[0:nr]), `"`)
+		if nr > 0 {
+			nw, ew := dst.Write(buf[0:nr])
+			if ew != nil {
+				err = ew
+				break
+			}
+			if nr != nw {
+				err = io.ErrShortWrite
+				break
+			}
+		}
+		if er == io.EOF {
+			break
+		}
+		if er != nil {
+			err = er
+			break
+		}
+	}
 	return err
 }
 
