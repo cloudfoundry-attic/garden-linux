@@ -103,15 +103,17 @@ func wireExit(cmd *exec.Cmd, runner Runner) (*os.File, error) {
 		return nil, fmt.Errorf("container_daemon: start: %s", err)
 	}
 
-	go func() {
-		defer exitW.Close()
-		defer tryClose(stdout)
-		defer tryClose(stderr)
-		status := runner.Wait(cmd)
-		exitW.Write([]byte{status})
-	}()
+	go handleCompletion(runner, cmd, exitW, stdout, stderr)
 
 	return exitR, nil
+}
+
+func handleCompletion(runner Runner, cmd *exec.Cmd, exitW *os.File, stdout, stderr io.Writer) {
+	defer exitW.Close()
+	defer tryClose(stdout)
+	defer tryClose(stderr)
+	status := runner.Wait(cmd)
+	exitW.Write([]byte{status})
 }
 
 func tryClose(w io.Writer) {

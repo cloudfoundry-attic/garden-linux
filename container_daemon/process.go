@@ -92,8 +92,8 @@ func fwdOverPty(ptyFd io.ReadWriteCloser, processIO *garden.ProcessIO, streaming
 	if processIO.Stdout != nil {
 		streaming.Add(1)
 		go func() {
+			defer streaming.Done()
 			io.Copy(processIO.Stdout, ptyFd)
-			streaming.Done()
 		}()
 	}
 
@@ -110,16 +110,16 @@ func fwdNoninteractive(stdinFd, stdoutFd, stderrFd io.ReadWriteCloser, processIO
 	if processIO != nil && processIO.Stdout != nil {
 		streaming.Add(1)
 		go func() {
+			defer streaming.Done()
 			io.Copy(processIO.Stdout, stdoutFd) // Ignore error
-			streaming.Done()
 		}()
 	}
 
 	if processIO != nil && processIO.Stderr != nil {
 		streaming.Add(1)
 		go func() {
+			defer streaming.Done()
 			io.Copy(processIO.Stderr, stderrFd) // Ignore error
-			streaming.Done()
 		}()
 	}
 }
