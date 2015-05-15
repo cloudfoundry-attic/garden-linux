@@ -623,14 +623,15 @@ var _ = Describe("Creating a container", func() {
 
 			FIt("collects the process's full output, even if it exits quickly after", func() {
 				for i := 0; i < 100; i++ {
-					stderr := gbytes.NewBuffer()
+					stdout := gbytes.NewBuffer()
 
 					process, err := container.Run(garden.ProcessSpec{
 						Path: "sh",
-						Args: []string{"-c", "echo hi stderr 1>&2"},
+						Args: []string{"-c", "cat <&0"},
 					}, garden.ProcessIO{
-						Stderr: stderr,
-						Stdout: os.Stdout,
+						Stdin:  bytes.NewBuffer([]byte("hi stdout")),
+						Stderr: os.Stderr,
+						Stdout: stdout,
 					})
 
 					if err != nil {
@@ -641,7 +642,7 @@ var _ = Describe("Creating a container", func() {
 					Expect(err).ToNot(HaveOccurred())
 					Expect(process.Wait()).To(Equal(0))
 
-					Expect(string(stderr.Contents())).To(HavePrefix("hi stderr"))
+					Expect(stdout).To(gbytes.Say("hi stdout"))
 				}
 			})
 
