@@ -1,4 +1,4 @@
 #!/bin/bash
 
 # Run fly with the necessary parameters to run Garden Linux container tests.
-fly --privileged -- -slowSpecThreshold=15 $* | sed -e 's/\\n/\'$'\n/g'
+fly execute --exclude-ignored --privileged -- -slowSpecThreshold=15 $* | sed -e 's/\\n/\'$'\n/g'
