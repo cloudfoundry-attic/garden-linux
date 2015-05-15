@@ -111,7 +111,7 @@ func fwdNoninteractive(stdinFd, stdoutFd, stderrFd io.ReadWriteCloser, processIO
 		streaming.Add(1)
 		go func() {
 			defer streaming.Done()
-			io.Copy(processIO.Stdout, stdoutFd) // Ignore error
+			copyWithClose(processIO.Stdout, stdoutFd) // Ignore error
 		}()
 	}
 
@@ -119,7 +119,7 @@ func fwdNoninteractive(stdinFd, stdoutFd, stderrFd io.ReadWriteCloser, processIO
 		streaming.Add(1)
 		go func() {
 			defer streaming.Done()
-			io.Copy(processIO.Stderr, stderrFd) // Ignore error
+			copyWithClose(processIO.Stderr, stderrFd) // Ignore error
 		}()
 	}
 }
@@ -127,6 +127,14 @@ func fwdNoninteractive(stdinFd, stdoutFd, stderrFd io.ReadWriteCloser, processIO
 func copyAndClose(dst io.WriteCloser, src io.Reader) error {
 	_, err := io.Copy(dst, src)
 	dst.Close() // Ignore error
+	return err
+}
+
+func copyWithClose(dst io.Writer, src io.Reader) error {
+	_, err := io.Copy(dst, src)
+	if wc, ok := dst.(io.WriteCloser); ok {
+		return wc.Close()
+	}
 	return err
 }
 
@@ -145,11 +153,16 @@ func (p *Process) Wait() (int, error) {
 func waitForExit(exitFd io.ReadWriteCloser, streaming *sync.WaitGroup) chan int {
 	exitChan := make(chan int)
 	go func(exitFd io.Reader, exitChan chan<- int, streaming *sync.WaitGroup) {
-		streaming.Wait()
 		b := make([]byte, 1)
 		n, err := exitFd.Read(b)
 		if n == 0 && err != nil {
 			b[0] = UnknownExitStatus
+		}
+
+		// Wait for stdout/stderr streaming to end unless the process has terminated
+		// abnormally, e.g. kill -9.
+		if b[0] != UnknownExitStatus {
+			streaming.Wait()
 		}
 
 		exitChan <- int(b[0])

@@ -57,8 +57,10 @@ func (p *ProcessReaper) Wait(cmd *exec.Cmd) byte {
 	}
 
 	found := ch != nil
-	p.log.Info("wait", lager.Data{"pid": cmd.Process.Pid, "found": found})
-	return byte(<-ch)
+	p.log.Info("reaper-receiving-process-exit-status", lager.Data{"pid": cmd.Process.Pid, "found": found})
+	exitStatus := byte(<-ch)
+	p.log.Debug("reaper-wait-received-process-exit-status", lager.Data{"pid": cmd.Process.Pid, "exitStatus": exitStatus})
+	return exitStatus
 }
 
 func (p *ProcessReaper) reapAll() {
