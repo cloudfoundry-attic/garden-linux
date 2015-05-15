@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"sync"
 
 	"io/ioutil"
 
@@ -24,9 +25,10 @@ type Process struct {
 	IO         *garden.ProcessIO
 
 	// assigned after Start() is called
-	pid      int
-	state    *term.State
-	exitCode <-chan int
+	pid       int
+	state     *term.State
+	exitCode  <-chan int
+	streaming *sync.WaitGroup
 }
 
 type PidfileWriter interface {
@@ -49,13 +51,15 @@ func (p *Process) Start() error {
 		return fmt.Errorf("container_daemon: write pidfile: %s", err)
 	}
 
+	p.streaming = &sync.WaitGroup{}
+
 	if p.Spec.TTY != nil {
 		p.setupPty(fds[0])
-		fwdOverPty(fds[0], p.IO)
-		p.exitCode = waitForExit(fds[1])
+		fwdOverPty(fds[0], p.IO, p.streaming)
+		p.exitCode = waitForExit(fds[1], p.streaming)
 	} else {
-		fwdNoninteractive(fds[0], fds[1], fds[2], p.IO)
-		p.exitCode = waitForExit(fds[3])
+		fwdNoninteractive(fds[0], fds[1], fds[2], p.IO, p.streaming)
+		p.exitCode = waitForExit(fds[3], p.streaming)
 	}
 
 	return nil
@@ -82,13 +86,17 @@ func (p *Process) syncWindowSize(ptyFd unix_socket.Fd) error {
 	return p.Term.SetWinsize(ptyFd.Fd(), winsize)
 }
 
-func fwdOverPty(ptyFd io.ReadWriteCloser, processIO *garden.ProcessIO) {
+func fwdOverPty(ptyFd io.ReadWriteCloser, processIO *garden.ProcessIO, streaming *sync.WaitGroup) {
 	if processIO == nil {
 		return
 	}
 
 	if processIO.Stdout != nil {
-		go io.Copy(processIO.Stdout, ptyFd)
+		streaming.Add(1)
+		go func() {
+			io.Copy(processIO.Stdout, ptyFd)
+			streaming.Done()
+		}()
 	}
 
 	if processIO.Stdin != nil {
@@ -96,20 +104,28 @@ func fwdOverPty(ptyFd io.ReadWriteCloser, processIO *garden.ProcessIO) {
 	}
 }
 
-func fwdNoninteractive(stdinFd, stdoutFd, stderrFd io.ReadWriteCloser, processIO *garden.ProcessIO) {
+func fwdNoninteractive(stdinFd, stdoutFd, stderrFd io.ReadWriteCloser, processIO *garden.ProcessIO, streaming *sync.WaitGroup) {
 	if processIO != nil && processIO.Stdin != nil {
 		go copyAndClose(stdinFd, processIO.Stdin) // Ignore error
 		//		go diagnosticCopyAndClose(stdinFd, processIO.Stdin) // Ignore error
 	}
 
 	if processIO != nil && processIO.Stdout != nil {
-		go io.Copy(processIO.Stdout, stdoutFd) // Ignore error
+		streaming.Add(1)
+		go func() {
+			io.Copy(processIO.Stdout, stdoutFd) // Ignore error
+			streaming.Done()
+		}()
 	}
 
 	if processIO != nil && processIO.Stderr != nil {
-		//		go io.Copy(processIO.Stderr, stderrFd)       // Ignore error
-		go copyWithClose(processIO.Stderr, stderrFd) // Ignore error
-		//		go diagnosticCopy(processIO.Stderr, stderrFd, "stderr-diagnosticCopyLog") // Ignore error
+		streaming.Add(1)
+		go func() {
+			//		io.Copy(processIO.Stderr, stderrFd)       // Ignore error
+			copyWithClose(processIO.Stderr, stderrFd) // Ignore error
+			//		diagnosticCopy(processIO.Stderr, stderrFd, "stderr-diagnosticCopyLog") // Ignore error
+			streaming.Done()
+		}()
 	}
 }
 
@@ -179,9 +195,10 @@ func (p *Process) Wait() (int, error) {
 	return <-p.exitCode, nil
 }
 
-func waitForExit(exitFd io.ReadWriteCloser) chan int {
+func waitForExit(exitFd io.ReadWriteCloser, streaming *sync.WaitGroup) chan int {
 	exitChan := make(chan int)
-	go func(exitFd io.Reader, exitChan chan<- int) {
+	go func(exitFd io.Reader, exitChan chan<- int, streaming *sync.WaitGroup) {
+		streaming.Wait()
 		b := make([]byte, 1)
 		n, err := exitFd.Read(b)
 		if n == 0 && err != nil {
@@ -189,7 +206,7 @@ func waitForExit(exitFd io.ReadWriteCloser) chan int {
 		}
 
 		exitChan <- int(b[0])
-	}(exitFd, exitChan)
+	}(exitFd, exitChan, streaming)
 
 	return exitChan
 }
