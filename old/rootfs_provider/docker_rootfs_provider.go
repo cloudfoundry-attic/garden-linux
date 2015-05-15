@@ -3,14 +3,14 @@ package rootfs_provider
 import (
 	"errors"
 	"net/url"
-	"os"
-	"os/exec"
 	"sync"
-	"time"
+	"syscall"
 
 	"github.com/docker/docker/daemon/graphdriver"
 	"github.com/pivotal-golang/clock"
 	"github.com/pivotal-golang/lager"
+
+	"path/filepath"
 
 	"github.com/cloudfoundry-incubator/garden-linux/old/repository_fetcher"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
@@ -21,9 +21,9 @@ type dockerRootFSProvider struct {
 	volumeCreator VolumeCreator
 	repoFetcher   repository_fetcher.RepositoryFetcher
 	namespacer    Namespacer
-	copier        Copier
 	clock         clock.Clock
 	mutex         *sync.Mutex
+	graphPath     string
 
 	fallback RootFSProvider
 }
@@ -35,17 +35,12 @@ type GraphDriver interface {
 	graphdriver.Driver
 }
 
-//go:generate counterfeiter -o fake_copier/fake_copier.go . Copier
-type Copier interface {
-	Copy(src, dest string) error
-}
-
 func NewDocker(
 	repoFetcher repository_fetcher.RepositoryFetcher,
 	graphDriver GraphDriver,
 	volumeCreator VolumeCreator,
 	namespacer Namespacer,
-	copier Copier,
+	graphPath string,
 	clock clock.Clock,
 ) (RootFSProvider, error) {
 	return &dockerRootFSProvider{
@@ -53,7 +48,7 @@ func NewDocker(
 		graphDriver:   graphDriver,
 		volumeCreator: volumeCreator,
 		namespacer:    namespacer,
-		copier:        copier,
+		graphPath:     graphPath,
 		clock:         clock,
 		mutex:         &sync.Mutex{},
 	}, nil
@@ -114,38 +109,25 @@ func (provider *dockerRootFSProvider) namespace(imageID string) (string, error) 
 }
 
 func (provider *dockerRootFSProvider) createNamespacedLayer(id string, parentId string) error {
-	var err error
-	var path string
-	if path, err = provider.createAufsWorkaroundLayer(id, parentId); err != nil {
+	path, err := provider.createLayer(id, parentId)
+	if err != nil {
 		return err
 	}
 
 	return provider.namespacer.Namespace(path)
 }
 
-// aufs directory permissions dont overlay cleanly, so we create an empty layer
-// and copy the parent layer in while namespacing (rather than just creating a
-// regular overlay layer and doing the namespacing directly inside it)
-func (provider *dockerRootFSProvider) createAufsWorkaroundLayer(id, parentId string) (string, error) {
+func (provider *dockerRootFSProvider) createLayer(id, parentId string) (string, error) {
 	errs := func(err error) (string, error) {
 		return "", err
 	}
 
-	originalRootfs, err := provider.graphDriver.Get(parentId, "")
+	if err := provider.graphDriver.Create(id, parentId); err != nil {
+		return errs(err)
+	}
+
+	namespacedRootfs, err := provider.graphDriver.Get(id, parentId)
 	if err != nil {
-		return errs(err)
-	}
-
-	if err := provider.graphDriver.Create(id, ""); err != nil { // empty layer
-		return errs(err)
-	}
-
-	namespacedRootfs, err := provider.graphDriver.Get(id, "") // path where empty layer is
-	if err != nil {
-		return errs(err)
-	}
-
-	if err := provider.copier.Copy(originalRootfs, namespacedRootfs); err != nil {
 		return errs(err)
 	}
 
@@ -154,35 +136,11 @@ func (provider *dockerRootFSProvider) createAufsWorkaroundLayer(id, parentId str
 
 func (provider *dockerRootFSProvider) CleanupRootFS(logger lager.Logger, id string) error {
 	provider.graphDriver.Put(id)
-
-	var err error
-	maxAttempts := 10
-
-	for errorCount := 0; errorCount < maxAttempts; errorCount++ {
-		err = provider.graphDriver.Remove(id)
-		if err == nil {
-			break
-		}
-
-		logger.Error("cleanup-rootfs", err, lager.Data{
-			"current-attempts": errorCount + 1,
-			"max-attempts":     maxAttempts,
-		})
-
-		provider.clock.Sleep(200 * time.Millisecond)
-	}
-
-	return err
-}
-
-type ShellOutCp struct {
-	WorkDir string
-}
-
-func (s ShellOutCp) Copy(src, dest string) error {
-	if err := os.Remove(dest); err != nil {
+	if err := syscall.Unmount(filepath.Join(provider.graphPath, "overlayfs", id, "merged"), 0); err != nil {
 		return err
 	}
 
-	return exec.Command("cp", "-a", src, dest).Run()
+	err := provider.graphDriver.Remove(id)
+	logger.Error("cleanup-rootfs", err)
+	return err
 }

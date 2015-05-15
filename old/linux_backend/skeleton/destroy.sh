@@ -17,8 +17,8 @@ if [ -f ./run/wshd.pid ]
 then
   pid=$(cat ./run/wshd.pid)
 
-  # Arbitrarily pick the cpu substem to check for live tasks.
-  path=${cgroup_path}/cpu/instance-$id
+  # Arbitrarily pick the memory substem to check for live tasks.
+  path=${cgroup_path}/memory/instance-$id
   tasks=$path/tasks
 
   if [ -d $path ]
@@ -56,7 +56,4 @@ then
   done
 
   umount -l $rootfs_path/dev/pts || true
-
-  exit 0
 fi
-

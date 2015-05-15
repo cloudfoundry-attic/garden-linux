@@ -15,8 +15,8 @@ import (
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/cloudfoundry/gunk/localip"
 	"github.com/docker/docker/daemon/graphdriver"
-	_ "github.com/docker/docker/daemon/graphdriver/aufs"
-	_ "github.com/docker/docker/daemon/graphdriver/vfs"
+	_ "github.com/docker/docker/daemon/graphdriver/overlayfs"
+	// _ "github.com/docker/docker/daemon/graphdriver/vfs"
 	"github.com/docker/docker/graph"
 	"github.com/docker/docker/registry"
 	"github.com/pivotal-golang/clock"
@@ -295,8 +295,7 @@ func Main() {
 		).Translate,
 	}
 
-	copier := &rootfs_provider.ShellOutCp{}
-	dockerRootFSProvider, err := rootfs_provider.NewDocker(repoFetcher, graphDriver, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, copier, clock.NewClock())
+	dockerRootFSProvider, err := rootfs_provider.NewDocker(repoFetcher, graphDriver, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, *graphRoot, clock.NewClock())
 	if err != nil {
 		logger.Fatal("failed-to-construct-docker-rootfs-provider", err)
 	}

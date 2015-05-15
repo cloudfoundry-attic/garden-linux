@@ -25,7 +25,7 @@ fi
 
 # cpuset must be set up first, so that cpuset.cpus and cpuset.mems is assigned
 # otherwise adding the process to the subsystem's tasks will fail with ENOSPC
-for system_path in ${GARDEN_CGROUP_PATH}/{cpuset,cpu,cpuacct,devices,memory}
+for system_path in ${GARDEN_CGROUP_PATH}/{cpuset,devices,memory}
 do
   instance_path=$system_path/instance-$id
 
@@ -78,5 +78,3 @@ do
 done
 
 echo $PID > ./run/wshd.pid
-
-exit 0
