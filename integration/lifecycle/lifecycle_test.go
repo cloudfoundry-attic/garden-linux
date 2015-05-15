@@ -619,7 +619,7 @@ var _ = Describe("Creating a container", func() {
 				close(done)
 			}, 120.0)
 
-			FIt("collects the process's full output, even if it exits quickly after", func() {
+			It("collects the process's full output, even if it exits quickly after", func() {
 				for i := 0; i < 100; i++ {
 					stdout := gbytes.NewBuffer()
 
@@ -644,7 +644,7 @@ var _ = Describe("Creating a container", func() {
 				}
 			})
 
-			FIt("streams input to the process's stdin", func() {
+			It("streams input to the process's stdin", func() {
 				stdout := gbytes.NewBuffer()
 
 				process, err := container.Run(garden.ProcessSpec{
