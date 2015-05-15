@@ -118,7 +118,7 @@ func fwdNoninteractive(stdinFd, stdoutFd, stderrFd io.ReadWriteCloser, processIO
 	if processIO != nil && processIO.Stderr != nil {
 		streaming.Add(1)
 		go func() {
-			copyWithClose(processIO.Stderr, stderrFd) // Ignore error
+			io.Copy(processIO.Stderr, stderrFd) // Ignore error
 			streaming.Done()
 		}()
 	}
@@ -127,14 +127,6 @@ func fwdNoninteractive(stdinFd, stdoutFd, stderrFd io.ReadWriteCloser, processIO
 func copyAndClose(dst io.WriteCloser, src io.Reader) error {
 	_, err := io.Copy(dst, src)
 	dst.Close() // Ignore error
-	return err
-}
-
-func copyWithClose(dst io.Writer, src io.Reader) error {
-	_, err := io.Copy(dst, src)
-	if wc, ok := dst.(io.WriteCloser); ok {
-		return wc.Close()
-	}
 	return err
 }
 
