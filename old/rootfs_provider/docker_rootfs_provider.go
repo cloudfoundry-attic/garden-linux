@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"sync"
 	"time"
 
 	"github.com/docker/docker/daemon/graphdriver"
@@ -22,6 +23,7 @@ type dockerRootFSProvider struct {
 	namespacer    Namespacer
 	copier        Copier
 	clock         clock.Clock
+	mutex         *sync.Mutex
 
 	fallback RootFSProvider
 }
@@ -53,6 +55,7 @@ func NewDocker(
 		namespacer:    namespacer,
 		copier:        copier,
 		clock:         clock,
+		mutex:         &sync.Mutex{},
 	}, nil
 }
 
@@ -72,7 +75,10 @@ func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id stri
 	}
 
 	if shouldNamespace {
-		if imageID, err = provider.namespace(imageID); err != nil {
+		provider.mutex.Lock()
+		imageID, err = provider.namespace(imageID)
+		provider.mutex.Unlock()
+		if err != nil {
 			return "", nil, err
 		}
 	}

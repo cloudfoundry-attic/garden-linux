@@ -75,6 +75,7 @@ var _ = Describe("IP settings", func() {
 				stderr := gbytes.NewBuffer()
 
 				process, err := container1.Run(garden.ProcessSpec{
+					User: "vcap",
 					Path: "/sbin/ifconfig",
 					Args: []string{containerInterface},
 				}, garden.ProcessIO{
@@ -102,6 +103,7 @@ var _ = Describe("IP settings", func() {
 				stderr := gbytes.NewBuffer()
 
 				process, err := container1.Run(garden.ProcessSpec{
+					User: "vcap",
 					Path: "/sbin/ifconfig",
 					Args: []string{containerIfName(container1)},
 				}, garden.ProcessIO{
@@ -181,6 +183,7 @@ var _ = Describe("IP settings", func() {
 					Expect(err).ToNot(HaveOccurred())
 
 					listener, err := container2.Run(garden.ProcessSpec{
+						User: "vcap",
 						Path: "sh",
 						Args: []string{"-c", "echo hi | nc -l -p 8080"},
 					}, garden.ProcessIO{})

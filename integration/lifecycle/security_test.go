@@ -21,6 +21,7 @@ var _ = Describe("Security", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			_, err = container.Run(garden.ProcessSpec{
+				User: "vcap",
 				Path: "sleep",
 				Args: []string{"989898"},
 			}, garden.ProcessIO{
@@ -31,6 +32,7 @@ var _ = Describe("Security", func() {
 
 			psout := gbytes.NewBuffer()
 			ps, err := container.Run(garden.ProcessSpec{
+				User: "vcap",
 				Path: "sh",
 				Args: []string{"-c", "ps -a"},
 			}, garden.ProcessIO{
@@ -69,6 +71,7 @@ var _ = Describe("Security", func() {
 			stderr := gbytes.NewBuffer()
 			process, err := container.Run(
 				garden.ProcessSpec{
+					User: "vcap",
 					Path: "/hello",
 				},
 				garden.ProcessIO{
@@ -149,6 +152,7 @@ var _ = Describe("Security", func() {
 
 		runInContainer := func(container garden.Container, script string) garden.Process {
 			process, err := container.Run(garden.ProcessSpec{
+				User: "vcap",
 				Path: "sh",
 				Args: []string{"-c", script},
 			}, garden.ProcessIO{

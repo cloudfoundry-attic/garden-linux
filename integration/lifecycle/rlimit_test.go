@@ -57,6 +57,7 @@ var _ = Describe("Resource limits", func() {
 				var nofile uint64 = 1000
 				stdout := gbytes.NewBuffer()
 				process, err := container.Run(garden.ProcessSpec{
+					User: "vcap",
 					Path: "sh",
 					Args: []string{"-c", "ulimit -n"},
 					Limits: garden.ResourceLimits{
@@ -109,6 +110,7 @@ var _ = Describe("Resource limits", func() {
 				var as uint64 = 4294967296
 				stdout := gbytes.NewBuffer()
 				process, err := container.Run(garden.ProcessSpec{
+					User: "vcap",
 					Path: "sh",
 					Args: []string{"-c", "ulimit -v"},
 					Limits: garden.ResourceLimits{
@@ -131,8 +133,8 @@ var _ = Describe("Resource limits", func() {
 				var as uint64 = 4294967296
 				stdout := gbytes.NewBuffer()
 				process, err := container.Run(garden.ProcessSpec{
-					Path: "sh",
 					User: "vcap",
+					Path: "sh",
 					Args: []string{"-c", "ulimit -v"},
 					Limits: garden.ResourceLimits{
 						As: &as,
