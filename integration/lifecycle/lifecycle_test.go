@@ -976,8 +976,10 @@ var _ = Describe("Creating a container", func() {
                 trap "echo cant touch this; sleep 1000" SIGTERM
 
                 echo waiting
-                sleep 1000 &
-                wait
+                while true
+                do
+                  sleep 1000
+                done
               `,
 							},
 						}, garden.ProcessIO{})
