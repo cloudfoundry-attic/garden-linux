@@ -13,4 +13,4 @@ fi
 
 echo "Using GARDEN_REMOTE_ATC_URL..."
 echo "fly hijack $*"
-ATC_URL=$GARDEN_REMOTE_ATC_URL fly hijack $*
+fly --target $GARDEN_REMOTE_ATC_URL hijack $*

@@ -289,17 +289,17 @@ func createContainerTestFileIn(container garden.Container, dir string) string {
 	filePath := filepath.Join(dir, fileName)
 
 	process, err := container.Run(garden.ProcessSpec{
-		Path:       "touch",
-		Args:       []string{filePath},
-		Privileged: true,
+		Path: "touch",
+		Args: []string{filePath},
+		User: "root",
 	}, garden.ProcessIO{nil, os.Stdout, os.Stderr})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(process.Wait()).To(Equal(0))
 
 	process, err = container.Run(garden.ProcessSpec{
-		Path:       "chmod",
-		Args:       []string{"0777", filePath},
-		Privileged: true,
+		Path: "chmod",
+		Args: []string{"0777", filePath},
+		User: "root",
 	}, garden.ProcessIO{nil, os.Stdout, os.Stderr})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(process.Wait()).To(Equal(0))
@@ -315,10 +315,17 @@ func checkFileAccess(container garden.Container, bindMountMode garden.BindMountM
 	// can we read a file?
 	filePath := filepath.Join(dstPath, fileName)
 
+	var user string
+	if privReq {
+		user = "root"
+	} else {
+		user = "vcap"
+	}
+
 	process, err := container.Run(garden.ProcessSpec{
-		Path:       "cat",
-		Args:       []string{filePath},
-		Privileged: privReq,
+		Path: "cat",
+		Args: []string{filePath},
+		User: user,
 	}, garden.ProcessIO{})
 	Expect(err).ToNot(HaveOccurred())
 
@@ -328,9 +335,9 @@ func checkFileAccess(container garden.Container, bindMountMode garden.BindMountM
 	filePath = filepath.Join(dstPath, "checkFileAccess-file")
 
 	process, err = container.Run(garden.ProcessSpec{
-		Path:       "touch",
-		Args:       []string{filePath},
-		Privileged: privReq,
+		Path: "touch",
+		Args: []string{filePath},
+		User: user,
 	}, garden.ProcessIO{})
 	Expect(err).ToNot(HaveOccurred())
 
@@ -344,9 +351,9 @@ func checkFileAccess(container garden.Container, bindMountMode garden.BindMountM
 	filePath = filepath.Join(dstPath, fileName)
 
 	process, err = container.Run(garden.ProcessSpec{
-		Path:       "rm",
-		Args:       []string{filePath},
-		Privileged: privReq,
+		Path: "rm",
+		Args: []string{filePath},
+		User: user,
 	}, garden.ProcessIO{})
 	Expect(err).ToNot(HaveOccurred())
 	if readOnly || (!realRoot && !ctrOrigin) {

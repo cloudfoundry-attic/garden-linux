@@ -367,6 +367,7 @@ var _ = Describe("Linux containers", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			_, err = container.Run(garden.ProcessSpec{
+				User: "vcap",
 				Path: "/some/script",
 			}, garden.ProcessIO{})
 			Expect(err).ToNot(HaveOccurred())

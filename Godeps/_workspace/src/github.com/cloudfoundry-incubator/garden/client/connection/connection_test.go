@@ -692,6 +692,7 @@ var _ = Describe("Connection", func() {
 				TotalInactiveFile:       26,
 				TotalActiveFile:         27,
 				TotalUnevictable:        28,
+				TotalUsageTowardLimit:   7, // TotalRss+(TotalCache-TotalInactiveFile)
 			},
 			CPUStat: garden.ContainerCPUStat{
 				Usage:  1,
@@ -1053,11 +1054,11 @@ var _ = Describe("Connection", func() {
 		Context("when streaming succeeds to completion", func() {
 			BeforeEach(func() {
 				spec = garden.ProcessSpec{
-					Path:       "lol",
-					Args:       []string{"arg1", "arg2"},
-					Dir:        "/some/dir",
-					Privileged: true,
-					Limits:     resourceLimits,
+					Path:   "lol",
+					Args:   []string{"arg1", "arg2"},
+					Dir:    "/some/dir",
+					User:   "root",
+					Limits: resourceLimits,
 				}
 				stdInContent = make(chan string)
 

@@ -13,11 +13,11 @@ import (
 var _ = Describe("Fuse", func() {
 	var container garden.Container
 	var privilegedContainer bool
-	var privilegedProcess bool
+	var user string
 
 	BeforeEach(func() {
 		privilegedContainer = true
-		privilegedProcess = true
+		user = "root"
 	})
 
 	JustBeforeEach(func() {
@@ -34,9 +34,9 @@ var _ = Describe("Fuse", func() {
 	Describe("/dev/fuse", func() {
 		It("is a character special device file", func() {
 			process, err := container.Run(garden.ProcessSpec{
-				Privileged: privilegedProcess,
-				Path:       "/usr/bin/test",
-				Args:       []string{"-c", "/dev/fuse"},
+				User: user,
+				Path: "/usr/bin/test",
+				Args: []string{"-c", "/dev/fuse"},
 			}, garden.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
 			Expect(err).ToNot(HaveOccurred())
 
@@ -50,69 +50,69 @@ var _ = Describe("Fuse", func() {
 
 			Context("a privileged process", func() {
 				BeforeEach(func() {
-					privilegedProcess = true
+					user = "root"
 				})
 
 				It("can mount a fuse filesystem", func() {
-					canCreateAndUseFuseFileSystem(container, privilegedProcess)
+					canCreateAndUseFuseFileSystem(container, user)
 				})
 			})
 
 			Context("a non-privileged process", func() {
 				BeforeEach(func() {
-					privilegedProcess = false
+					user = "vcap"
 				})
 
 				It("can mount a fuse filesystem", func() {
-					canCreateAndUseFuseFileSystem(container, privilegedProcess)
+					canCreateAndUseFuseFileSystem(container, user)
 				})
 			})
 		})
 	})
 })
 
-func canCreateAndUseFuseFileSystem(container garden.Container, privilegedProcess bool) {
+func canCreateAndUseFuseFileSystem(container garden.Container, user string) {
 	mountpoint := "/tmp/fuse-test"
 
 	process, err := container.Run(garden.ProcessSpec{
-		Privileged: privilegedProcess,
-		Path:       "mkdir",
-		Args:       []string{"-p", mountpoint},
+		User: user,
+		Path: "mkdir",
+		Args: []string{"-p", mountpoint},
 	}, garden.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(process.Wait()).To(Equal(0), "Could not make temporary directory!")
 
 	process, err = container.Run(garden.ProcessSpec{
-		Privileged: privilegedProcess,
-		Path:       "/usr/bin/hellofs",
-		Args:       []string{mountpoint},
+		User: user,
+		Path: "/usr/bin/hellofs",
+		Args: []string{mountpoint},
 	}, garden.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(process.Wait()).To(Equal(0), "Failed to mount hello filesystem.")
 
 	stdout := gbytes.NewBuffer()
 	process, err = container.Run(garden.ProcessSpec{
-		Privileged: privilegedProcess,
-		Path:       "cat",
-		Args:       []string{filepath.Join(mountpoint, "hello")},
+		User: user,
+		Path: "cat",
+		Args: []string{filepath.Join(mountpoint, "hello")},
 	}, garden.ProcessIO{Stdout: stdout, Stderr: GinkgoWriter})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(process.Wait()).To(Equal(0), "Failed to find hello file.")
 	Expect(stdout).To(gbytes.Say("Hello World!"))
 
 	process, err = container.Run(garden.ProcessSpec{
-		Privileged: privilegedProcess,
-		Path:       "fusermount",
-		Args:       []string{"-u", mountpoint},
+		User: user,
+		Path: "fusermount",
+		Args: []string{"-u", mountpoint},
 	}, garden.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(process.Wait()).To(Equal(0), "Failed to unmount user filesystem.")
 
 	stdout2 := gbytes.NewBuffer()
 	process, err = container.Run(garden.ProcessSpec{
-		Privileged: privilegedProcess,
-		Path:       "ls",
-		Args:       []string{mountpoint},
+		User: user,
+		Path: "ls",
+		Args: []string{mountpoint},
 	}, garden.ProcessIO{Stdout: stdout2, Stderr: GinkgoWriter})
 	Expect(err).ToNot(HaveOccurred())
 	Expect(process.Wait()).To(Equal(0))
