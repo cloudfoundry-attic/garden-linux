@@ -9,8 +9,7 @@ if [ -z $GOROOT ]; then
   export PATH=$GOROOT/bin:$PATH
 fi
 
-export GOPATH=$repoPath/Godeps/_workspace:$GOPATH
-export PATH=$GOPATH/bin:$PATH
+export GOPATH=$PWD/../../../..
 
 cd $(dirname $0)/..
 
