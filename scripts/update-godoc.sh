@@ -9,8 +9,15 @@ if [ -z $GOROOT ]; then
   export PATH=$GOROOT/bin:$PATH
 fi
 
-export GOPATH=$PWD/../../../..
+if [ -z $GOPATH ]; then
+  export GOPATH=$HOME/go
+  export PATH=$GOPATH/bin:$PATH
+fi
 
 cd $(dirname $0)/..
+go get -u -v github.com/tools/godep
+godep restore
+ln -s $PWD $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux
 
+cd $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux
 go run scripts/update-godoc/main.go

@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -12,10 +11,7 @@ import (
 )
 
 func main() {
-	path := flag.String("repository", "github.com/cloudfoundry-incubator/garden-linux", "Package git repository url")
-	flag.Parse()
-
-	cmd := exec.Command("go", "list", *path+"/...")
+	cmd := exec.Command("go", "list", "./...")
 	output, err := cmd.CombinedOutput()
 
 	if err != nil {
