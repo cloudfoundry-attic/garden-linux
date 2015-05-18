@@ -7,18 +7,19 @@ import (
 	"time"
 
 	"github.com/awslabs/aws-sdk-go/aws"
+	"github.com/awslabs/aws-sdk-go/aws/credentials"
 	"github.com/awslabs/aws-sdk-go/service/ec2"
 )
 
 func main() {
 	tagName := flag.String("tagName", "garden-ci-test-instance", "Name of tags to terminate")
-	lifeTime := flag.Duration("lifeTime", time.Hour, "The allowed lifetime of an instance")
+	lifeTime := flag.Duration("lifeTime", time.Second, "The allowed lifetime of an instance")
 	dryRun := flag.Bool("dryRun", false, "Do not actually terminate instances")
 	region := flag.String("region", "us-east-1", "The aws region")
 
 	flag.Parse()
-
-	creds, err := aws.EnvCreds()
+	creds := credentials.NewEnvCredentials()
+	_, err := creds.Get()
 	if err != nil {
 		log.Fatal("Please ensure that the AWS_SECRET_KEY and AWS_ACCESS_KEY variables are set")
 	}

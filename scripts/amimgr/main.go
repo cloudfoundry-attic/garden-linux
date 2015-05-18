@@ -12,6 +12,7 @@ import (
 	"golang.org/x/crypto/ssh"
 
 	"github.com/awslabs/aws-sdk-go/aws"
+	"github.com/awslabs/aws-sdk-go/aws/credentials"
 	"github.com/awslabs/aws-sdk-go/service/ec2"
 )
 
@@ -44,7 +45,8 @@ func main() {
 		log.Fatal("The imageID is missing.")
 	}
 
-	creds, err := aws.EnvCreds()
+	creds := credentials.NewEnvCredentials()
+	_, err := creds.Get()
 	if err != nil {
 		log.Fatal("Please ensure that the AWS_SECRET_KEY and AWS_ACCESS_KEY variables are set")
 	}

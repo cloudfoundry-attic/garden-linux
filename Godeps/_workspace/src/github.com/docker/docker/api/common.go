@@ -1,4 +1,4 @@
-package garden
+package api
 
 import (
 	"fmt"
