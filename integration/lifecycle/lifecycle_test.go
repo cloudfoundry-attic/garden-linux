@@ -1059,7 +1059,15 @@ var _ = Describe("Creating a container", func() {
 				Expect(output).To(gbytes.Say("vcap"))
 			})
 
-			PIt("can create files in /tmp")
+			It("can create files in /tmp", func() {
+				process, err := container.Run(garden.ProcessSpec{
+					User: "vcap",
+					Path: "touch",
+					Args: []string{"/tmp/new_file"},
+				}, garden.ProcessIO{})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(process.Wait()).To(Equal(0))
+			})
 
 			Context("in a privileged container", func() {
 				BeforeEach(func() {
