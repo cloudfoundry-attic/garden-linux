@@ -24,7 +24,7 @@ type NamespacedSignaller struct {
 
 func (n *NamespacedSignaller) Signal(signal os.Signal) error {
 	n.Logger.Debug("NamespacedSignaller.Signal-entered", lager.Data{"signal": signal})
-	pid, err := pidFromFile(n.PidFilePath)
+	pid, err := PidFromFile(n.PidFilePath)
 	if err != nil {
 		n.Logger.Error("NamespacedSignaller.Signal-failed-to-read-PID-file", err, lager.Data{"signal": signal})
 		return err
@@ -45,7 +45,7 @@ func (n *NamespacedSignaller) Signal(signal os.Signal) error {
 	return nil
 }
 
-func pidFromFile(pidFilePath string) (int, error) {
+func PidFromFile(pidFilePath string) (int, error) {
 	pidFile, err := openPIDFile(pidFilePath)
 	if err != nil {
 		return 0, err

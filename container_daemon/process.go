@@ -6,6 +6,8 @@ import (
 	"os"
 	"sync"
 
+	"time"
+
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
@@ -24,7 +26,7 @@ type Process struct {
 
 	// assigned after Start() is called
 	pid       int
-	state     *term.State
+	termState *term.State
 	exitCode  <-chan int
 	streaming *sync.WaitGroup
 }
@@ -64,7 +66,7 @@ func (p *Process) Start() error {
 }
 
 func (p *Process) setupPty(ptyFd unix_socket.Fd) error {
-	p.state, _ = p.Term.SetRawTerminal(os.Stdin.Fd())
+	p.termState, _ = p.Term.SetRawTerminal(os.Stdin.Fd())
 
 	go p.sigwinchLoop(ptyFd)
 	return p.syncWindowSize(ptyFd)
@@ -132,6 +134,9 @@ func copyAndClose(dst io.WriteCloser, src io.Reader) error {
 
 func copyWithClose(dst io.Writer, src io.Reader) error {
 	_, err := io.Copy(dst, src)
+	if rc, ok := src.(io.ReadCloser); ok {
+		return rc.Close()
+	}
 	if wc, ok := dst.(io.WriteCloser); ok {
 		return wc.Close()
 	}
@@ -139,8 +144,8 @@ func copyWithClose(dst io.Writer, src io.Reader) error {
 }
 
 func (p *Process) Cleanup() {
-	if p.state != nil {
-		p.Term.RestoreTerminal(os.Stdin.Fd(), p.state)
+	if p.termState != nil {
+		p.Term.RestoreTerminal(os.Stdin.Fd(), p.termState)
 	}
 }
 
@@ -160,13 +165,30 @@ func waitForExit(exitFd io.ReadWriteCloser, streaming *sync.WaitGroup) chan int 
 		}
 
 		// Wait for stdout/stderr streaming to end unless the process has terminated
-		// abnormally, e.g. kill -9.
+		// abnormally, e.g. kill -9, in which case allow streaming to continue for
+		// a short period of time.
 		if b[0] != UnknownExitStatus {
 			streaming.Wait()
+		} else {
+			streamMore(streaming)
 		}
 
 		exitChan <- int(b[0])
 	}(exitFd, exitChan, streaming)
 
 	return exitChan
+}
+
+func streamMore(streaming *sync.WaitGroup) {
+	streamingComplete := make(chan struct{})
+
+	go func() {
+		streaming.Wait()
+		close(streamingComplete)
+	}()
+
+	select {
+	case <-streamingComplete:
+	case <-time.After(time.Millisecond * 100):
+	}
 }
