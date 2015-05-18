@@ -2,15 +2,16 @@ package rootfs_provider
 
 import (
 	"errors"
+	"fmt"
 	"net/url"
+	"path/filepath"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/docker/docker/daemon/graphdriver"
 	"github.com/pivotal-golang/clock"
 	"github.com/pivotal-golang/lager"
-
-	"path/filepath"
 
 	"github.com/cloudfoundry-incubator/garden-linux/old/repository_fetcher"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
@@ -69,6 +70,8 @@ func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id stri
 		return "", nil, err
 	}
 
+	logger.Info(fmt.Sprintf("!!!!!!!!!!!!!!!!!!!!!!!!! Fetch ImageID %s", imageID))
+
 	if shouldNamespace {
 		provider.mutex.Lock()
 		imageID, err = provider.namespace(imageID)
@@ -76,9 +79,13 @@ func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id stri
 		if err != nil {
 			return "", nil, err
 		}
+
+		logger.Info(fmt.Sprintf("!!!!!!!!!!!!!!!!!!!!!!!!! NAMESPACED ImageID %s", imageID))
 	}
 
+	logger.Info(fmt.Sprintf("!!!!!!!!!!!!!!!!!!!!!!!!! ImageID Before Create %s", imageID))
 	err = provider.graphDriver.Create(id, imageID)
+
 	if err != nil {
 		return "", nil, err
 	}
@@ -87,6 +94,8 @@ func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id stri
 	if err != nil {
 		return "", nil, err
 	}
+
+	logger.Info(fmt.Sprintf("!!!!!!!!!!!!!!!!!!!!!!!!! RootPath %s for ID %s", rootPath, id))
 
 	for _, v := range volumes {
 		if err = provider.volumeCreator.Create(rootPath, v); err != nil {
@@ -109,38 +118,48 @@ func (provider *dockerRootFSProvider) namespace(imageID string) (string, error) 
 }
 
 func (provider *dockerRootFSProvider) createNamespacedLayer(id string, parentId string) error {
-	path, err := provider.createLayer(id, parentId)
+	if err := provider.graphDriver.Create(id, parentId); err != nil {
+		return err
+	}
+
+	namespacedRootfsPath, err := provider.graphDriver.Get(id, parentId)
 	if err != nil {
 		return err
 	}
 
-	return provider.namespacer.Namespace(path)
-}
-
-func (provider *dockerRootFSProvider) createLayer(id, parentId string) (string, error) {
-	errs := func(err error) (string, error) {
-		return "", err
+	if err := provider.namespacer.Namespace(namespacedRootfsPath); err != nil {
+		return err
 	}
 
-	if err := provider.graphDriver.Create(id, parentId); err != nil {
-		return errs(err)
-	}
-
-	namespacedRootfs, err := provider.graphDriver.Get(id, parentId)
+	archive, err := provider.graphDriver.Diff(id, parentId)
 	if err != nil {
-		return errs(err)
+		return err
 	}
 
-	return namespacedRootfs, nil
+	_, err = provider.graphDriver.ApplyDiff(id, parentId, archive)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (provider *dockerRootFSProvider) CleanupRootFS(logger lager.Logger, id string) error {
 	provider.graphDriver.Put(id)
-	if err := syscall.Unmount(filepath.Join(provider.graphPath, "overlayfs", id, "merged"), 0); err != nil {
+
+	if err := syscall.Unmount(filepath.Join(provider.graphPath, "overlayfs", id, "merged"), syscall.MNT_DETACH); err != nil {
 		return err
 	}
 
-	err := provider.graphDriver.Remove(id)
-	logger.Error("cleanup-rootfs", err)
+	var err error
+	for i := 1; i <= 10; i++ {
+		err = provider.graphDriver.Remove(id)
+		if err == nil {
+			return nil
+		}
+		logger.Error("cleanup-rootfs", err)
+		time.Sleep(time.Millisecond * 500)
+	}
+
 	return err
 }

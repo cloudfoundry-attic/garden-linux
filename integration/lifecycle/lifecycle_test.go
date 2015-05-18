@@ -403,6 +403,7 @@ var _ = Describe("Creating a container", func() {
 					Context("with a docker image", func() {
 						BeforeEach(func() {
 							rootfs = "docker:///cloudfoundry/preexisting_users"
+							privilegedContainer = false
 						})
 
 						It("sees root-owned files in the rootfs as owned by the container's root user", func() {
@@ -434,13 +435,14 @@ var _ = Describe("Creating a container", func() {
 							Expect(stdout).To(gbytes.Say(" alicesfile"))
 						})
 
-						It("lets alice write in /home/alice", func() {
+						FIt("lets alice write in /home/alice", func() {
 							process, err := container.Run(garden.ProcessSpec{
 								User: "alice",
 								Path: "touch",
 								Args: []string{"/home/alice/newfile"},
 							}, garden.ProcessIO{})
 							Expect(err).ToNot(HaveOccurred())
+							time.Sleep(time.Hour * 1)
 							Expect(process.Wait()).To(Equal(0))
 						})
 
