@@ -16,7 +16,7 @@ func (c *LinuxContainer) Run(spec garden.ProcessSpec, processIO garden.ProcessIO
 	sockPath := path.Join(c.path, "run", "wshd.sock")
 
 	if spec.User == "" {
-		return nil, fmt.Errorf("linux_container: Run: No user specified when trying to run process %+v", spec)
+		return nil, fmt.Errorf("linux_container: Run: A User for the process to run as must be specified. ProcessSpec: %+v", spec)
 	}
 
 	args := []string{"--socket", sockPath, "--user", spec.User}

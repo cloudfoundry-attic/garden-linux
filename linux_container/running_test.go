@@ -391,7 +391,7 @@ var _ = Describe("Linux containers", func() {
 					Path: "whoami",
 					Args: []string{},
 				}, garden.ProcessIO{})
-				Expect(err).To(MatchError(ContainSubstring("No user specified")))
+				Expect(err).To(MatchError(ContainSubstring("A User for the process to run as must be specified")))
 			})
 		})
 
