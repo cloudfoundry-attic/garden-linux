@@ -13,7 +13,7 @@ import (
 
 func main() {
 	tagName := flag.String("tagName", "garden-ci-test-instance", "Name of tags to terminate")
-	lifeTime := flag.Duration("lifeTime", time.Second, "The allowed lifetime of an instance")
+	lifeTime := flag.Duration("lifeTime", time.Hour, "The allowed lifetime of an instance")
 	dryRun := flag.Bool("dryRun", false, "Do not actually terminate instances")
 	region := flag.String("region", "us-east-1", "The aws region")
 
