@@ -495,7 +495,7 @@ var _ = Describe("Through a restart", func() {
 			restartGarden(gardenArgs...)
 
 			Expect(getContainerHandles()).To(ContainElement(container.Handle()))
-			Eventually(getContainerHandles, 10*time.Second).ShouldNot(ContainElement(container.Handle()))
+			Eventually(getContainerHandles, 20*time.Second).ShouldNot(ContainElement(container.Handle()))
 			container = nil
 		})
 	})
