@@ -169,7 +169,9 @@ rm -rf "$rootfs_path/tmp/root"
 # change the root user id in the rootfs /root dir to the container root uid if they
 # differ and if /root exists
 if [ -d "$rootfs_path/root" ] && [ "$root_uid" -ne 0 ]; then
-  chown -R --from=0:0 $root_uid:$root_uid "$rootfs_path/root" || true # ignore failures
+  chown -R --from 0:0 $root_uid:$root_uid "$rootfs_path/root"
 fi
 
-exit 0
+if [ -d "$rootfs_path/dev" ] && [ "$root_uid" -ne 0 ]; then
+  chown -R --from 0:0 $root_uid:$root_uid "$rootfs_path/dev"
+fi
