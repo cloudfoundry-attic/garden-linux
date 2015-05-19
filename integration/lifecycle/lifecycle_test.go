@@ -439,7 +439,7 @@ var _ = Describe("Creating a container", func() {
 							process, err := container.Run(garden.ProcessSpec{
 								User: "root",
 								Path: "ls",
-								Args: []string{"-la", "/dev/null"},
+								Args: []string{"-la", "/dev/tty"},
 							}, garden.ProcessIO{
 								Stdout: out,
 								Stderr: out,

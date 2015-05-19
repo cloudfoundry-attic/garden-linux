@@ -173,5 +173,5 @@ if [ -d "$rootfs_path/root" ] && [ "$root_uid" -ne 0 ]; then
 fi
 
 if [ -d "$rootfs_path/dev" ] && [ "$root_uid" -ne 0 ]; then
-  chown -R --from 0:0 $root_uid:$root_uid "$rootfs_path/dev"
+  chown -R $root_uid:$root_uid "$rootfs_path/dev"
 fi
