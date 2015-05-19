@@ -92,14 +92,17 @@ var _ = Describe("Unix socket", func() {
 			JustBeforeEach(func() {
 				Expect(listener.Init()).To(Succeed())
 
-				f1, _ := ioutil.TempFile("", "")
-				f2, _ := ioutil.TempFile("", "")
-				sentFiles = []*os.File{f1, f2}
+				f1r, f1w, err := os.Pipe()
+				Expect(err).ToNot(HaveOccurred())
+				f2r, f2w, err := os.Pipe()
+				Expect(err).ToNot(HaveOccurred())
+				sentFiles = []*os.File{f1r, f2w}
+
 				sentPid = 123
 
 				stubDone = make(chan bool, 1)
 
-				sentFilesCp := sentFiles // avoids data race
+				sentFilesCp := []*os.File{f1w, f2r}
 				sentErrorCp := sentError
 				sentPidCp := sentPid
 				connectionHandler.HandleStub = func(decoder *json.Decoder) ([]*os.File, int, error) {
@@ -137,23 +140,24 @@ var _ = Describe("Unix socket", func() {
 
 				_, err = streams[0].Write([]byte("potato potato"))
 				Expect(err).NotTo(HaveOccurred())
+				err = streams[0].Close()
+				Expect(err).NotTo(HaveOccurred())
 				sentFiles[0].Seek(0, 0)
 				Expect(ioutil.ReadAll(sentFiles[0])).Should(Equal([]byte("potato potato")))
 
 				_, err = sentFiles[1].Write([]byte("brocoli brocoli"))
 				Expect(err).NotTo(HaveOccurred())
-				sentFiles[1].Seek(0, 0)
+				err = sentFiles[1].Close()
+				Expect(err).NotTo(HaveOccurred())
 				Expect(ioutil.ReadAll(streams[1])).Should(Equal([]byte("brocoli brocoli")))
 			})
 
 			It("gets back the pid the handler provided", func() {
-				for i := 0; i < 1000; i++ {
-					sentMsg := map[string]string{"fruit": "apple"}
-					_, pid, err := connector.Connect(sentMsg)
-					Expect(err).ToNot(HaveOccurred())
-					Eventually(stubDone).Should(Receive())
-					Expect(pid).To(Equal(sentPid))
-				}
+				sentMsg := map[string]string{"fruit": "apple"}
+				_, pid, err := connector.Connect(sentMsg)
+				Expect(err).ToNot(HaveOccurred())
+				Eventually(stubDone).Should(Receive())
+				Expect(pid).To(Equal(sentPid))
 			})
 
 			Context("when the handler fails", func() {

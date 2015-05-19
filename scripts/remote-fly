@@ -13,4 +13,4 @@ fi
 
 echo "Using GARDEN_REMOTE_ATC_URL..."
 echo "fly --exclude-ignored --privileged -- -slowSpecThreshold=15 $*"
-ATC_URL=$GARDEN_REMOTE_ATC_URL fly --exclude-ignored --privileged -- -slowSpecThreshold=15 $* | sed -e 's/\\n/\'$'\n/g'
+fly --target $GARDEN_REMOTE_ATC_URL execute --exclude-ignored --privileged -- -slowSpecThreshold=15 $* | sed -e 's/\\n/\'$'\n/g'

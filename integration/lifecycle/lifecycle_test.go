@@ -61,6 +61,46 @@ var _ = Describe("Creating a container", func() {
 		})
 	})
 
+	Describe("concurrent creation of containers based on same docker rootfs", func() {
+
+		It("retains the full rootFS without truncating files", func() {
+			client = startGarden()
+			c1chan := make(chan garden.Container)
+			c2chan := make(chan garden.Container)
+			c3chan := make(chan garden.Container)
+
+			createContainer := func(ch chan<- garden.Container) {
+				defer GinkgoRecover()
+				c, err := client.Create(garden.ContainerSpec{RootFSPath: "docker:///cloudfoundry/large_layers", Privileged: false})
+				Expect(err).ToNot(HaveOccurred())
+				ch <- c
+			}
+
+			runInContainer := func(c garden.Container) {
+				out := gbytes.NewBuffer()
+				process, err := c.Run(garden.ProcessSpec{
+					User: "vcap",
+					Path: "/usr/local/go/bin/go",
+					Args: []string{"version"},
+				}, garden.ProcessIO{
+					Stdout: out,
+					Stderr: out,
+				})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(process.Wait()).To(Equal(0))
+				Eventually(out).Should(gbytes.Say("go version go1.4.2 linux/amd64"))
+			}
+
+			go createContainer(c1chan)
+			go createContainer(c2chan)
+			go createContainer(c3chan)
+
+			runInContainer(<-c1chan)
+			runInContainer(<-c2chan)
+			runInContainer(<-c3chan)
+		})
+	})
+
 	Describe("concurrently destroying", func() {
 		allBridges := func() []byte {
 			stdout := gbytes.NewBuffer()
@@ -168,6 +208,7 @@ var _ = Describe("Creating a container", func() {
 			stdout := gbytes.NewBuffer()
 			stderr := gbytes.NewBuffer()
 			process, err := container.Run(garden.ProcessSpec{
+				User: "vcap",
 				Path: "test",
 				Args: []string{"-e", "/tmp/ran-seed"},
 			},
@@ -193,6 +234,7 @@ var _ = Describe("Creating a container", func() {
 
 		It("provides /dev/shm as tmpfs in the container", func() {
 			process, err := container.Run(garden.ProcessSpec{
+				User: "vcap",
 				Path: "dd",
 				Args: []string{"if=/dev/urandom", "of=/dev/shm/some-data", "count=64", "bs=1k"},
 			}, garden.ProcessIO{})
@@ -203,6 +245,7 @@ var _ = Describe("Creating a container", func() {
 			outBuf := gbytes.NewBuffer()
 
 			process, err = container.Run(garden.ProcessSpec{
+				User: "vcap",
 				Path: "cat",
 				Args: []string{"/proc/mounts"},
 			}, garden.ProcessIO{
@@ -236,6 +279,7 @@ var _ = Describe("Creating a container", func() {
 			stdout := gbytes.NewBuffer()
 
 			_, err := container.Run(garden.ProcessSpec{
+				User: "vcap",
 				Path: "hostname",
 			}, garden.ProcessIO{
 				Stdout: stdout,
@@ -255,6 +299,7 @@ var _ = Describe("Creating a container", func() {
 				It("creates the volume directory, if it does not already exist", func() {
 					stdout := gbytes.NewBuffer()
 					process, err := container.Run(garden.ProcessSpec{
+						User: "vcap",
 						Path: "ls",
 						Args: []string{"-l", "/"},
 					}, garden.ProcessIO{
@@ -282,6 +327,7 @@ var _ = Describe("Creating a container", func() {
 				It("$PATH is taken from the docker image", func() {
 					stdout := gbytes.NewBuffer()
 					process, err := container.Run(garden.ProcessSpec{
+						User: "vcap",
 						Path: "/bin/sh",
 						Args: []string{"-c", "echo $PATH"},
 					}, garden.ProcessIO{
@@ -298,6 +344,7 @@ var _ = Describe("Creating a container", func() {
 				It("$TEST is taken from the docker image", func() {
 					stdout := gbytes.NewBuffer()
 					process, err := container.Run(garden.ProcessSpec{
+						User: "vcap",
 						Path: "/bin/sh",
 						Args: []string{"-c", "echo $TEST"},
 					}, garden.ProcessIO{
@@ -314,20 +361,6 @@ var _ = Describe("Creating a container", func() {
 		})
 
 		Context("and running a process", func() {
-			It("runs as the vcap user by default", func() {
-				stdout := gbytes.NewBuffer()
-
-				_, err := container.Run(garden.ProcessSpec{
-					Path: "whoami",
-				}, garden.ProcessIO{
-					Stdout: stdout,
-					Stderr: GinkgoWriter,
-				})
-
-				Expect(err).ToNot(HaveOccurred())
-				Eventually(stdout).Should(gbytes.Say("vcap\n"))
-			})
-
 			Context("when root is requested", func() {
 				It("runs as root inside the container", func() {
 					stdout := gbytes.NewBuffer()
@@ -502,6 +535,7 @@ var _ = Describe("Creating a container", func() {
 					stderr := gbytes.NewBuffer()
 
 					_, err := container.Run(garden.ProcessSpec{
+						User: "vcap",
 						Path: "sh",
 						Args: []string{"-c", "tr '\\0' 'a' < /dev/zero | dd count=50 bs=1M of=/dev/null; echo done"},
 					}, garden.ProcessIO{
@@ -518,6 +552,7 @@ var _ = Describe("Creating a container", func() {
 					stderr := gbytes.NewBuffer()
 
 					_, err := container.Run(garden.ProcessSpec{
+						User: "vcap",
 						Path: "sh",
 						Args: []string{"-c", "tr '\\0' 'a' < /dev/zero | dd count=50 bs=1M; echo done"},
 					}, garden.ProcessIO{
@@ -537,6 +572,7 @@ var _ = Describe("Creating a container", func() {
 				stderr := gbytes.NewBuffer()
 
 				process, err := container.Run(garden.ProcessSpec{
+					User: "vcap",
 					Path: "sh",
 					Args: []string{"-c", "sleep 0.5; echo $FIRST; sleep 0.5; echo $SECOND >&2; sleep 0.5; exit 42"},
 					Env:  []string{"FIRST=hello", "SECOND=goodbye"},
@@ -556,6 +592,7 @@ var _ = Describe("Creating a container", func() {
 				stdout := gbytes.NewBuffer()
 
 				process, err := container.Run(garden.ProcessSpec{
+					User: "vcap",
 					Path: "sh",
 					Args: []string{"-c", `
 				  trap 'echo termed; exit 42' SIGTERM
@@ -581,6 +618,7 @@ var _ = Describe("Creating a container", func() {
 				stdout := gbytes.NewBuffer()
 
 				process, err := container.Run(garden.ProcessSpec{
+					User: "vcap",
 					Path: "sh",
 					Args: []string{"-c", `
 				while true; do
@@ -605,6 +643,7 @@ var _ = Describe("Creating a container", func() {
 
 				for i := 0; i < 200; i++ {
 					process, err := container.Run(garden.ProcessSpec{
+						User: "vcap",
 						Path: "sh",
 						Args: []string{"-c", `while true; do echo -n "x"; sleep 1; done`},
 					}, garden.ProcessIO{
@@ -619,11 +658,12 @@ var _ = Describe("Creating a container", func() {
 				close(done)
 			}, 120.0)
 
-			PIt("collects the process's full output, even if it exits quickly after", func() {
+			It("collects the process's full output, even if it exits quickly after", func() {
 				for i := 0; i < 100; i++ {
 					stdout := gbytes.NewBuffer()
 
 					process, err := container.Run(garden.ProcessSpec{
+						User: "vcap",
 						Path: "sh",
 						Args: []string{"-c", "cat <&0"},
 					}, garden.ProcessIO{
@@ -648,6 +688,7 @@ var _ = Describe("Creating a container", func() {
 				stdout := gbytes.NewBuffer()
 
 				process, err := container.Run(garden.ProcessSpec{
+					User: "vcap",
 					Path: "sh",
 					Args: []string{"-c", "cat <&0"},
 				}, garden.ProcessIO{
@@ -672,6 +713,7 @@ var _ = Describe("Creating a container", func() {
 
 				for i := 0; i < 50; i++ {
 					process, err := container.Run(garden.ProcessSpec{
+						User: "vcap",
 						Path: "true",
 					}, garden.ProcessIO{
 						Stdout: GinkgoWriter,
@@ -696,6 +738,7 @@ var _ = Describe("Creating a container", func() {
 
 				for i := 0; i < 10; i++ {
 					process, err := container.Run(garden.ProcessSpec{
+						User: "vcap",
 						Path: "ls",
 					}, garden.ProcessIO{
 						Stdin: bytes.NewBufferString(strings.Repeat("x", 1024)),
@@ -717,6 +760,7 @@ var _ = Describe("Creating a container", func() {
 				Context("when the process writes too much to /dev/shm", func() {
 					It("is killed", func() {
 						process, err := container.Run(garden.ProcessSpec{
+							User: "vcap",
 							Path: "dd",
 							Args: []string{"if=/dev/urandom", "of=/dev/shm/too-big", "bs=1M", "count=65"},
 						}, garden.ProcessIO{})
@@ -734,6 +778,7 @@ var _ = Describe("Creating a container", func() {
 					inR, inW := io.Pipe()
 
 					process, err := container.Run(garden.ProcessSpec{
+						User: "vcap",
 						Path: "sh",
 						Args: []string{"-c", "read foo; stty -a"},
 						TTY: &garden.TTYSpec{
@@ -767,6 +812,7 @@ var _ = Describe("Creating a container", func() {
 					inR, inW := io.Pipe()
 
 					process, err := container.Run(garden.ProcessSpec{
+						User: "vcap",
 						Path: "sh",
 						Args: []string{
 							"-c",
@@ -813,6 +859,7 @@ var _ = Describe("Creating a container", func() {
 					stdout := gbytes.NewBuffer()
 
 					process, err := container.Run(garden.ProcessSpec{
+						User: "vcap",
 						Path: "pwd",
 						Dir:  "/usr",
 					}, garden.ProcessIO{
@@ -831,6 +878,7 @@ var _ = Describe("Creating a container", func() {
 					stdout2 := gbytes.NewBuffer()
 
 					process, err := container.Run(garden.ProcessSpec{
+						User: "vcap",
 						Path: "sh",
 						Args: []string{"-c", "sleep 2; echo hello; sleep 0.5; echo goodbye; sleep 0.5; exit 42"},
 					}, garden.ProcessIO{
@@ -863,6 +911,7 @@ var _ = Describe("Creating a container", func() {
 					stdout := gbytes.NewBuffer()
 
 					process, err := container.Run(garden.ProcessSpec{
+						User: "vcap",
 						Path: "sh",
 						Args: []string{
 							"-c",
@@ -896,6 +945,7 @@ var _ = Describe("Creating a container", func() {
 					stdout := gbytes.NewBuffer()
 
 					process, err := container.Run(garden.ProcessSpec{
+						User: "vcap",
 						Path: "sh",
 						Args: []string{
 							"-c",
@@ -936,6 +986,7 @@ var _ = Describe("Creating a container", func() {
 						defer close(done)
 
 						process, err := container.Run(garden.ProcessSpec{
+							User: "vcap",
 							Path: "sh",
 							Args: []string{
 								"-c",
@@ -999,6 +1050,7 @@ var _ = Describe("Creating a container", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				process, err := container.Run(garden.ProcessSpec{
+					User: "vcap",
 					Path: "test",
 					Args: []string{"-f", "/home/vcap/some-temp-dir/some-temp-file"},
 				}, garden.ProcessIO{})
@@ -1008,6 +1060,7 @@ var _ = Describe("Creating a container", func() {
 
 				output := gbytes.NewBuffer()
 				process, err = container.Run(garden.ProcessSpec{
+					User: "vcap",
 					Path: "ls",
 					Args: []string{"-al", "/home/vcap/some-temp-dir/some-temp-file"},
 				}, garden.ProcessIO{
@@ -1032,6 +1085,7 @@ var _ = Describe("Creating a container", func() {
 					Expect(err).ToNot(HaveOccurred())
 
 					process, err := container.Run(garden.ProcessSpec{
+						User: "vcap",
 						Path: "test",
 						Args: []string{"-f", "some-temp-dir/some-temp-file"},
 					}, garden.ProcessIO{})
@@ -1046,6 +1100,7 @@ var _ = Describe("Creating a container", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				process, err := container.Run(garden.ProcessSpec{
+					User: "vcap",
 					Path: "test",
 					Args: []string{"-f", "some-temp-dir/some-temp-file"},
 				}, garden.ProcessIO{})
@@ -1065,6 +1120,7 @@ var _ = Describe("Creating a container", func() {
 			Context("and then copying them out", func() {
 				It("streams the directory", func() {
 					process, err := container.Run(garden.ProcessSpec{
+						User: "vcap",
 						Path: "sh",
 						Args: []string{"-c", `mkdir -p some-outer-dir/some-inner-dir && touch some-outer-dir/some-inner-dir/some-file`},
 					}, garden.ProcessIO{})
@@ -1089,6 +1145,7 @@ var _ = Describe("Creating a container", func() {
 				Context("with a trailing slash", func() {
 					It("streams the contents of the directory", func() {
 						process, err := container.Run(garden.ProcessSpec{
+							User: "vcap",
 							Path: "sh",
 							Args: []string{"-c", `mkdir -p some-container-dir && touch some-container-dir/some-file`},
 						}, garden.ProcessIO{})
@@ -1139,7 +1196,7 @@ var _ = Describe("Creating a container", func() {
 
 				iptables, err := gexec.Start(exec.Command("iptables", "-L"), GinkgoWriter, GinkgoWriter)
 				Expect(err).ToNot(HaveOccurred())
-				Eventually(iptables, "2s").Should(gexec.Exit())
+				Eventually(iptables, "10s").Should(gexec.Exit())
 				Expect(iptables).ToNot(gbytes.Say(handle))
 			})
 
@@ -1184,7 +1241,7 @@ var _ = Describe("Creating a container", func() {
 				)
 
 				Expect(err).ToNot(HaveOccurred())
-				Expect(cmd.Wait("1s").ExitCode()).To(Equal(0))
+				Expect(cmd.Wait("2s").ExitCode()).To(Equal(0))
 				Expect(stdout.Contents()).To(Equal([]byte{}))
 			})
 		})
