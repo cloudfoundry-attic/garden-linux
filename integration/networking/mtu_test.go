@@ -26,7 +26,7 @@ var _ = Describe("MTU size", func() {
 		Expect(err).ToNot(HaveOccurred())
 	})
 
-	PDescribe("container's network interface", func() {
+	Describe("container's network interface", func() {
 		It("has the correct MTU size", func() {
 			stdout := gbytes.NewBuffer()
 			stderr := gbytes.NewBuffer()
@@ -48,7 +48,7 @@ var _ = Describe("MTU size", func() {
 		})
 	})
 
-	PDescribe("hosts's network interface for a container", func() {
+	Describe("hosts's network interface for a container", func() {
 		It("has the correct MTU size", func() {
 			out, err := exec.Command("/sbin/ifconfig", hostIfName(container)).Output()
 			Expect(err).ToNot(HaveOccurred())

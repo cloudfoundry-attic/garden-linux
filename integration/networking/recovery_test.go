@@ -11,7 +11,7 @@ import (
 )
 
 var _ = Describe("Networking recovery", func() {
-	PContext("with two containers in the same subnet", func() {
+	Context("with two containers in the same subnet", func() {
 		var (
 			ctr1           garden.Container
 			ctr2           garden.Container
