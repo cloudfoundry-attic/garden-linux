@@ -38,7 +38,7 @@ func (w *byteCounterWriter) Close() error {
 	return nil
 }
 
-var _ = Describe("The Garden server", func() {
+var _ = FDescribe("The Garden server", func() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	var container garden.Container
@@ -74,7 +74,7 @@ var _ = Describe("The Garden server", func() {
 		return goroutineCount
 	}
 
-	PDescribe("repeatedly running processes", func() {
+	Describe("repeatedly running processes", func() {
 		Measure("does not leak goroutines", func(b Benchmarker) {
 			for i := 1; i <= iterations; i++ {
 				process, err := container.Run(garden.ProcessSpec{
@@ -103,7 +103,7 @@ var _ = Describe("The Garden server", func() {
 		}, 1)
 	})
 
-	PDescribe("repeatedly attaching to a running process", func() {
+	Describe("repeatedly attaching to a running process", func() {
 		var processID uint32
 
 		BeforeEach(func() {
@@ -161,7 +161,7 @@ var _ = Describe("The Garden server", func() {
 		}, 1)
 	})
 
-	PDescribe("streaming output from a chatty job", func() {
+	Describe("streaming output from a chatty job", func() {
 		streamCounts := []int{0}
 
 		for i := 1; i <= numStreams; i *= 2 {
