@@ -224,9 +224,9 @@ func TestGetContainersByName(t *testing.T) {
 		if job.Args[0] != name {
 			t.Errorf("name != '%s': %#v", name, job.Args[0])
 		}
-		if garden.APIVERSION.LessThan("1.12") && !job.GetenvBool("dirty") {
+		if api.APIVERSION.LessThan("1.12") && !job.GetenvBool("dirty") {
 			t.Errorf("dirty env variable not set")
-		} else if garden.APIVERSION.GreaterThanOrEqualTo("1.12") && job.GetenvBool("dirty") {
+		} else if api.APIVERSION.GreaterThanOrEqualTo("1.12") && job.GetenvBool("dirty") {
 			t.Errorf("dirty env variable set when it shouldn't")
 		}
 		v := &engine.Env{}
@@ -423,9 +423,9 @@ func TestGetImagesByName(t *testing.T) {
 		if job.Args[0] != name {
 			t.Fatalf("name != '%s': %#v", name, job.Args[0])
 		}
-		if garden.APIVERSION.LessThan("1.12") && !job.GetenvBool("dirty") {
+		if api.APIVERSION.LessThan("1.12") && !job.GetenvBool("dirty") {
 			t.Fatal("dirty env variable not set")
-		} else if garden.APIVERSION.GreaterThanOrEqualTo("1.12") && job.GetenvBool("dirty") {
+		} else if api.APIVERSION.GreaterThanOrEqualTo("1.12") && job.GetenvBool("dirty") {
 			t.Fatal("dirty env variable set when it shouldn't")
 		}
 		v := &engine.Env{}
@@ -475,7 +475,7 @@ func TestDeleteContainers(t *testing.T) {
 }
 
 func serveRequest(method, target string, body io.Reader, eng *engine.Engine, t *testing.T) *httptest.ResponseRecorder {
-	return serveRequestUsingVersion(method, target, garden.APIVERSION, body, eng, t)
+	return serveRequestUsingVersion(method, target, api.APIVERSION, body, eng, t)
 }
 
 func serveRequestUsingVersion(method, target string, version version.Version, body io.Reader, eng *engine.Engine, t *testing.T) *httptest.ResponseRecorder {

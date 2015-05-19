@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
 	. "github.com/onsi/ginkgo"
@@ -34,7 +35,7 @@ var _ = Describe("A container", func() {
 		stdout := gbytes.NewBuffer()
 		cmd, err := gexec.Start(exec.Command("ip", "a"), stdout, GinkgoWriter)
 		Expect(err).ToNot(HaveOccurred())
-		cmd.Wait()
+		cmd.Wait(time.Second * 5)
 
 		return stdout.Contents()
 	}

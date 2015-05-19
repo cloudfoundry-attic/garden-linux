@@ -24,7 +24,7 @@ func ListVar(values *[]string, names []string, usage string) {
 }
 
 func HostListVar(values *[]string, names []string, usage string) {
-	flag.Var(newListOptsRef(values, garden.ValidateHost), names, usage)
+	flag.Var(newListOptsRef(values, api.ValidateHost), names, usage)
 }
 
 func IPListVar(values *[]string, names []string, usage string) {

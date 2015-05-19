@@ -449,6 +449,23 @@ var _ = Describe("Creating a container", func() {
 							Expect(stdout).To(gbytes.Say(" alicesfile"))
 						})
 
+						It("sees devices as owned by root", func() {
+							out := gbytes.NewBuffer()
+							process, err := container.Run(garden.ProcessSpec{
+								User: "root",
+								Path: "ls",
+								Args: []string{"-la", "/dev/tty"},
+							}, garden.ProcessIO{
+								Stdout: out,
+								Stderr: out,
+							})
+							Expect(err).ToNot(HaveOccurred())
+							Expect(process.Wait()).To(Equal(0))
+							Expect(string(out.Contents())).To(ContainSubstring(" root "))
+							Expect(string(out.Contents())).ToNot(ContainSubstring("nobody"))
+							Expect(string(out.Contents())).ToNot(ContainSubstring("65534"))
+						})
+
 						It("lets alice write in /home/alice", func() {
 							process, err := container.Run(garden.ProcessSpec{
 								User: "alice",
@@ -994,8 +1011,10 @@ var _ = Describe("Creating a container", func() {
                 trap "echo cant touch this; sleep 1000" SIGTERM
 
                 echo waiting
-                sleep 1000 &
-                wait
+                while true
+                do
+                  sleep 1000
+                done
               `,
 							},
 						}, garden.ProcessIO{})
