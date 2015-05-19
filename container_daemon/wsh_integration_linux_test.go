@@ -30,7 +30,7 @@ func (r *FakeCommandRunner) Wait(cmd *exec.Cmd) byte {
 	return exitStatusFromErr(cmd.Wait())
 }
 
-var _ = FDescribe("wsh and daemon integration", func() {
+var _ = Describe("wsh and daemon integration", func() {
 	var daemon *container_daemon.ContainerDaemon
 	var tempDir string
 	var socketPath string
