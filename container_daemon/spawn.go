@@ -5,14 +5,11 @@ import (
 	"os"
 	"os/exec"
 	"syscall"
-
-	"github.com/cloudfoundry-incubator/garden"
 )
 
 type Spawn struct {
-	PTY         PTYOpener
-	Runner      Runner
-	CmdPreparer CmdPreparer
+	PTY    PTYOpener
+	Runner Runner
 }
 
 //go:generate counterfeiter -o fake_runner/fake_runner.go . Runner
@@ -51,7 +48,7 @@ func (w *Spawn) spawnWithTty(cmd *exec.Cmd) ([]*os.File, error) {
 	cmd.SysProcAttr.Setctty = true
 	cmd.SysProcAttr.Setsid = true
 
-	exitFd, err := w.wireExit(cmd)
+	exitFd, err := wireExit(cmd, w.Runner)
 	if err != nil {
 		pty.Close()
 		tty.Close()
@@ -63,48 +60,48 @@ func (w *Spawn) spawnWithTty(cmd *exec.Cmd) ([]*os.File, error) {
 
 func (w *Spawn) spawnNoninteractive(cmd *exec.Cmd) ([]*os.File, error) {
 	var pipes [3]struct {
-		read  *os.File
-		write *os.File
+		r *os.File
+		w *os.File
 	}
 
 	var err error
 	for i := 0; i < 3; i++ {
-		pipes[i].read, pipes[i].write, err = os.Pipe()
+		pipes[i].r, pipes[i].w, err = os.Pipe()
 		if err != nil {
 			return nil, fmt.Errorf("container_daemon: create pipe: %s", err)
 		}
 	}
 
-	cmd.Stdin = pipes[0].read
-	cmd.Stdout = pipes[1].write
-	cmd.Stderr = pipes[2].write
+	cmd.Stdin = pipes[0].r
+	cmd.Stdout = pipes[1].w
+	cmd.Stderr = pipes[2].w
 
-	exitStatusR, err := w.wireExit(cmd)
+	exitStatusR, err := wireExit(cmd, w.Runner)
 	if err != nil {
 		for _, p := range pipes {
-			p.read.Close()
-			p.write.Close()
+			p.r.Close()
+			p.w.Close()
 		}
 
 		return nil, err
 	}
 
-	return []*os.File{pipes[0].write, pipes[1].read, pipes[2].read, exitStatusR}, nil
+	return []*os.File{pipes[0].w, pipes[1].r, pipes[2].r, exitStatusR}, nil
 }
 
-func (w *Spawn) wireExit(cmd *exec.Cmd) (*os.File, error) {
+func wireExit(cmd *exec.Cmd, runner Runner) (*os.File, error) {
 	exitR, exitW, err := os.Pipe()
 	if err != nil {
 		return nil, fmt.Errorf("container_daemon: create pipe: %s", err)
 	}
 
-	if err := w.Runner.Start(cmd); err != nil {
+	if err := runner.Start(cmd); err != nil {
 		return nil, fmt.Errorf("container_daemon: start: %s", err)
 	}
 
 	go func() {
 		defer exitW.Close()
-		status := w.Runner.Wait(cmd)
+		status := runner.Wait(cmd)
 		exitW.Write([]byte{status})
 	}()
 

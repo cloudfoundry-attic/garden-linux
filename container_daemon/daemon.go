@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
@@ -19,14 +20,21 @@ type Listener interface {
 	Stop() error
 }
 
+//go:generate counterfeiter -o fake_cmdpreparer/fake_cmdpreparer.go . CmdPreparer
+type CmdPreparer interface {
+	PrepareCmd(garden.ProcessSpec) (*exec.Cmd, error)
+}
+
 //go:generate counterfeiter -o fake_spawner/FakeSpawner.go . Spawner
 type Spawner interface {
-	Spawn(spec garden.ProcessSpec) ([]*os.File, int, error)
+	Spawn(cmd *exec.Cmd, withTty bool) ([]*os.File, error)
 }
 
 type ContainerDaemon struct {
-	Listener Listener
-	Spawner  Spawner
+	Listener    Listener
+	CmdPreparer CmdPreparer
+
+	Spawner Spawner
 }
 
 // This method should be called from the host namespace, to open the socket file in the right file system.
@@ -59,7 +67,18 @@ func (cd *ContainerDaemon) Handle(decoder *json.Decoder) (fds []*os.File, pid in
 		return nil, 0, fmt.Errorf("container_daemon: decode process spec: %s", err)
 	}
 
-	return cd.Spawner.Spawn(spec)
+	var cmd *exec.Cmd
+	cmd, err = cd.CmdPreparer.PrepareCmd(spec)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	fds, err = cd.Spawner.Spawn(cmd, spec.TTY != nil)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return fds, cmd.Process.Pid, err
 }
 
 func (cd *ContainerDaemon) Stop() error {

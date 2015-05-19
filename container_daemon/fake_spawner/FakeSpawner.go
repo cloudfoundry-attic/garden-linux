@@ -3,35 +3,36 @@ package fake_spawner
 
 import (
 	"os"
+	"os/exec"
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
 )
 
 type FakeSpawner struct {
-	SpawnStub        func(spec garden.ProcessSpec) ([]*os.File, int, error)
+	SpawnStub        func(cmd *exec.Cmd, withTty bool) ([]*os.File, error)
 	spawnMutex       sync.RWMutex
 	spawnArgsForCall []struct {
-		spec garden.ProcessSpec
+		cmd     *exec.Cmd
+		withTty bool
 	}
 	spawnReturns struct {
 		result1 []*os.File
-		result2 int
-		result3 error
+		result2 error
 	}
 }
 
-func (fake *FakeSpawner) Spawn(spec garden.ProcessSpec) ([]*os.File, int, error) {
+func (fake *FakeSpawner) Spawn(cmd *exec.Cmd, withTty bool) ([]*os.File, error) {
 	fake.spawnMutex.Lock()
 	fake.spawnArgsForCall = append(fake.spawnArgsForCall, struct {
-		spec garden.ProcessSpec
-	}{spec})
+		cmd     *exec.Cmd
+		withTty bool
+	}{cmd, withTty})
 	fake.spawnMutex.Unlock()
 	if fake.SpawnStub != nil {
-		return fake.SpawnStub(spec)
+		return fake.SpawnStub(cmd, withTty)
 	} else {
-		return fake.spawnReturns.result1, fake.spawnReturns.result2, fake.spawnReturns.result3
+		return fake.spawnReturns.result1, fake.spawnReturns.result2
 	}
 }
 
@@ -41,19 +42,18 @@ func (fake *FakeSpawner) SpawnCallCount() int {
 	return len(fake.spawnArgsForCall)
 }
 
-func (fake *FakeSpawner) SpawnArgsForCall(i int) garden.ProcessSpec {
+func (fake *FakeSpawner) SpawnArgsForCall(i int) (*exec.Cmd, bool) {
 	fake.spawnMutex.RLock()
 	defer fake.spawnMutex.RUnlock()
-	return fake.spawnArgsForCall[i].spec
+	return fake.spawnArgsForCall[i].cmd, fake.spawnArgsForCall[i].withTty
 }
 
-func (fake *FakeSpawner) SpawnReturns(result1 []*os.File, result2 int, result3 error) {
+func (fake *FakeSpawner) SpawnReturns(result1 []*os.File, result2 error) {
 	fake.SpawnStub = nil
 	fake.spawnReturns = struct {
 		result1 []*os.File
-		result2 int
-		result3 error
-	}{result1, result2, result3}
+		result2 error
+	}{result1, result2}
 }
 
 var _ container_daemon.Spawner = new(FakeSpawner)

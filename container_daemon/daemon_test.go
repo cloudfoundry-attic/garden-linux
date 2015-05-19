@@ -6,9 +6,11 @@ import (
 	"errors"
 	"io/ioutil"
 	"os"
+	"os/exec"
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
+	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_cmdpreparer"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_listener"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_spawner"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
@@ -21,15 +23,18 @@ var _ = Describe("Daemon", func() {
 		daemon   container_daemon.ContainerDaemon
 		listener *fake_listener.FakeListener
 		spawner  *fake_spawner.FakeSpawner
+		preparer *fake_cmdpreparer.FakeCmdPreparer
 	)
 
 	BeforeEach(func() {
 		listener = &fake_listener.FakeListener{}
 		spawner = new(fake_spawner.FakeSpawner)
+		preparer = new(fake_cmdpreparer.FakeCmdPreparer)
 
 		daemon = container_daemon.ContainerDaemon{
-			Listener: listener,
-			Spawner:  spawner,
+			Listener:    listener,
+			CmdPreparer: preparer,
+			Spawner:     spawner,
 		}
 	})
 
@@ -74,8 +79,11 @@ var _ = Describe("Daemon", func() {
 					Env:  []string{"foo=bar", "baz=barry"},
 				}
 
-				spawner.SpawnStub = func(spec garden.ProcessSpec) ([]*os.File, int, error) {
-					return nil, 123, nil
+				preparer.PrepareCmdReturns(exec.Command("foo"), nil)
+
+				spawner.SpawnStub = func(cmd *exec.Cmd, withTty bool) ([]*os.File, error) {
+					cmd.Process = &os.Process{Pid: 123}
+					return nil, nil
 				}
 			})
 
@@ -92,19 +100,61 @@ var _ = Describe("Daemon", func() {
 				daemon.Run()
 			})
 
+			It("runs the spawner with a prepared command", func() {
+				Expect(preparer.PrepareCmdCallCount()).To(Equal(1))
+				Expect(preparer.PrepareCmdArgsForCall(0)).To(Equal(spec))
+				Expect(spawner.SpawnCallCount()).To(Equal(1))
+			})
+
 			It("returns the PID of the spawned process", func() {
 				Expect(handlerPid).To(Equal(123))
 			})
 
+			Context("when a null TTYSpec is passed", func() {
+				It("asks to spawn with a tty", func() {
+					_, spawnWithTty := spawner.SpawnArgsForCall(0)
+					Expect(spawnWithTty).To(Equal(false))
+				})
+			})
+
+			Context("when a non-null TTYSpec is passed", func() {
+				BeforeEach(func() {
+					spec.TTY = &garden.TTYSpec{}
+				})
+
+				It("asks to spawn with a tty", func() {
+					_, spawnWithTty := spawner.SpawnArgsForCall(0)
+					Expect(spawnWithTty).To(Equal(true))
+				})
+			})
+
+			Context("when the preparer returns an error", func() {
+				BeforeEach(func() {
+					preparer.PrepareCmdReturns(nil, errors.New("no cmd"))
+				})
+
+				It("does not run the spawner", func() {
+					Expect(spawner.SpawnCallCount()).To(Equal(0))
+				})
+
+				It("returns an error", func() {
+					Expect(handlerError).To(HaveOccurred())
+				})
+			})
+
 			Context("if the handler panics", func() {
 				BeforeEach(func() {
-					spawner.SpawnStub = func(garden.ProcessSpec) ([]*os.File, int, error) {
+					preparer.PrepareCmdStub = func(garden.ProcessSpec) (*exec.Cmd, error) {
+						panic("boom")
+					}
+
+					spawner.SpawnStub = func(*exec.Cmd, bool) ([]*os.File, error) {
 						panic("bang")
 					}
 				})
 
 				It("converts the panic to an error", func() {
-					Expect(handlerError).To(MatchError("container_daemon: recovered panic: bang"))
+					Expect(handlerError).To(MatchError("container_daemon: recovered panic: boom"))
 				})
 			})
 
@@ -117,7 +167,7 @@ var _ = Describe("Daemon", func() {
 						tmp(),
 					}
 
-					spawner.SpawnReturns(someFds, 0, nil)
+					spawner.SpawnReturns(someFds, nil)
 				})
 
 				AfterEach(func() {
@@ -133,7 +183,7 @@ var _ = Describe("Daemon", func() {
 
 			Context("when the spawner returns an error", func() {
 				BeforeEach(func() {
-					spawner.SpawnReturns(nil, 0, errors.New("will not spawn"))
+					spawner.SpawnReturns(nil, errors.New("will not spawn"))
 				})
 
 				It("returns the error to the client", func() {
