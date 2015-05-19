@@ -69,7 +69,7 @@ var _ = Describe("wsh and daemon integration", func() {
 		daemon.Stop()
 	})
 
-	It("should run a program", func() {
+	It("should run a program when no pidfile is specified", func() {
 		wshCmd := exec.Command(wsh, "--socket", socketPath, "echo", "hello")
 
 		op, err := wshCmd.CombinedOutput()

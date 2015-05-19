@@ -3,19 +3,27 @@ package lifecycle_test
 import (
 	"fmt"
 	"os"
+	"path"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
 
+	"os/exec"
+
+	"io"
+	"io/ioutil"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
+	"github.com/onsi/gomega/gexec"
 )
 
-var _ = Describe("Security", func() {
-	Describe("Isolating PIDs", func() {
-		It("isolates processes so that only process from inside the container are visible", func() {
+var _ = FDescribe("Security", func() {
+	Describe("PID namespace", func() {
+		It("isolates processes so that only processes from inside the container are visible", func() {
 			client = startGarden()
 			container, err := client.Create(garden.ContainerSpec{})
 			Expect(err).ToNot(HaveOccurred())
@@ -46,9 +54,589 @@ var _ = Describe("Security", func() {
 				return strings.Split(string(psout.Contents()), "\n")
 			}).Should(HaveLen(6)) // header, wshd, sleep, sh, ps, \n
 		})
+
+		It("has the correct initial process", func() {
+			client = startGarden()
+			container, err := client.Create(garden.ContainerSpec{})
+			Expect(err).ToNot(HaveOccurred())
+
+			stdout := gbytes.NewBuffer()
+			process, err := container.Run(garden.ProcessSpec{
+				User: "root",
+				Path: "/bin/ps",
+				Args: []string{"-o", "pid,comm"},
+			}, garden.ProcessIO{
+				Stdout: stdout,
+				Stderr: GinkgoWriter,
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			exitStatus, err := process.Wait()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(exitStatus).To(Equal(0))
+
+			Expect(stdout).To(gbytes.Say(`\s+1\s+initd`))
+		})
 	})
 
-	Context("with a empty rootfs", func() {
+	Describe("Mount namespace", func() {
+		It("does not allow mounts in the container to show in the host", func() {
+			client = startGarden()
+			container, err := client.Create(garden.ContainerSpec{})
+			Expect(err).ToNot(HaveOccurred())
+
+			process, err := container.Run(garden.ProcessSpec{
+				User: "vcap",
+				Path: "/bin/mkdir",
+				Args: []string{"/home/vcap/lawn"},
+			}, garden.ProcessIO{
+				Stdout: GinkgoWriter,
+				Stderr: GinkgoWriter,
+			})
+			Expect(err).ToNot(HaveOccurred())
+			exitStatus, err := process.Wait()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(exitStatus).To(Equal(0))
+
+			process, err = container.Run(garden.ProcessSpec{
+				User: "vcap",
+				Path: "/bin/mkdir",
+				Args: []string{"/home/vcap/gnome"},
+			}, garden.ProcessIO{
+				Stdout: GinkgoWriter,
+				Stderr: GinkgoWriter,
+			})
+			Expect(err).ToNot(HaveOccurred())
+			exitStatus, err = process.Wait()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(exitStatus).To(Equal(0))
+
+			process, err = container.Run(garden.ProcessSpec{
+				User: "root",
+				Path: "/bin/mount",
+				Args: []string{"--bind", "/home/vcap/lawn", "/home/vcap/gnome"},
+			}, garden.ProcessIO{
+				Stdout: GinkgoWriter,
+				Stderr: GinkgoWriter,
+			})
+			Expect(err).ToNot(HaveOccurred())
+			exitStatus, err = process.Wait()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(exitStatus).To(Equal(0))
+
+			stdout := gbytes.NewBuffer()
+			process, err = container.Run(garden.ProcessSpec{
+				User: "root",
+				Path: "/bin/cat",
+				Args: []string{"/proc/mounts"},
+			}, garden.ProcessIO{
+				Stdout: stdout,
+				Stderr: GinkgoWriter,
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			exitStatus, err = process.Wait()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(exitStatus).To(Equal(0))
+
+			Expect(stdout).To(gbytes.Say(`gnome`))
+
+			cat := exec.Command("/bin/cat", "/proc/mounts")
+			catSession, err := gexec.Start(cat, GinkgoWriter, GinkgoWriter)
+			Expect(err).ToNot(HaveOccurred())
+			Eventually(catSession).Should(gexec.Exit(0))
+			Expect(catSession).ToNot(gbytes.Say("gnome"))
+		})
+
+		It("unmounts /tmp/garden-host* in the container", func() {
+			client = startGarden()
+			container, err := client.Create(garden.ContainerSpec{})
+			Expect(err).ToNot(HaveOccurred())
+
+			stdout := gbytes.NewBuffer()
+			process, err := container.Run(garden.ProcessSpec{
+				User: "root",
+				Path: "/bin/cat",
+				Args: []string{"/proc/mounts"},
+			}, garden.ProcessIO{
+				Stdout: stdout,
+				Stderr: GinkgoWriter,
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			exitStatus, err := process.Wait()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(exitStatus).To(Equal(0))
+			Expect(stdout).ToNot(gbytes.Say(` /tmp/garden-host`))
+		})
+	})
+
+	Describe("Network namespace", func() {
+		It("does not allow network configuration in the container to show in the host", func() {
+
+			client = startGarden()
+			container, err := client.Create(garden.ContainerSpec{})
+			Expect(err).ToNot(HaveOccurred())
+
+			process, err := container.Run(garden.ProcessSpec{
+				User: "root",
+				Path: "/sbin/ifconfig",
+				Args: []string{"lo:0", "1.2.3.4", "up"},
+			}, garden.ProcessIO{
+				Stdout: GinkgoWriter,
+				Stderr: GinkgoWriter,
+			})
+			Expect(err).ToNot(HaveOccurred())
+			exitStatus, err := process.Wait()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(exitStatus).To(Equal(0))
+
+			stdout := gbytes.NewBuffer()
+			process, err = container.Run(garden.ProcessSpec{
+				User: "root",
+				Path: "/sbin/ifconfig",
+			}, garden.ProcessIO{
+				Stdout: stdout,
+				Stderr: GinkgoWriter,
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			exitStatus, err = process.Wait()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(exitStatus).To(Equal(0))
+
+			Expect(stdout).To(gbytes.Say(`lo:0`))
+
+			cat := exec.Command("/sbin/ifconfig")
+			catSession, err := gexec.Start(cat, GinkgoWriter, GinkgoWriter)
+			Expect(err).ToNot(HaveOccurred())
+			Eventually(catSession).Should(gexec.Exit(0))
+			Expect(catSession).ToNot(gbytes.Say("lo:0"))
+		})
+	})
+
+	Describe("IPC namespace", func() {
+		var sharedDir string
+		var container garden.Container
+
+		BeforeEach(func() {
+			var err error
+			sharedDir, err = ioutil.TempDir("", "shared-mount")
+			Expect(err).ToNot(HaveOccurred())
+			Expect(os.MkdirAll(sharedDir, 0755)).To(Succeed())
+		})
+
+		AfterEach(func() {
+			if container != nil {
+				Expect(client.Destroy(container.Handle())).To(Succeed())
+			}
+			if sharedDir != "" {
+				Expect(os.RemoveAll(sharedDir)).To(Succeed())
+			}
+		})
+
+		It("does not allow shared memory segments in the host to be accessed by the container", func() {
+			shmTest, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/integration/lifecycle/shm_test")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(copyFile(shmTest, path.Join(sharedDir, "shm_test"))).To(Succeed())
+
+			client = startGarden()
+			container, err = client.Create(garden.ContainerSpec{
+				Privileged: true,
+				BindMounts: []garden.BindMount{{
+					SrcPath: sharedDir,
+					DstPath: "/mnt/shared",
+				}},
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			// Create shared memory segment in the host.
+			localSHM := exec.Command(shmTest)
+			createLocal, err := gexec.Start(
+				localSHM,
+				GinkgoWriter,
+				GinkgoWriter,
+			)
+			Expect(err).ToNot(HaveOccurred())
+			Eventually(createLocal).Should(gbytes.Say("ok"))
+
+			// Create shared memory segment in the container.
+			// If there is no IPC namespace, this will collide with the segment in the host and fail.
+			stdout := gbytes.NewBuffer()
+			_, err = container.Run(garden.ProcessSpec{
+				User: "root",
+				Path: "/mnt/shared/shm_test",
+			}, garden.ProcessIO{
+				Stdout: stdout,
+				Stderr: GinkgoWriter,
+			})
+			Expect(err).ToNot(HaveOccurred())
+			Eventually(stdout).Should(gbytes.Say("ok"))
+
+			localSHM.Process.Signal(syscall.SIGUSR2)
+
+			Eventually(createLocal).Should(gexec.Exit(0))
+
+		})
+	})
+
+	Describe("UTS namespace", func() {
+		It("changing the container's hostname does not affect the host's hostname", func() {
+			client = startGarden()
+			container, err := client.Create(garden.ContainerSpec{})
+			Expect(err).ToNot(HaveOccurred())
+
+			process, err := container.Run(garden.ProcessSpec{
+				User: "root",
+				Path: "/bin/hostname",
+				Args: []string{"newhostname"},
+			}, garden.ProcessIO{
+				Stdout: GinkgoWriter,
+				Stderr: GinkgoWriter,
+			})
+			Expect(err).ToNot(HaveOccurred())
+			exitStatus, err := process.Wait()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(exitStatus).To(Equal(0))
+
+			stdout := gbytes.NewBuffer()
+			process, err = container.Run(garden.ProcessSpec{
+				User: "root",
+				Path: "/bin/hostname",
+			}, garden.ProcessIO{
+				Stdout: stdout,
+				Stderr: GinkgoWriter,
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			exitStatus, err = process.Wait()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(exitStatus).To(Equal(0))
+			Expect(stdout).To(gbytes.Say(`newhostname`))
+
+			localHostname := exec.Command("hostname")
+			localHostnameSession, err := gexec.Start(localHostname, GinkgoWriter, GinkgoWriter)
+			Eventually(localHostnameSession).Should(gexec.Exit(0))
+			Expect(localHostnameSession).ToNot(gbytes.Say("newhostname"))
+		})
+	})
+
+	Describe("File system", func() {
+		It("/tmp is world-writable in the container", func() {
+			client = startGarden()
+			container, err := client.Create(garden.ContainerSpec{})
+			Expect(err).ToNot(HaveOccurred())
+
+			stdout := gbytes.NewBuffer()
+			process, err := container.Run(garden.ProcessSpec{
+				User: "root",
+				Path: "ls",
+				Args: []string{"-al", "/tmp"},
+			}, garden.ProcessIO{
+				Stdout: stdout,
+				Stderr: GinkgoWriter,
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			exitStatus, err := process.Wait()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(exitStatus).To(Equal(0))
+			Expect(stdout).To(gbytes.Say(`drwxrwxrwt`))
+		})
+	})
+
+	Describe("Control groups", func() {
+		It("places the container in the required cgroup subsystems", func() {
+			client = startGarden()
+			container, err := client.Create(garden.ContainerSpec{})
+			Expect(err).ToNot(HaveOccurred())
+
+			stdout := gbytes.NewBuffer()
+			process, err := container.Run(garden.ProcessSpec{
+				User: "root",
+				Path: "/bin/sh",
+				Args: []string{"-c", "cat /proc/$$/cgroup"},
+			}, garden.ProcessIO{
+				Stdout: stdout,
+				Stderr: GinkgoWriter,
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			exitStatus, err := process.Wait()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(exitStatus).To(Equal(0))
+
+			op := stdout.Contents()
+			Expect(op).To(MatchRegexp(`\bcpu\b`))
+			Expect(op).To(MatchRegexp(`\bcpuacct\b`))
+			Expect(op).To(MatchRegexp(`\bcpuset\b`))
+			Expect(op).To(MatchRegexp(`\bdevices\b`))
+			Expect(op).To(MatchRegexp(`\bmemory\b`))
+		})
+	})
+
+	Describe("Users and groups", func() {
+		Context("when running a command in a working dir", func() {
+			It("executes with setuid and setgid", func() {
+				client = startGarden()
+				container, err := client.Create(garden.ContainerSpec{})
+				Expect(err).ToNot(HaveOccurred())
+
+				stdout := gbytes.NewBuffer()
+				process, err := container.Run(garden.ProcessSpec{
+					User: "vcap",
+					Dir:  "/usr",
+					Path: "pwd",
+				}, garden.ProcessIO{
+					Stdout: stdout,
+					Stderr: GinkgoWriter,
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				exitStatus, err := process.Wait()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(exitStatus).To(Equal(0))
+				Expect(stdout).To(gbytes.Say("^/usr\n"))
+			})
+		})
+
+		Context("when running a command as a non-root user", func() {
+			It("executes with setuid and setgid", func() {
+				client = startGarden()
+				container, err := client.Create(garden.ContainerSpec{})
+				Expect(err).ToNot(HaveOccurred())
+
+				stdout := gbytes.NewBuffer()
+				process, err := container.Run(garden.ProcessSpec{
+					User: "vcap",
+					Path: "/bin/sh",
+					Args: []string{"-c", "id -u; id -g"},
+				}, garden.ProcessIO{
+					Stdout: stdout,
+					Stderr: GinkgoWriter,
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				exitStatus, err := process.Wait()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(exitStatus).To(Equal(0))
+				Expect(stdout).To(gbytes.Say("10001\n10001\n"))
+			})
+
+			It("sets $HOME, $USER, and $PATH", func() {
+				client = startGarden()
+				container, err := client.Create(garden.ContainerSpec{})
+				Expect(err).ToNot(HaveOccurred())
+
+				stdout := gbytes.NewBuffer()
+				process, err := container.Run(garden.ProcessSpec{
+					User: "vcap",
+					Path: "/bin/sh",
+					Args: []string{"-c", "env | sort"},
+				}, garden.ProcessIO{
+					Stdout: stdout,
+					Stderr: GinkgoWriter,
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				exitStatus, err := process.Wait()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(exitStatus).To(Equal(0))
+				Expect(stdout).To(gbytes.Say("HOME=/home/vcap\nPATH=/usr/local/bin:/usr/bin:/bin\nPWD=/home/vcap\nSHLVL=1\nUSER=vcap\n"))
+			})
+
+			It("executes in the user's home directory", func() {
+				client = startGarden()
+				container, err := client.Create(garden.ContainerSpec{})
+				Expect(err).ToNot(HaveOccurred())
+
+				stdout := gbytes.NewBuffer()
+				process, err := container.Run(garden.ProcessSpec{
+					User: "vcap",
+					Path: "/bin/pwd",
+				}, garden.ProcessIO{
+					Stdout: stdout,
+					Stderr: GinkgoWriter,
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				exitStatus, err := process.Wait()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(exitStatus).To(Equal(0))
+				Expect(stdout).To(gbytes.Say("/home/vcap\n"))
+			})
+
+			It("sets the specified environment variables", func() {
+				client = startGarden()
+				container, err := client.Create(garden.ContainerSpec{})
+				Expect(err).ToNot(HaveOccurred())
+
+				stdout := gbytes.NewBuffer()
+				process, err := container.Run(garden.ProcessSpec{
+					User: "vcap",
+					Env:  []string{"VAR1=VALUE1", "VAR2=VALUE2"},
+					Path: "/bin/sh",
+					Args: []string{"-c", "env | sort"},
+				}, garden.ProcessIO{
+					Stdout: stdout,
+					Stderr: GinkgoWriter,
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				exitStatus, err := process.Wait()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(exitStatus).To(Equal(0))
+				Expect(stdout).To(gbytes.Say("VAR1=VALUE1\nVAR2=VALUE2\n"))
+			})
+
+			// FIXME: pended until ProcessStarter is available.
+			PIt("searches a sanitized path not including /sbin for the executable", func() {
+				client = startGarden()
+				container, err := client.Create(garden.ContainerSpec{
+					GraceTime: time.Hour,
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				process, err := container.Run(garden.ProcessSpec{
+					User: "vcap",
+					Path: "ls",
+				}, garden.ProcessIO{
+					Stdout: GinkgoWriter,
+					Stderr: GinkgoWriter,
+				})
+				Expect(err).ToNot(HaveOccurred())
+				exitStatus, err := process.Wait()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(exitStatus).To(Equal(0))
+
+				process, err = container.Run(garden.ProcessSpec{
+					User: "vcap",
+					Path: "ifconfig", // ifconfig is only available in /sbin
+				}, garden.ProcessIO{
+					Stdout: GinkgoWriter,
+					Stderr: GinkgoWriter,
+				})
+				Expect(err).ToNot(HaveOccurred())
+				exitStatus, err = process.Wait()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(exitStatus).To(Equal(255))
+			})
+
+		})
+
+		FContext("when running a command as root", func() {
+			It("executes with setuid and setgid", func() {
+				client = startGarden()
+				container, err := client.Create(garden.ContainerSpec{})
+				Expect(err).ToNot(HaveOccurred())
+
+				stdout := gbytes.NewBuffer()
+				process, err := container.Run(garden.ProcessSpec{
+					User: "root",
+					Path: "/bin/sh",
+					Args: []string{"-c", "id -u; id -g"},
+				}, garden.ProcessIO{
+					Stdout: stdout,
+					Stderr: GinkgoWriter,
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				exitStatus, err := process.Wait()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(exitStatus).To(Equal(0))
+				Expect(stdout).To(gbytes.Say("0\n0\n"))
+			})
+
+			PIt("sets $HOME, $USER, and $PATH", func() {
+				client = startGarden()
+				container, err := client.Create(garden.ContainerSpec{})
+				Expect(err).ToNot(HaveOccurred())
+
+				stdout := gbytes.NewBuffer()
+				process, err := container.Run(garden.ProcessSpec{
+					User: "root",
+					Path: "/bin/sh",
+					Args: []string{"-c", "env | sort"},
+				}, garden.ProcessIO{
+					Stdout: stdout,
+					Stderr: GinkgoWriter,
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				exitStatus, err := process.Wait()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(exitStatus).To(Equal(0))
+				Expect(stdout).To(gbytes.Say("HOME=/root\nPATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\nPWD=/root\nSHLVL=1\nUSER=root\n"))
+			})
+
+			PIt("executes in root's home directory", func() {
+				client = startGarden()
+				container, err := client.Create(garden.ContainerSpec{})
+				Expect(err).ToNot(HaveOccurred())
+
+				stdout := gbytes.NewBuffer()
+				process, err := container.Run(garden.ProcessSpec{
+					User: "root",
+					Path: "/bin/pwd",
+				}, garden.ProcessIO{
+					Stdout: stdout,
+					Stderr: GinkgoWriter,
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				exitStatus, err := process.Wait()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(exitStatus).To(Equal(0))
+				Expect(stdout).To(gbytes.Say("/root\n"))
+			})
+
+			It("sets the specified environment variables", func() {
+				client = startGarden()
+				container, err := client.Create(garden.ContainerSpec{})
+				Expect(err).ToNot(HaveOccurred())
+
+				stdout := gbytes.NewBuffer()
+				process, err := container.Run(garden.ProcessSpec{
+					User: "root",
+					Env:  []string{"VAR1=VALUE1", "VAR2=VALUE2"},
+					Path: "/bin/sh",
+					Args: []string{"-c", "env | sort"},
+				}, garden.ProcessIO{
+					Stdout: stdout,
+					Stderr: GinkgoWriter,
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				exitStatus, err := process.Wait()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(exitStatus).To(Equal(0))
+				Expect(stdout).To(gbytes.Say("VAR1=VALUE1\nVAR2=VALUE2\n"))
+			})
+
+			It("searches a sanitized path not including /sbin for the executable", func() {
+				client = startGarden()
+				container, err := client.Create(garden.ContainerSpec{
+					GraceTime: time.Hour,
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				process, err := container.Run(garden.ProcessSpec{
+					User: "vcap",
+					Path: "ifconfig", // ifconfig is only available in /sbin
+				}, garden.ProcessIO{
+					Stdout: GinkgoWriter,
+					Stderr: GinkgoWriter,
+				})
+				Expect(err).ToNot(HaveOccurred())
+				exitStatus, err := process.Wait()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(exitStatus).To(Equal(0))
+			})
+		})
+	})
+
+	Context("with an empty rootfs", func() {
 		var emptyRootFSPath string
 
 		BeforeEach(func() {
@@ -194,3 +782,25 @@ var _ = Describe("Security", func() {
 		})
 	})
 })
+
+func copyFile(src, dst string) error {
+	s, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+
+	defer s.Close()
+
+	d, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE, 0755)
+	if err != nil {
+		return err
+	}
+
+	_, err = io.Copy(d, s)
+	if err != nil {
+		d.Close()
+		return err
+	}
+
+	return d.Close()
+}

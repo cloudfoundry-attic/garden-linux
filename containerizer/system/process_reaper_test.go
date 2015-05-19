@@ -7,6 +7,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
 	"github.com/pivotal-golang/lager"
 
+	"github.com/cloudfoundry-incubator/garden-linux/Godeps/_workspace/src/github.com/onsi/gomega/gbytes"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -47,6 +48,16 @@ var _ = Describe("ProcessReaper", func() {
 			cmd := exec.Command("sh", "-c", "sleep 1; exit 3")
 			Expect(reaper.Start(cmd)).To(Succeed())
 			Expect(reaper.Wait(cmd)).To(Equal(byte(3)))
+		})
+
+		It("the child process can receive SIGCHLD when a grandchild terminates", func() {
+			stdout := gbytes.NewBuffer()
+			trap := exec.Command("sh", "-c", "trap 'echo caught SIGCHLD' CHLD; (ls / >/dev/null 2/&1); exit 0")
+			trap.Stdout = stdout
+
+			Expect(reaper.Start(trap)).To(Succeed())
+			Expect(reaper.Wait(trap)).To(Equal(byte(0)))
+			Expect(stdout).To(gbytes.Say("caught SIGCHLD\n"))
 		})
 	})
 
