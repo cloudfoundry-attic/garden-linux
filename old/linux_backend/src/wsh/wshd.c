@@ -754,6 +754,13 @@ int child_run(void *data) {
     abort();
   }
 
+  // Needed for kernel 3.19
+  rv = mount("", "/", NULL, MS_PRIVATE|MS_REC, NULL);
+  if(rv == -1) {
+    perror("make private");
+    abort();
+  }
+
   rv = chdir(w->root_path);
   if (rv == -1) {
     perror("chdir");
