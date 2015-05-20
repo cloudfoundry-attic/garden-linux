@@ -1,11 +1,11 @@
 {
   "variables": {
     "os_name": "ubuntu",
-    "os_version": "14.04",
+    "os_version": "15.04",
     "os_type": "Ubuntu_64",
     "os_arch": "amd64",
-    "os_url": "http://releases.ubuntu.com/14.04/ubuntu-14.04.2-server-amd64.iso",
-    "os_md5_checksum": "83aabd8dcf1e8f469f3c72fff2375195",
+    "os_url": "http://releases.ubuntu.com/15.04/ubuntu-15.04-server-amd64.iso",
+    "os_md5_checksum": "487f4a81f22f8597503db3d51a1b502e",
     "vm_name": "garden-ci.ubuntu.virtualbox",
     "vm_hostname": "garden-ci-ubuntu",
     "aws_key": "{{env `GARDEN_PACKER_AMAZON_ACCESS_KEY`}}",
