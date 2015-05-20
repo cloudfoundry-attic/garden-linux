@@ -47,10 +47,24 @@ function mount_nested_cgroup() {
   done
 }
 
+function link_mounted_cgroup() {
+  mkdir -p $1
+
+  system_cgroup="/sys/fs/cgroup"
+  for subsystem in {cpuset,cpu,cpuacct,devices,memory}
+  do
+    if [ ! -f ${1}/$subsystem ]
+    then
+      ln -s $system_cgroup/$subsystem ${1}/$subsystem
+    fi
+  done
+}
+
 if [ ! -d $cgroup_path ]
 then
-  mount_nested_cgroup $cgroup_path || \
-    mount_flat_cgroup $cgroup_path
+  # mount_nested_cgroup $cgroup_path || \
+  #   mount_flat_cgroup $cgroup_path
+  link_mounted_cgroup $cgroup_path
 fi
 
 ./net.sh setup
