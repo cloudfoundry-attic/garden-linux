@@ -59,12 +59,13 @@ func main() {
 		SigwinchCh: resize,
 
 		Spec: &garden.ProcessSpec{
-			Path: extraArgs[0],
-			Args: extraArgs[1:],
-			Env:  envVars.List,
-			Dir:  *dir,
-			User: *user,
-			TTY:  tty, // used as a boolean -- non-nil = attach pty
+			Path:   extraArgs[0],
+			Args:   extraArgs[1:],
+			Env:    envVars.List,
+			Dir:    *dir,
+			User:   *user,
+			TTY:    tty, // used as a boolean -- non-nil = attach pty
+			Limits: getRlimits(),
 		},
 
 		IO: &garden.ProcessIO{
@@ -89,4 +90,35 @@ func main() {
 	}
 
 	os.Exit(exitCode)
+}
+
+func getRLimitFromEnv(envVar string) *uint64 {
+	strVal := os.Getenv(envVar)
+	if strVal == "" {
+		return nil
+	}
+
+	var val uint64
+	fmt.Sscanf(strVal, "%d", &val)
+	return &val
+}
+
+func getRlimits() garden.ResourceLimits {
+	return garden.ResourceLimits{
+		As:         getRLimitFromEnv("RLIMIT_AS"),
+		Core:       getRLimitFromEnv("RLIMIT_CORE"),
+		Cpu:        getRLimitFromEnv("RLIMIT_CPU"),
+		Data:       getRLimitFromEnv("RLIMIT_DATA"),
+		Fsize:      getRLimitFromEnv("RLIMIT_FSIZE"),
+		Locks:      getRLimitFromEnv("RLIMIT_LOCKS"),
+		Memlock:    getRLimitFromEnv("RLIMIT_MEMLOCK"),
+		Msgqueue:   getRLimitFromEnv("RLIMIT_MSGQUEUE"),
+		Nice:       getRLimitFromEnv("RLIMIT_NICE"),
+		Nofile:     getRLimitFromEnv("RLIMIT_NOFILE"),
+		Nproc:      getRLimitFromEnv("RLIMIT_NPROC"),
+		Rss:        getRLimitFromEnv("RLIMIT_RSS"),
+		Rtprio:     getRLimitFromEnv("RLIMIT_RTPRIO"),
+		Sigpending: getRLimitFromEnv("RLIMIT_SIGPENDING"),
+		Stack:      getRLimitFromEnv("RLIMIT_STACK"),
+	}
 }
