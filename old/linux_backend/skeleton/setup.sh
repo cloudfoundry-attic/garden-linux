@@ -147,8 +147,10 @@ if ! chroot $rootfs_path id vcap >/dev/null 2>&1; then
     shell=/bin/bash
   fi
 
-  touch $rootfs_path/etc/passwd
-  touch $rootfs_path/etc/group
+  if [ ! -f $rootfs_path/etc/login.defs ]
+  then
+    touch $rootfs_path/etc/login.defs
+  fi
   useradd -R $rootfs_path -m -u 10001 -U -s $shell vcap
   vcap_uid=$(($root_uid + 10001))
   chown $vcap_uid:$vcap_uid $rootfs_path/home/vcap
