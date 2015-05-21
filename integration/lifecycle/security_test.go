@@ -490,8 +490,7 @@ var _ = Describe("Security", func() {
 				Expect(stdout).To(gbytes.Say("VAR1=VALUE1\nVAR2=VALUE2\n"))
 			})
 
-			// FIXME: pended until ProcessStarter is available.
-			PIt("searches a sanitized path not including /sbin for the executable", func() {
+			It("searches a sanitized path not including /sbin for the executable", func() {
 				client = startGarden()
 				container, err := client.Create(garden.ContainerSpec{
 					GraceTime: time.Hour,
@@ -548,7 +547,7 @@ var _ = Describe("Security", func() {
 				Expect(stdout).To(gbytes.Say("0\n0\n"))
 			})
 
-			PIt("sets $HOME, $USER, and $PATH", func() {
+			FIt("sets $HOME, $USER, and $PATH", func() {
 				client = startGarden()
 				container, err := client.Create(garden.ContainerSpec{})
 				Expect(err).ToNot(HaveOccurred())
@@ -570,7 +569,7 @@ var _ = Describe("Security", func() {
 				Expect(stdout).To(gbytes.Say("HOME=/root\nPATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\nPWD=/root\nSHLVL=1\nUSER=root\n"))
 			})
 
-			PIt("executes in root's home directory", func() {
+			FIt("executes in root's home directory", func() {
 				client = startGarden()
 				container, err := client.Create(garden.ContainerSpec{})
 				Expect(err).ToNot(HaveOccurred())

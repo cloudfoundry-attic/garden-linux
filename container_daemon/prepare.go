@@ -39,6 +39,12 @@ func (p *ProcessSpecPreparer) PrepareCmd(spec garden.ProcessSpec) (*exec.Cmd, er
 		fmt.Sscanf(user.Gid, "%d", &gid)
 		cmd.Env = append(cmd.Env, "USER="+spec.User)
 		cmd.Env = append(cmd.Env, "HOME="+user.HomeDir)
+
+		if spec.Dir != "" {
+			cmd.Dir = spec.Dir
+		} else {
+			cmd.Dir = user.HomeDir
+		}
 	} else if err == nil {
 		return nil, fmt.Errorf("container_daemon: failed to lookup user %s", spec.User)
 	} else {
@@ -65,8 +71,6 @@ func (p *ProcessSpecPreparer) PrepareCmd(spec garden.ProcessSpec) (*exec.Cmd, er
 	if len(rlimitsEnv) != 0 {
 		cmd.Env = append(cmd.Env, rlimitsEnv...)
 	}
-
-	cmd.Dir = spec.Dir
 
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Credential: &syscall.Credential{

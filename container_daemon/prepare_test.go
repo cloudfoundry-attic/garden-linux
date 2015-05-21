@@ -26,6 +26,7 @@ var _ = Describe("Preparing a command to run", func() {
 	etcPasswd := map[string]*user.User{
 		"a-user":       &user.User{Uid: "66", Gid: "99"},
 		"another-user": &user.User{Uid: "77", Gid: "88", HomeDir: "/the/home/dir"},
+		"root":         &user.User{Uid: "0", Gid: "0", HomeDir: "/root"},
 		"a-root-user":  &user.User{},
 	}
 
@@ -45,7 +46,7 @@ var _ = Describe("Preparing a command to run", func() {
 		}
 	})
 
-	Describe("Spawn", func() {
+	Describe("Process preparation", func() {
 		var spec garden.ProcessSpec
 
 		BeforeEach(func() {
@@ -58,7 +59,6 @@ var _ = Describe("Preparing a command to run", func() {
 
 			spec = garden.ProcessSpec{
 				User: "another-user",
-				Dir:  "some-dir",
 				Path: "fishfinger",
 				Args: []string{
 					"foo", "bar",
@@ -162,8 +162,41 @@ var _ = Describe("Preparing a command to run", func() {
 				})
 			})
 
-			It("has the supplied dir", func() {
-				Expect(thePreparedCmd.Dir).To(Equal("some-dir"))
+			Context("when a working directory is supplied", func() {
+				BeforeEach(func() {
+					spec.Dir = "some-dir"
+				})
+
+				It("uses the supplied dir", func() {
+					Expect(thePreparedCmd.Dir).To(Equal("some-dir"))
+				})
+			})
+
+			Context("when a working directory is not supplied", func() {
+
+				BeforeEach(func() {
+					spec.Dir = ""
+				})
+
+				Context("and the user is not root", func() {
+					BeforeEach(func() {
+						spec.User = "another-user"
+					})
+
+					It("uses the user's home directory", func() {
+						Expect(thePreparedCmd.Dir).To(Equal("/the/home/dir"))
+					})
+				})
+
+				Context("and the user is root", func() {
+					BeforeEach(func() {
+						spec.User = "root"
+					})
+
+					It("uses root's home directory", func() {
+						Expect(thePreparedCmd.Dir).To(Equal("/root"))
+					})
+				})
 			})
 		})
 	})
