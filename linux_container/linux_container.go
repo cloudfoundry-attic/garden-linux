@@ -93,6 +93,10 @@ type LinuxContainer struct {
 	env process.Env
 
 	processIDPool *ProcessIDPool
+
+	NetworkStatisticser interface {
+		Statistics() (stats garden.ContainerNetworkStat, err error)
+	}
 }
 
 type ProcessIDPool struct {

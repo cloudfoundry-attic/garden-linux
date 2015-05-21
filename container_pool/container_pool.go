@@ -23,6 +23,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
 	"github.com/cloudfoundry-incubator/garden-linux/network"
 	"github.com/cloudfoundry-incubator/garden-linux/network/bridgemgr"
+	"github.com/cloudfoundry-incubator/garden-linux/network/devices"
 	"github.com/cloudfoundry-incubator/garden-linux/network/iptables"
 	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
 	"github.com/cloudfoundry-incubator/garden-linux/old/bandwidth_manager"
@@ -262,7 +263,8 @@ func (p *LinuxContainerPool) Create(spec garden.ContainerSpec) (c linux_backend.
 		"rootfs-env": rootFSEnv,
 		"create-env": specEnv,
 	})
-	return linux_container.NewLinuxContainer(
+
+	container := linux_container.NewLinuxContainer(
 		pLog,
 		id,
 		handle,
@@ -278,7 +280,10 @@ func (p *LinuxContainerPool) Create(spec garden.ContainerSpec) (c linux_backend.
 		process_tracker.New(containerPath, p.runner),
 		rootFSEnv.Merge(specEnv),
 		p.filterProvider.ProvideFilter(id),
-	), nil
+	)
+	container.NetworkStatisticser = devices.Link{Name: p.sysconfig.NetworkInterfacePrefix + id + "-0"}
+
+	return container, nil
 }
 
 func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Container, error) {

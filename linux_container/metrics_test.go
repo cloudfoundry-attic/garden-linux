@@ -12,6 +12,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
+	"github.com/cloudfoundry-incubator/garden-linux/network/devices/fakedevices"
 	networkFakes "github.com/cloudfoundry-incubator/garden-linux/network/fakes"
 	"github.com/cloudfoundry-incubator/garden-linux/old/bandwidth_manager/fake_bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/cgroups_manager/fake_cgroups_manager"
@@ -64,6 +65,7 @@ var _ = Describe("Linux containers", func() {
 			process.Env{"env1": "env1Value", "env2": "env2Value"},
 			new(networkFakes.FakeFilter),
 		)
+		container.NetworkStatisticser = &fakedevices.FakeLink{}
 	})
 
 	Describe("Metrics", func() {
@@ -238,6 +240,32 @@ system 2
 				It("returns the error", func() {
 					_, err := container.Metrics()
 					Expect(err).To(Equal(disaster))
+				})
+			})
+		})
+
+		Describe("Getting network info", func() {
+			Context("on existing interface", func() {
+				It("it is returned in the response", func() {
+					metrics, err := container.Metrics()
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(metrics.NetworkStat).To(Equal(garden.ContainerNetworkStat{
+						RxBytes: 2,
+						TxBytes: 1,
+					}))
+				})
+			})
+
+			Context("on non-existent interface", func() {
+				JustBeforeEach(func() {
+					container.NetworkStatisticser = &fakedevices.FakeLink{
+						StatisticsReturns: errors.New("link does not exist")}
+				})
+
+				It("it fails with error", func() {
+					_, err := container.Metrics()
+					Expect(err).To(HaveOccurred())
 				})
 			})
 		})
