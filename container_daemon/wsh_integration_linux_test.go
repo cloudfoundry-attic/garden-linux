@@ -41,6 +41,9 @@ var _ = Describe("wsh and daemon integration", func() {
 		wsh, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/container_daemon/wsh")
 		Expect(err).ToNot(HaveOccurred())
 
+		proc_starter, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/container_daemon/proc_starter")
+		Expect(err).ToNot(HaveOccurred())
+
 		tempDir, err = ioutil.TempDir("", "")
 		Expect(err).ToNot(HaveOccurred())
 		socketPath = path.Join(tempDir, "test.sock")
@@ -50,7 +53,9 @@ var _ = Describe("wsh and daemon integration", func() {
 				SocketPath: socketPath,
 			},
 			CmdPreparer: &container_daemon.ProcessSpecPreparer{
-				Users: system.LibContainerUser{},
+				Users:           system.LibContainerUser{},
+				ProcStarterPath: proc_starter,
+				Rlimits:         &container_daemon.RlimitsManager{},
 			},
 			Spawner: &container_daemon.Spawn{
 				Runner: &FakeCommandRunner{},
@@ -70,7 +75,10 @@ var _ = Describe("wsh and daemon integration", func() {
 	})
 
 	It("should run a program when no pidfile is specified", func() {
-		wshCmd := exec.Command(wsh, "--socket", socketPath, "echo", "hello")
+		wshCmd := exec.Command(wsh,
+			"--socket", socketPath,
+			"--user", "root",
+			"echo", "hello")
 
 		op, err := wshCmd.CombinedOutput()
 		Expect(err).ToNot(HaveOccurred())
@@ -80,7 +88,12 @@ var _ = Describe("wsh and daemon integration", func() {
 	It("should avoid a race condition when sending a kill signal", func(done Done) {
 		for i := 0; i < 200; i++ {
 			pidfilePath := path.Join(tempDir, "cmd.pid")
-			wshCmd := exec.Command(wsh, "--socket", socketPath, "--pidfile", pidfilePath, "sh", "-c", `while true; do echo -n "x"; sleep 1; done`)
+			wshCmd := exec.Command(wsh,
+				"--socket", socketPath,
+				"--pidfile", pidfilePath,
+				"--user", "root",
+				"sh", "-c",
+				`while true; do echo -n "x"; sleep 1; done`)
 
 			err := wshCmd.Start()
 			Expect(err).ToNot(HaveOccurred())
@@ -96,7 +109,11 @@ var _ = Describe("wsh and daemon integration", func() {
 		stdout := gbytes.NewBuffer()
 
 		pidfilePath := path.Join(tempDir, "cmd.pid")
-		wshCmd := exec.Command(wsh, "--socket", socketPath, "--pidfile", pidfilePath, "sh", "-c", `
+		wshCmd := exec.Command(wsh,
+			"--socket", socketPath,
+			"--pidfile", pidfilePath,
+			"--user", "root",
+			"sh", "-c", `
 				  trap 'echo termed; exit 42' TERM
 
 					while true; do
@@ -124,7 +141,10 @@ var _ = Describe("wsh and daemon integration", func() {
 		for i := 0; i < 200; i++ {
 			stdout := gbytes.NewBuffer()
 
-			wshCmd := exec.Command(wsh, "--socket", socketPath, "sh", "-c", `
+			wshCmd := exec.Command(wsh,
+				"--socket", socketPath,
+				"--user", "root",
+				"sh", "-c", `
 					for i in $(seq 0 512); do
 					  echo 0123456789
 					done
@@ -144,6 +164,19 @@ var _ = Describe("wsh and daemon integration", func() {
 		close(done)
 	}, 30.0)
 
+	It("applies the provided rlimits", func() {
+		wshCmd := exec.Command(wsh,
+			"--socket", socketPath,
+			"--user", "root",
+			"sh", "-c",
+			"ulimit -n")
+
+		wshCmd.Env = append(wshCmd.Env, "RLIMIT_NOFILE=16")
+
+		op, err := wshCmd.CombinedOutput()
+		Expect(err).ToNot(HaveOccurred())
+		Expect(string(op)).To(Equal("16\n"))
+	})
 })
 
 func exitStatusFromErr(err error) byte {

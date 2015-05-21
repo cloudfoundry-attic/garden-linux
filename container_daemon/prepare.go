@@ -16,19 +16,29 @@ type IOWirer interface {
 	Wire(cmd *exec.Cmd) ([]*os.File, error)
 }
 
+//go:generate counterfeiter -o fake_rlimits_env_encoder/fake_rlimits_env_encoder.go . RlimitsEnvEncoder
+type RlimitsEnvEncoder interface {
+	EncodeEnv(garden.ResourceLimits) []string
+}
+
 type ProcessSpecPreparer struct {
-	Users system.User
+	Users           system.User
+	ProcStarterPath string
+	Rlimits         RlimitsEnvEncoder
 }
 
 func (p *ProcessSpecPreparer) PrepareCmd(spec garden.ProcessSpec) (*exec.Cmd, error) {
-	cmd := exec.Command(spec.Path, spec.Args...)
+	args := append([]string{spec.Path}, spec.Args...)
+	cmd := exec.Command(p.ProcStarterPath, args...)
+
+	cmd.Env = spec.Env
 
 	var uid, gid uint32
 	if user, err := p.Users.Lookup(spec.User); err == nil && user != nil {
 		fmt.Sscanf(user.Uid, "%d", &uid) // todo(jz): handle errors
 		fmt.Sscanf(user.Gid, "%d", &gid)
-		spec.Env = append(spec.Env, "USER="+spec.User)
-		spec.Env = append(spec.Env, "HOME="+user.HomeDir)
+		cmd.Env = append(cmd.Env, "USER="+spec.User)
+		cmd.Env = append(cmd.Env, "HOME="+user.HomeDir)
 	} else if err == nil {
 		return nil, fmt.Errorf("container_daemon: failed to lookup user %s", spec.User)
 	} else {
@@ -43,16 +53,19 @@ func (p *ProcessSpecPreparer) PrepareCmd(spec garden.ProcessSpec) (*exec.Cmd, er
 			break
 		}
 	}
-
 	if !hasPath {
 		if uid == 0 {
-			spec.Env = append(spec.Env, fmt.Sprintf("PATH=%s", DefaultRootPATH))
+			cmd.Env = append(cmd.Env, fmt.Sprintf("PATH=%s", DefaultRootPATH))
 		} else {
-			spec.Env = append(spec.Env, fmt.Sprintf("PATH=%s", DefaultUserPath))
+			cmd.Env = append(cmd.Env, fmt.Sprintf("PATH=%s", DefaultUserPath))
 		}
 	}
 
-	cmd.Env = spec.Env
+	rlimitsEnv := p.Rlimits.EncodeEnv(spec.Limits)
+	if len(rlimitsEnv) != 0 {
+		cmd.Env = append(cmd.Env, rlimitsEnv...)
+	}
+
 	cmd.Dir = spec.Dir
 
 	cmd.SysProcAttr = &syscall.SysProcAttr{

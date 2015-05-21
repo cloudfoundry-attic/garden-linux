@@ -84,7 +84,9 @@ func main() {
 			SocketPath: *socketPath,
 		},
 		CmdPreparer: &container_daemon.ProcessSpecPreparer{
-			Users: system.LibContainerUser{},
+			Users:           system.LibContainerUser{},
+			Rlimits:         &container_daemon.RlimitsManager{},
+			ProcStarterPath: "/sbin/proc_starter",
 		},
 		Spawner: &container_daemon.Spawn{
 			Runner: reaper,

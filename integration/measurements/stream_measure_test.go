@@ -38,7 +38,7 @@ func (w *byteCounterWriter) Close() error {
 	return nil
 }
 
-var _ = FDescribe("The Garden server", func() {
+var _ = Describe("The Garden server", func() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	var container garden.Container

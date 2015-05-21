@@ -5,6 +5,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
+	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_rlimits_env_encoder"
 
 	"os/exec"
 	"os/user"
@@ -16,8 +17,10 @@ import (
 
 var _ = Describe("Preparing a command to run", func() {
 	var (
-		users    *fake_user.FakeUser
-		preparer *container_daemon.ProcessSpecPreparer
+		users             *fake_user.FakeUser
+		preparer          *container_daemon.ProcessSpecPreparer
+		rlimitsEnvEncoder *fake_rlimits_env_encoder.FakeRlimitsEnvEncoder
+		limits            garden.ResourceLimits
 	)
 
 	etcPasswd := map[string]*user.User{
@@ -33,8 +36,12 @@ var _ = Describe("Preparing a command to run", func() {
 			return etcPasswd[name], nil
 		}
 
+		rlimitsEnvEncoder = new(fake_rlimits_env_encoder.FakeRlimitsEnvEncoder)
+
 		preparer = &container_daemon.ProcessSpecPreparer{
-			Users: users,
+			Users:           users,
+			Rlimits:         rlimitsEnvEncoder,
+			ProcStarterPath: "/path/to/proc/starter",
 		}
 	})
 
@@ -42,6 +49,13 @@ var _ = Describe("Preparing a command to run", func() {
 		var spec garden.ProcessSpec
 
 		BeforeEach(func() {
+			var (
+				nofile uint64 = 12
+				rss    uint64 = 128
+			)
+			limits.Nofile = &nofile
+			limits.Rss = &rss
+
 			spec = garden.ProcessSpec{
 				User: "another-user",
 				Dir:  "some-dir",
@@ -53,6 +67,7 @@ var _ = Describe("Preparing a command to run", func() {
 					"foo=bar",
 					"baz=barry",
 				},
+				Limits: limits,
 			}
 		})
 
@@ -66,8 +81,8 @@ var _ = Describe("Preparing a command to run", func() {
 
 			It("has the correct path and args", func() {
 				Expect(theReturnedError).To(BeNil())
-				Expect(thePreparedCmd.Path).To(Equal("fishfinger"))
-				Expect(thePreparedCmd.Args).To(Equal([]string{"fishfinger", "foo", "bar"}))
+				Expect(thePreparedCmd.Path).To(Equal("/path/to/proc/starter"))
+				Expect(thePreparedCmd.Args).To(Equal([]string{"/path/to/proc/starter", "fishfinger", "foo", "bar"}))
 			})
 
 			It("has the correct uid based on the /etc/passwd file", func() {
@@ -126,6 +141,24 @@ var _ = Describe("Preparing a command to run", func() {
 						Expect(thePreparedCmd.Env).To(ContainElement("PATH=cake"))
 						Expect(thePreparedCmd.Env).NotTo(ContainElement(fmt.Sprintf("PATH=%s", container_daemon.DefaultUserPath)))
 					})
+				})
+			})
+
+			It("gets environment variables from rlimits environment encoder", func() {
+				Expect(rlimitsEnvEncoder.EncodeEnvCallCount()).To(Equal(1))
+				Expect(rlimitsEnvEncoder.EncodeEnvArgsForCall(0)).To(Equal(limits))
+			})
+
+			Context("when rlimits are set", func() {
+				BeforeEach(func() {
+					rlimitsEnvEncoder.EncodeEnvStub = func(limits garden.ResourceLimits) []string {
+						return []string{"hello=world", "name=wsh"}
+					}
+				})
+
+				It("applies the rlimits environment variables", func() {
+					Expect(thePreparedCmd.Env).To(ContainElement(fmt.Sprintf("hello=world")))
+					Expect(thePreparedCmd.Env).To(ContainElement(fmt.Sprintf("name=wsh")))
 				})
 			})
 
