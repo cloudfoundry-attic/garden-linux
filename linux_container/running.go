@@ -1,6 +1,7 @@
 package linux_container
 
 import (
+	"errors"
 	"fmt"
 	"os/exec"
 	"path"
@@ -16,7 +17,8 @@ func (c *LinuxContainer) Run(spec garden.ProcessSpec, processIO garden.ProcessIO
 	sockPath := path.Join(c.path, "run", "wshd.sock")
 
 	if spec.User == "" {
-		return nil, fmt.Errorf("linux_container: Run: A User for the process to run as must be specified. ProcessSpec: %+v", spec)
+		c.logger.Error("linux_container: Run:", fmt.Errorf("linux_container: Run: A User for the process to run as must be specified. ProcessSpec: %+v", spec))
+		return nil, errors.New("A User for the process to run as must be specified.")
 	}
 
 	args := []string{"--socket", sockPath, "--user", spec.User}

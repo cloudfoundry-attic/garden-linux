@@ -749,6 +749,16 @@ var _ = Describe("Creating a container", func() {
 				}
 			})
 
+			Context("when no user is specified", func() {
+
+				It("returns an error", func() {
+					_, err := container.Run(garden.ProcessSpec{
+						Path: "pwd",
+					}, garden.ProcessIO{})
+					Expect(err).To(MatchError(ContainSubstring("A User for the process to run as must be specified")))
+				})
+			})
+
 			Context("with a memory limit", func() {
 				JustBeforeEach(func() {
 					err := container.LimitMemory(garden.MemoryLimits{
