@@ -2,7 +2,7 @@
 set -e -x -u
 
 vagrant up
-if [ "$1" == "-u" ]; then
+if [ $# -gt 1 ] && [ "$1" == "-u" ]; then
   shift 1
   vagrant ssh -c "cd /home/vagrant/go/src/github.com/cloudfoundry-incubator/garden-linux && sudo -E ./scripts/linux-unit-test $*"
 else
