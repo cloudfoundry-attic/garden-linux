@@ -17,7 +17,7 @@ import (
 func main() {
 	socketPath := flag.String("socket", "./run/wshd.sock", "Path to socket")
 	user := flag.String("user", "vcap", "User to change to")
-	dir := flag.String("dir", "/home/vcap", "Working directory for the running process")
+	dir := flag.String("dir", "", "Working directory for the running process")
 
 	var envVars container_daemon.StringList
 	flag.Var(&envVars, "env", "Environment variables to set for the command.")

@@ -547,7 +547,7 @@ var _ = Describe("Security", func() {
 				Expect(stdout).To(gbytes.Say("0\n0\n"))
 			})
 
-			FIt("sets $HOME, $USER, and $PATH", func() {
+			It("sets $HOME, $USER, and $PATH", func() {
 				client = startGarden()
 				container, err := client.Create(garden.ContainerSpec{})
 				Expect(err).ToNot(HaveOccurred())
@@ -569,7 +569,7 @@ var _ = Describe("Security", func() {
 				Expect(stdout).To(gbytes.Say("HOME=/root\nPATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin\nPWD=/root\nSHLVL=1\nUSER=root\n"))
 			})
 
-			FIt("executes in root's home directory", func() {
+			It("executes in root's home directory", func() {
 				client = startGarden()
 				container, err := client.Create(garden.ContainerSpec{})
 				Expect(err).ToNot(HaveOccurred())
