@@ -70,12 +70,6 @@ var _ = Describe("Unix socket", func() {
 		})
 	})
 
-	PDescribe("Listener.Stop", func() {
-		It("should ", func() {
-
-		})
-	})
-
 	Describe("Connect", func() {
 		Context("when the server is not running", func() {
 			It("fails to connect", func() {
@@ -115,10 +109,6 @@ var _ = Describe("Unix socket", func() {
 				}
 
 				go listener.Listen(connectionHandler)
-			})
-
-			AfterEach(func() {
-				Expect(listener.Stop()).To(Succeed())
 			})
 
 			It("calls the handler with the sent message", func() {

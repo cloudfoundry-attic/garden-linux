@@ -201,23 +201,6 @@ var _ = Describe("Daemon", func() {
 			})
 		})
 	})
-
-	Describe("Stop", func() {
-		It("stops the listener", func() {
-			daemon.Run()
-			Expect(daemon.Stop()).To(Succeed())
-			Expect(listener.StopCallCount()).To(Equal(1))
-		})
-
-		Context("when it failes to stop the listener", func() {
-			It("returns an error", func() {
-				listener.StopReturns(errors.New("Ping pong"))
-
-				err := daemon.Stop()
-				Expect(err).To(MatchError("container_daemon: stopping the listener: Ping pong"))
-			})
-		})
-	})
 })
 
 func tmp() *os.File {

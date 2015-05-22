@@ -17,7 +17,6 @@ const DefaultUserPath = "/usr/local/bin:/usr/bin:/bin"
 type Listener interface {
 	Init() error
 	Listen(ch unix_socket.ConnectionHandler) error
-	Stop() error
 }
 
 //go:generate counterfeiter -o fake_cmdpreparer/fake_cmdpreparer.go . CmdPreparer
@@ -79,12 +78,4 @@ func (cd *ContainerDaemon) Handle(decoder *json.Decoder) (fds []*os.File, pid in
 	}
 
 	return fds, cmd.Process.Pid, err
-}
-
-func (cd *ContainerDaemon) Stop() error {
-	if err := cd.Listener.Stop(); err != nil {
-		return fmt.Errorf("container_daemon: stopping the listener: %s", err)
-	}
-
-	return nil
 }

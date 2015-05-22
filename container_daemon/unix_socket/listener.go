@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"sync"
 	"syscall"
 )
 
@@ -16,10 +15,8 @@ type ConnectionHandler interface {
 }
 
 type Listener struct {
-	SocketPath   string
-	runningMutex sync.RWMutex
-	running      bool
-	listener     net.Listener
+	SocketPath string
+	listener   net.Listener
 }
 
 type Response struct {
@@ -43,15 +40,11 @@ func (l *Listener) Listen(ch ConnectionHandler) error {
 	if l.listener == nil {
 		return errors.New("unix_socket: listener is not initialized")
 	}
-	l.setRunning(true)
 
 	var conn net.Conn
 	var err error
 	for {
 		conn, err = l.listener.Accept()
-		if !l.isRunning() {
-			return nil
-		}
 		if err != nil {
 			return fmt.Errorf("container_daemon: Failure while accepting: %v", err)
 		}
@@ -92,21 +85,4 @@ func writeData(conn *net.UnixConn, files []*os.File, pid int, responseErr error)
 	for _, file := range files {
 		file.Close() // Ignore error
 	}
-}
-
-func (l *Listener) Stop() error {
-	l.setRunning(false)
-	return l.listener.Close()
-}
-
-func (l *Listener) setRunning(running bool) {
-	l.runningMutex.Lock()
-	l.running = running
-	l.runningMutex.Unlock()
-}
-
-func (l *Listener) isRunning() bool {
-	l.runningMutex.RLock()
-	defer l.runningMutex.RUnlock()
-	return l.running
 }

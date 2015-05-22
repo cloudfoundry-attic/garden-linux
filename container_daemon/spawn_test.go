@@ -126,10 +126,17 @@ var _ = Describe("Spawning", func() {
 					}
 				})
 
-				// FIXME: This test is pended because it causes a data race and also makes the suite fail.
-				PIt("does not block", func(done Done) {
+				It("does not block", func(done Done) {
 					spawner.Spawn(exec.Command("foo"), withTty)
 					close(block)
+					Eventually(func() byte {
+						exit := make([]byte, 1)
+						if n, _ := returnedFds[1].Read(exit); n > 0 {
+							return exit[0]
+						}
+
+						return 255
+					}).Should(Equal(byte(0)))
 					close(done)
 				})
 			})
