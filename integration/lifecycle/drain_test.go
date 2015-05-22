@@ -80,7 +80,7 @@ var _ = Describe("Through a restart", func() {
 			Eventually(stdout, 30.0).Should(gbytes.Say("hi\n"))
 		})
 
-		PIt("can still accept stdin", func() {
+		It("can still accept stdin", func() {
 			r, w := io.Pipe()
 
 			stdout := gbytes.NewBuffer()
