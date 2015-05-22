@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"strconv"
 
+	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
@@ -73,6 +74,7 @@ func main() {
 	}
 
 	cz := containerizer.Containerizer{
+		Rlimits:     &container_daemon.RlimitsManager{},
 		InitBinPath: path.Join(binPath, "initd"),
 		InitArgs: []string{
 			"--socket", socketPath,

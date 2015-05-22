@@ -2,20 +2,22 @@ package containerizer
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
 	"strconv"
-	"strings"
-	"syscall"
 	"time"
 
 	"github.com/cloudfoundry/gunk/command_runner"
 )
 
 var timeout = time.Second * 3
+
+//go:generate counterfeiter -o fake_rlimits_initializer/FakeRlimitsInitializer.go . RlimitsInitializer
+type RlimitsInitializer interface {
+	Init() error
+}
 
 //go:generate counterfeiter -o fake_container_execer/FakeContainerExecer.go . ContainerExecer
 type ContainerExecer interface {
@@ -51,6 +53,7 @@ type Waiter interface {
 }
 
 type Containerizer struct {
+	Rlimits     RlimitsInitializer
 	InitBinPath string
 	InitArgs    []string
 	Execer      ContainerExecer
@@ -65,14 +68,14 @@ type Containerizer struct {
 }
 
 func (c *Containerizer) Create() error {
+	if err := c.Rlimits.Init(); err != nil {
+		return fmt.Errorf("containerizer: initializing resource limits: %s", err)
+	}
+
 	// Temporary until we merge the hook scripts functionality in Golang
 	cmd := exec.Command(path.Join(c.LibPath, "hook"), "parent-before-clone")
 	if err := c.CommandRunner.Run(cmd); err != nil {
 		return fmt.Errorf("containerizer: run `parent-before-clone`: %s", err)
-	}
-
-	if err := setHardRlimits(); err != nil {
-		return err
 	}
 
 	pid, err := c.Execer.Exec(c.InitBinPath, c.InitArgs...)
@@ -139,74 +142,4 @@ func (c *Containerizer) signalErrorf(format string, err error) error {
 		err = fmt.Errorf("containerizer: signal error: %s (while signalling %s)", signalErr, err)
 	}
 	return err
-}
-
-const RLIMIT_INFINITY = ^uint64(0)
-
-type RLimitEntry struct {
-	Id  int
-	Max uint64
-}
-
-func setHardRlimits() error {
-	maxNoFile, err := maxNrOpen()
-	if err != nil {
-		return err
-	}
-
-	rLimitsMap := map[string]*RLimitEntry{
-		"cpu":        &RLimitEntry{Id: syscall.RLIMIT_CPU, Max: RLIMIT_INFINITY},
-		"fsize":      &RLimitEntry{Id: syscall.RLIMIT_FSIZE, Max: RLIMIT_INFINITY},
-		"data":       &RLimitEntry{Id: syscall.RLIMIT_DATA, Max: RLIMIT_INFINITY},
-		"stack":      &RLimitEntry{Id: syscall.RLIMIT_STACK, Max: RLIMIT_INFINITY},
-		"core":       &RLimitEntry{Id: syscall.RLIMIT_CORE, Max: RLIMIT_INFINITY},
-		"rss":        &RLimitEntry{Id: 5, Max: RLIMIT_INFINITY},
-		"nproc":      &RLimitEntry{Id: 6, Max: RLIMIT_INFINITY},
-		"nofile":     &RLimitEntry{Id: syscall.RLIMIT_NOFILE, Max: maxNoFile},
-		"memlock":    &RLimitEntry{Id: 8, Max: RLIMIT_INFINITY},
-		"as":         &RLimitEntry{Id: syscall.RLIMIT_AS, Max: RLIMIT_INFINITY},
-		"locks":      &RLimitEntry{Id: 10, Max: RLIMIT_INFINITY},
-		"sigpending": &RLimitEntry{Id: 11, Max: RLIMIT_INFINITY},
-		"msgqueue":   &RLimitEntry{Id: 12, Max: RLIMIT_INFINITY},
-		"nice":       &RLimitEntry{Id: 13, Max: RLIMIT_INFINITY},
-		"rtprio":     &RLimitEntry{Id: 14, Max: RLIMIT_INFINITY},
-	}
-
-	for label, entry := range rLimitsMap {
-		if err := setHardRLimit(label, entry.Id, entry.Max); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func setHardRLimit(label string, rLimitId int, rLimitMax uint64) error {
-	var rlimit syscall.Rlimit
-
-	if err := syscall.Getrlimit(rLimitId, &rlimit); err != nil {
-		return fmt.Errorf("containerizer: get system rlimit_%s: %s", label, err)
-	}
-
-	rlimit.Max = rLimitMax
-	if err := syscall.Setrlimit(rLimitId, &rlimit); err != nil {
-		return fmt.Errorf("containerizer: setting hard rlimit_%s: %s", label, err)
-	}
-
-	return nil
-}
-
-func maxNrOpen() (uint64, error) {
-	contents, err := ioutil.ReadFile("/proc/sys/fs/nr_open")
-	if err != nil {
-		return 0, fmt.Errorf("containerizer: failed to read /proc/sys/fs/nr_open: %s", err)
-	}
-
-	contentStr := strings.TrimSpace(string(contents))
-	maxFiles, err := strconv.ParseUint(contentStr, 10, 64)
-	if err != nil {
-		return 0, fmt.Errorf("containerizer: failed to convert contents of /proc/sys/fs/nr_open: %s", err)
-	}
-
-	return maxFiles, nil
 }

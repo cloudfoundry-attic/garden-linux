@@ -2,6 +2,8 @@ package container_daemon
 
 import (
 	"fmt"
+	"io/ioutil"
+	"strconv"
 	"strings"
 	"syscall"
 
@@ -24,9 +26,48 @@ const (
 	RLIMIT_MSGQUEUE   = 12                    // 12
 	RLIMIT_NICE       = 13                    // 13
 	RLIMIT_RTPRIO     = 14                    // 14
+	RLIMIT_INFINITY   = ^uint64(0)
 )
 
+type rlimitEntry struct {
+	Id  int
+	Max uint64
+}
+
 type RlimitsManager struct{}
+
+func (mgr *RlimitsManager) Init() error {
+	maxNoFile, err := mgr.MaxNoFile()
+	if err != nil {
+		return err
+	}
+
+	rLimitsMap := map[string]*rlimitEntry{
+		"cpu":        &rlimitEntry{Id: RLIMIT_CPU, Max: RLIMIT_INFINITY},
+		"fsize":      &rlimitEntry{Id: RLIMIT_FSIZE, Max: RLIMIT_INFINITY},
+		"data":       &rlimitEntry{Id: RLIMIT_DATA, Max: RLIMIT_INFINITY},
+		"stack":      &rlimitEntry{Id: RLIMIT_STACK, Max: RLIMIT_INFINITY},
+		"core":       &rlimitEntry{Id: RLIMIT_CORE, Max: RLIMIT_INFINITY},
+		"rss":        &rlimitEntry{Id: RLIMIT_RSS, Max: RLIMIT_INFINITY},
+		"nproc":      &rlimitEntry{Id: RLIMIT_NPROC, Max: RLIMIT_INFINITY},
+		"nofile":     &rlimitEntry{Id: RLIMIT_NOFILE, Max: maxNoFile},
+		"memlock":    &rlimitEntry{Id: RLIMIT_MEMLOCK, Max: RLIMIT_INFINITY},
+		"as":         &rlimitEntry{Id: RLIMIT_AS, Max: RLIMIT_INFINITY},
+		"locks":      &rlimitEntry{Id: RLIMIT_LOCKS, Max: RLIMIT_INFINITY},
+		"sigpending": &rlimitEntry{Id: RLIMIT_SIGPENDING, Max: RLIMIT_INFINITY},
+		"msgqueue":   &rlimitEntry{Id: RLIMIT_MSGQUEUE, Max: RLIMIT_INFINITY},
+		"nice":       &rlimitEntry{Id: RLIMIT_NICE, Max: RLIMIT_INFINITY},
+		"rtprio":     &rlimitEntry{Id: RLIMIT_RTPRIO, Max: RLIMIT_INFINITY},
+	}
+
+	for label, entry := range rLimitsMap {
+		if err := setHardRLimit(label, entry.Id, entry.Max); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
 
 func (*RlimitsManager) Apply(rlimits garden.ResourceLimits) error {
 	rlimitFlags := getSystemRlimitFlags(rlimits)
@@ -113,6 +154,36 @@ func (*RlimitsManager) DecodeEnv(env []string) garden.ResourceLimits {
 		Sigpending: getFromEnv(env, "RLIMIT_SIGPENDING"),
 		Stack:      getFromEnv(env, "RLIMIT_STACK"),
 	}
+}
+
+func (mgr *RlimitsManager) MaxNoFile() (uint64, error) {
+	contents, err := ioutil.ReadFile("/proc/sys/fs/nr_open")
+	if err != nil {
+		return 0, fmt.Errorf("container_daemon: failed to read /proc/sys/fs/nr_open: %s", err)
+	}
+
+	contentStr := strings.TrimSpace(string(contents))
+	maxFiles, err := strconv.ParseUint(contentStr, 10, 64)
+	if err != nil {
+		return 0, fmt.Errorf("container_daemon: failed to convert contents of /proc/sys/fs/nr_open: %s", err)
+	}
+
+	return maxFiles, nil
+}
+
+func setHardRLimit(label string, rLimitId int, rLimitMax uint64) error {
+	var rlimit syscall.Rlimit
+
+	if err := syscall.Getrlimit(rLimitId, &rlimit); err != nil {
+		return fmt.Errorf("container_daemon: getting system limit %s: %s", label, err)
+	}
+
+	rlimit.Max = rLimitMax
+	if err := syscall.Setrlimit(rLimitId, &rlimit); err != nil {
+		return fmt.Errorf("container_daemon: setting hard system limit %s: %s", label, err)
+	}
+
+	return nil
 }
 
 func getSystemRlimitFlags(rlimits garden.ResourceLimits) map[int]uint64 {
