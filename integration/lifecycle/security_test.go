@@ -21,7 +21,7 @@ import (
 	"github.com/onsi/gomega/gexec"
 )
 
-var _ = FDescribe("Security", func() {
+var _ = Describe("Security", func() {
 	Describe("PID namespace", func() {
 		It("isolates processes so that only processes from inside the container are visible", func() {
 			client = startGarden()
@@ -525,7 +525,7 @@ var _ = FDescribe("Security", func() {
 
 		})
 
-		FContext("when running a command as root", func() {
+		Context("when running a command as root", func() {
 			It("executes with setuid and setgid", func() {
 				client = startGarden()
 				container, err := client.Create(garden.ContainerSpec{})
@@ -622,7 +622,7 @@ var _ = FDescribe("Security", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				process, err := container.Run(garden.ProcessSpec{
-					User: "vcap",
+					User: "root",
 					Path: "ifconfig", // ifconfig is only available in /sbin
 				}, garden.ProcessIO{
 					Stdout: GinkgoWriter,
