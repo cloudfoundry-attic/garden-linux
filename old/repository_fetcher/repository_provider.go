@@ -53,7 +53,7 @@ func (rp registryProvider) ProvideRegistry(hostname string) (Registry, error) {
 		return nil, err
 	}
 
-	return RegistryNewSession(nil, nil, endpoint, true)
+	return RegistryNewSession(&registry.AuthConfig{}, RegistryHTTPRequestFactory(nil), endpoint, true)
 }
 
 func NewRepositoryProvider(defaultHostname string, insecureRegistries []string) RegistryProvider {
