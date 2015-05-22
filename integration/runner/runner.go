@@ -31,11 +31,12 @@ type Runner struct {
 	binPath    string
 	rootFSPath string
 
-	tmpdir    string
-	graphPath string
+	tmpdir       string
+	graphPath    string
+	overlaysPath string
 }
 
-func New(network, addr string, bin, binPath, rootFSPath, graphPath string, argv ...string) *Runner {
+func New(network, addr string, bin, binPath, rootFSPath, graphPath, overlaysPath string, argv ...string) *Runner {
 	tmpDir := filepath.Join(
 		os.TempDir(),
 		fmt.Sprintf("test-garden-%d", ginkgo.GinkgoParallelNode()),
@@ -52,10 +53,11 @@ func New(network, addr string, bin, binPath, rootFSPath, graphPath string, argv 
 		bin:  bin,
 		argv: argv,
 
-		binPath:    binPath,
-		rootFSPath: rootFSPath,
-		graphPath:  graphPath,
-		tmpdir:     tmpDir,
+		binPath:      binPath,
+		rootFSPath:   rootFSPath,
+		graphPath:    graphPath,
+		overlaysPath: overlaysPath,
+		tmpdir:       tmpDir,
 	}
 }
 
@@ -68,7 +70,6 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 	}
 
 	depotPath := filepath.Join(r.tmpdir, "containers")
-	overlaysPath := filepath.Join(r.tmpdir, "overlays")
 	snapshotsPath := filepath.Join(r.tmpdir, "snapshots")
 
 	if err := os.MkdirAll(depotPath, 0755); err != nil {
@@ -79,8 +80,9 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 		return err
 	}
 
-	MustMountTmpfs(overlaysPath)
-	MustMountTmpfs(r.graphPath)
+	// While non-nested for spike, do not mount overlays/graph on tmpfs
+	//	MustMountTmpfs(overlaysPath)
+	//	MustMountTmpfs(r.graphPath)
 
 	var appendDefaultFlag = func(ar []string, key, value string) []string {
 		for _, a := range r.argv {
@@ -106,7 +108,7 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 		gardenArgs = appendDefaultFlag(gardenArgs, "--rootfs", r.rootFSPath)
 	}
 	gardenArgs = appendDefaultFlag(gardenArgs, "--depot", depotPath)
-	gardenArgs = appendDefaultFlag(gardenArgs, "--overlays", overlaysPath)
+	gardenArgs = appendDefaultFlag(gardenArgs, "--overlays", r.overlaysPath)
 	gardenArgs = appendDefaultFlag(gardenArgs, "--snapshots", snapshotsPath)
 	gardenArgs = appendDefaultFlag(gardenArgs, "--graph", r.graphPath)
 	gardenArgs = appendDefaultFlag(gardenArgs, "--logLevel", "debug")

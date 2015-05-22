@@ -2,4 +2,5 @@
 set -e -x -u
 
 vagrant up
+vagrant ssh -c "cd /home/vagrant/go/src/github.com/cloudfoundry-incubator/garden-linux && sudo -E ./scripts/create_xfs_loopback.sh"
 vagrant ssh -c "cd /home/vagrant/go/src/github.com/cloudfoundry-incubator/garden-linux && sudo -E ./scripts/drone-test $*"

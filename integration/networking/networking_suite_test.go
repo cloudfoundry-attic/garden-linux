@@ -23,6 +23,7 @@ import (
 var binPath = "../../old/linux_backend/bin" // relative to test suite directory
 var rootFSPath = os.Getenv("GARDEN_TEST_ROOTFS")
 var graphPath = os.Getenv("GARDEN_TEST_GRAPHPATH")
+var overlaysPath = os.Getenv("GARDEN_TEST_OVERLAYSPATH")
 
 var gardenBin string
 
@@ -41,7 +42,7 @@ func startGarden(argv ...string) garden.Client {
 		b.Close()
 	}
 
-	gardenRunner = runner.New("unix", gardenAddr, gardenBin, binPath, rootFSPath, graphPath, argv...)
+	gardenRunner = runner.New("unix", gardenAddr, gardenBin, binPath, rootFSPath, graphPath, overlaysPath, argv...)
 
 	gardenProcess = ifrit.Invoke(gardenRunner)
 

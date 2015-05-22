@@ -24,6 +24,9 @@ export GODEPS_WORKSPACE=$PWD/Godeps/_workspace
 export GOPATH=$GODEPS_WORKSPACE:$GOPATH
 export PATH=$GODEPS_WORKSPACE/bin:$PATH
 
+export GARDEN_TEST_GRAPHPATH=/tmp/xfs_mount/graph
+export GARDEN_TEST_OVERLAYSPATH=/tmp/xfs_mount/overlays
+
 make
 
 go install github.com/onsi/ginkgo/ginkgo
