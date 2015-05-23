@@ -26,9 +26,6 @@ var RegistryNewEndpoint = registry.NewEndpoint
 // apes dockers registry.NewSession
 var RegistryNewSession = registry.NewSession
 
-// apes dockers registry.HTTPRequestFactory
-var RegistryHTTPRequestFactory = registry.HTTPRequestFactory
-
 // apes docker's *registry.Registry
 //go:generate counterfeiter . Registry
 type Registry interface {

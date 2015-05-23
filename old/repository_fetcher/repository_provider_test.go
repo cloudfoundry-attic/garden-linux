@@ -15,6 +15,8 @@ var _ = Describe("RepositoryProvider", func() {
 	var receivedHost string
 	var receivedInsecureRegistries []string
 	var receivedEndpoint *registry.Endpoint
+        var receivedAuthConfig *registry.AuthConfig
+        var receivedHTTPRequestFactory *utils.HTTPRequestFactory
 	var endpointReturnsError error
 	var sessionReturnsError error
 
@@ -25,6 +27,8 @@ var _ = Describe("RepositoryProvider", func() {
 		receivedHost = ""
 		receivedInsecureRegistries = nil
 		receivedEndpoint = nil
+                receivedAuthConfig = nil
+                receivedHTTPRequestFactory = nil
 
 		endpointReturnsError = nil
 		sessionReturnsError = nil
@@ -37,8 +41,10 @@ var _ = Describe("RepositoryProvider", func() {
 		}
 
 		returnedSession = &registry.Session{}
-		RegistryNewSession = func(_ *registry.AuthConfig, _ *utils.HTTPRequestFactory, endpoint *registry.Endpoint, _ bool) (*registry.Session, error) {
+		RegistryNewSession = func(authConfig *registry.AuthConfig, httpRequestFactory *utils.HTTPRequestFactory, endpoint *registry.Endpoint, _ bool) (*registry.Session, error) {
 			receivedEndpoint = endpoint
+                        receivedAuthConfig = authConfig
+                        receivedHTTPRequestFactory = httpRequestFactory
 			return returnedSession, sessionReturnsError
 		}
 	})
@@ -119,6 +125,8 @@ var _ = Describe("RepositoryProvider", func() {
 		Expect(session).To(Equal(returnedSession))
 
 		Expect(receivedEndpoint).To(Equal(returnedEndpoint))
+                Expect(receivedAuthConfig).ToNot(BeNil())
+                Expect(receivedHTTPRequestFactory).ToNot(BeNil())
 	})
 
 	Context("when NewSession returns an error", func() {
