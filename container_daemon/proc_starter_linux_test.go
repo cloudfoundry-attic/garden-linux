@@ -13,9 +13,8 @@ var _ = Describe("proc_starter", func() {
 		testWorkDir, err := ioutil.TempDir("", "")
 		Expect(err).ToNot(HaveOccurred())
 
-		cmd := exec.Command(procStarterBin, "/bin/sh", "-c", "echo $PWD")
+		cmd := exec.Command(procStarterBin, "ENCODEDRLIMITS=", "/bin/sh", "-c", "echo $PWD")
 		cmd.Dir = testWorkDir
-		cmd.Env = []string{"ENCODEDRLIMITS="}
 		op, err := cmd.CombinedOutput()
 		Expect(err).ToNot(HaveOccurred())
 		Expect(string(op)).To(Equal(testWorkDir + "\n"))

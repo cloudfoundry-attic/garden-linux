@@ -159,7 +159,6 @@ func (*RlimitsManager) DecodeLimits(encodedLimits string) garden.ResourceLimits 
 }
 
 func decode(encodedLimits string) map[string]*uint64 {
-
 	env := make(map[string]*uint64)
 
 	limits := strings.Split(encodedLimits, ",")

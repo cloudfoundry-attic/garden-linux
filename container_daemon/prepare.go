@@ -30,7 +30,10 @@ type ProcessSpecPreparer struct {
 const RLimitsTag = "ENCODEDRLIMITS"
 
 func (p *ProcessSpecPreparer) PrepareCmd(spec garden.ProcessSpec) (*exec.Cmd, error) {
-	args := append([]string{spec.Path}, spec.Args...)
+	rlimitsEnv := p.Rlimits.EncodeLimits(spec.Limits)
+	rlimitArg := fmt.Sprintf("%s=%s", RLimitsTag, rlimitsEnv)
+	args := append([]string{rlimitArg}, spec.Path)
+	args = append(args, spec.Args...)
 	cmd := exec.Command(p.ProcStarterPath, args...)
 
 	cmd.Env = spec.Env
@@ -67,11 +70,6 @@ func (p *ProcessSpecPreparer) PrepareCmd(spec garden.ProcessSpec) (*exec.Cmd, er
 		} else {
 			cmd.Env = append(cmd.Env, fmt.Sprintf("PATH=%s", DefaultUserPath))
 		}
-	}
-
-	rlimitsEnv := p.Rlimits.EncodeLimits(spec.Limits)
-	if len(rlimitsEnv) != 0 {
-		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", RLimitsTag, rlimitsEnv))
 	}
 
 	cmd.SysProcAttr = &syscall.SysProcAttr{

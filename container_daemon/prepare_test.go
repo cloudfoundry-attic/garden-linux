@@ -17,10 +17,10 @@ import (
 
 var _ = Describe("Preparing a command to run", func() {
 	var (
-		users             *fake_user.FakeUser
-		preparer          *container_daemon.ProcessSpecPreparer
-		rlimitsEnvEncoder *fake_rlimits_env_encoder.FakeRlimitsEnvEncoder
-		limits            garden.ResourceLimits
+		users          *fake_user.FakeUser
+		preparer       *container_daemon.ProcessSpecPreparer
+		rlimitsEncoder *fake_rlimits_env_encoder.FakeRlimitsEnvEncoder
+		limits         garden.ResourceLimits
 	)
 
 	etcPasswd := map[string]*user.User{
@@ -37,11 +37,11 @@ var _ = Describe("Preparing a command to run", func() {
 			return etcPasswd[name], nil
 		}
 
-		rlimitsEnvEncoder = new(fake_rlimits_env_encoder.FakeRlimitsEnvEncoder)
+		rlimitsEncoder = new(fake_rlimits_env_encoder.FakeRlimitsEnvEncoder)
 
 		preparer = &container_daemon.ProcessSpecPreparer{
 			Users:           users,
-			Rlimits:         rlimitsEnvEncoder,
+			Rlimits:         rlimitsEncoder,
 			ProcStarterPath: "/path/to/proc/starter",
 		}
 	})
@@ -82,7 +82,7 @@ var _ = Describe("Preparing a command to run", func() {
 			It("has the correct path and args", func() {
 				Expect(theReturnedError).To(BeNil())
 				Expect(thePreparedCmd.Path).To(Equal("/path/to/proc/starter"))
-				Expect(thePreparedCmd.Args).To(Equal([]string{"/path/to/proc/starter", "fishfinger", "foo", "bar"}))
+				Expect(thePreparedCmd.Args).To(Equal([]string{"/path/to/proc/starter", "ENCODEDRLIMITS=", "fishfinger", "foo", "bar"}))
 			})
 
 			It("has the correct uid based on the /etc/passwd file", func() {
@@ -145,19 +145,19 @@ var _ = Describe("Preparing a command to run", func() {
 			})
 
 			It("gets environment variables from rlimits environment encoder", func() {
-				Expect(rlimitsEnvEncoder.EncodeLimitsCallCount()).To(Equal(1))
-				Expect(rlimitsEnvEncoder.EncodeLimitsArgsForCall(0)).To(Equal(limits))
+				Expect(rlimitsEncoder.EncodeLimitsCallCount()).To(Equal(1))
+				Expect(rlimitsEncoder.EncodeLimitsArgsForCall(0)).To(Equal(limits))
 			})
 
 			Context("when rlimits are set", func() {
 				BeforeEach(func() {
-					rlimitsEnvEncoder.EncodeLimitsStub = func(limits garden.ResourceLimits) string {
+					rlimitsEncoder.EncodeLimitsStub = func(limits garden.ResourceLimits) string {
 						return "hello=world,name=wsh"
 					}
 				})
 
 				It("applies the rlimits environment variables", func() {
-					Expect(thePreparedCmd.Env).To(ContainElement("ENCODEDRLIMITS=hello=world,name=wsh"))
+					Expect(thePreparedCmd.Args[1]).To(Equal("ENCODEDRLIMITS=hello=world,name=wsh"))
 				})
 			})
 
