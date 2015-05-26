@@ -781,6 +781,67 @@ var _ = Describe("Creating a container", func() {
 				})
 			})
 
+			Context("with a disk limit", func() {
+				JustBeforeEach(func() {
+					err := container.LimitDisk(garden.DiskLimits{
+						ByteSoft: 50 * 1024 * 1024,
+						ByteHard: 50 * 1024 * 1024,
+					})
+
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				Context("when the process writes too much to disk", func() {
+					It("it results in an error", func() {
+						stderr := gbytes.NewBuffer()
+
+						process, err := container.Run(garden.ProcessSpec{
+							User: "vcap",
+							Path: "dd",
+							Args: []string{"if=/dev/urandom", "of=/home/vcap/some-file", "bs=1M", "count=151"},
+						}, garden.ProcessIO{Stderr: stderr, Stdout: GinkgoWriter})
+						Expect(err).ToNot(HaveOccurred())
+
+						Expect(process.Wait()).ToNot(Equal(0))
+						Expect(stderr).To(gbytes.Say("Disk quota exceeded"))
+					})
+				})
+
+				Context("when multiple containers are created for the same user", func() {
+					var container2 garden.Container
+					var err error
+
+					JustBeforeEach(func() {
+						container2, err = client.Create(garden.ContainerSpec{Privileged: privilegedContainer, RootFSPath: rootfs})
+						Expect(err).ToNot(HaveOccurred())
+					})
+
+					AfterEach(func() {
+						if container2 != nil {
+							Expect(client.Destroy(container2.Handle())).To(Succeed())
+						}
+					})
+
+					It("gives each container its own quota", func() {
+						process, err := container.Run(garden.ProcessSpec{
+							User: "vcap",
+							Path: "dd",
+							Args: []string{"if=/dev/urandom", "of=/home/vcap/some-file", "bs=1M", "count=40"},
+						}, garden.ProcessIO{})
+						Expect(err).ToNot(HaveOccurred())
+						Expect(process.Wait()).To(Equal(0))
+
+						process, err = container2.Run(garden.ProcessSpec{
+							User: "vcap",
+							Path: "dd",
+							Args: []string{"if=/dev/urandom", "of=/home/vcap/some-file", "bs=1M", "count=40"},
+						}, garden.ProcessIO{})
+						Expect(err).ToNot(HaveOccurred())
+						Expect(process.Wait()).To(Equal(0))
+					})
+				})
+			})
+
 			Context("with a tty", func() {
 				It("executes the process with a raw tty with the given window size", func() {
 					stdout := gbytes.NewBuffer()

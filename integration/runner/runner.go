@@ -79,7 +79,7 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 		return err
 	}
 
-	MustMountTmpfs(overlaysPath)
+	// MustMountTmpfs(overlaysPath)
 	MustMountTmpfs(r.graphPath)
 
 	var appendDefaultFlag = func(ar []string, key, value string) []string {
@@ -110,7 +110,7 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 	gardenArgs = appendDefaultFlag(gardenArgs, "--snapshots", snapshotsPath)
 	gardenArgs = appendDefaultFlag(gardenArgs, "--graph", r.graphPath)
 	gardenArgs = appendDefaultFlag(gardenArgs, "--logLevel", "debug")
-	gardenArgs = appendDefaultFlag(gardenArgs, "--disableQuotas", "")
+	//gardenArgs = appendDefaultFlag(gardenArgs, "--disableQuotas", "")
 	gardenArgs = appendDefaultFlag(gardenArgs, "--networkPool", fmt.Sprintf("10.250.%d.0/24", ginkgo.GinkgoParallelNode()))
 	gardenArgs = appendDefaultFlag(gardenArgs, "--portPoolStart", strconv.Itoa(51000+(1000*ginkgo.GinkgoParallelNode())))
 	gardenArgs = appendDefaultFlag(gardenArgs, "--portPoolSize", "1000")
