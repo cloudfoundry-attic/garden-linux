@@ -4,8 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
-	"strings"
+	"os/exec"
 	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
@@ -21,44 +20,17 @@ func main() {
 	rlimits := mgr.DecodeLimits(decodeRLimitsArg(os.Args[1]))
 	mgr.Apply(rlimits)
 
-	programPath := getProgramPath(os.Args[2])
-	if programPath == "" {
-		fmt.Fprintf(os.Stderr, "ERROR: Program '%s' was not found in PATH.\n", os.Args[2])
+	programPath, err := exec.LookPath(os.Args[2])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: Program '%s' was not found in $PATH: %s\n", os.Args[2], err)
 		os.Exit(255)
 	}
 
-	err := syscall.Exec(programPath, os.Args[2:], os.Environ())
+	err = syscall.Exec(programPath, os.Args[2:], os.Environ())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: exec: %s\n", err)
 		os.Exit(255)
 	}
-}
-
-func getProgramPath(programName string) string {
-	if _, err := os.Stat(programName); err == nil {
-		return programName
-	}
-
-	// TODO(gl) Implement shell's behavior on program path searching
-	// --
-	//		[...] duplicate the actions of the shell in searching for an executable
-	//		file if the **specified filename does not contain a slash (/)
-	//		character.** The file is sought in the colon-separated list of
-	//		directory pathnames specified in the PATH environment variable.
-	//		If this variable isn't defined, the path list defaults to the current
-	//		directory followed by the list of directories returned by
-	//		`confstr(_CS_PATH)` [...]	(which) typically returns the value
-	//		`"/bin:/usr/bin"`.
-	// -- http://linux.die.net/man/3/execvp
-	pathEnv := os.Getenv("PATH")
-	for _, p := range strings.Split(pathEnv, ":") {
-		candPath := path.Join(p, programName)
-		if _, err := os.Stat(candPath); err == nil {
-			return candPath
-		}
-	}
-
-	return ""
 }
 
 func decodeRLimitsArg(rlimitsArg string) string {

@@ -19,4 +19,9 @@ var _ = Describe("proc_starter", func() {
 		Expect(err).ToNot(HaveOccurred())
 		Expect(string(op)).To(Equal(testWorkDir + "\n"))
 	})
+
+	It("runs a program from the PATH", func() {
+		cmd := exec.Command(procStarterBin, "ENCODEDRLIMITS=", "ls", "/")
+		Expect(cmd.Run()).To(Succeed())
+	})
 })
