@@ -23,12 +23,6 @@ type FakeListener struct {
 	listenReturns struct {
 		result1 error
 	}
-	StopStub        func() error
-	stopMutex       sync.RWMutex
-	stopArgsForCall []struct{}
-	stopReturns     struct {
-		result1 error
-	}
 }
 
 func (fake *FakeListener) Init() error {
@@ -83,30 +77,6 @@ func (fake *FakeListener) ListenArgsForCall(i int) unix_socket.ConnectionHandler
 func (fake *FakeListener) ListenReturns(result1 error) {
 	fake.ListenStub = nil
 	fake.listenReturns = struct {
-		result1 error
-	}{result1}
-}
-
-func (fake *FakeListener) Stop() error {
-	fake.stopMutex.Lock()
-	fake.stopArgsForCall = append(fake.stopArgsForCall, struct{}{})
-	fake.stopMutex.Unlock()
-	if fake.StopStub != nil {
-		return fake.StopStub()
-	} else {
-		return fake.stopReturns.result1
-	}
-}
-
-func (fake *FakeListener) StopCallCount() int {
-	fake.stopMutex.RLock()
-	defer fake.stopMutex.RUnlock()
-	return len(fake.stopArgsForCall)
-}
-
-func (fake *FakeListener) StopReturns(result1 error) {
-	fake.StopStub = nil
-	fake.stopReturns = struct {
 		result1 error
 	}{result1}
 }
