@@ -14,7 +14,7 @@ import (
 )
 
 type QuotaManager interface {
-	SetLimits(logger lager.Logger, uid int, limits garden.DiskLimits) error
+	SetLimits(logger lager.Logger, uid int, path string, limits garden.DiskLimits) error
 	GetLimits(logger lager.Logger, uid int) (garden.DiskLimits, error)
 	GetUsage(logger lager.Logger, uid int) (garden.ContainerDiskStat, error)
 
@@ -49,7 +49,7 @@ func (m *LinuxQuotaManager) Disable() {
 	m.enabled = false
 }
 
-func (m *LinuxQuotaManager) SetLimits(logger lager.Logger, uid int, limits garden.DiskLimits) error {
+func (m *LinuxQuotaManager) SetLimits(logger lager.Logger, uid int, path string, limits garden.DiskLimits) error {
 	if !m.enabled {
 		return nil
 	}
@@ -76,7 +76,7 @@ func (m *LinuxQuotaManager) SetLimits(logger lager.Logger, uid int, limits garde
 			fmt.Sprintf("%d", limits.BlockHard),
 			fmt.Sprintf("%d", limits.InodeSoft),
 			fmt.Sprintf("%d", limits.InodeHard),
-			m.mountPoint,
+			path,
 		),
 	)
 }

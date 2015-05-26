@@ -781,7 +781,7 @@ var _ = Describe("Creating a container", func() {
 				})
 			})
 
-			Context("with a disk limit", func() {
+			FContext("with a disk limit", func() {
 				JustBeforeEach(func() {
 					err := container.LimitDisk(garden.DiskLimits{
 						ByteSoft: 50 * 1024 * 1024,

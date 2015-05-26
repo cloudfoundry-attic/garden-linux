@@ -71,6 +71,9 @@ function setup_fs() {
 
   if should_use_aufs; then
     mount -n -t aufs -o br:$overlay_path=rw:$base_path=ro+wh none $rootfs_path
+    mount -o remount,usrjquota=aquota.user,grpjquota=aquota.group,jqfmt=vfsv0 $rootfs_path
+    quotacheck -ugmb -F vfsv0 $rootfs_path
+    quotaon $rootfs_path
   elif should_use_overlayfs; then
     mount -n -t overlayfs -o rw,upperdir=$overlay_path,lowerdir=$base_path none $rootfs_path
   else

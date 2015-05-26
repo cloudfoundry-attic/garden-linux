@@ -38,9 +38,10 @@ func (err UndefinedPropertyError) Error() string {
 type LinuxContainer struct {
 	logger lager.Logger
 
-	id     string
-	handle string
-	path   string
+	id         string
+	handle     string
+	path       string
+	rootFSPath string
 
 	properties      garden.Properties
 	propertiesMutex sync.RWMutex
@@ -138,7 +139,7 @@ const (
 
 func NewLinuxContainer(
 	logger lager.Logger,
-	id, handle, path string,
+	id, handle, path, rootFSPath string,
 	properties garden.Properties,
 	graceTime time.Duration,
 	resources *linux_backend.Resources,
@@ -154,9 +155,10 @@ func NewLinuxContainer(
 	return &LinuxContainer{
 		logger: logger,
 
-		id:     id,
-		handle: handle,
-		path:   path,
+		id:         id,
+		handle:     handle,
+		path:       path,
+		rootFSPath: rootFSPath,
 
 		properties: properties,
 

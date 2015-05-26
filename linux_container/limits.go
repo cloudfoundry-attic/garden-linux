@@ -39,7 +39,7 @@ func (c *LinuxContainer) CurrentBandwidthLimits() (garden.BandwidthLimits, error
 func (c *LinuxContainer) LimitDisk(limits garden.DiskLimits) error {
 	cLog := c.logger.Session("limit-disk")
 
-	err := c.quotaManager.SetLimits(cLog, c.resources.UserUID, limits)
+	err := c.quotaManager.SetLimits(cLog, c.resources.UserUID, c.rootFSPath, limits)
 	if err != nil {
 		return err
 	}
