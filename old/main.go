@@ -194,6 +194,11 @@ var externalIP = flag.String(
 	"",
 	"IP address to use to reach container's mapped ports")
 
+var maxContainers = flag.Int(
+	"maxContainers",
+	-1,
+	"Maximun number of containers to spawn")
+
 func Main() {
 
 	cf_debug_server.AddFlags(flag.CommandLine)
@@ -349,7 +354,7 @@ func Main() {
 
 	systemInfo := system_info.NewProvider(*depotPath)
 
-	backend := linux_backend.New(logger, pool, container_repository.New(), systemInfo, *snapshotsPath)
+	backend := linux_backend.New(logger, pool, container_repository.New(), systemInfo, *snapshotsPath, *maxContainers)
 
 	err = backend.Setup()
 	if err != nil {

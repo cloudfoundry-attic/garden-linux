@@ -28,6 +28,7 @@ var _ = Describe("LinuxBackend", func() {
 	var containerRepo linux_backend.ContainerRepository
 	var linuxBackend *linux_backend.LinuxBackend
 	var snapshotsPath string
+	var maxContainers int
 
 	BeforeEach(func() {
 		logger = lagertest.NewTestLogger("test")
@@ -36,6 +37,7 @@ var _ = Describe("LinuxBackend", func() {
 		fakeSystemInfo = fake_system_info.NewFakeProvider()
 
 		snapshotsPath = ""
+		maxContainers = -1
 	})
 
 	JustBeforeEach(func() {
@@ -45,6 +47,7 @@ var _ = Describe("LinuxBackend", func() {
 			containerRepo,
 			fakeSystemInfo,
 			snapshotsPath,
+			maxContainers,
 		)
 	})
 
@@ -276,6 +279,33 @@ var _ = Describe("LinuxBackend", func() {
 			Expect(capacity.MaxContainers).To(Equal(uint64(42)))
 		})
 
+		Context("when the max containers argument is set", func() {
+			Context("and pool.MaxContainers is lower", func() {
+				BeforeEach(func() {
+					maxContainers = 60
+					fakeContainerPool.MaxContainersValue = 40
+				})
+
+				It("returns the pool.MaxContainers", func() {
+					capacity, err := linuxBackend.Capacity()
+					Expect(err).ToNot(HaveOccurred())
+					Expect(capacity.MaxContainers).To(Equal(uint64(40)))
+				})
+			})
+			Context("and pool.MaxContainers is higher", func() {
+				BeforeEach(func() {
+					maxContainers = 50
+					fakeContainerPool.MaxContainersValue = 60
+				})
+
+				It("returns the max containers argument", func() {
+					capacity, err := linuxBackend.Capacity()
+					Expect(err).ToNot(HaveOccurred())
+					Expect(capacity.MaxContainers).To(Equal(uint64(50)))
+				})
+			})
+		})
+
 		Context("when getting memory info fails", func() {
 			disaster := errors.New("oh no!")
 
@@ -394,6 +424,24 @@ var _ = Describe("LinuxBackend", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(containers).To(BeEmpty())
+			})
+		})
+
+		Context("when the max containers parameter is set", func() {
+			BeforeEach(func() {
+				maxContainers = 2
+			})
+
+			It("obeys the limit", func() {
+				_, err := linuxBackend.Create(garden.ContainerSpec{})
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = linuxBackend.Create(garden.ContainerSpec{})
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = linuxBackend.Create(garden.ContainerSpec{})
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(Equal("cannot create more than 2 containers"))
 			})
 		})
 	})

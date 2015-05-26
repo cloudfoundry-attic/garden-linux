@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/cloudfoundry-incubator/garden"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -29,6 +30,20 @@ var _ = Describe("Garden startup flags", func() {
 		It("does not expose the log level adjustment endpoint", func() {
 			_, err := http.Get(fmt.Sprintf("http://%s/log-level -X PUT -d debug", debugAddr))
 			Expect(err).To(HaveOccurred())
+		})
+	})
+
+	Context("when started with the --maxContainers flag", func() {
+		BeforeEach(func() {
+			client = startGarden("--maxContainers", "1")
+		})
+
+		It("returns error when attempting to create more containers than is allowed", func() {
+			c1, err := client.Create(garden.ContainerSpec{})
+			Expect(err).NotTo(HaveOccurred())
+			defer client.Destroy(c1.Handle())
+			_, err = client.Create(garden.ContainerSpec{})
+			Expect(err).To(MatchError(ContainSubstring("cannot create more than 1 containers")))
 		})
 	})
 
