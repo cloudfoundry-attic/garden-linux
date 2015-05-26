@@ -74,10 +74,8 @@ func (p *Process) setupPty(ptyFd unix_socket.Fd) error {
 
 func (p *Process) sigwinchLoop(ptyFd unix_socket.Fd) {
 	for {
-		select {
-		case <-p.SigwinchCh:
-			p.syncWindowSize(ptyFd)
-		}
+		<-p.SigwinchCh
+		p.syncWindowSize(ptyFd)
 	}
 }
 

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 	"syscall"
+	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
 	. "github.com/cloudfoundry-incubator/garden-linux/container_daemon"
@@ -116,17 +117,17 @@ var _ = Describe("Process", func() {
 				remotePty := FakeFd(123)
 				socketConnector.ConnectReturns([]unix_socket.Fd{remotePty, FakeFd(999)}, 0, nil)
 
-				Expect(process.Start()).To(Succeed())
-
 				fakeTerm.GetWinsizeReturns(&term.Winsize{
 					Width: 3, Height: 4,
 				}, nil)
+
+				Expect(process.Start()).To(Succeed())
 
 				Expect(fakeTerm.SetWinsizeCallCount()).To(Equal(1))
 
 				sigwinchCh <- syscall.SIGWINCH
 
-				Expect(fakeTerm.SetWinsizeCallCount()).To(Equal(2))
+				Eventually(fakeTerm.SetWinsizeCallCount(), 10*time.Second, 500*time.Millisecond).Should(Equal(2))
 				fd, size := fakeTerm.SetWinsizeArgsForCall(1)
 				Expect(fd).To(Equal(uintptr(123)))
 				Expect(size).To(Equal(&term.Winsize{
