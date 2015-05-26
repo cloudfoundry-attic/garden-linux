@@ -15,6 +15,7 @@ var _ = Describe("proc_starter", func() {
 
 		cmd := exec.Command(procStarterBin, "/bin/sh", "-c", "echo $PWD")
 		cmd.Dir = testWorkDir
+		cmd.Env = []string{"ENCODEDRLIMITS="}
 		op, err := cmd.CombinedOutput()
 		Expect(err).ToNot(HaveOccurred())
 		Expect(string(op)).To(Equal(testWorkDir + "\n"))

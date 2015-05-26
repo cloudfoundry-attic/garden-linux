@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
+	"github.com/cloudfoundry-incubator/garden-linux/process"
 )
 
 func main() {
@@ -23,7 +24,8 @@ func main() {
 	}
 
 	mgr := container_daemon.RlimitsManager{}
-	rlimits := mgr.DecodeEnv(os.Environ())
+	envMap, _ := process.NewEnv(os.Environ())
+	rlimits := mgr.DecodeLimits(envMap[container_daemon.RLimitsTag])
 	mgr.Apply(rlimits)
 
 	err := syscall.Exec(programPath, os.Args[1:], os.Environ())

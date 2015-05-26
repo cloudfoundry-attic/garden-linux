@@ -145,20 +145,19 @@ var _ = Describe("Preparing a command to run", func() {
 			})
 
 			It("gets environment variables from rlimits environment encoder", func() {
-				Expect(rlimitsEnvEncoder.EncodeEnvCallCount()).To(Equal(1))
-				Expect(rlimitsEnvEncoder.EncodeEnvArgsForCall(0)).To(Equal(limits))
+				Expect(rlimitsEnvEncoder.EncodeLimitsCallCount()).To(Equal(1))
+				Expect(rlimitsEnvEncoder.EncodeLimitsArgsForCall(0)).To(Equal(limits))
 			})
 
 			Context("when rlimits are set", func() {
 				BeforeEach(func() {
-					rlimitsEnvEncoder.EncodeEnvStub = func(limits garden.ResourceLimits) []string {
-						return []string{"hello=world", "name=wsh"}
+					rlimitsEnvEncoder.EncodeLimitsStub = func(limits garden.ResourceLimits) string {
+						return "hello=world,name=wsh"
 					}
 				})
 
 				It("applies the rlimits environment variables", func() {
-					Expect(thePreparedCmd.Env).To(ContainElement(fmt.Sprintf("hello=world")))
-					Expect(thePreparedCmd.Env).To(ContainElement(fmt.Sprintf("name=wsh")))
+					Expect(thePreparedCmd.Env).To(ContainElement("ENCODEDRLIMITS=hello=world,name=wsh"))
 				})
 			})
 

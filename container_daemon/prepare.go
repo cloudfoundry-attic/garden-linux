@@ -18,7 +18,7 @@ type IOWirer interface {
 
 //go:generate counterfeiter -o fake_rlimits_env_encoder/fake_rlimits_env_encoder.go . RlimitsEnvEncoder
 type RlimitsEnvEncoder interface {
-	EncodeEnv(garden.ResourceLimits) []string
+	EncodeLimits(garden.ResourceLimits) string
 }
 
 type ProcessSpecPreparer struct {
@@ -26,6 +26,8 @@ type ProcessSpecPreparer struct {
 	ProcStarterPath string
 	Rlimits         RlimitsEnvEncoder
 }
+
+const RLimitsTag = "ENCODEDRLIMITS"
 
 func (p *ProcessSpecPreparer) PrepareCmd(spec garden.ProcessSpec) (*exec.Cmd, error) {
 	args := append([]string{spec.Path}, spec.Args...)
@@ -67,9 +69,9 @@ func (p *ProcessSpecPreparer) PrepareCmd(spec garden.ProcessSpec) (*exec.Cmd, er
 		}
 	}
 
-	rlimitsEnv := p.Rlimits.EncodeEnv(spec.Limits)
+	rlimitsEnv := p.Rlimits.EncodeLimits(spec.Limits)
 	if len(rlimitsEnv) != 0 {
-		cmd.Env = append(cmd.Env, rlimitsEnv...)
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", RLimitsTag, rlimitsEnv))
 	}
 
 	cmd.SysProcAttr = &syscall.SysProcAttr{

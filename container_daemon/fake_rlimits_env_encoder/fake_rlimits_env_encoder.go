@@ -9,45 +9,45 @@ import (
 )
 
 type FakeRlimitsEnvEncoder struct {
-	EncodeEnvStub        func(garden.ResourceLimits) []string
-	encodeEnvMutex       sync.RWMutex
-	encodeEnvArgsForCall []struct {
+	EncodeLimitsStub        func(garden.ResourceLimits) string
+	encodeLimitsMutex       sync.RWMutex
+	encodeLimitsArgsForCall []struct {
 		arg1 garden.ResourceLimits
 	}
-	encodeEnvReturns struct {
-		result1 []string
+	encodeLimitsReturns struct {
+		result1 string
 	}
 }
 
-func (fake *FakeRlimitsEnvEncoder) EncodeEnv(arg1 garden.ResourceLimits) []string {
-	fake.encodeEnvMutex.Lock()
-	fake.encodeEnvArgsForCall = append(fake.encodeEnvArgsForCall, struct {
+func (fake *FakeRlimitsEnvEncoder) EncodeLimits(arg1 garden.ResourceLimits) string {
+	fake.encodeLimitsMutex.Lock()
+	fake.encodeLimitsArgsForCall = append(fake.encodeLimitsArgsForCall, struct {
 		arg1 garden.ResourceLimits
 	}{arg1})
-	fake.encodeEnvMutex.Unlock()
-	if fake.EncodeEnvStub != nil {
-		return fake.EncodeEnvStub(arg1)
+	fake.encodeLimitsMutex.Unlock()
+	if fake.EncodeLimitsStub != nil {
+		return fake.EncodeLimitsStub(arg1)
 	} else {
-		return fake.encodeEnvReturns.result1
+		return fake.encodeLimitsReturns.result1
 	}
 }
 
-func (fake *FakeRlimitsEnvEncoder) EncodeEnvCallCount() int {
-	fake.encodeEnvMutex.RLock()
-	defer fake.encodeEnvMutex.RUnlock()
-	return len(fake.encodeEnvArgsForCall)
+func (fake *FakeRlimitsEnvEncoder) EncodeLimitsCallCount() int {
+	fake.encodeLimitsMutex.RLock()
+	defer fake.encodeLimitsMutex.RUnlock()
+	return len(fake.encodeLimitsArgsForCall)
 }
 
-func (fake *FakeRlimitsEnvEncoder) EncodeEnvArgsForCall(i int) garden.ResourceLimits {
-	fake.encodeEnvMutex.RLock()
-	defer fake.encodeEnvMutex.RUnlock()
-	return fake.encodeEnvArgsForCall[i].arg1
+func (fake *FakeRlimitsEnvEncoder) EncodeLimitsArgsForCall(i int) garden.ResourceLimits {
+	fake.encodeLimitsMutex.RLock()
+	defer fake.encodeLimitsMutex.RUnlock()
+	return fake.encodeLimitsArgsForCall[i].arg1
 }
 
-func (fake *FakeRlimitsEnvEncoder) EncodeEnvReturns(result1 []string) {
-	fake.EncodeEnvStub = nil
-	fake.encodeEnvReturns = struct {
-		result1 []string
+func (fake *FakeRlimitsEnvEncoder) EncodeLimitsReturns(result1 string) {
+	fake.EncodeLimitsStub = nil
+	fake.encodeLimitsReturns = struct {
+		result1 string
 	}{result1}
 }
 

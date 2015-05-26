@@ -95,10 +95,9 @@ var _ = Describe("RlimitsManager", func() {
 				Stack:      &valStack,
 			}
 
-			env := mgr.EncodeEnv(rlimits)
-			Expect(env).To(HaveLen(15))
+			env := mgr.EncodeLimits(rlimits)
 
-			newRlimits := mgr.DecodeEnv(env)
+			newRlimits := mgr.DecodeLimits(env)
 			Expect(*newRlimits.As).To(Equal(valAs))
 			Expect(*newRlimits.Core).To(Equal(valCore))
 			Expect(*newRlimits.Cpu).To(Equal(valCpu))

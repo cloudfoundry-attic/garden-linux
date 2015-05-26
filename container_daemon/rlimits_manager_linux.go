@@ -84,76 +84,99 @@ func (*RlimitsManager) Apply(rlimits garden.ResourceLimits) error {
 	return nil
 }
 
-func (*RlimitsManager) EncodeEnv(rlimits garden.ResourceLimits) []string {
-	var env []string
+func (*RlimitsManager) EncodeLimits(rlimits garden.ResourceLimits) string {
+	var limits []string
 
 	if rlimits.As != nil {
-		env = append(env, fmt.Sprintf("RLIMIT_AS=%d", *rlimits.As))
+		limits = append(limits, fmt.Sprintf("RLIMIT_AS=%d", *rlimits.As))
 	}
 	if rlimits.Core != nil {
-		env = append(env, fmt.Sprintf("RLIMIT_CORE=%d", *rlimits.Core))
+		limits = append(limits, fmt.Sprintf("RLIMIT_CORE=%d", *rlimits.Core))
 	}
 	if rlimits.Cpu != nil {
-		env = append(env, fmt.Sprintf("RLIMIT_CPU=%d", *rlimits.Cpu))
+		limits = append(limits, fmt.Sprintf("RLIMIT_CPU=%d", *rlimits.Cpu))
 	}
 	if rlimits.Data != nil {
-		env = append(env, fmt.Sprintf("RLIMIT_DATA=%d", *rlimits.Data))
+		limits = append(limits, fmt.Sprintf("RLIMIT_DATA=%d", *rlimits.Data))
 	}
 	if rlimits.Fsize != nil {
-		env = append(env, fmt.Sprintf("RLIMIT_FSIZE=%d", *rlimits.Fsize))
+		limits = append(limits, fmt.Sprintf("RLIMIT_FSIZE=%d", *rlimits.Fsize))
 	}
 	if rlimits.Locks != nil {
-		env = append(env, fmt.Sprintf("RLIMIT_LOCKS=%d", *rlimits.Locks))
+		limits = append(limits, fmt.Sprintf("RLIMIT_LOCKS=%d", *rlimits.Locks))
 	}
 	if rlimits.Memlock != nil {
-		env = append(env, fmt.Sprintf("RLIMIT_MEMLOCK=%d", *rlimits.Memlock))
+		limits = append(limits, fmt.Sprintf("RLIMIT_MEMLOCK=%d", *rlimits.Memlock))
 	}
 	if rlimits.Msgqueue != nil {
-		env = append(env, fmt.Sprintf("RLIMIT_MSGQUEUE=%d", *rlimits.Msgqueue))
+		limits = append(limits, fmt.Sprintf("RLIMIT_MSGQUEUE=%d", *rlimits.Msgqueue))
 	}
 	if rlimits.Nice != nil {
-		env = append(env, fmt.Sprintf("RLIMIT_NICE=%d", *rlimits.Nice))
+		limits = append(limits, fmt.Sprintf("RLIMIT_NICE=%d", *rlimits.Nice))
 	}
 	if rlimits.Nofile != nil {
-		env = append(env, fmt.Sprintf("RLIMIT_NOFILE=%d", *rlimits.Nofile))
+		limits = append(limits, fmt.Sprintf("RLIMIT_NOFILE=%d", *rlimits.Nofile))
 	}
 	if rlimits.Nproc != nil {
-		env = append(env, fmt.Sprintf("RLIMIT_NPROC=%d", *rlimits.Nproc))
+		limits = append(limits, fmt.Sprintf("RLIMIT_NPROC=%d", *rlimits.Nproc))
 	}
 	if rlimits.Rss != nil {
-		env = append(env, fmt.Sprintf("RLIMIT_RSS=%d", *rlimits.Rss))
+		limits = append(limits, fmt.Sprintf("RLIMIT_RSS=%d", *rlimits.Rss))
 	}
 	if rlimits.Rtprio != nil {
-		env = append(env, fmt.Sprintf("RLIMIT_RTPRIO=%d", *rlimits.Rtprio))
+		limits = append(limits, fmt.Sprintf("RLIMIT_RTPRIO=%d", *rlimits.Rtprio))
 	}
 	if rlimits.Sigpending != nil {
-		env = append(env, fmt.Sprintf("RLIMIT_SIGPENDING=%d", *rlimits.Sigpending))
+		limits = append(limits, fmt.Sprintf("RLIMIT_SIGPENDING=%d", *rlimits.Sigpending))
 	}
 	if rlimits.Stack != nil {
-		env = append(env, fmt.Sprintf("RLIMIT_STACK=%d", *rlimits.Stack))
+		limits = append(limits, fmt.Sprintf("RLIMIT_STACK=%d", *rlimits.Stack))
+	}
+
+	return strings.Join(limits, ",")
+}
+
+func (*RlimitsManager) DecodeLimits(encodedLimits string) garden.ResourceLimits {
+	limits := decode(encodedLimits)
+
+	return garden.ResourceLimits{
+		As:         limits["RLIMIT_AS"],
+		Core:       limits["RLIMIT_CORE"],
+		Cpu:        limits["RLIMIT_CPU"],
+		Data:       limits["RLIMIT_DATA"],
+		Fsize:      limits["RLIMIT_FSIZE"],
+		Locks:      limits["RLIMIT_LOCKS"],
+		Memlock:    limits["RLIMIT_MEMLOCK"],
+		Msgqueue:   limits["RLIMIT_MSGQUEUE"],
+		Nice:       limits["RLIMIT_NICE"],
+		Nofile:     limits["RLIMIT_NOFILE"],
+		Nproc:      limits["RLIMIT_NPROC"],
+		Rss:        limits["RLIMIT_RSS"],
+		Rtprio:     limits["RLIMIT_RTPRIO"],
+		Sigpending: limits["RLIMIT_SIGPENDING"],
+		Stack:      limits["RLIMIT_STACK"],
+	}
+}
+
+func decode(encodedLimits string) map[string]*uint64 {
+
+	env := make(map[string]*uint64)
+
+	limits := strings.Split(encodedLimits, ",")
+
+	for _, str := range limits {
+		tokens := strings.SplitN(str, "=", 2)
+
+		if len(tokens) == 2 {
+			var val uint64
+			n, err := fmt.Sscanf(tokens[1], "%d", &val)
+			if err == nil && n == 1 {
+				env[tokens[0]] = &val
+			}
+		}
 	}
 
 	return env
-}
-
-func (*RlimitsManager) DecodeEnv(env []string) garden.ResourceLimits {
-	return garden.ResourceLimits{
-		As:         getFromEnv(env, "RLIMIT_AS"),
-		Core:       getFromEnv(env, "RLIMIT_CORE"),
-		Cpu:        getFromEnv(env, "RLIMIT_CPU"),
-		Data:       getFromEnv(env, "RLIMIT_DATA"),
-		Fsize:      getFromEnv(env, "RLIMIT_FSIZE"),
-		Locks:      getFromEnv(env, "RLIMIT_LOCKS"),
-		Memlock:    getFromEnv(env, "RLIMIT_MEMLOCK"),
-		Msgqueue:   getFromEnv(env, "RLIMIT_MSGQUEUE"),
-		Nice:       getFromEnv(env, "RLIMIT_NICE"),
-		Nofile:     getFromEnv(env, "RLIMIT_NOFILE"),
-		Nproc:      getFromEnv(env, "RLIMIT_NPROC"),
-		Rss:        getFromEnv(env, "RLIMIT_RSS"),
-		Rtprio:     getFromEnv(env, "RLIMIT_RTPRIO"),
-		Sigpending: getFromEnv(env, "RLIMIT_SIGPENDING"),
-		Stack:      getFromEnv(env, "RLIMIT_STACK"),
-	}
 }
 
 func (mgr *RlimitsManager) MaxNoFile() (uint64, error) {
@@ -250,19 +273,4 @@ func getSystemRlimitFlags(rlimits garden.ResourceLimits) map[int]uint64 {
 	}
 
 	return m
-}
-
-func getFromEnv(env []string, envVar string) *uint64 {
-	for _, kv := range env {
-		parts := strings.SplitN(kv, "=", 2)
-		if len(parts) == 2 && parts[0] == envVar {
-			var val uint64
-			n, err := fmt.Sscanf(parts[1], "%d", &val)
-			if err == nil && n == 1 {
-				return &val
-			}
-		}
-	}
-
-	return nil
 }
