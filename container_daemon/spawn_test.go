@@ -127,7 +127,6 @@ var _ = Describe("Spawning", func() {
 				})
 
 				It("does not block", func(done Done) {
-					spawner.Spawn(exec.Command("foo"), withTty)
 					close(block)
 					Eventually(func() byte {
 						exit := make([]byte, 1)
@@ -136,9 +135,9 @@ var _ = Describe("Spawning", func() {
 						}
 
 						return 255
-					}).Should(Equal(byte(0)))
+					}, 10.0).Should(Equal(byte(0)))
 					close(done)
-				})
+				}, 30.0)
 			})
 		})
 	})
@@ -208,10 +207,17 @@ var _ = Describe("Spawning", func() {
 			})
 
 			It("does not block", func(done Done) {
-				spawner.Spawn(exec.Command("foo"), withTty)
 				close(block)
+				Eventually(func() byte {
+					exit := make([]byte, 1)
+					if n, _ := returnedFds[3].Read(exit); n > 0 {
+						return exit[0]
+					}
+
+					return 255
+				}, 10.0).Should(Equal(byte(0)))
 				close(done)
-			})
+			}, 30.0)
 		})
 	})
 })
