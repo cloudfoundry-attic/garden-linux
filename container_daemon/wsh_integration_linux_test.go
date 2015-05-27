@@ -150,7 +150,7 @@ var _ = Describe("wsh and daemon integration", func() {
 			Eventually(stdout, "2s").Should(gbytes.Say("ended"))
 		}
 		close(done)
-	}, 30.0)
+	}, 60.0)
 
 	It("applies the provided rlimits", func() {
 		wshCmd := exec.Command(wshBin,

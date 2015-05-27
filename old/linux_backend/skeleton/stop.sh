@@ -48,7 +48,7 @@ ms_end=$(($ms_start + ($WAIT * 1000)))
 
 pid=$(cat ./run/wshd.pid)
 path=${GARDEN_CGROUP_PATH}/cpu/instance-$id
-tasks=$path/tasks
+tasks=$path/cgroup.procs
 
 while true
 do
@@ -57,8 +57,7 @@ do
     break
   fi
 
-  # Compute the children of initd which are not part of the go runtime (i.e. threads of initd).
-  subTasks=$(comm -13 <(ps -p $pid -L | tail -n +2 | awk '{ print $2 }') $tasks)
+  subTasks=$(cat $tasks | grep -v $pid)
 
   signal=TERM
   if [[ $(ms) -gt $ms_end ]]; then
