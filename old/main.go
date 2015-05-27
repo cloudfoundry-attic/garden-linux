@@ -197,7 +197,7 @@ var externalIP = flag.String(
 var maxContainers = flag.Int(
 	"maxContainers",
 	-1,
-	"Maximun number of containers to spawn")
+	"Maximum number of containers that can be created")
 
 func Main() {
 
