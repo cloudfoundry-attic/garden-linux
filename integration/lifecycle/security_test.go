@@ -236,12 +236,10 @@ var _ = Describe("Security", func() {
 		})
 
 		It("does not allow shared memory segments in the host to be accessed by the container", func() {
-			shmTest, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/integration/lifecycle/shm_test")
-			Expect(err).ToNot(HaveOccurred())
-
-			Expect(copyFile(shmTest, path.Join(sharedDir, "shm_test"))).To(Succeed())
+			Expect(copyFile(shmTestBin, path.Join(sharedDir, "shm_test"))).To(Succeed())
 
 			client = startGarden()
+			var err error
 			container, err = client.Create(garden.ContainerSpec{
 				Privileged: true,
 				BindMounts: []garden.BindMount{{
@@ -252,7 +250,7 @@ var _ = Describe("Security", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			// Create shared memory segment in the host.
-			localSHM := exec.Command(shmTest)
+			localSHM := exec.Command(shmTestBin)
 			createLocal, err := gexec.Start(
 				localSHM,
 				GinkgoWriter,

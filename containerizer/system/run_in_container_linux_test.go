@@ -5,13 +5,23 @@ import (
 	"os/exec"
 	"syscall"
 
-	. "github.com/onsi/gomega"
-	"github.com/onsi/gomega/gexec"
+	"fmt"
 )
 
 func runInContainer(stdout, stderr io.Writer, privileged bool, programName string, args ...string) error {
-	container, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/containerizer/system/" + programName)
-	Expect(err).ToNot(HaveOccurred())
+	var container string
+
+	// Locate appropriate binary.
+	// Note: gexec.Build must be run in the suite rather than in the test to avoid intermittent failures
+	// due to racing builds.
+	switch programName {
+	case "fake_mounter":
+		container = fakeMounterBin
+	case "fake_container":
+		container = fakeContainerBin
+	default:
+		return fmt.Errorf("Unexpected programName %q", programName)
+	}
 
 	flags := syscall.CLONE_NEWNS
 	flags = flags | syscall.CLONE_NEWUTS

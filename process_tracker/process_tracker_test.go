@@ -13,7 +13,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
-	"github.com/onsi/gomega/gexec"
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/process_tracker"
@@ -29,13 +28,10 @@ var _ = BeforeEach(func() {
 	tmpdir, err = ioutil.TempDir("", "process-tracker-tests")
 	Expect(err).ToNot(HaveOccurred())
 
-	iodaemon, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/iodaemon")
-	Expect(err).ToNot(HaveOccurred())
-
 	err = os.MkdirAll(filepath.Join(tmpdir, "bin"), 0755)
 	Expect(err).ToNot(HaveOccurred())
 
-	err = os.Rename(iodaemon, filepath.Join(tmpdir, "bin", "iodaemon"))
+	err = copyFile(iodaemonBin, filepath.Join(tmpdir, "bin", "iodaemon"))
 	Expect(err).ToNot(HaveOccurred())
 })
 
@@ -343,4 +339,26 @@ type FakeSignaller struct {
 func (f *FakeSignaller) Signal(s os.Signal) error {
 	f.sent = append(f.sent, s)
 	return nil
+}
+
+func copyFile(src, dst string) error {
+	s, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+
+	defer s.Close()
+
+	d, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE, 0755)
+	if err != nil {
+		return err
+	}
+
+	_, err = io.Copy(d, s)
+	if err != nil {
+		d.Close()
+		return err
+	}
+
+	return d.Close()
 }
