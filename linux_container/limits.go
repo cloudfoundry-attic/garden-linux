@@ -141,9 +141,13 @@ func (c *LinuxContainer) startOomNotifier() error {
 
 	oomPath := path.Join(c.path, "bin", "oom")
 
-	c.oomNotifier = exec.Command(oomPath, c.cgroupsManager.SubsystemPath("memory"))
+	memorySubsystemPath, err := c.cgroupsManager.SubsystemPath("memory")
+	if err != nil {
+		return fmt.Errorf("linux_container: startOomNotifier: %s", err)
+	}
+	c.oomNotifier = exec.Command(oomPath, memorySubsystemPath)
 
-	err := c.runner.Start(c.oomNotifier)
+	err = c.runner.Start(c.oomNotifier)
 	if err != nil {
 		return err
 	}

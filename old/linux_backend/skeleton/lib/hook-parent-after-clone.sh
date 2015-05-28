@@ -25,19 +25,21 @@ fi
 
 # cpuset must be set up first, so that cpuset.cpus and cpuset.mems is assigned
 # otherwise adding the process to the subsystem's tasks will fail with ENOSPC
-for system_path in ${GARDEN_CGROUP_PATH}/{cpuset,cpu,cpuacct,devices,memory}
+for subsystem in {cpuset,cpu,cpuacct,devices,memory}
 do
-  instance_path=$system_path/instance-$id
+  system_path=$GARDEN_CGROUP_PATH/$subsystem
+  cgroup_path_segment=$(cat /proc/self/cgroup | grep ${subsystem}: | cut -d ':' -f 3)
+  instance_path=${system_path}${cgroup_path_segment}/instance-$id
 
   mkdir -p $instance_path
 
-  if [ $(basename $system_path) == "cpuset" ]
+  if [ $subsystem == "cpuset" ]
   then
     cat $system_path/cpuset.cpus > $instance_path/cpuset.cpus
     cat $system_path/cpuset.mems > $instance_path/cpuset.mems
   fi
 
-  if [ $(basename $system_path) == "devices" ]
+  if [ $subsystem == "devices" ] && [ "$cgroup_path_segment" == "/" ]
   then
     # Deny everything, allow explicitly
     echo a > $instance_path/devices.deny

@@ -5,12 +5,16 @@ import (
 	"io"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
 	"github.com/onsi/gomega/gexec"
+
+	"io/ioutil"
 
 	"github.com/cloudfoundry-incubator/garden"
 	gclient "github.com/cloudfoundry-incubator/garden/client"
@@ -28,7 +32,7 @@ var _ = Describe("When nested", func() {
 		client = startGarden()
 	})
 
-	startNestedGarden := func(mountOverlayOnTmpfs bool) (garden.Container, string) {
+	startNestedGarden := func(preStartScript, postStartScript string) (garden.Container, string) {
 		absoluteBinPath, err := filepath.Abs(binPath)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -63,11 +67,6 @@ var _ = Describe("When nested", func() {
 
 		nestedServerOutput := gbytes.NewBuffer()
 
-		extraMounts := ""
-		if mountOverlayOnTmpfs {
-			extraMounts = "mount -t tmpfs tmpfs /tmp/overlays"
-		}
-
 		// start nested garden, again need to be root
 		_, err = container.Run(garden.ProcessSpec{
 			Path: "sh",
@@ -76,9 +75,11 @@ var _ = Describe("When nested", func() {
 			Args: []string{
 				"-c",
 				fmt.Sprintf(`
+				set -e
 				mkdir /tmp/overlays /tmp/containers /tmp/snapshots /tmp/graph;
-				%s
 				mount -t tmpfs tmpfs /tmp/containers
+
+				%s
 
 				./bin/garden-linux \
 					-bin /home/vcap/binpath/bin \
@@ -87,10 +88,11 @@ var _ = Describe("When nested", func() {
 					-overlays /tmp/overlays \
 					-snapshots /tmp/snapshots \
 					-graph /tmp/graph \
+					-tag n \
 					-disableQuotas \
 					-listenNetwork tcp \
-					-listenAddr 0.0.0.0:7778;
-				`, extraMounts),
+					-listenAddr 0.0.0.0:7778
+				`, preStartScript),
 			},
 		}, garden.ProcessIO{
 			Stdout: io.MultiWriter(nestedServerOutput, gexec.NewPrefixedWriter("\x1b[32m[o]\x1b[34m[nested-garden-linux]\x1b[0m ", GinkgoWriter)),
@@ -103,11 +105,22 @@ var _ = Describe("When nested", func() {
 		nestedGardenAddress := fmt.Sprintf("%s:7778", info.ContainerIP)
 		Eventually(nestedServerOutput, "30s").Should(gbytes.Say("garden-linux.started"))
 
+		postProc, err := container.Run(garden.ProcessSpec{
+			Path: "bash",
+			User: "root",
+			Args: []string{"-c", postStartScript},
+		}, garden.ProcessIO{
+			Stdout: GinkgoWriter,
+			Stderr: GinkgoWriter,
+		})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(postProc.Wait()).To(Equal(0))
+
 		return container, nestedGardenAddress
 	}
 
 	It("can start a nested garden-linux and run a container inside it", func() {
-		container, nestedGardenAddress := startNestedGarden(true)
+		container, nestedGardenAddress := startNestedGarden("mount -t tmpfs tmpfs /tmp/overlays", "")
 		defer client.Destroy(container.Handle())
 
 		nestedClient := gclient.New(gconn.New("tcp", nestedGardenAddress))
@@ -128,11 +141,72 @@ var _ = Describe("When nested", func() {
 	})
 
 	It("returns helpful error message when depot directory fstype cannot be nested", func() {
-		container, nestedGardenAddress := startNestedGarden(false)
+		container, nestedGardenAddress := startNestedGarden("", "")
 		defer client.Destroy(container.Handle())
 
 		nestedClient := gclient.New(gconn.New("tcp", nestedGardenAddress))
 		_, err := nestedClient.Create(garden.ContainerSpec{})
 		Expect(err).To(MatchError("overlay.sh: exit status 222, the directories that contain the depot and rootfs must be mounted on a filesystem type that supports aufs or overlayfs"))
+	})
+
+	Context("when cgroup limits are applied to the parent garden process", func() {
+
+		devicesCgroupNode := func() string {
+			contents, err := ioutil.ReadFile("/proc/self/cgroup")
+			Expect(err).ToNot(HaveOccurred())
+			for _, line := range strings.Split(string(contents), "\n") {
+				if strings.Contains(line, "devices:") {
+					lineParts := strings.Split(line, ":")
+					Expect(lineParts).To(HaveLen(3))
+					return lineParts[2]
+				}
+			}
+			Fail("could not find devices cgroup node")
+			return ""
+		}
+
+		It("passes on these limits to the child container", func() {
+			// When this test is run in garden (e.g. in Concourse), we cannot create more permissive device cgroups
+			// than are allowed in the outermost container. So we apply this rule to the outermost container's cgroup
+			cmd := exec.Command(
+				"sh",
+				"-c",
+				fmt.Sprintf("echo 'b 7:200 r' > /tmp/garden-%d/cgroup/devices%s/devices.allow", GinkgoParallelNode(), devicesCgroupNode()),
+			)
+			cmd.Stdout = GinkgoWriter
+			cmd.Stderr = GinkgoWriter
+			Expect(cmd.Run()).To(Succeed())
+
+			gardenInContainer, nestedGardenAddress := startNestedGarden(
+				"mount -t tmpfs tmpfs /tmp/overlays",
+
+				`
+				cgroup_path_segment=$(cat /proc/self/cgroup | grep devices: | cut -d ':' -f 3)
+				echo "b 7:200 r" > /tmp/garden-n/cgroup/devices${cgroup_path_segment}/devices.allow
+				`,
+			)
+			defer client.Destroy(gardenInContainer.Handle())
+
+			nestedClient := gclient.New(gconn.New("tcp", nestedGardenAddress))
+			nestedContainer, err := nestedClient.Create(garden.ContainerSpec{
+				Privileged: true,
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			nestedProcess, err := nestedContainer.Run(garden.ProcessSpec{
+				User: "root",
+				Path: "sh",
+				Args: []string{"-c", `
+				mknod ./foo b 7 200
+				cat foo
+				`},
+			}, garden.ProcessIO{
+				Stdout: GinkgoWriter,
+				Stderr: GinkgoWriter,
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(nestedProcess.Wait()).To(Equal(0))
+		})
 	})
 })

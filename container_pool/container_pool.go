@@ -262,6 +262,9 @@ func (p *LinuxContainerPool) Create(spec garden.ContainerSpec) (c linux_backend.
 		"rootfs-env": rootFSEnv,
 		"create-env": specEnv,
 	})
+	cgroupReader := &cgroups_manager.LinuxCgroupReader{
+		Path: p.sysconfig.CgroupNodeFilePath,
+	}
 	return linux_container.NewLinuxContainer(
 		pLog,
 		id,
@@ -272,7 +275,7 @@ func (p *LinuxContainerPool) Create(spec garden.ContainerSpec) (c linux_backend.
 		resources,
 		p.portPool,
 		p.runner,
-		cgroups_manager.New(p.sysconfig.CgroupPath, id),
+		cgroups_manager.New(p.sysconfig.CgroupPath, id, cgroupReader),
 		p.quotaManager,
 		bandwidth_manager.New(containerPath, id, p.runner),
 		process_tracker.New(containerPath, p.runner),
@@ -323,7 +326,10 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 
 	containerPath := path.Join(p.depotPath, id)
 
-	cgroupsManager := cgroups_manager.New(p.sysconfig.CgroupPath, id)
+	cgroupsReader := &cgroups_manager.LinuxCgroupReader{
+		Path: p.sysconfig.CgroupNodeFilePath,
+	}
+	cgroupsManager := cgroups_manager.New(p.sysconfig.CgroupPath, id, cgroupsReader)
 
 	bandwidthManager := bandwidth_manager.New(containerPath, id, p.runner)
 
