@@ -23,8 +23,8 @@ The rest of these instructions assume you are running inside an Ubuntu environme
 
         sudo mkdir -p /opt/garden/containers
         sudo mkdir -p /opt/garden/snapshots
-        sudo mkdir -p /opt/garden/overlays
         sudo mkdir -p /opt/garden/rootfs
+        sudo mkdir -p /opt/garden/graph
 
 * (Optional) Set up a RootFS
 
@@ -42,8 +42,8 @@ The rest of these instructions assume you are running inside an Ubuntu environme
                -depot=/opt/garden/containers \
                -bin=$PWD/old/linux_backend/bin \
                -rootfs=/opt/garden/rootfs \
+               -graph=/opt/garden/graph \
                -snapshots=/opt/garden/snapshots \
-               -overlays=/opt/garden/overlays \
                -listenNetwork=tcp \
                -listenAddr=127.0.0.1:7777 \
                "$@"

@@ -28,7 +28,7 @@ var _ = Describe("When nested", func() {
 		client = startGarden()
 	})
 
-	startNestedGarden := func(mountOverlayOnTmpfs bool) (garden.Container, string) {
+	startNestedGarden := func() (garden.Container, string) {
 		absoluteBinPath, err := filepath.Abs(binPath)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -63,11 +63,6 @@ var _ = Describe("When nested", func() {
 
 		nestedServerOutput := gbytes.NewBuffer()
 
-		extraMounts := ""
-		if mountOverlayOnTmpfs {
-			extraMounts = "mount -t tmpfs tmpfs /tmp/overlays"
-		}
-
 		// start nested garden, again need to be root
 		_, err = container.Run(garden.ProcessSpec{
 			Path: "sh",
@@ -75,22 +70,20 @@ var _ = Describe("When nested", func() {
 			Dir:  "/home/vcap",
 			Args: []string{
 				"-c",
-				fmt.Sprintf(`
-				mkdir /tmp/overlays /tmp/containers /tmp/snapshots /tmp/graph;
-				%s
+				`
+				mkdir /tmp/containers /tmp/snapshots /tmp/graph;
 				mount -t tmpfs tmpfs /tmp/containers
 
 				./bin/garden-linux \
 					-bin /home/vcap/binpath/bin \
 					-rootfs /home/vcap/rootfs \
 					-depot /tmp/containers \
-					-overlays /tmp/overlays \
 					-snapshots /tmp/snapshots \
 					-graph /tmp/graph \
 					-disableQuotas \
 					-listenNetwork tcp \
 					-listenAddr 0.0.0.0:7778;
-				`, extraMounts),
+				`,
 			},
 		}, garden.ProcessIO{
 			Stdout: io.MultiWriter(nestedServerOutput, gexec.NewPrefixedWriter("\x1b[32m[o]\x1b[34m[nested-garden-linux]\x1b[0m ", GinkgoWriter)),
@@ -107,7 +100,7 @@ var _ = Describe("When nested", func() {
 	}
 
 	It("can start a nested garden-linux and run a container inside it", func() {
-		container, nestedGardenAddress := startNestedGarden(true)
+		container, nestedGardenAddress := startNestedGarden()
 		defer client.Destroy(container.Handle())
 
 		nestedClient := gclient.New(gconn.New("tcp", nestedGardenAddress))
