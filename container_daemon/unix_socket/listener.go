@@ -15,8 +15,7 @@ type ConnectionHandler interface {
 }
 
 type Listener struct {
-	SocketPath string
-	listener   net.Listener
+	listener net.Listener
 }
 
 type Response struct {
@@ -24,16 +23,17 @@ type Response struct {
 	Pid        int
 }
 
-// This method should be called from the host namespace, to open the socket file in the right file system.
-func (l *Listener) Init() error {
+// This function should be called from the host namespace, to open the socket file in the right file system.
+func NewListenerFromPath(socketPath string) (*Listener, error) {
+	l := &Listener{}
 	var err error
 
-	l.listener, err = net.Listen("unix", l.SocketPath)
+	l.listener, err = net.Listen("unix", socketPath)
 	if err != nil {
-		return fmt.Errorf("container_daemon: error creating socket: %v", err)
+		return nil, fmt.Errorf("container_daemon: error creating socket: %v", err)
 	}
 
-	return nil
+	return l, nil
 }
 
 func (l *Listener) Listen(ch ConnectionHandler) error {
@@ -85,4 +85,8 @@ func writeData(conn *net.UnixConn, files []*os.File, pid int, responseErr error)
 	for _, file := range files {
 		file.Close() // Ignore error
 	}
+}
+
+func (l *Listener) Close() error {
+	return l.listener.Close()
 }

@@ -32,31 +32,14 @@ var _ = Describe("Daemon", func() {
 		preparer = new(fake_cmdpreparer.FakeCmdPreparer)
 
 		daemon = container_daemon.ContainerDaemon{
-			Listener:    listener,
 			CmdPreparer: preparer,
 			Spawner:     spawner,
 		}
 	})
 
-	Describe("Init", func() {
-		It("initializes the listener", func() {
-			Expect(daemon.Init()).To(Succeed())
-			Expect(listener.InitCallCount()).To(Equal(1))
-		})
-
-		Context("when initialization fails", func() {
-			It("returns an error", func() {
-				listener.InitReturns(errors.New("Hoy hay"))
-
-				err := daemon.Init()
-				Expect(err).To(MatchError("container_daemon: initializing the listener: Hoy hay"))
-			})
-		})
-	})
-
 	Describe("Run", func() {
 		It("listens for connections", func() {
-			Expect(daemon.Run()).To(Succeed())
+			Expect(daemon.Run(listener)).To(Succeed())
 			Expect(listener.ListenCallCount()).To(Equal(1))
 		})
 
@@ -97,7 +80,7 @@ var _ = Describe("Daemon", func() {
 					return nil
 				}
 
-				daemon.Run()
+				daemon.Run(listener)
 			})
 
 			It("runs the spawner with a prepared command", func() {
@@ -196,7 +179,7 @@ var _ = Describe("Daemon", func() {
 			It("returns an error", func() {
 				listener.ListenReturns(errors.New("Banana foo"))
 
-				err := daemon.Run()
+				err := daemon.Run(listener)
 				Expect(err).To(MatchError("container_daemon: listening for connections: Banana foo"))
 			})
 		})

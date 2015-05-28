@@ -41,33 +41,6 @@ var _ = Describe("Unix socket", func() {
 		connector = &unix_socket.Connector{
 			SocketPath: socketPath,
 		}
-
-		listener = &unix_socket.Listener{
-			SocketPath: socketPath,
-		}
-	})
-
-	Describe("Listener.Init", func() {
-		It("creates a unix socket for the given socket path", func() {
-			err := listener.Init()
-			Expect(err).ToNot(HaveOccurred())
-
-			stat, err := os.Stat(socketPath)
-			Expect(err).ToNot(HaveOccurred())
-
-			Expect(stat.Mode() & os.ModeSocket).ToNot(Equal(0))
-		})
-
-		Context("when the socket cannot be created", func() {
-			BeforeEach(func() {
-				socketPath = "somewhere/that/does/not/exist"
-			})
-
-			It("returns an error", func() {
-				err := listener.Init()
-				Expect(err).To(HaveOccurred())
-			})
-		})
 	})
 
 	Describe("Connect", func() {
@@ -84,7 +57,9 @@ var _ = Describe("Unix socket", func() {
 			var stubDone chan bool
 
 			JustBeforeEach(func() {
-				Expect(listener.Init()).To(Succeed())
+				var err error
+				listener, err = unix_socket.NewListenerFromPath(socketPath)
+				Expect(err).NotTo(HaveOccurred())
 
 				f1r, f1w, err := os.Pipe()
 				Expect(err).ToNot(HaveOccurred())
@@ -97,6 +72,8 @@ var _ = Describe("Unix socket", func() {
 				stubDone = make(chan bool, 1)
 
 				sentFilesCp := []*os.File{f1w, f2r}
+				sentErrorMutex.Lock()
+				defer sentErrorMutex.Unlock()
 				sentErrorCp := sentError
 				sentPidCp := sentPid
 				connectionHandler.HandleStub = func(decoder *json.Decoder) ([]*os.File, int, error) {
@@ -109,6 +86,12 @@ var _ = Describe("Unix socket", func() {
 				}
 
 				go listener.Listen(connectionHandler)
+			})
+
+			AfterEach(func() {
+				if listener != nil {
+					Expect(listener.Close()).To(Succeed())
+				}
 			})
 
 			It("calls the handler with the sent message", func() {
@@ -162,15 +145,6 @@ var _ = Describe("Unix socket", func() {
 					_, _, err := connector.Connect(sentMsg)
 					Expect(err).To(MatchError("no cake"))
 				})
-			})
-		})
-	})
-
-	Describe("Listener.Run", func() {
-		Context("when the listener is not initialized", func() {
-			It("returns an error", func() {
-				err := listener.Listen(connectionHandler)
-				Expect(err).To(MatchError("unix_socket: listener is not initialized"))
 			})
 		})
 	})

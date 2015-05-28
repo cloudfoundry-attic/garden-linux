@@ -80,9 +80,6 @@ func main() {
 	}
 
 	daemon := &container_daemon.ContainerDaemon{
-		Listener: &unix_socket.Listener{
-			SocketPath: *socketPath,
-		},
 		CmdPreparer: &container_daemon.ProcessSpecPreparer{
 			Users:           system.LibContainerUser{},
 			Rlimits:         &container_daemon.RlimitsManager{},
@@ -102,7 +99,13 @@ func main() {
 		Signaller:   sync,
 	}
 
-	err = containerizer.Run()
+	listener, err := unix_socket.NewListenerFromPath(*socketPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "initd: failed to create listener: %s\n", err)
+		os.Exit(5)
+	}
+
+	err = containerizer.Run(listener)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "initd: failed to run containerizer: %s\n", err)
 		os.Exit(2)

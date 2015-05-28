@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 
+	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_listener"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/fake_container_daemon"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/fake_container_execer"
@@ -218,6 +219,7 @@ var _ = Describe("Containerizer", func() {
 		var signaller *fake_signaller.FakeSignaller
 		var waiter *fake_waiter.FakeWaiter
 		var workingDirectory string
+		var listener *fake_listener.FakeListener
 
 		BeforeEach(func() {
 			var err error
@@ -237,6 +239,8 @@ var _ = Describe("Containerizer", func() {
 				Signaller:   signaller,
 				Waiter:      waiter,
 			}
+
+			listener = &fake_listener.FakeListener{}
 		})
 
 		AfterEach(func() {
@@ -244,7 +248,7 @@ var _ = Describe("Containerizer", func() {
 		})
 
 		It("waits for host", func() {
-			Expect(cz.Run()).To(Succeed())
+			Expect(cz.Run(listener)).To(Succeed())
 			Expect(waiter.WaitCallCount()).To(Equal(1))
 		})
 
@@ -254,45 +258,23 @@ var _ = Describe("Containerizer", func() {
 			})
 
 			It("returns an error", func() {
-				Expect(cz.Run()).To(MatchError("containerizer: wait for host: Foo"))
+				Expect(cz.Run(listener)).To(MatchError("containerizer: wait for host: Foo"))
 			})
 
 			It("signals the error to the host", func() {
-				cz.Run()
+				cz.Run(listener)
 				Expect(signaller.SignalErrorCallCount()).To(Equal(1))
 				Expect(signaller.SignalErrorArgsForCall(0)).To(Equal(errors.New("containerizer: wait for host: Foo")))
 			})
 
 			It("don't initialize the container", func() {
-				cz.Run()
+				cz.Run(listener)
 				Expect(initializer.InitCallCount()).To(Equal(0))
 			})
 		})
 
-		It("initializes the daemon", func() {
-			err := cz.Run()
-			Expect(err).ToNot(HaveOccurred())
-			Expect(daemon.InitCallCount()).To(Equal(1))
-		})
-
-		Context("when the daemon initialization fails", func() {
-			BeforeEach(func() {
-				daemon.InitReturns(errors.New("Booo"))
-			})
-
-			It("returns an error", func() {
-				Expect(cz.Run()).To(MatchError("containerizer: initialize daemon: Booo"))
-			})
-
-			It("signals the error to the host", func() {
-				cz.Run()
-				Expect(signaller.SignalErrorCallCount()).To(Equal(1))
-				Expect(signaller.SignalErrorArgsForCall(0)).To(Equal(errors.New("containerizer: initialize daemon: Booo")))
-			})
-		})
-
 		It("initializes the container", func() {
-			Expect(cz.Run()).To(Succeed())
+			Expect(cz.Run(listener)).To(Succeed())
 			Expect(initializer.InitCallCount()).To(Equal(1))
 		})
 
@@ -302,19 +284,19 @@ var _ = Describe("Containerizer", func() {
 			})
 
 			It("returns an error", func() {
-				err := cz.Run()
+				err := cz.Run(listener)
 				Expect(err).To(MatchError("containerizer: initializing the container: Bing"))
 			})
 
 			It("signals the error to the host", func() {
-				cz.Run()
+				cz.Run(listener)
 				Expect(signaller.SignalErrorCallCount()).To(Equal(1))
 				Expect(signaller.SignalErrorArgsForCall(0)).To(Equal(errors.New("containerizer: initializing the container: Bing")))
 			})
 		})
 
 		It("sends signal to host", func() {
-			Expect(cz.Run()).To(Succeed())
+			Expect(cz.Run(listener)).To(Succeed())
 			Expect(signaller.SignalSuccessCallCount()).To(Equal(1))
 		})
 
@@ -324,25 +306,26 @@ var _ = Describe("Containerizer", func() {
 			})
 
 			It("returns an error", func() {
-				Expect(cz.Run()).To(MatchError("containerizer: signal host: Dooo"))
+				Expect(cz.Run(listener)).To(MatchError("containerizer: signal host: Dooo"))
 			})
 
 			It("does not run the daemon", func() {
-				cz.Run()
+				cz.Run(listener)
 				Expect(daemon.RunCallCount()).To(Equal(0))
 			})
 		})
 
 		It("runs the daemon", func() {
-			err := cz.Run()
+			err := cz.Run(listener)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(daemon.RunCallCount()).To(Equal(1))
+			Expect(daemon.RunArgsForCall(0)).To(Equal(listener))
 		})
 
 		Context("when daemon fails to run", func() {
 			It("return an error", func() {
 				daemon.RunReturns(errors.New("Bump"))
-				err := cz.Run()
+				err := cz.Run(listener)
 				Expect(err).To(MatchError("containerizer: run daemon: Bump"))
 			})
 		})
