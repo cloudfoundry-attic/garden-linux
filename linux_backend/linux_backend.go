@@ -50,6 +50,7 @@ type LinuxBackend struct {
 	containerPool ContainerPool
 	systemInfo    system_info.Provider
 	snapshotsPath string
+	maxContainers int
 
 	containerRepo ContainerRepository
 }
@@ -70,12 +71,21 @@ func (e FailedToSnapshotError) Error() string {
 	return fmt.Sprintf("failed to save snapshot: %s", e.OriginalError)
 }
 
+type MaxContainersReachedError struct {
+	MaxContainers int
+}
+
+func (e MaxContainersReachedError) Error() string {
+	return fmt.Sprintf("cannot create more than %d containers", e.MaxContainers)
+}
+
 func New(
 	logger lager.Logger,
 	containerPool ContainerPool,
 	containerRepo ContainerRepository,
 	systemInfo system_info.Provider,
 	snapshotsPath string,
+	maxContainers int,
 ) *LinuxBackend {
 	return &LinuxBackend{
 		logger: logger.Session("backend"),
@@ -83,6 +93,7 @@ func New(
 		containerPool: containerPool,
 		systemInfo:    systemInfo,
 		snapshotsPath: snapshotsPath,
+		maxContainers: maxContainers,
 
 		containerRepo: containerRepo,
 	}
@@ -132,16 +143,30 @@ func (b *LinuxBackend) Capacity() (garden.Capacity, error) {
 		return garden.Capacity{}, err
 	}
 
+	maxContainers := b.containerPool.MaxContainers()
+	if b.maxContainers != -1 && maxContainers > b.maxContainers {
+		maxContainers = b.maxContainers
+	}
+
 	return garden.Capacity{
 		MemoryInBytes: totalMemory,
 		DiskInBytes:   totalDisk,
-		MaxContainers: uint64(b.containerPool.MaxContainers()),
+		MaxContainers: uint64(maxContainers),
 	}, nil
 }
 
 func (b *LinuxBackend) Create(spec garden.ContainerSpec) (garden.Container, error) {
 	if _, err := b.containerRepo.FindByHandle(spec.Handle); spec.Handle != "" && err == nil {
 		return nil, HandleExistsError{Handle: spec.Handle}
+	}
+
+	if b.maxContainers != -1 {
+		containers := b.containerRepo.All()
+		if len(containers) >= b.maxContainers {
+			return nil, MaxContainersReachedError{
+				MaxContainers: b.maxContainers,
+			}
+		}
 	}
 
 	container, err := b.containerPool.Create(spec)

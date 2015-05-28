@@ -701,26 +701,6 @@ func parseNetworkSpec(spec string) (subnets.SubnetSelector, subnets.IPSelector, 
 	return subnetSelector, ipSelector, nil
 }
 
-func oldParseNetwork(spec string) (subnets.IPSelector, subnets.SubnetSelector, error) {
-	var ipSelector subnets.IPSelector = subnets.DynamicIPSelector
-	var subnetSelector subnets.SubnetSelector = subnets.DynamicSubnetSelector
-
-	if spec != "" {
-		specifiedIP, ipn, err := net.ParseCIDR(suffixIfNeeded(spec))
-		if err != nil {
-			return nil, nil, err
-		}
-
-		subnetSelector = subnets.StaticSubnetSelector{ipn}
-
-		if !specifiedIP.Equal(subnets.NetworkIP(ipn)) {
-			ipSelector = subnets.StaticIPSelector{specifiedIP}
-		}
-	}
-
-	return ipSelector, subnetSelector, nil
-}
-
 func suffixIfNeeded(spec string) string {
 	if !strings.Contains(spec, "/") {
 		spec = spec + "/30"
