@@ -32,7 +32,7 @@ var _ = Describe("When nested", func() {
 		client = startGarden()
 	})
 
-	startNestedGarden := func(preStartScript, postStartScript string) (garden.Container, string) {
+	startNestedGarden := func() (garden.Container, string) {
 		absoluteBinPath, err := filepath.Abs(binPath)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -76,23 +76,20 @@ var _ = Describe("When nested", func() {
 				"-c",
 				fmt.Sprintf(`
 				set -e
-				mkdir /tmp/overlays /tmp/containers /tmp/snapshots /tmp/graph;
+				mkdir /tmp/containers /tmp/snapshots /tmp/graph;
 				mount -t tmpfs tmpfs /tmp/containers
-
-				%s
 
 				./bin/garden-linux \
 					-bin /home/vcap/binpath/bin \
 					-rootfs /home/vcap/rootfs \
 					-depot /tmp/containers \
-					-overlays /tmp/overlays \
 					-snapshots /tmp/snapshots \
 					-graph /tmp/graph \
 					-tag n \
 					-disableQuotas \
 					-listenNetwork tcp \
 					-listenAddr 0.0.0.0:7778
-				`, preStartScript),
+				`),
 			},
 		}, garden.ProcessIO{
 			Stdout: io.MultiWriter(nestedServerOutput, gexec.NewPrefixedWriter("\x1b[32m[o]\x1b[34m[nested-garden-linux]\x1b[0m ", GinkgoWriter)),
@@ -105,22 +102,11 @@ var _ = Describe("When nested", func() {
 		nestedGardenAddress := fmt.Sprintf("%s:7778", info.ContainerIP)
 		Eventually(nestedServerOutput, "30s").Should(gbytes.Say("garden-linux.started"))
 
-		postProc, err := container.Run(garden.ProcessSpec{
-			Path: "bash",
-			User: "root",
-			Args: []string{"-c", postStartScript},
-		}, garden.ProcessIO{
-			Stdout: GinkgoWriter,
-			Stderr: GinkgoWriter,
-		})
-		Expect(err).ToNot(HaveOccurred())
-		Expect(postProc.Wait()).To(Equal(0))
-
 		return container, nestedGardenAddress
 	}
 
 	It("can start a nested garden-linux and run a container inside it", func() {
-		container, nestedGardenAddress := startNestedGarden("mount -t tmpfs tmpfs /tmp/overlays", "")
+		container, nestedGardenAddress := startNestedGarden()
 		defer client.Destroy(container.Handle())
 
 		nestedClient := gclient.New(gconn.New("tcp", nestedGardenAddress))
@@ -168,15 +154,23 @@ var _ = Describe("When nested", func() {
 			cmd.Stderr = GinkgoWriter
 			Expect(cmd.Run()).To(Succeed())
 
-			gardenInContainer, nestedGardenAddress := startNestedGarden(
-				"mount -t tmpfs tmpfs /tmp/overlays",
+			gardenInContainer, nestedGardenAddress := startNestedGarden()
+			defer client.Destroy(gardenInContainer.Handle())
 
-				`
+			postProc, err := gardenInContainer.Run(garden.ProcessSpec{
+				Path: "bash",
+				User: "root",
+				Args: []string{"-c",
+					`
 				cgroup_path_segment=$(cat /proc/self/cgroup | grep devices: | cut -d ':' -f 3)
 				echo "b 7:200 r" > /tmp/garden-n/cgroup/devices${cgroup_path_segment}/devices.allow
-				`,
-			)
-			defer client.Destroy(gardenInContainer.Handle())
+				`},
+			}, garden.ProcessIO{
+				Stdout: GinkgoWriter,
+				Stderr: GinkgoWriter,
+			})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(postProc.Wait()).To(Equal(0))
 
 			nestedClient := gclient.New(gconn.New("tcp", nestedGardenAddress))
 			nestedContainer, err := nestedClient.Create(garden.ContainerSpec{

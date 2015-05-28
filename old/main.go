@@ -78,12 +78,6 @@ var depotPath = flag.String(
 	"directory in which to store containers",
 )
 
-var overlaysPath = flag.String(
-	"overlays",
-	"",
-	"directory in which to store containers mount points",
-)
-
 var rootFSPath = flag.String(
 	"rootfs",
 	"",
@@ -220,10 +214,6 @@ func Main() {
 
 	if *depotPath == "" {
 		missing("-depot")
-	}
-
-	if *overlaysPath == "" {
-		missing("-overlays")
 	}
 
 	if len(*tag) > 2 {
