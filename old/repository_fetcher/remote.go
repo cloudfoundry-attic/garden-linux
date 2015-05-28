@@ -81,7 +81,7 @@ type dockerLayer struct {
 	vols []string
 }
 
-func New(registry RegistryProvider, graph Graph) RepositoryFetcher {
+func NewRemote(registry RegistryProvider, graph Graph) RepositoryFetcher {
 	return &DockerRepositoryFetcher{
 		registryProvider: registry,
 		graph:            graph,

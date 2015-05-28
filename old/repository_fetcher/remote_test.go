@@ -64,7 +64,7 @@ var _ = Describe("RepositoryFetcher", func() {
 		fakeRegistryProvider = new(fakes.FakeRegistryProvider)
 		fakeRegistryProvider.ApplyDefaultHostnameReturns("some-repo")
 		fakeRegistryProvider.ProvideRegistryReturns(registry, nil)
-		fetcher = New(fakeRegistryProvider, graph)
+		fetcher = NewRemote(fakeRegistryProvider, graph)
 
 		logger = lagertest.NewTestLogger("test")
 	})

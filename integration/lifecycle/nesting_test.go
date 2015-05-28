@@ -126,13 +126,4 @@ var _ = Describe("When nested", func() {
 
 		Eventually(nestedOutput, "30s").Should(gbytes.Say("I am nested!"))
 	})
-
-	It("returns helpful error message when depot directory fstype cannot be nested", func() {
-		container, nestedGardenAddress := startNestedGarden(false)
-		defer client.Destroy(container.Handle())
-
-		nestedClient := gclient.New(gconn.New("tcp", nestedGardenAddress))
-		_, err := nestedClient.Create(garden.ContainerSpec{})
-		Expect(err).To(MatchError("overlay.sh: exit status 222, the directories that contain the depot and rootfs must be mounted on a filesystem type that supports aufs or overlayfs"))
-	})
 })
