@@ -277,7 +277,7 @@ func Main() {
 	}
 
 	repoFetcher := repository_fetcher.Retryable{
-		repository_fetcher.New(
+		repository_fetcher.NewRemote(
 			repository_fetcher.NewRepositoryProvider(
 				*dockerRegistry,
 				strings.Split(*insecureRegistries, ","),
@@ -306,8 +306,17 @@ func Main() {
 		logger.Fatal("failed-to-construct-docker-rootfs-provider", err)
 	}
 
+	wardenRootFSProvider, err := rootfs_provider.NewDocker(&repository_fetcher.Local{
+		Graph:             graph,
+		DefaultRootFSPath: *rootFSPath,
+		IDer:              repository_fetcher.MD5ID{},
+	}, graphDriver, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, copier, clock.NewClock())
+	if err != nil {
+		logger.Fatal("failed-to-construct-warden-rootfs-provider", err)
+	}
+
 	rootFSProviders := map[string]rootfs_provider.RootFSProvider{
-		"":       rootfs_provider.NewOverlay(*binPath, *overlaysPath, *rootFSPath, runner),
+		"":       wardenRootFSProvider,
 		"docker": dockerRootFSProvider,
 	}
 
