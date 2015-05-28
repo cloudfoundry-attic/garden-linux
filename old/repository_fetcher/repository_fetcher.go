@@ -1,6 +1,7 @@
 package repository_fetcher
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -19,6 +20,8 @@ import (
 type RepositoryFetcher interface {
 	Fetch(logger lager.Logger, url *url.URL, tag string) (imageID string, envvars process.Env, volumes []string, err error)
 }
+
+var ErrInvalidDockerURL = errors.New("invalid docker url")
 
 // apes dockers registry.NewEndpoint
 var RegistryNewEndpoint = registry.NewEndpoint
@@ -102,6 +105,10 @@ func (fetcher *DockerRepositoryFetcher) Fetch(
 	})
 
 	fLog.Debug("fetching")
+
+	if len(repoURL.Path) == 0 {
+		return "", nil, nil, ErrInvalidDockerURL
+	}
 
 	path := repoURL.Path[1:]
 	hostname := fetcher.registryProvider.ApplyDefaultHostname(repoURL.Host)

@@ -1,7 +1,6 @@
 package rootfs_provider
 
 import (
-	"errors"
 	"net/url"
 	"os"
 	"os/exec"
@@ -27,8 +26,6 @@ type dockerRootFSProvider struct {
 
 	fallback RootFSProvider
 }
-
-var ErrInvalidDockerURL = errors.New("invalid docker url")
 
 //go:generate counterfeiter -o fake_graph_driver/fake_graph_driver.go . GraphDriver
 type GraphDriver interface {
@@ -60,10 +57,6 @@ func NewDocker(
 }
 
 func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id string, url *url.URL, shouldNamespace bool) (string, process.Env, error) {
-	if len(url.Path) == 0 {
-		return "", nil, ErrInvalidDockerURL
-	}
-
 	tag := "latest"
 	if len(url.Fragment) > 0 {
 		tag = url.Fragment

@@ -149,6 +149,13 @@ var _ = Describe("RepositoryFetcher", func() {
 			)
 		})
 
+		Context("when the path is empty", func() {
+			It("returns an error", func() {
+				_, _, _, err := fetcher.Fetch(logger, &url.URL{Path: ""}, "some-tag")
+				Expect(err).To(Equal(ErrInvalidDockerURL))
+			})
+		})
+
 		Describe("connecting to the correct registry", func() {
 			BeforeEach(func() {
 				setupSuccessfulFetch(endpoint1)
