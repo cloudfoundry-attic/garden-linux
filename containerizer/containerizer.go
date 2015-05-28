@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
 	"github.com/cloudfoundry/gunk/command_runner"
 )
 
@@ -36,8 +37,7 @@ type ContainerInitializer interface {
 
 //go:generate counterfeiter -o fake_container_daemon/FakeContainerDaemon.go . ContainerDaemon
 type ContainerDaemon interface {
-	Init() error
-	Run() error
+	Run(listener container_daemon.Listener) error
 }
 
 //go:generate counterfeiter -o fake_signaller/FakeSignaller.go . Signaller
@@ -111,11 +111,7 @@ func (c *Containerizer) Create() error {
 	return nil
 }
 
-func (c *Containerizer) Run() error {
-	if err := c.Daemon.Init(); err != nil {
-		return c.signalErrorf("containerizer: initialize daemon: %s", err)
-	}
-
+func (c *Containerizer) Run(listener container_daemon.Listener) error {
 	if err := c.Waiter.Wait(timeout); err != nil {
 		return c.signalErrorf("containerizer: wait for host: %s", err)
 	}
@@ -128,7 +124,7 @@ func (c *Containerizer) Run() error {
 		return c.signalErrorf("containerizer: signal host: %s", err)
 	}
 
-	if err := c.Daemon.Run(); err != nil {
+	if err := c.Daemon.Run(listener); err != nil {
 		return c.signalErrorf("containerizer: run daemon: %s", err)
 	}
 

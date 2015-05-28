@@ -4,54 +4,29 @@ package fake_container_daemon
 import (
 	"sync"
 
+	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer"
 )
 
 type FakeContainerDaemon struct {
-	InitStub        func() error
-	initMutex       sync.RWMutex
-	initArgsForCall []struct{}
-	initReturns     struct {
-		result1 error
-	}
-	RunStub        func() error
+	RunStub        func(listener container_daemon.Listener) error
 	runMutex       sync.RWMutex
-	runArgsForCall []struct{}
-	runReturns     struct {
+	runArgsForCall []struct {
+		listener container_daemon.Listener
+	}
+	runReturns struct {
 		result1 error
 	}
 }
 
-func (fake *FakeContainerDaemon) Init() error {
-	fake.initMutex.Lock()
-	fake.initArgsForCall = append(fake.initArgsForCall, struct{}{})
-	fake.initMutex.Unlock()
-	if fake.InitStub != nil {
-		return fake.InitStub()
-	} else {
-		return fake.initReturns.result1
-	}
-}
-
-func (fake *FakeContainerDaemon) InitCallCount() int {
-	fake.initMutex.RLock()
-	defer fake.initMutex.RUnlock()
-	return len(fake.initArgsForCall)
-}
-
-func (fake *FakeContainerDaemon) InitReturns(result1 error) {
-	fake.InitStub = nil
-	fake.initReturns = struct {
-		result1 error
-	}{result1}
-}
-
-func (fake *FakeContainerDaemon) Run() error {
+func (fake *FakeContainerDaemon) Run(listener container_daemon.Listener) error {
 	fake.runMutex.Lock()
-	fake.runArgsForCall = append(fake.runArgsForCall, struct{}{})
+	fake.runArgsForCall = append(fake.runArgsForCall, struct {
+		listener container_daemon.Listener
+	}{listener})
 	fake.runMutex.Unlock()
 	if fake.RunStub != nil {
-		return fake.RunStub()
+		return fake.RunStub(listener)
 	} else {
 		return fake.runReturns.result1
 	}
@@ -61,6 +36,12 @@ func (fake *FakeContainerDaemon) RunCallCount() int {
 	fake.runMutex.RLock()
 	defer fake.runMutex.RUnlock()
 	return len(fake.runArgsForCall)
+}
+
+func (fake *FakeContainerDaemon) RunArgsForCall(i int) container_daemon.Listener {
+	fake.runMutex.RLock()
+	defer fake.runMutex.RUnlock()
+	return fake.runArgsForCall[i].listener
 }
 
 func (fake *FakeContainerDaemon) RunReturns(result1 error) {

@@ -89,7 +89,6 @@ func server(socketPath string) {
 	reaper := system.StartReaper(log)
 
 	daemon := &container_daemon.ContainerDaemon{
-		Listener: &unix_socket.Listener{SocketPath: socketPath},
 		CmdPreparer: &container_daemon.ProcessSpecPreparer{
 			Users: golangUser{},
 		},
@@ -99,8 +98,12 @@ func server(socketPath string) {
 		},
 	}
 
-	daemon.Init()
-	go daemon.Run()
+	listener, err := unix_socket.NewListenerFromPath(socketPath)
+	if err != nil {
+		panic(err)
+	}
+
+	go daemon.Run(listener)
 }
 
 type krPty int
