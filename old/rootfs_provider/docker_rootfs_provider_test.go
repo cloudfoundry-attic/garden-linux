@@ -258,18 +258,6 @@ var _ = Describe("DockerRootFSProvider", func() {
 			})
 		})
 
-		Context("when the url is missing a path", func() {
-			It("returns an error", func() {
-				_, _, err := provider.ProvideRootFS(
-					logger,
-					"some-id",
-					parseURL("docker://"),
-					false,
-				)
-				Expect(err).To(Equal(ErrInvalidDockerURL))
-			})
-		})
-
 		Context("and a tag is specified via a fragment", func() {
 			It("uses it when fetching the repository", func() {
 				_, _, err := provider.ProvideRootFS(
