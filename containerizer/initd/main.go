@@ -94,22 +94,33 @@ func main() {
 	containerizer := containerizer.Containerizer{
 		RootfsPath:  *rootFsPath,
 		Initializer: initializer,
-		Daemon:      daemon,
 		Waiter:      sync,
 		Signaller:   sync,
 	}
 
 	listener, err := unix_socket.NewListenerFromPath(*socketPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "initd: failed to create listener: %s\n", err)
-		os.Exit(5)
+		fail(fmt.Sprintf("initd: failed to create listener: %s\n", err), 5)
 	}
 
-	err = containerizer.Run(listener)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "initd: failed to run containerizer: %s\n", err)
-		os.Exit(2)
+	if err := containerizer.Init(); err != nil {
+		fail(fmt.Sprintf("failed to init containerizer: %s", err), 2)
 	}
+
+	//=========================== exec
+
+	if err := sync.SignalSuccess(); err != nil {
+		fail(fmt.Sprintf("signal host: %s", err), 6)
+	}
+
+	if err := daemon.Run(listener); err != nil {
+		fail(fmt.Sprintf("run daemon: %s", err), 7)
+	}
+}
+
+func fail(err string, code int) {
+	fmt.Fprintf(os.Stderr, "initd: %s\n", err)
+	os.Exit(code)
 }
 
 func missing(flagName string) {
