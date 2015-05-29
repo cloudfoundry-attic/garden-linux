@@ -641,7 +641,7 @@ var _ = Describe("Creating a container", func() {
 			It("avoids a race condition when sending a kill signal", func(done Done) {
 				stdout := gbytes.NewBuffer()
 
-				for i := 0; i < 200; i++ {
+				for i := 0; i < 100; i++ {
 					process, err := container.Run(garden.ProcessSpec{
 						User: "vcap",
 						Path: "sh",
@@ -656,7 +656,7 @@ var _ = Describe("Creating a container", func() {
 					Expect(process.Wait()).To(Equal(255))
 				}
 				close(done)
-			}, 30.0)
+			}, 40.0)
 
 			It("collects the process's full output, even if it exits quickly after", func() {
 				for i := 0; i < 100; i++ {
