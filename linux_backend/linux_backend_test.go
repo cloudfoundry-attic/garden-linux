@@ -37,7 +37,7 @@ var _ = Describe("LinuxBackend", func() {
 		fakeSystemInfo = fake_system_info.NewFakeProvider()
 
 		snapshotsPath = ""
-		maxContainers = -1
+		maxContainers = 0
 	})
 
 	JustBeforeEach(func() {

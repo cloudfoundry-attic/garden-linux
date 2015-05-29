@@ -188,9 +188,9 @@ var externalIP = flag.String(
 	"",
 	"IP address to use to reach container's mapped ports")
 
-var maxContainers = flag.Int(
+var maxContainers = flag.Uint(
 	"maxContainers",
-	-1,
+	0,
 	"Maximum number of containers that can be created")
 
 func Main() {
@@ -353,7 +353,7 @@ func Main() {
 
 	systemInfo := system_info.NewProvider(*depotPath)
 
-	backend := linux_backend.New(logger, pool, container_repository.New(), systemInfo, *snapshotsPath, *maxContainers)
+	backend := linux_backend.New(logger, pool, container_repository.New(), systemInfo, *snapshotsPath, int(*maxContainers))
 
 	err = backend.Setup()
 	if err != nil {

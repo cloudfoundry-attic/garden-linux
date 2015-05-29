@@ -144,7 +144,7 @@ func (b *LinuxBackend) Capacity() (garden.Capacity, error) {
 	}
 
 	maxContainers := b.containerPool.MaxContainers()
-	if b.maxContainers != -1 && maxContainers > b.maxContainers {
+	if b.maxContainers > 0 && maxContainers > b.maxContainers {
 		maxContainers = b.maxContainers
 	}
 
@@ -160,7 +160,7 @@ func (b *LinuxBackend) Create(spec garden.ContainerSpec) (garden.Container, erro
 		return nil, HandleExistsError{Handle: spec.Handle}
 	}
 
-	if b.maxContainers != -1 {
+	if b.maxContainers > 0 {
 		containers := b.containerRepo.All()
 		if len(containers) >= b.maxContainers {
 			return nil, MaxContainersReachedError{
