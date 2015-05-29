@@ -13,7 +13,6 @@ import (
 	"syscall"
 
 	"github.com/cloudfoundry/gunk/command_runner"
-	"github.com/cloudfoundry/gunk/localip"
 	"github.com/docker/docker/daemon/graphdriver"
 	_ "github.com/docker/docker/daemon/graphdriver/aufs"
 	_ "github.com/docker/docker/daemon/graphdriver/vfs"
@@ -21,6 +20,7 @@ import (
 	"github.com/docker/docker/registry"
 	"github.com/pivotal-golang/clock"
 	"github.com/pivotal-golang/lager"
+	"github.com/pivotal-golang/localip"
 
 	"github.com/cloudfoundry-incubator/cf-debug-server"
 	"github.com/cloudfoundry-incubator/cf-lager"

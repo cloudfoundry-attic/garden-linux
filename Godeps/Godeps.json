@@ -82,10 +82,6 @@
 			"Rev": "de79b69f590594db2b9771018784c55251d5e7e7"
 		},
 		{
-			"ImportPath": "github.com/cloudfoundry/gunk/localip",
-			"Rev": "de79b69f590594db2b9771018784c55251d5e7e7"
-		},
-		{
 			"ImportPath": "github.com/docker/docker/api",
 			"Comment": "v1.3.0-597-gc8926bb",
 			"Rev": "c8926bb5792ebea6e7b16935fa7fce577446574a"
@@ -277,6 +273,10 @@
 		{
 			"ImportPath": "github.com/pivotal-golang/lager",
 			"Rev": "09a71f6eb2dcc1c2335e37ceb78a91c6f618d561"
+		},
+		{
+			"ImportPath": "github.com/pivotal-golang/localip",
+			"Rev": "c773e5fa43049a431973996f93afa7ee10312139"
 		},
 		{
 			"ImportPath": "github.com/tchap/go-patricia/patricia",

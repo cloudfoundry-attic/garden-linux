@@ -9,10 +9,10 @@ import (
 	"strings"
 
 	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry/gunk/localip"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
+	"github.com/pivotal-golang/localip"
 )
 
 var _ = Describe("IP settings", func() {
