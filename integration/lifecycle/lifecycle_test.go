@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -289,6 +290,40 @@ var _ = Describe("Creating a container", func() {
 
 			Expect(outBuf).To(gbytes.Say("tmpfs /dev/shm tmpfs"))
 			Expect(outBuf).To(gbytes.Say("rw,nodev,relatime"))
+		})
+
+		Context("when the rootfs is a symlink", func() {
+			var symlinkDir string
+
+			BeforeEach(func() {
+				symlinkDir, err := ioutil.TempDir("", "test-symlink")
+				Expect(err).ToNot(HaveOccurred())
+
+				rootfs = path.Join(symlinkDir, "rootfs")
+
+				err = os.Symlink(rootFSPath, rootfs)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			AfterEach(func() {
+				os.RemoveAll(symlinkDir)
+			})
+
+			It("follows the symlink", func() {
+				stdout := gbytes.NewBuffer()
+
+				process, err := container.Run(garden.ProcessSpec{
+					User: "vcap",
+					Path: "ls",
+					Args: []string{"/"},
+				}, garden.ProcessIO{
+					Stdout: stdout,
+				})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(process.Wait()).To(BeZero())
+
+				Expect(stdout).To(gbytes.Say("bin"))
+			})
 		})
 
 		Context("and sending a List request", func() {

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"os"
 	"sync"
 
 	"github.com/cloudfoundry-incubator/garden-linux/process"
@@ -57,13 +58,24 @@ func (l *Local) fetch(path string) (string, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	fileInfo, err := os.Lstat(path)
+	if err != nil {
+		return "", fmt.Errorf("repository_fetcher: stat file: %s", err)
+	}
+
+	if (fileInfo.Mode() & os.ModeSymlink) == os.ModeSymlink {
+		if path, err = os.Readlink(path); err != nil {
+			return "", fmt.Errorf("repository_fetcher: read link: %s", err)
+		}
+	}
+
 	tar, err := archive.Tar(path, archive.Uncompressed)
 	if err != nil {
-		return "", fmt.Errorf("fetch local rootfs: %s", err)
+		return "", fmt.Errorf("repository_fetcher: fetch local rootfs: %s", err)
 	}
 
 	if err := l.Graph.Register(&image.Image{ID: id}, tar); err != nil {
-		return "", fmt.Errorf("fetch local rootfs: %v", err)
+		return "", fmt.Errorf("repository_fetcher: fetch local rootfs: %v", err)
 	}
 
 	return id, nil

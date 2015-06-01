@@ -79,6 +79,18 @@ var _ = Describe("Local", func() {
 	})
 
 	Context("when the image does not already exist", func() {
+		var tmpDir string
+
+		BeforeEach(func() {
+			var err error
+			tmpDir, err = ioutil.TempDir("", "tmp-dir")
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		AfterEach(func() {
+			os.RemoveAll(tmpDir)
+		})
+
 		It("registers the image in the graph", func() {
 			var registeredImage *image.Image
 			fakeGraph.WhenRegistering = func(image *image.Image, layer archive.ArchiveReader) error {
@@ -86,11 +98,34 @@ var _ = Describe("Local", func() {
 				return nil
 			}
 
-			_, _, _, err := fetcher.Fetch(logger, &url.URL{Path: "foo/bar/baz"}, "")
+			dirPath := path.Join(tmpDir, "foo/bar/baz")
+			err := os.MkdirAll(dirPath, 0700)
+			Expect(err).NotTo(HaveOccurred())
+
+			_, _, _, err = fetcher.Fetch(logger, &url.URL{Path: dirPath}, "")
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(registeredImage).NotTo(BeNil())
-			Expect(registeredImage.ID).To(Equal("foo_bar_baz"))
+			Expect(registeredImage.ID).To(HaveSuffix("foo_bar_baz"))
+		})
+
+		It("returns a wrapped error if registering fails", func() {
+			fakeGraph.WhenRegistering = func(image *image.Image, layer archive.ArchiveReader) error {
+				return errors.New("sold out")
+			}
+
+			_, _, _, err := fetcher.Fetch(logger, &url.URL{Path: tmpDir}, "")
+			Expect(err).To(MatchError("repository_fetcher: fetch local rootfs: sold out"))
+		})
+
+		It("returns the image id", func() {
+			dirPath := path.Join(tmpDir, "foo/bar/baz")
+			err := os.MkdirAll(dirPath, 0700)
+			Expect(err).NotTo(HaveOccurred())
+
+			id, _, _, err := fetcher.Fetch(logger, &url.URL{Path: dirPath}, "")
+			Expect(err).NotTo(HaveOccurred())
+			Expect(id).To(HaveSuffix("foo_bar_baz"))
 		})
 
 		It("registers the image with the correct layer data", func() {
@@ -116,19 +151,40 @@ var _ = Describe("Local", func() {
 			Expect(path.Join(tmp, "a", "test", "file")).To(BeAnExistingFile())
 		})
 
-		It("returns a wrapped error if registering fails", func() {
-			fakeGraph.WhenRegistering = func(image *image.Image, layer archive.ArchiveReader) error {
-				return errors.New("sold out")
-			}
+		Context("when the path is a symlink", func() {
+			It("registers the image with the correct layer data", func() {
+				var registeredLayer archive.ArchiveReader
+				fakeGraph.WhenRegistering = func(image *image.Image, layer archive.ArchiveReader) error {
+					registeredLayer = layer
+					return nil
+				}
 
-			_, _, _, err := fetcher.Fetch(logger, &url.URL{Path: "foo/bar/baz"}, "")
-			Expect(err).To(MatchError("fetch local rootfs: sold out"))
-		})
+				tmp, err := ioutil.TempDir("", "")
+				Expect(err).NotTo(HaveOccurred())
+				defer os.RemoveAll(tmp)
 
-		It("returns the image id", func() {
-			id, _, _, err := fetcher.Fetch(logger, &url.URL{Path: "foo/bar/baz"}, "")
-			Expect(err).NotTo(HaveOccurred())
-			Expect(id).To(Equal("foo_bar_baz"))
+				tmp2, err := ioutil.TempDir("", "")
+				Expect(err).NotTo(HaveOccurred())
+				defer os.RemoveAll(tmp2)
+
+				symlinkDir := path.Join(tmp2, "rootfs")
+				err = os.Symlink(tmp, symlinkDir)
+				Expect(err).NotTo(HaveOccurred())
+
+				Expect(os.MkdirAll(path.Join(tmp, "a", "test"), 0700)).To(Succeed())
+				Expect(ioutil.WriteFile(path.Join(tmp, "a", "test", "file"), []byte(""), 0700)).To(Succeed())
+
+				_, _, _, err = fetcher.Fetch(logger, &url.URL{Path: symlinkDir}, "")
+				Expect(err).NotTo(HaveOccurred())
+
+				tmp, err = ioutil.TempDir("", "")
+				Expect(err).NotTo(HaveOccurred())
+				defer os.RemoveAll(tmp2)
+
+				Expect(archive.Untar(registeredLayer, tmp, nil)).To(Succeed())
+				Expect(path.Join(tmp, "a", "test", "file")).To(BeAnExistingFile())
+
+			})
 		})
 	})
 })
