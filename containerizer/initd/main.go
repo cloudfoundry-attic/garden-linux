@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/cloudfoundry-incubator/cf-lager"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
@@ -43,6 +44,10 @@ func main() {
 	sync := &containerizer.PipeSynchronizer{
 		Reader: os.NewFile(uintptr(3), "/dev/a"),
 		Writer: os.NewFile(uintptr(4), "/dev/d"),
+	}
+
+	if err := sync.Wait(time.Second * 3); err != nil {
+		fail(fmt.Sprintf("initd: wait for host: %s", err), 8)
 	}
 
 	env, err := process.EnvFromFile(*configFilePath)
