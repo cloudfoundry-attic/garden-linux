@@ -22,7 +22,7 @@ chmod 777 ./run
 
 if [ "$root_uid" -eq 0 ]
 then
-  ./bin/wshd --run ./run --lib ./lib --root $rootfs_path --title "wshd: $id" --userns disabled
+  ./bin/wshd --run /tmp/garden-host${PWD}/run --lib ./lib --root $rootfs_path --title "wshd: $id" --userns disabled
 else
-  ./bin/wshd --run ./run --lib ./lib --root $rootfs_path --title "wshd: $id" --userns enabled
+  ./bin/wshd --run /tmp/garden-host${PWD}/run --lib ./lib --root $rootfs_path --title "wshd: $id" --userns enabled
 fi
