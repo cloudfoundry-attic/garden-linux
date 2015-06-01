@@ -47,11 +47,9 @@ func (l *Local) Fetch(
 func (l *Local) fetch(path string) (string, error) {
 	id := l.IDer.ID(path)
 
-	l.mu.RLock()
-	if l.Graph.Exists(id) {
+	if l.isCached(id) {
 		return id, nil // use cache
 	}
-	l.mu.RUnlock()
 
 	// synchronize all downloads, we could optimize by only mutexing around each
 	// particular rootfs path, but in practice importing local rootfses is decently fast,
@@ -69,6 +67,13 @@ func (l *Local) fetch(path string) (string, error) {
 	}
 
 	return id, nil
+}
+
+func (l *Local) isCached(id string) bool {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+
+	return l.Graph.Exists(id)
 }
 
 type MD5ID struct{}
