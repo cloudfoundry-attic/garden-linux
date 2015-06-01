@@ -239,32 +239,6 @@ var _ = Describe("Containerizer", func() {
 			Expect(os.Chdir(workingDirectory)).To(Succeed())
 		})
 
-		It("waits for host", func() {
-			Expect(cz.Init()).To(Succeed())
-			Expect(waiter.WaitCallCount()).To(Equal(1))
-		})
-
-		Context("when the waiter fails", func() {
-			BeforeEach(func() {
-				waiter.WaitReturns(errors.New("Foo"))
-			})
-
-			It("returns an error", func() {
-				Expect(cz.Init()).To(MatchError("containerizer: wait for host: Foo"))
-			})
-
-			It("signals the error to the host", func() {
-				cz.Init()
-				Expect(signaller.SignalErrorCallCount()).To(Equal(1))
-				Expect(signaller.SignalErrorArgsForCall(0)).To(Equal(errors.New("containerizer: wait for host: Foo")))
-			})
-
-			It("don't initialize the container", func() {
-				cz.Init()
-				Expect(initializer.InitCallCount()).To(Equal(0))
-			})
-		})
-
 		It("initializes the container", func() {
 			Expect(cz.Init()).To(Succeed())
 			Expect(initializer.InitCallCount()).To(Equal(1))

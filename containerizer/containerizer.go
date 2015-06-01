@@ -105,10 +105,6 @@ func (c *Containerizer) Create() error {
 }
 
 func (c *Containerizer) Init() error {
-	if err := c.Waiter.Wait(timeout); err != nil {
-		return c.signalErrorf("containerizer: wait for host: %s", err)
-	}
-
 	if err := c.Initializer.Init(); err != nil {
 		return c.signalErrorf("containerizer: initializing the container: %s", err)
 	}
