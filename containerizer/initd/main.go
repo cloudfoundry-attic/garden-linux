@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"syscall"
+	"time"
 
 	"github.com/cloudfoundry-incubator/cf-lager"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
@@ -105,6 +106,11 @@ func main() {
 		os.Exit(5)
 	}
 
+	if err := sync.Wait(10 * time.Second); err != nil {
+		signalErrorf(sync, "initd: wait for host: %s", err)
+		os.Exit(7)
+	}
+
 	err = containerizer.Run(listener)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "initd: failed to run containerizer: %s\n", err)
@@ -122,6 +128,15 @@ func missing(flagName string) {
 	fmt.Fprintf(os.Stderr, "initd: %s is required\n", flagName)
 	flag.Usage()
 	os.Exit(1)
+}
+
+func signalErrorf(signaller *containerizer.PipeSynchronizer, format string, err error) error {
+	err = fmt.Errorf(format, err)
+
+	if signalErr := signaller.SignalError(err); signalErr != nil {
+		err = fmt.Errorf("initd: signal error: %s (while signalling %s)", signalErr, err)
+	}
+	return err
 }
 
 func setupNetwork(env process.Env) error {
