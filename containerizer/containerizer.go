@@ -13,7 +13,7 @@ import (
 	"github.com/cloudfoundry/gunk/command_runner"
 )
 
-var timeout = time.Second * 3
+var timeout = time.Second * 10
 
 //go:generate counterfeiter -o fake_rlimits_initializer/FakeRlimitsInitializer.go . RlimitsInitializer
 type RlimitsInitializer interface {
@@ -94,6 +94,8 @@ func (c *Containerizer) Create() error {
 		return fmt.Errorf("containerizer: run `parent-after-clone`: %s", err)
 	}
 
+	time.Sleep(3 * time.Second) // allow initd to settle before pivoting
+
 	pivotter := exec.Command(filepath.Join(c.LibPath, "pivotter"), "-rootfs", c.RootfsPath)
 	pivotter.Env = append(pivotter.Env, fmt.Sprintf("TARGET_NS_PID=%d", pid))
 	if err := c.CommandRunner.Run(pivotter); err != nil {
@@ -122,10 +124,6 @@ func (c *Containerizer) Run(listener container_daemon.Listener) error {
 
 	if err := c.Signaller.SignalSuccess(); err != nil {
 		return c.signalErrorf("containerizer: signal host: %s", err)
-	}
-
-	if err := c.Daemon.Run(listener); err != nil {
-		return c.signalErrorf("containerizer: run daemon: %s", err)
 	}
 
 	return nil
