@@ -98,7 +98,7 @@ var containerGraceTime = flag.Duration(
 
 var portPoolStart = flag.Uint(
 	"portPoolStart",
-	61001,
+	60000,
 	"start of ephemeral port range used for mapped container ports",
 )
 
@@ -227,7 +227,10 @@ func Main() {
 	subnetPool, _ := subnets.NewSubnets(dynamicRange)
 
 	// TODO: use /proc/sys/net/ipv4/ip_local_port_range by default (end + 1)
-	portPool := port_pool.New(uint32(*portPoolStart), uint32(*portPoolSize))
+	portPool, err := port_pool.New(uint32(*portPoolStart), uint32(*portPoolSize))
+	if err != nil {
+		logger.Fatal("invalid pool range", err)
+	}
 
 	useKernelLogging := true
 	switch *iptablesLogMethod {

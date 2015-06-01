@@ -27,7 +27,11 @@ func (e PortTakenError) Error() string {
 	return fmt.Sprintf("port already acquired: %d", e.Port)
 }
 
-func New(start, size uint32) *PortPool {
+func New(start, size uint32) (*PortPool, error) {
+	if start+size > 65535 {
+		return nil, fmt.Errorf("port_pool: New: invalid port range: startL %d, size: %d", start, size)
+	}
+
 	pool := []uint32{}
 
 	for i := start; i < start+size; i++ {
@@ -39,7 +43,7 @@ func New(start, size uint32) *PortPool {
 		size:  size,
 
 		pool: pool,
-	}
+	}, nil
 }
 
 func (p *PortPool) Acquire() (uint32, error) {

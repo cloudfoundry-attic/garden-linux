@@ -3,6 +3,7 @@ package lifecycle_test
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
 	. "github.com/onsi/ginkgo"
@@ -30,6 +31,21 @@ var _ = Describe("Garden startup flags", func() {
 		It("does not expose the log level adjustment endpoint", func() {
 			_, err := http.Get(fmt.Sprintf("http://%s/log-level -X PUT -d debug", debugAddr))
 			Expect(err).To(HaveOccurred())
+		})
+	})
+
+	Context("when the configured port range exceeds the linux maxiumum", func() {
+		BeforeEach(func() {
+			startGarden("--portPoolStart", "60000", "--portPoolSize", "10000")
+		})
+
+		It("will fail server initializaion", func() {
+			select {
+			case err := <-gardenProcess.Wait():
+				Expect(err).To(HaveOccurred())
+			case <-time.After(time.Second * 5):
+				Fail("timeout waiting for server to die")
+			}
 		})
 	})
 
