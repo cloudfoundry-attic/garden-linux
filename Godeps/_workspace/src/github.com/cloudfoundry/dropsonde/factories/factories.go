@@ -1,15 +1,16 @@
 package factories
 
 import (
-	"code.google.com/p/gogoprotobuf/proto"
 	"encoding/binary"
 	"fmt"
-	"github.com/cloudfoundry/dropsonde/control"
-	"github.com/cloudfoundry/dropsonde/events"
-	uuid "github.com/nu7hatch/gouuid"
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/cloudfoundry/dropsonde/control"
+	"github.com/cloudfoundry/dropsonde/events"
+	"github.com/gogo/protobuf/proto"
+	uuid "github.com/nu7hatch/gouuid"
 )
 
 func NewUUID(id *uuid.UUID) *events.UUID {
@@ -83,4 +84,14 @@ func NewLogMessage(messageType events.LogMessage_MessageType, messageString, app
 	}
 
 	return logMessage
+}
+
+func NewContainerMetric(applicationId string, instanceIndex int32, cpuPercentage float64, memoryBytes uint64, diskBytes uint64) *events.ContainerMetric {
+	return &events.ContainerMetric{
+		ApplicationId: &applicationId,
+		InstanceIndex: &instanceIndex,
+		CpuPercentage: &cpuPercentage,
+		MemoryBytes:   &memoryBytes,
+		DiskBytes:     &diskBytes,
+	}
 }

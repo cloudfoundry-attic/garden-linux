@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/awslabs/aws-sdk-go/aws/awserr"
 	"github.com/awslabs/aws-sdk-go/internal/endpoints"
 )
 
@@ -132,12 +133,33 @@ func retryRules(r *Request) time.Duration {
 	return delay * time.Millisecond
 }
 
-// Collection of service response codes which are generically
-// retryable for all services.
+// retryableCodes is a collection of service response codes which are retry-able
+// without any further action.
 var retryableCodes = map[string]struct{}{
-	"ExpiredTokenException":                  struct{}{},
 	"ProvisionedThroughputExceededException": struct{}{},
 	"Throttling":                             struct{}{},
+}
+
+// credsExpiredCodes is a collection of error codes which signify the credentials
+// need to be refreshed. Expired tokens require refreshing of credentials, and
+// resigning before the request can be retried.
+var credsExpiredCodes = map[string]struct{}{
+	"ExpiredToken":          struct{}{},
+	"ExpiredTokenException": struct{}{},
+	"RequestExpired":        struct{}{}, // EC2 Only
+}
+
+func isCodeRetryable(code string) bool {
+	if _, ok := retryableCodes[code]; ok {
+		return true
+	}
+
+	return isCodeExpiredCreds(code)
+}
+
+func isCodeExpiredCreds(code string) bool {
+	_, ok := credsExpiredCodes[code]
+	return ok
 }
 
 // shouldRetry returns if the request should be retried.
@@ -145,9 +167,9 @@ func shouldRetry(r *Request) bool {
 	if r.HTTPResponse.StatusCode >= 500 {
 		return true
 	}
-	if err := Error(r.Error); err != nil {
-		if _, ok := retryableCodes[err.Code]; ok {
-			return true
+	if r.Error != nil {
+		if err, ok := r.Error.(awserr.Error); ok {
+			return isCodeRetryable(err.Code())
 		}
 	}
 	return false

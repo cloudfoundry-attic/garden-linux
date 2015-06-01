@@ -4,7 +4,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	"github.com/cloudfoundry/gunk/test_server"
+	"github.com/onsi/gomega/ghttp"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/tedsuo/rata"
@@ -162,10 +163,10 @@ var _ = Describe("Router", func() {
 		Context("when all the handlers are present", func() {
 			var resp *httptest.ResponseRecorder
 			var handlers = rata.Handlers{
-				"getter":  test_server.Respond(http.StatusOK, "get response"),
-				"poster":  test_server.Respond(http.StatusOK, "post response"),
-				"putter":  test_server.Respond(http.StatusOK, "put response"),
-				"deleter": test_server.Respond(http.StatusOK, "delete response"),
+				"getter":  ghttp.RespondWith(http.StatusOK, "get response"),
+				"poster":  ghttp.RespondWith(http.StatusOK, "post response"),
+				"putter":  ghttp.RespondWith(http.StatusOK, "put response"),
+				"deleter": ghttp.RespondWith(http.StatusOK, "delete response"),
 			}
 			BeforeEach(func() {
 				resp = httptest.NewRecorder()
@@ -204,7 +205,7 @@ var _ = Describe("Router", func() {
 
 		Context("when a handler is missing", func() {
 			var incompleteHandlers = rata.Handlers{
-				"getter": test_server.Respond(http.StatusOK, "get response"),
+				"getter": ghttp.RespondWith(http.StatusOK, "get response"),
 			}
 			It("should error", func() {
 				r, err = rata.NewRouter(routes, incompleteHandlers)
@@ -220,11 +221,65 @@ var _ = Describe("Router", func() {
 
 			It("should error", func() {
 				handlers := rata.Handlers{
-					"smeller": test_server.Respond(http.StatusOK, "smelt response"),
+					"smeller": ghttp.RespondWith(http.StatusOK, "smell response"),
 				}
 				r, err = rata.NewRouter(invalidRoutes, handlers)
 
 				Ω(err).Should(HaveOccurred())
+			})
+		})
+	})
+
+	Describe("parsing params", func() {
+		// this is basically done for us by PAT we simply want to verify some assumptions in these tests
+		Context("when all the handlers are present", func() {
+			var resp *httptest.ResponseRecorder
+			var handlers = rata.Handlers{
+				"getter": http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+					w.Write([]byte(rata.Param(req, "neato")))
+				}),
+			}
+
+			Context("when a named path param is provided", func() {
+				var r http.Handler
+				var err error
+				var routes = rata.Routes{
+					{Path: "/something/:neato", Method: "GET", Name: "getter"},
+				}
+
+				BeforeEach(func() {
+					resp = httptest.NewRecorder()
+					r, err = rata.NewRouter(routes, handlers)
+					Ω(err).ShouldNot(HaveOccurred())
+				})
+
+				It("the path param is returned", func() {
+					req, _ := http.NewRequest("GET", "/something/the-param-value", nil)
+
+					r.ServeHTTP(resp, req)
+					Ω(resp.Body.String()).Should(Equal("the-param-value"))
+				})
+			})
+
+			Context("when a query param is provided that conflicts with a named path param", func() {
+				var r http.Handler
+				var err error
+				var routes = rata.Routes{
+					{Path: "/something/:neato", Method: "GET", Name: "getter"},
+				}
+
+				BeforeEach(func() {
+					resp = httptest.NewRecorder()
+					r, err = rata.NewRouter(routes, handlers)
+					Ω(err).ShouldNot(HaveOccurred())
+				})
+
+				It("the path param takes precedence", func() {
+					req, _ := http.NewRequest("GET", "/something/the-param-value?:neato=the-query-value", nil)
+
+					r.ServeHTTP(resp, req)
+					Ω(resp.Body.String()).Should(Equal("the-param-value"))
+				})
 			})
 		})
 	})
