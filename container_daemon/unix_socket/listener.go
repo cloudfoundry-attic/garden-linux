@@ -30,7 +30,19 @@ func NewListenerFromPath(socketPath string) (*Listener, error) {
 
 	l.listener, err = net.Listen("unix", socketPath)
 	if err != nil {
-		return nil, fmt.Errorf("container_daemon: error creating socket: %v", err)
+		return nil, fmt.Errorf("unix_socket: error creating socket: %v", err)
+	}
+
+	return l, nil
+}
+
+func NewListenerFromFd(fd uintptr) (*Listener, error) {
+	l := &Listener{}
+
+	var err error
+	l.listener, err = net.FileListener(os.NewFile(fd, "/dev/host.sock"))
+	if err != nil {
+		return nil, fmt.Errorf("unix_socket: error creating listener: %v", err)
 	}
 
 	return l, nil
@@ -85,6 +97,14 @@ func writeData(conn *net.UnixConn, files []*os.File, pid int, responseErr error)
 	for _, file := range files {
 		file.Close() // Ignore error
 	}
+}
+
+func (l *Listener) File() (*os.File, error) {
+	unixListener, ok := l.listener.(*net.UnixListener)
+	if !ok {
+		return nil, fmt.Errorf("unix_socket: incorrect listener type: %v", l.listener)
+	}
+	return unixListener.File()
 }
 
 func (l *Listener) Close() error {
