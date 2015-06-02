@@ -21,6 +21,7 @@ import (
 func main() {
 	libPath := flag.String("lib", "./lib", "Directory containing hooks")
 	rootFsPath := flag.String("root", "", "Directory that will become root in the new mount namespace")
+	runPath := flag.String("run", "./run", "Directory where server socket is placed")
 	userNsFlag := flag.String("userns", "enabled", "If specified, use user namespacing")
 	flag.String("title", "", "") // todo: potentially remove this if unused
 	flag.Parse()
@@ -35,7 +36,7 @@ func main() {
 		os.Exit(6)
 	}
 
-	socketPath := path.Join(*rootFsPath, "run", "wshd.sock")
+	socketPath := path.Join(*runPath, "wshd.sock")
 
 	privileged := false
 	if *userNsFlag == "" || *userNsFlag == "disabled" {
@@ -89,7 +90,6 @@ func main() {
 		Rlimits:     &container_daemon.RlimitsManager{},
 		InitBinPath: path.Join(binPath, "initd"),
 		InitArgs: []string{
-			"--socket", socketPath,
 			"--root", *rootFsPath,
 			"--config", path.Join(*libPath, "../etc/config"),
 		},

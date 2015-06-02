@@ -26,7 +26,6 @@ func main() {
 		}
 	}()
 
-	socketPath := flag.String("socket", "", "Path for the socket file")
 	rootFsPath := flag.String("root", "", "Path for the root file system directory")
 	configFilePath := flag.String("config", "./etc/config", "Path for the configuration file")
 	cf_lager.AddFlags(flag.CommandLine)
@@ -34,9 +33,6 @@ func main() {
 
 	logger, _ := cf_lager.New("init")
 
-	if *socketPath == "" {
-		missing("--socket")
-	}
 	if *rootFsPath == "" {
 		missing("--root")
 	}
