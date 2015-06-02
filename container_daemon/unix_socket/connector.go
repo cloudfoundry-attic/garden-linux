@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"os"
 	"syscall"
@@ -48,6 +49,8 @@ func readData(conn net.Conn) ([]Fd, int, error) {
 	if err != nil {
 		return nil, 0, fmt.Errorf("unix_socket: failed to read unix msg: %s (read: %d, %d)", err, n, oobn)
 	}
+	logFile, _ := ioutil.TempFile("/tmp", "connector.log")
+	fmt.Fprintf(logFile, "ReadMsgUnix returned %d, %d\n", n, oobn)
 
 	if n > 0 {
 		err := json.Unmarshal(b[:n], &response)

@@ -18,6 +18,9 @@ import (
 )
 
 func main() {
+	//	logFile, _ := ioutil.TempFile("/tmp", "initd.log")
+	//	os.Stderr = logFile
+	//
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Fprintf(os.Stderr, "initd: panicked: %s\n", r)
@@ -66,9 +69,9 @@ func main() {
 				Flags: syscall.MS_NOSUID | syscall.MS_NODEV | syscall.MS_NOEXEC,
 				Path:  "/proc",
 			}.Mount},
-			&step{system.Unmount{
-				Dir: "/tmp/garden-host",
-			}.Unmount},
+			//			&step{system.Unmount{
+			//				Dir: "/tmp/garden-host",
+			//			}.Unmount},
 			&step{func() error {
 				return setupNetwork(env)
 			}},

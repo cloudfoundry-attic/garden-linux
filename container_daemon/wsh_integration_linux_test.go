@@ -70,6 +70,19 @@ var _ = Describe("wsh and daemon integration", func() {
 		Expect(string(op)).To(Equal("hello\n"))
 	})
 
+	It("should successfully run a program multiple times", func() {
+		for i := 0; i < 2; i++ {
+			wshCmd := exec.Command(wshBin,
+				"--socket", socketPath,
+				"--user", "root",
+				"echo", "hello")
+
+			op, err := wshCmd.CombinedOutput()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(string(op)).To(Equal("hello\n"))
+		}
+	})
+
 	It("should avoid a race condition when sending a kill signal", func(done Done) {
 		for i := 0; i < 200; i++ {
 			pidfilePath := path.Join(tempDir, "cmd.pid")

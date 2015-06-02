@@ -156,7 +156,11 @@ var _ = Describe("A container", func() {
 
 				FIt("is successfully created with correct privileges for root in container", func() {
 					Expect(containerCreateErr).ToNot(HaveOccurred())
-					time.Sleep(60 * time.Second)
+					//time.Sleep(60 * time.Second)
+					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, true)
+					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, true)
+					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, true)
+					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, true)
 					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, true)
 				})
 			})
@@ -310,6 +314,8 @@ func createContainerTestFileIn(container garden.Container, dir string) string {
 }
 
 func checkFileAccess(container garden.Container, bindMountMode garden.BindMountMode, bindMountOrigin garden.BindMountOrigin, dstPath string, fileName string, privCtr, privReq bool) {
+	//	time.Sleep(10 * time.Second)
+
 	readOnly := (garden.BindMountModeRO == bindMountMode)
 	ctrOrigin := (garden.BindMountOriginContainer == bindMountOrigin)
 	realRoot := (privReq && privCtr)
@@ -331,7 +337,37 @@ func checkFileAccess(container garden.Container, bindMountMode garden.BindMountM
 	}, garden.ProcessIO{})
 	Expect(err).ToNot(HaveOccurred())
 
-	Expect(process.Wait()).To(Equal(0))
+	exitStatus, err := process.Wait()
+	Expect(err).ToNot(HaveOccurred())
+	fmt.Printf("Run 1 complete, exit status code %d\n", exitStatus)
+
+	process, err = container.Run(garden.ProcessSpec{
+		Path: "cat",
+		Args: []string{filePath},
+		User: user,
+	}, garden.ProcessIO{})
+	Expect(err).ToNot(HaveOccurred())
+
+	exitStatus, err = process.Wait()
+	Expect(err).ToNot(HaveOccurred())
+	fmt.Printf("Run 2 complete, exit status code %d\n", exitStatus)
+
+	process, err = container.Run(garden.ProcessSpec{
+		Path: "cat",
+		Args: []string{filePath},
+		User: user,
+	}, garden.ProcessIO{})
+	Expect(err).ToNot(HaveOccurred())
+
+	exitStatus, err = process.Wait()
+	Expect(err).ToNot(HaveOccurred())
+	fmt.Printf("Run 3 complete, exit status code %d\n", exitStatus)
+
+	return
+
+	//	Expect(process.Wait()).To(Equal(0))
+
+	//	time.Sleep(10 * time.Second)
 
 	// try to write a new file
 	filePath = filepath.Join(dstPath, "checkFileAccess-file")
@@ -346,11 +382,17 @@ func checkFileAccess(container garden.Container, bindMountMode garden.BindMountM
 	if readOnly || (!realRoot && !ctrOrigin) {
 		Expect(process.Wait()).ToNot(Equal(0))
 	} else {
-		Expect(process.Wait()).To(Equal(0))
+		//		Expect(process.Wait()).To(Equal(0))
+		exitStatus, err := process.Wait()
+		Expect(err).ToNot(HaveOccurred())
+		fmt.Printf("Run 2 complete, exit status code %d\n", exitStatus)
+
 	}
 
+	//	time.Sleep(10 * time.Second)
+
 	// try to delete an existing file
-	filePath = filepath.Join(dstPath, fileName)
+	//filePath = filepath.Join(dstPath, fileName)
 
 	process, err = container.Run(garden.ProcessSpec{
 		Path: "rm",
@@ -361,6 +403,9 @@ func checkFileAccess(container garden.Container, bindMountMode garden.BindMountM
 	if readOnly || (!realRoot && !ctrOrigin) {
 		Expect(process.Wait()).ToNot(Equal(0))
 	} else {
-		Expect(process.Wait()).To(Equal(0))
+		//Expect(process.Wait()).To(Equal(0))
+		exitStatus, err := process.Wait()
+		Expect(err).ToNot(HaveOccurred())
+		fmt.Printf("Run 3 complete, exit status code %d\n", exitStatus)
 	}
 }

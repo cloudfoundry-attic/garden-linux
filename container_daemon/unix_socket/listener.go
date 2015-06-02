@@ -41,9 +41,9 @@ func (l *Listener) Listen(ch ConnectionHandler) error {
 		return errors.New("unix_socket: listener is not initialized")
 	}
 
-	var conn net.Conn
-	var err error
 	for {
+		var conn net.Conn
+		var err error
 		conn, err = l.listener.Accept()
 		if err != nil {
 			return fmt.Errorf("container_daemon: Failure while accepting: %v", err)
