@@ -110,6 +110,11 @@ func main() {
 		fmt.Fprintf(os.Stderr, "initd: failed to run containerizer: %s\n", err)
 		os.Exit(2)
 	}
+
+	if err := daemon.Run(listener); err != nil {
+		fmt.Fprintf(os.Stderr, "initd: failed to run daemon: %s\n", err)
+		os.Exit(2)
+	}
 }
 
 func missing(flagName string) {

@@ -126,10 +126,6 @@ func (c *Containerizer) Run(listener container_daemon.Listener) error {
 		return c.signalErrorf("containerizer: signal host: %s", err)
 	}
 
-	if err := c.Daemon.Run(listener); err != nil {
-		return c.signalErrorf("containerizer: run daemon: %s", err)
-	}
-
 	return nil
 }
 

@@ -48,6 +48,8 @@ func (l *Listener) Listen(ch ConnectionHandler) error {
 		if err != nil {
 			return fmt.Errorf("container_daemon: Failure while accepting: %v", err)
 		}
+		//doNothing()
+		//checkFd(conn, "After Accept")
 
 		go func(conn *net.UnixConn, ch ConnectionHandler) {
 			defer conn.Close() // Ignore error
@@ -59,6 +61,9 @@ func (l *Listener) Listen(ch ConnectionHandler) error {
 		}(conn.(*net.UnixConn), ch)
 	}
 }
+
+//func doNothing() {
+//}
 
 func writeData(conn *net.UnixConn, files []*os.File, pid int, responseErr error) {
 	var errMsg string = ""
@@ -78,6 +83,7 @@ func writeData(conn *net.UnixConn, files []*os.File, pid int, responseErr error)
 	}
 	resp := syscall.UnixRights(args...)
 
+	//checkFd(conn, "Before write")
 	conn.WriteMsgUnix(responseJson, resp, nil) // Ignore error
 
 	// Close the files whose descriptors have been sent to the host to ensure that
@@ -90,3 +96,23 @@ func writeData(conn *net.UnixConn, files []*os.File, pid int, responseErr error)
 func (l *Listener) Close() error {
 	return l.listener.Close()
 }
+
+//func checkFd(conn net.Conn, msg string) {
+//	return
+//	unixConn, ok := conn.(*net.UnixConn)
+//	if !ok {
+//		fmt.Fprintln(os.Stderr, "Wrong connection type")
+//		return
+//	}
+//	connFile, err := unixConn.File()
+//	if err != nil {
+//		fmt.Fprintf(os.Stderr, "unixConn.File failed: %s\n", err)
+//		return
+//	}
+//	fileInfo, err := connFile.Stat()
+//	if err != nil {
+//		fmt.Fprintf(os.Stderr, "os.Stat failed: %s\n", err)
+//		return
+//	}
+//	fmt.Fprintf(os.Stderr, "%s: connection stat: %#v\n", msg, fileInfo.Sys())
+//}
