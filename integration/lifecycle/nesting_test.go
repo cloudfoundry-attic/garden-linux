@@ -135,4 +135,29 @@ var _ = Describe("When nested", func() {
 		_, err := nestedClient.Create(garden.ContainerSpec{})
 		Expect(err).To(MatchError("overlay.sh: exit status 222, the directories that contain the depot and rootfs must be mounted on a filesystem type that supports aufs or overlayfs"))
 	})
+
+	FContext("when running more than one commands in the container", func() {
+		It("succeeds", func() {
+			container, nestedGardenAddress:= startNestedGarden(true)
+			defer client.Destroy(container.Handle())
+
+			nestedClient := gclient.New(gconn.New("tcp", nestedGardenAddress))
+			nestedContainer, err := nestedClient.Create(garden.ContainerSpec{
+				Privileged: true,
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			for i := 0; i < 10; i++ {
+				proc, err := nestedContainer.Run(garden.ProcessSpec{
+					User: "root",
+					Path: "/bin/echo",
+					Args: []string{
+						"I am nested!",
+					},
+				}, garden.ProcessIO{})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(proc.Wait()).To(Equal(0))
+			}
+		})
+	})
 })
