@@ -183,7 +183,7 @@ var _ = Describe("When nested", func() {
 				Path: "sh",
 				Args: []string{"-c", `
 				mknod ./foo b 7 200
-				cat foo
+				cat foo > /dev/null
 				`},
 			}, garden.ProcessIO{
 				Stdout: GinkgoWriter,

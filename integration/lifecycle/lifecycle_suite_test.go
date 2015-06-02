@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"os/exec"
 	"syscall"
 	"testing"
 
@@ -93,21 +92,4 @@ func containerIP(ctr garden.Container) string {
 	info, err := ctr.Info()
 	Expect(err).ToNot(HaveOccurred())
 	return info.ContainerIP
-}
-
-func dumpIP() {
-	cmd := exec.Command("ip", "a")
-	op, err := cmd.CombinedOutput()
-	Expect(err).ToNot(HaveOccurred())
-	fmt.Println("IP status:\n", string(op))
-
-	cmd = exec.Command("iptables", "--list")
-	op, err = cmd.CombinedOutput()
-	Expect(err).ToNot(HaveOccurred())
-	fmt.Println("IP tables chains:\n", string(op))
-
-	cmd = exec.Command("iptables", "--list-rules")
-	op, err = cmd.CombinedOutput()
-	Expect(err).ToNot(HaveOccurred())
-	fmt.Println("IP tables rules:\n", string(op))
 }
