@@ -154,7 +154,7 @@ var _ = Describe("A container", func() {
 					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, false)
 				})
 
-				It("is successfully created with correct privileges for root in container", func() {
+				FIt("is successfully created with correct privileges for root in container", func() {
 					Expect(containerCreateErr).ToNot(HaveOccurred())
 					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, true)
 				})
@@ -327,7 +327,7 @@ func checkFileAccess(container garden.Container, bindMountMode garden.BindMountM
 		Path: "cat",
 		Args: []string{filePath},
 		User: user,
-	}, garden.ProcessIO{})
+	}, garden.ProcessIO{Stderr: GinkgoWriter})
 	Expect(err).ToNot(HaveOccurred())
 
 	Expect(process.Wait()).To(Equal(0))
@@ -339,7 +339,7 @@ func checkFileAccess(container garden.Container, bindMountMode garden.BindMountM
 		Path: "touch",
 		Args: []string{filePath},
 		User: user,
-	}, garden.ProcessIO{})
+	}, garden.ProcessIO{Stderr: GinkgoWriter})
 	Expect(err).ToNot(HaveOccurred())
 
 	if readOnly || (!realRoot && !ctrOrigin) {
@@ -355,7 +355,7 @@ func checkFileAccess(container garden.Container, bindMountMode garden.BindMountM
 		Path: "rm",
 		Args: []string{filePath},
 		User: user,
-	}, garden.ProcessIO{})
+	}, garden.ProcessIO{Stderr: GinkgoWriter})
 	Expect(err).ToNot(HaveOccurred())
 	if readOnly || (!realRoot && !ctrOrigin) {
 		Expect(process.Wait()).ToNot(Equal(0))
