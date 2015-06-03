@@ -1,15 +1,15 @@
-// +build USE_GSH_GSHD
+// +build !USE_GSH_GSHD
 
 package linux_backend
 
 import (
 	"encoding/json"
+	"fmt"
 	"net"
+	"os"
 	"os/exec"
 	"strconv"
-
-	"fmt"
-	"os"
+	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden-linux/hook"
 	"github.com/cloudfoundry-incubator/garden-linux/network"
@@ -20,7 +20,36 @@ type Config struct {
 	Network json.RawMessage `json:"network"`
 }
 
+//go:generate counterfeiter . ContainerInitializer
+type ContainerInitializer interface {
+	MountProc() error
+	MountTmp() error
+}
+
+type containerInitializer struct{}
+
+func NewContainerInitializer() ContainerInitializer {
+	return &containerInitializer{}
+}
+
+// Pre-condition: /proc must exist.
+func (*containerInitializer) MountProc() error {
+	if err := syscall.Mount("proc", "/proc", "proc", uintptr(0), ""); err != nil {
+		return fmt.Errorf("linux_backend: MountProc: %s", err)
+	}
+	return nil
+}
+
+func (*containerInitializer) MountTmp() error {
+	if err := syscall.Mount("tmpfs", "/dev/shm", "tmpfs", uintptr(syscall.MS_NODEV), ""); err != nil {
+		return fmt.Errorf("linux_backend: MountTmp: %s", err)
+	}
+	return nil
+}
+
 func RegisterHooks(hs hook.HookSet, runner Runner, config process.Env, configurer network.Configurer) {
+	containerInitializer := NewContainerInitializer()
+
 	hs.Register(hook.PARENT_BEFORE_CLONE, func() {
 		must(runner.Run(exec.Command("./hook-parent-before-clone.sh")))
 	})
@@ -28,6 +57,18 @@ func RegisterHooks(hs hook.HookSet, runner Runner, config process.Env, configure
 	hs.Register(hook.PARENT_AFTER_CLONE, func() {
 		must(runner.Run(exec.Command("./hook-parent-after-clone.sh")))
 		must(configureHostNetwork(config, configurer))
+	})
+
+	hs.Register(hook.CHILD_AFTER_PIVOT, func() {
+		must(configureContainerNetwork(config, configurer))
+
+		must(containerInitializer.MountProc())
+		must(containerInitializer.MountTmp())
+
+		// Temporary until /etc/seed functionality removed
+		if _, err := os.Stat("/etc/seed"); err == nil {
+			must(exec.Command("/bin/sh", "-c", ". /etc/seed").Run())
+		}
 	})
 }
 
@@ -42,11 +83,10 @@ func configureHostNetwork(config process.Env, configurer network.Configurer) err
 		return err
 	}
 
-	// Temporary until PID is passed in as a parameter.
-	var containerPid int
-	_, err = fmt.Sscanf(os.Getenv("PID"), "%d", &containerPid)
+	// Temporary until PID is passed in from Go rewrite of wshd.
+	containerPid, _ := pidFromFile("../run/wshd.pid")
 	if err != nil {
-		return fmt.Errorf("linux_backend: can't parse PID string from ENV: %v", err)
+		return err
 	}
 
 	err = configurer.ConfigureHost(&network.HostConfig{
