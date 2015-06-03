@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"time"
+	"io"
 )
 
 const (
@@ -28,7 +28,7 @@ func (err PipeSynchronizerError) Error() string {
 }
 
 type PipeSynchronizer struct {
-	Reader *os.File
+	Reader io.Reader
 	Writer io.Writer
 }
 
@@ -36,12 +36,10 @@ func (ps *PipeSynchronizer) Wait(timeout time.Duration) error {
 	signalQueue := make(chan Signal)
 	errorQueue := make(chan error)
 
-	go func(readerFd uintptr, signalQueue chan Signal, errorQueue chan error) {
+	go func(reader io.Reader, signalQueue chan Signal, errorQueue chan error) {
 		var signal Signal
 
-		file := os.NewFile(readerFd, "/dev/synchronizer-reader")
-
-		decoder := json.NewDecoder(file)
+		decoder := json.NewDecoder(reader)
 		err := decoder.Decode(&signal)
 
 		if err != nil {
@@ -49,8 +47,7 @@ func (ps *PipeSynchronizer) Wait(timeout time.Duration) error {
 		} else {
 			signalQueue <- signal
 		}
-
-	}(ps.Reader.Fd(), signalQueue, errorQueue)
+	}(ps.Reader, signalQueue, errorQueue)
 
 	select {
 	case signal := <-signalQueue:
@@ -95,9 +92,6 @@ func (ps *PipeSynchronizer) SignalError(err error) error {
 	}
 
 	return ps.sendSignal(signal)
-}
-
-func (ps *PipeSynchronizer) startReader() {
 }
 
 func (ps *PipeSynchronizer) sendSignal(signal Signal) error {

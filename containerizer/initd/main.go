@@ -40,9 +40,11 @@ func main() {
 		missing("--root")
 	}
 
+	syncReader := os.NewFile(uintptr(3), "/dev/a")
+	syncWriter := os.NewFile(uintptr(4), "/dev/d")
 	sync := &containerizer.PipeSynchronizer{
-		Reader: os.NewFile(uintptr(3), "/dev/a"),
-		Writer: os.NewFile(uintptr(4), "/dev/d"),
+		Reader: syncReader,
+		Writer: syncWriter,
 	}
 
 	env, err := process.EnvFromFile(*configFilePath)
@@ -107,6 +109,9 @@ func main() {
 		fmt.Fprintf(os.Stderr, "initd: failed to run containerizer: %s\n", err)
 		os.Exit(2)
 	}
+
+	syncReader.Close()
+	syncWriter.Close()
 
 	if err := daemon.Run(); err != nil {
 		fmt.Fprintf(os.Stderr, "initd: run daemon: %s\n", err)
