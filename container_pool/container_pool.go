@@ -418,6 +418,7 @@ func (p *LinuxContainerPool) writeBindMounts(containerPath string,
 	rootfsPath string,
 	bindMounts []garden.BindMount) error {
 	hook := path.Join(containerPath, "lib", "hook-parent-before-clone.sh")
+	unhook := path.Join(containerPath, "unbindmount.sh")
 
 	for _, bm := range bindMounts {
 		dstMount := path.Join(rootfsPath, bm.DstPath)
@@ -452,6 +453,12 @@ func (p *LinuxContainerPool) writeBindMounts(containerPath string,
 
 		remount := exec.Command("bash", "-c", "echo mount -n --bind -o remount,"+mode+" "+srcPath+" "+dstMount+" >> "+hook)
 		err = p.runner.Run(remount)
+		if err != nil {
+			return err
+		}
+
+		unmount := exec.Command("bash", "-c", "echo umount "+dstMount+" >> "+unhook)
+		err = p.runner.Run(unmount)
 		if err != nil {
 			return err
 		}

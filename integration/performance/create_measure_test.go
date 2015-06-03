@@ -25,7 +25,7 @@ var _ = Describe("Concurrent container creation", func() {
 		runtime.GOMAXPROCS(runtime.NumCPU())
 	})
 
-	Measure("multiple concurrent creates", func(b Benchmarker) {
+	PMeasure("multiple concurrent creates", func(b Benchmarker) {
 		if os.Getenv("GARDEN_PERFORMANCE") == "" {
 			log.Println("GARDEN_PERFORMANCE undefined; skipping")
 			return

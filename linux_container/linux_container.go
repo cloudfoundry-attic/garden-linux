@@ -351,6 +351,7 @@ func (c *LinuxContainer) Restore(snapshot ContainerSnapshot) error {
 			Runner:        c.runner,
 			ContainerPath: c.path,
 			PidFilePath:   pidfile,
+			Logger:        c.logger,
 		}
 
 		c.processTracker.Restore(process.ID, signaller)

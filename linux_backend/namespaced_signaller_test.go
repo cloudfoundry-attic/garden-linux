@@ -7,6 +7,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/pivotal-golang/lager/lagertest"
 
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
@@ -26,6 +27,7 @@ var _ = Describe("Namespaced Signaller", func() {
 			Runner:        fakeRunner,
 			ContainerPath: "/fish/finger",
 			PidFilePath:   pidFile,
+			Logger:        lagertest.NewTestLogger("test"),
 		}
 
 		Expect(ioutil.WriteFile(pidFile, []byte(" 12345\n"), 0755)).To(Succeed())
@@ -47,6 +49,7 @@ var _ = Describe("Namespaced Signaller", func() {
 			Runner:        fakeRunner,
 			ContainerPath: "/fish/finger",
 			PidFilePath:   "/does/not/exist",
+			Logger:        lagertest.NewTestLogger("test"),
 		}
 
 		Expect(signaller.Signal(os.Kill)).To(MatchError("linux_backend: can't open PID file: open /does/not/exist: no such file or directory"))
@@ -64,6 +67,7 @@ var _ = Describe("Namespaced Signaller", func() {
 			Runner:        fakeRunner,
 			ContainerPath: "/fish/finger",
 			PidFilePath:   pidFile,
+			Logger:        lagertest.NewTestLogger("test"),
 		}
 
 		Expect(ioutil.WriteFile(pidFile, []byte(""), 0755)).To(Succeed())
@@ -83,6 +87,7 @@ var _ = Describe("Namespaced Signaller", func() {
 			Runner:        fakeRunner,
 			ContainerPath: "/fish/finger",
 			PidFilePath:   pidFile,
+			Logger:        lagertest.NewTestLogger("test"),
 		}
 
 		Expect(ioutil.WriteFile(pidFile, []byte("not-a-pid\n"), 0755)).To(Succeed())

@@ -40,7 +40,6 @@ func New(network, addr string, bin, binPath, rootFSPath, graphPath string, argv 
 		os.TempDir(),
 		fmt.Sprintf("test-garden-%d", ginkgo.GinkgoParallelNode()),
 	)
-
 	if graphPath == "" {
 		graphPath = filepath.Join(tmpDir, "graph")
 	}
@@ -126,6 +125,7 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 		Cleanup: func() {
 			if signal == syscall.SIGQUIT {
 				logger.Info("cleanup-tempdirs")
+				//MustUnmountTmpfs(overlaysPath)
 				if err := os.RemoveAll(r.tmpdir); err != nil {
 					logger.Error("cleanup-tempdirs-failed", err, lager.Data{"tmpdir": r.tmpdir})
 				} else {

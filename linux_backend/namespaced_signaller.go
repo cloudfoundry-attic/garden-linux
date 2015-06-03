@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/cloudfoundry/gunk/command_runner"
+	"github.com/pivotal-golang/lager"
 )
 
 // Kills a process by invoking ./bin/wsh in the given container path using
@@ -18,20 +19,33 @@ type NamespacedSignaller struct {
 	Runner        command_runner.CommandRunner
 	ContainerPath string
 	PidFilePath   string
+	Logger        lager.Logger
 }
 
 func (n *NamespacedSignaller) Signal(signal os.Signal) error {
-	pid, err := pidFromFile(n.PidFilePath)
+	n.Logger.Debug("NamespacedSignaller.Signal-entered", lager.Data{"signal": signal})
+	pid, err := PidFromFile(n.PidFilePath)
 	if err != nil {
+		n.Logger.Error("NamespacedSignaller.Signal-failed-to-read-PID-file", err, lager.Data{"signal": signal})
 		return err
 	}
 
-	return n.Runner.Run(exec.Command(filepath.Join(n.ContainerPath, "bin/wsh"),
+	cmd := exec.Command(filepath.Join(n.ContainerPath, "bin/wsh"),
 		"--socket", filepath.Join(n.ContainerPath, "run/wshd.sock"),
-		"kill", fmt.Sprintf("-%d", signal), fmt.Sprintf("%d", pid)))
+		"kill", fmt.Sprintf("-%d", signal), fmt.Sprintf("%d", pid))
+
+	n.Logger.Debug("NamespacedSignaller.Signal-about-to-run-kill-command", lager.Data{"signal": signal, "cmd": cmd})
+	err = n.Runner.Run(cmd)
+	if err != nil {
+		n.Logger.Error("NamespacedSignaller.Signal-failed-to-run-kill", err, lager.Data{"signal": signal})
+		return err
+	}
+
+	n.Logger.Debug("NamespacedSignaller.Signal-ran-kill-successfully", lager.Data{"signal": signal})
+	return nil
 }
 
-func pidFromFile(pidFilePath string) (int, error) {
+func PidFromFile(pidFilePath string) (int, error) {
 	pidFile, err := openPIDFile(pidFilePath)
 	if err != nil {
 		return 0, err

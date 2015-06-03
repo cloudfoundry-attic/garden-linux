@@ -24,7 +24,6 @@ import (
 )
 
 var _ = Describe("Creating a container", func() {
-
 	Describe("Overlapping networks", func() {
 		Context("when the requested Network overlaps the dynamic allocation range", func() {
 			It("returns an error message naming the overlapped range", func() {
@@ -254,14 +253,31 @@ var _ = Describe("Creating a container", func() {
 		})
 
 		It("sources /etc/seed", func() {
+			stdout := gbytes.NewBuffer()
+			stderr := gbytes.NewBuffer()
 			process, err := container.Run(garden.ProcessSpec{
 				User: "vcap",
 				Path: "test",
 				Args: []string{"-e", "/tmp/ran-seed"},
-			}, garden.ProcessIO{})
+			},
+				garden.ProcessIO{
+					Stdout: stdout,
+					Stderr: stderr,
+				})
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(process.Wait()).To(Equal(0))
+			exitStatus, err := process.Wait()
+			Expect(err).ToNot(HaveOccurred())
+
+			if exitStatus != 0 {
+				Fail(fmt.Sprintf(
+					"Non zero exit status %d:\n stderr says: %s\n stdout says: %s\n",
+					exitStatus,
+					string(stderr.Contents()),
+					string(stdout.Contents()),
+				))
+			}
+			Expect(exitStatus).To(Equal(0))
 		})
 
 		It("provides /dev/shm as tmpfs in the container", func() {
@@ -427,7 +443,6 @@ var _ = Describe("Creating a container", func() {
 		})
 
 		Context("and running a process", func() {
-
 			Context("when root is requested", func() {
 				It("runs as root inside the container", func() {
 					stdout := gbytes.NewBuffer()
@@ -613,7 +628,7 @@ var _ = Describe("Creating a container", func() {
 				})
 			})
 
-			Measure("it should stream stdout and stderr efficiently", func(b Benchmarker) {
+			PMeasure("it should stream stdout and stderr efficiently", func(b Benchmarker) {
 				b.Time("(baseline) streaming 50M of stdout to /dev/null", func() {
 					stdout := gbytes.NewBuffer()
 					stderr := gbytes.NewBuffer()
@@ -672,6 +687,7 @@ var _ = Describe("Creating a container", func() {
 			})
 
 			It("sends a TERM signal to the process if requested", func() {
+
 				stdout := gbytes.NewBuffer()
 
 				process, err := container.Run(garden.ProcessSpec{
@@ -722,6 +738,7 @@ var _ = Describe("Creating a container", func() {
 
 			It("avoids a race condition when sending a kill signal", func(done Done) {
 				stdout := gbytes.NewBuffer()
+				stderr := gbytes.NewBuffer()
 
 				for i := 0; i < 100; i++ {
 					process, err := container.Run(garden.ProcessSpec{
@@ -730,7 +747,7 @@ var _ = Describe("Creating a container", func() {
 						Args: []string{"-c", `while true; do echo -n "x"; sleep 1; done`},
 					}, garden.ProcessIO{
 						Stdout: io.MultiWriter(GinkgoWriter, stdout),
-						Stderr: GinkgoWriter,
+						Stderr: io.MultiWriter(GinkgoWriter, stderr),
 					})
 					Expect(err).ToNot(HaveOccurred())
 
@@ -738,7 +755,7 @@ var _ = Describe("Creating a container", func() {
 					Expect(process.Wait()).To(Equal(255))
 				}
 				close(done)
-			}, 40.0)
+			}, 120.0)
 
 			It("collects the process's full output, even if it exits quickly after", func() {
 				for i := 0; i < 100; i++ {
@@ -893,7 +910,7 @@ var _ = Describe("Creating a container", func() {
 					_, err = inW.Write([]byte("\n"))
 					Expect(err).ToNot(HaveOccurred())
 
-					Eventually(stdout).Should(gbytes.Say("rows 456; columns 123;"))
+					Eventually(stdout, "3s").Should(gbytes.Say("rows 456; columns 123;"))
 
 					Expect(process.Wait()).To(Equal(0))
 				})
@@ -1013,12 +1030,13 @@ var _ = Describe("Creating a container", func() {
 						# sync with test, and allow trap to fire when not sleeping
 						while true; do
 							echo waiting
-							sleep 0.5
+							sleep 1
 						done
 						`,
 						},
 					}, garden.ProcessIO{
 						Stdout: stdout,
+						Stderr: GinkgoWriter,
 					})
 					Expect(err).ToNot(HaveOccurred())
 
@@ -1045,7 +1063,7 @@ var _ = Describe("Creating a container", func() {
 						trap wait SIGTERM
 
 						# spawn child that exits when it receives TERM
-						sh -c 'sleep 100 & wait' &
+						sh -c 'trap wait SIGTERM; sleep 100 & wait' &
 
 						# sync with test
 						echo waiting
@@ -1166,16 +1184,6 @@ var _ = Describe("Creating a container", func() {
 				// output should look like -rwxrwxrwx 1 vcap vcap 9 Jan  1  1970 /tmp/some-container-dir/some-temp-dir/some-temp-file
 				Expect(output).To(gbytes.Say("vcap"))
 				Expect(output).To(gbytes.Say("vcap"))
-			})
-
-			It("can create files in /tmp", func() {
-				process, err := container.Run(garden.ProcessSpec{
-					User: "vcap",
-					Path: "touch",
-					Args: []string{"/tmp/new_file"},
-				}, garden.ProcessIO{})
-				Expect(err).ToNot(HaveOccurred())
-				Expect(process.Wait()).To(Equal(0))
 			})
 
 			Context("in a privileged container", func() {
@@ -1299,7 +1307,7 @@ var _ = Describe("Creating a container", func() {
 
 				iptables, err := gexec.Start(exec.Command("iptables", "-L"), GinkgoWriter, GinkgoWriter)
 				Expect(err).ToNot(HaveOccurred())
-				Eventually(iptables, "2s").Should(gexec.Exit())
+				Eventually(iptables, "10s").Should(gexec.Exit())
 				Expect(iptables).ToNot(gbytes.Say(handle))
 			})
 
