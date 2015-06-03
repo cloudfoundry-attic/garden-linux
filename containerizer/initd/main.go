@@ -37,14 +37,17 @@ func main() {
 		missing("--root")
 	}
 
+	syncReader := os.NewFile(uintptr(3), "/dev/a")
+	syncWriter := os.NewFile(uintptr(4), "/dev/d")
 	sync := &containerizer.PipeSynchronizer{
-		Reader: os.NewFile(uintptr(3), "/dev/a"),
-		Writer: os.NewFile(uintptr(4), "/dev/d"),
+		Reader: syncReader,
+		Writer: syncWriter,
 	}
 
 	if err := sync.Wait(time.Second * 3); err != nil {
 		fail(fmt.Sprintf("initd: wait for host: %s", err), 8)
 	}
+	syncReader.Close()
 
 	env, err := process.EnvFromFile(*configFilePath)
 	if err != nil {
@@ -108,11 +111,10 @@ func main() {
 		fail(fmt.Sprintf("failed to init containerizer: %s", err), 2)
 	}
 
-	//=========================== exec
-
 	if err := sync.SignalSuccess(); err != nil {
 		fail(fmt.Sprintf("signal host: %s", err), 6)
 	}
+	syncWriter.Close()
 
 	if err := daemon.Run(listener); err != nil {
 		fail(fmt.Sprintf("run daemon: %s", err), 7)
