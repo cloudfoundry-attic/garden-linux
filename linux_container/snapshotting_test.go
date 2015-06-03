@@ -118,9 +118,6 @@ var _ = Describe("Linux containers", func() {
 		}
 
 		diskLimits := garden.DiskLimits{
-			BlockSoft: 3,
-			BlockHard: 4,
-
 			InodeSoft: 13,
 			InodeHard: 14,
 

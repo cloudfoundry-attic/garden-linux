@@ -469,9 +469,6 @@ var _ = Describe("Linux containers", func() {
 
 	Describe("Limiting disk", func() {
 		limits := garden.DiskLimits{
-			BlockSoft: 3,
-			BlockHard: 4,
-
 			InodeSoft: 13,
 			InodeHard: 14,
 
@@ -503,7 +500,7 @@ var _ = Describe("Linux containers", func() {
 	Describe("Getting the current disk limits", func() {
 		It("returns the disk limits", func() {
 			limits := garden.DiskLimits{
-				BlockHard: 1234567,
+				ByteHard: 1234567,
 			}
 
 			fakeQuotaManager.GetLimitsReturns(limits, nil)

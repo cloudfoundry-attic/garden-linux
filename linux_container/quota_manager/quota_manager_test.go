@@ -74,27 +74,6 @@ var _ = Describe("btrfs quota manager", func() {
 				))
 			})
 
-			Context("when blocks are given", func() {
-				limits := garden.DiskLimits{
-					BlockSoft: 10,
-					BlockHard: 20,
-				}
-
-				It("executes qgroup limit with them converted to bytes", func() {
-					err := quotaManager.SetLimits(logger, subvolumePath, limits)
-
-					Expect(err).ToNot(HaveOccurred())
-
-					Expect(fakeRunner).To(HaveExecutedSerially(
-						fake_command_runner.CommandSpec{
-							Path: "btrfs",
-							Args: []string{
-								"qgroup", "limit", "20480", "0/257", subvolumePath},
-						},
-					))
-				})
-			})
-
 			Context("when executing qgroup limit fails", func() {
 				nastyError := errors.New("oh no!")
 

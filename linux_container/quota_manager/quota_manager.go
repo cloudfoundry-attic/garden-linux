@@ -35,14 +35,6 @@ func (m *BtrfsQuotaManager) SetLimits(logger lager.Logger, subvolumePath string,
 		return nil
 	}
 
-	if limits.BlockSoft != 0 {
-		limits.ByteSoft = limits.BlockSoft * QUOTA_BLOCK_SIZE
-	}
-
-	if limits.BlockHard != 0 {
-		limits.ByteHard = limits.BlockHard * QUOTA_BLOCK_SIZE
-	}
-
 	runner := logging.Runner{
 		Logger:        logger,
 		CommandRunner: m.runner,
