@@ -107,7 +107,9 @@ var _ = Describe("When nested", func() {
 
 	It("can start a nested garden-linux and run a container inside it", func() {
 		container, nestedGardenAddress := startNestedGarden()
-		defer client.Destroy(container.Handle())
+		defer func() {
+			Expect(client.Destroy(container.Handle())).To(Succeed())
+		}()
 
 		nestedClient := gclient.New(gconn.New("tcp", nestedGardenAddress))
 		nestedContainer, err := nestedClient.Create(garden.ContainerSpec{})

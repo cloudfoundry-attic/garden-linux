@@ -1,10 +1,12 @@
 package old
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"net"
 	"os"
+	"os/exec"
 	"os/signal"
 	"runtime"
 	"strings"
@@ -13,7 +15,6 @@ import (
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/docker/docker/daemon/graphdriver"
 	_ "github.com/docker/docker/daemon/graphdriver/btrfs"
-	_ "github.com/docker/docker/daemon/graphdriver/vfs"
 	"github.com/docker/docker/graph"
 	"github.com/docker/docker/registry"
 	"github.com/pivotal-golang/clock"
@@ -34,6 +35,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/old/port_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/old/repository_fetcher"
 	"github.com/cloudfoundry-incubator/garden-linux/old/rootfs_provider"
+	"github.com/cloudfoundry-incubator/garden-linux/old/rootfs_provider/btrfs_cleanup"
 	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
 	"github.com/cloudfoundry-incubator/garden-linux/old/system_info"
 	"github.com/cloudfoundry-incubator/garden/server"
@@ -291,7 +293,14 @@ func Main() {
 		).Translate,
 	}
 
-	dockerRootFSProvider, err := rootfs_provider.NewDocker(repoFetcher, graphDriver, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock())
+	btrfsCleaner := &btrfs_cleanup.Cleaner{
+		Runner:          runner,
+		GraphDriver:     graphDriver,
+		BtrfsMountPoint: mountPoint(logger, *graphRoot),
+		RemoveAll:       os.RemoveAll,
+	}
+
+	dockerRootFSProvider, err := rootfs_provider.NewDocker(repoFetcher, graphDriver, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock(), btrfsCleaner)
 	if err != nil {
 		logger.Fatal("failed-to-construct-docker-rootfs-provider", err)
 	}
@@ -300,7 +309,7 @@ func Main() {
 		Graph:             graph,
 		DefaultRootFSPath: *rootFSPath,
 		IDer:              repository_fetcher.MD5ID{},
-	}, graphDriver, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock())
+	}, graphDriver, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock(), btrfsCleaner)
 	if err != nil {
 		logger.Fatal("failed-to-construct-warden-rootfs-provider", err)
 	}
@@ -385,6 +394,23 @@ func Main() {
 	})
 
 	select {}
+}
+
+func mountPoint(logger lager.Logger, path string) string {
+	dfOut := new(bytes.Buffer)
+
+	df := exec.Command("df", path)
+	df.Stdout = dfOut
+	df.Stderr = os.Stderr
+
+	err := df.Run()
+	if err != nil {
+		logger.Fatal("failed-to-get-mount-info", err)
+	}
+
+	dfOutputWords := strings.Split(string(dfOut.Bytes()), " ")
+
+	return strings.Trim(dfOutputWords[len(dfOutputWords)-1], "\n")
 }
 
 func missing(flagName string) {

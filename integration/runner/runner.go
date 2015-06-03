@@ -132,7 +132,9 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 				logger.Info("cleanup-subvolumes")
 
 				// remove contents of subvolumes before deleting the subvolume
-				os.RemoveAll(r.graphPath)
+				if err := os.RemoveAll(r.graphPath); err != nil {
+					logger.Error("remove graph", err)
+				}
 
 				// need to remove subvolumes before cleaning graphpath
 				subvolumesOutput, err := exec.Command("btrfs", "subvolume", "list", r.graphRoot).CombinedOutput()
@@ -152,8 +154,11 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 						}
 					}
 				}
+
 				//	ignore "device busy" error from subdirectory of subvolume: it is empty anyway
-				os.RemoveAll(r.graphPath)
+				if err := os.RemoveAll(r.graphPath); err != nil {
+					logger.Error("remove graph again", err)
+				}
 
 				logger.Info("cleanup-tempdirs")
 				//MustUnmountTmpfs(overlaysPath)

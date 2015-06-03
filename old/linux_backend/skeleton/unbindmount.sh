@@ -4,5 +4,3 @@
 set -o nounset
 set -o errexit
 shopt -s nullglob
-
-

@@ -435,26 +435,27 @@ func (p *LinuxContainerPool) writeBindMounts(containerPath string,
 		}
 
 		linebreak := exec.Command("bash", "-c", "echo >> "+hook)
-		err := p.runner.Run(linebreak)
-		if err != nil {
+		if err := p.runner.Run(linebreak); err != nil {
 			return err
 		}
 
 		mkdir := exec.Command("bash", "-c", "echo mkdir -p "+dstMount+" >> "+hook)
-		err = p.runner.Run(mkdir)
-		if err != nil {
+		if err := p.runner.Run(mkdir); err != nil {
 			return err
 		}
 
 		mount := exec.Command("bash", "-c", "echo mount -n --bind "+srcPath+" "+dstMount+" >> "+hook)
-		err = p.runner.Run(mount)
-		if err != nil {
+		if err := p.runner.Run(mount); err != nil {
 			return err
 		}
 
 		remount := exec.Command("bash", "-c", "echo mount -n --bind -o remount,"+mode+" "+srcPath+" "+dstMount+" >> "+hook)
-		err = p.runner.Run(remount)
-		if err != nil {
+		if err := p.runner.Run(remount); err != nil {
+			return err
+		}
+
+		unmount := exec.Command("bash", "-c", "echo umount "+dstMount+" >> "+unhook)
+		if err := p.runner.Run(unmount); err != nil {
 			return err
 		}
 
