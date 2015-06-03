@@ -4,6 +4,5 @@ default: all
 %:
 	cd oom && $(MAKE) $@
 	cd nstar && $(MAKE) $@
-	cd repquota && $(MAKE) $@
 
 .PHONY: default
