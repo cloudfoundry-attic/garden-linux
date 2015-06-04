@@ -16,6 +16,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
 	"github.com/cloudfoundry-incubator/garden-linux/network"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
+	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
 )
 
 func main() {
@@ -30,8 +31,6 @@ func main() {
 	configFilePath := flag.String("config", "./etc/config", "Path for the configuration file")
 	cf_lager.AddFlags(flag.CommandLine)
 	flag.Parse()
-
-	logger, _ := cf_lager.New("init")
 
 	if *rootFsPath == "" {
 		missing("--root")
@@ -55,9 +54,6 @@ func main() {
 		os.Exit(3)
 	}
 
-	reaper := system.StartReaper(logger)
-	defer reaper.Stop()
-
 	initializer := &system.ContainerInitializer{
 		Steps: []system.Initializer{
 			&step{system.Mount{
@@ -77,11 +73,29 @@ func main() {
 				return setupNetwork(env)
 			}},
 			&container_daemon.ShellRunnerStep{
-				Runner: reaper,
+				Runner: linux_command_runner.New(),
 				Path:   "/etc/seed",
 			},
 		},
 	}
+
+	containerizer := containerizer.Containerizer{
+		RootfsPath:  *rootFsPath,
+		Initializer: initializer,
+		Waiter:      sync,
+		Signaller:   sync,
+	}
+
+	if err := containerizer.Init(); err != nil {
+		fail(fmt.Sprintf("failed to init containerizer: %s", err), 2)
+	}
+
+	// EXEC INITD =======
+
+	logger, _ := cf_lager.New("init")
+
+	reaper := system.StartReaper(logger)
+	defer reaper.Stop()
 
 	daemon := &container_daemon.ContainerDaemon{
 		CmdPreparer: &container_daemon.ProcessSpecPreparer{
@@ -95,23 +109,12 @@ func main() {
 		},
 	}
 
-	containerizer := containerizer.Containerizer{
-		RootfsPath:  *rootFsPath,
-		Initializer: initializer,
-		Waiter:      sync,
-		Signaller:   sync,
-	}
-
 	socketFile := os.NewFile(uintptr(5), "/dev/host.sock")
 	defer socketFile.Close()
 
 	listener, err := unix_socket.NewListenerFromFile(socketFile)
 	if err != nil {
 		fail(fmt.Sprintf("initd: failed to create listener: %s\n", err), 5)
-	}
-
-	if err := containerizer.Init(); err != nil {
-		fail(fmt.Sprintf("failed to init containerizer: %s", err), 2)
 	}
 
 	if err := sync.SignalSuccess(); err != nil {
