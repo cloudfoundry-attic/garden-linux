@@ -15,7 +15,6 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/network"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
-	"os/exec"
 )
 
 func main() {
@@ -94,11 +93,10 @@ func main() {
 	socketFile := os.NewFile(uintptr(5), "/dev/host.sock")
 	defer socketFile.Close()
 
-	cmd := exec.Command("/sbin/initd")
+	syscall.RawSyscall(syscall.SYS_FCNTL, uintptr(4), syscall.F_SETFD, 0)
+	syscall.RawSyscall(syscall.SYS_FCNTL, uintptr(5), syscall.F_SETFD, 0)
 
-	cmd.ExtraFiles = append(cmd.ExtraFiles, syncWriter, socketFile)
-
-	cmd.Run()
+	syscall.Exec("/sbin/initd", []string{"/sbin/initd"}, os.Environ())
 }
 
 func fail(err string, code int) {

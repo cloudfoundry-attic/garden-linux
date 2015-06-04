@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"syscall"
 
 	"github.com/cloudfoundry-incubator/cf-lager"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
@@ -24,7 +25,8 @@ func main() {
 	flag.Parse()
 	logger, _ := cf_lager.New("init")
 
-	syncWriter := os.NewFile(uintptr(3), "/dev/sync_writer")
+	syncWriter := os.NewFile(uintptr(4), "/dev/sync_writer")
+	syscall.RawSyscall(syscall.SYS_FCNTL, uintptr(4), syscall.F_SETFD, syscall.FD_CLOEXEC)
 	defer syncWriter.Close()
 
 	sync := &containerizer.PipeSynchronizer{
@@ -46,7 +48,8 @@ func main() {
 		},
 	}
 
-	socketFile := os.NewFile(uintptr(4), "/dev/host.sock")
+	socketFile := os.NewFile(uintptr(5), "/dev/host.sock")
+	syscall.RawSyscall(syscall.SYS_FCNTL, uintptr(5), syscall.F_SETFD, syscall.FD_CLOEXEC)
 	defer socketFile.Close()
 
 	listener, err := unix_socket.NewListenerFromFile(socketFile)
@@ -57,7 +60,6 @@ func main() {
 	if err := sync.SignalSuccess(); err != nil {
 		fail(fmt.Sprintf("signal host: %s", err), 6)
 	}
-//	syncWriter.Close()
 
 	if err := daemon.Run(listener); err != nil {
 		fail(fmt.Sprintf("run daemon: %s", err), 7)
