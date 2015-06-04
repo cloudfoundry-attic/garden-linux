@@ -26,6 +26,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/container_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/container_repository"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/quota_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/network"
 	"github.com/cloudfoundry-incubator/garden-linux/network/bridgemgr"
@@ -249,12 +250,6 @@ func Main() {
 
 	runner := sysconfig.NewRunner(config, linux_command_runner.New())
 
-	quotaManager := quota_manager.New(runner)
-
-	if *disableQuotas {
-		quotaManager.Disable()
-	}
-
 	if err := os.MkdirAll(*graphRoot, 0755); err != nil {
 		logger.Fatal("failed-to-create-graph-directory", err)
 	}
@@ -293,10 +288,12 @@ func Main() {
 		).Translate,
 	}
 
+	graphMountPoint := mountPoint(logger, *graphRoot)
+
 	btrfsCleaner := &btrfs_cleanup.Cleaner{
 		Runner:          runner,
 		GraphDriver:     graphDriver,
-		BtrfsMountPoint: mountPoint(logger, *graphRoot),
+		BtrfsMountPoint: graphMountPoint,
 		RemoveAll:       os.RemoveAll,
 	}
 
@@ -338,6 +335,14 @@ func Main() {
 	parsedExternalIP := net.ParseIP(*externalIP)
 	if parsedExternalIP == nil {
 		panic(fmt.Sprintf("Value of -externalIP %s could not be converted to an IP", *externalIP))
+	}
+
+	var quotaManager linux_container.QuotaManager = quota_manager.DisabledQuotaManager{}
+	if !*disableQuotas {
+		quotaManager = &quota_manager.BtrfsQuotaManager{
+			Runner:     runner,
+			MountPoint: graphMountPoint,
+		}
 	}
 
 	pool := container_pool.New(

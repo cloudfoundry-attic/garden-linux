@@ -40,9 +40,12 @@ type FakeQuotaManager struct {
 		result1 garden.ContainerDiskStat
 		result2 error
 	}
-	DisableStub          func()
-	disableMutex         sync.RWMutex
-	disableArgsForCall   []struct{}
+	SetupStub        func() error
+	setupMutex       sync.RWMutex
+	setupArgsForCall []struct{}
+	setupReturns     struct {
+		result1 error
+	}
 	IsEnabledStub        func() bool
 	isEnabledMutex       sync.RWMutex
 	isEnabledArgsForCall []struct{}
@@ -153,19 +156,28 @@ func (fake *FakeQuotaManager) GetUsageReturns(result1 garden.ContainerDiskStat, 
 	}{result1, result2}
 }
 
-func (fake *FakeQuotaManager) Disable() {
-	fake.disableMutex.Lock()
-	fake.disableArgsForCall = append(fake.disableArgsForCall, struct{}{})
-	fake.disableMutex.Unlock()
-	if fake.DisableStub != nil {
-		fake.DisableStub()
+func (fake *FakeQuotaManager) Setup() error {
+	fake.setupMutex.Lock()
+	fake.setupArgsForCall = append(fake.setupArgsForCall, struct{}{})
+	fake.setupMutex.Unlock()
+	if fake.SetupStub != nil {
+		return fake.SetupStub()
+	} else {
+		return fake.setupReturns.result1
 	}
 }
 
-func (fake *FakeQuotaManager) DisableCallCount() int {
-	fake.disableMutex.RLock()
-	defer fake.disableMutex.RUnlock()
-	return len(fake.disableArgsForCall)
+func (fake *FakeQuotaManager) SetupCallCount() int {
+	fake.setupMutex.RLock()
+	defer fake.setupMutex.RUnlock()
+	return len(fake.setupArgsForCall)
+}
+
+func (fake *FakeQuotaManager) SetupReturns(result1 error) {
+	fake.SetupStub = nil
+	fake.setupReturns = struct {
+		result1 error
+	}{result1}
 }
 
 func (fake *FakeQuotaManager) IsEnabled() bool {

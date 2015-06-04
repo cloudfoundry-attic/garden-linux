@@ -26,7 +26,11 @@ var _ = Describe("btrfs quota manager", func() {
 	BeforeEach(func() {
 		fakeRunner = fake_command_runner.New()
 		logger = lagertest.NewTestLogger("test")
-		quotaManager = quota_manager.New(fakeRunner)
+		quotaManager = &quota_manager.BtrfsQuotaManager{
+			Runner:     fakeRunner,
+			MountPoint: "/the/mount/point",
+		}
+
 		subvolumePath = "/some/volume/path"
 	})
 
@@ -41,6 +45,16 @@ var _ = Describe("btrfs quota manager", func() {
 				return qgroupShowError
 			},
 		)
+	})
+
+	Describe("Setup", func() {
+		It("enables quotas", func() {
+			Expect(quotaManager.Setup()).To(Succeed())
+			Expect(fakeRunner).To(HaveExecutedSerially(fake_command_runner.CommandSpec{
+				Path: "btrfs",
+				Args: []string{"quota", "enable", "/the/mount/point"},
+			}))
+		})
 	})
 
 	Describe("setting quotas", func() {
@@ -117,22 +131,6 @@ var _ = Describe("btrfs quota manager", func() {
 				Expect(err).To(MatchError(ContainSubstring("quota_manager: run quota info: exit status 3")))
 			})
 		})
-
-		Context("when quotas are disabled", func() {
-			BeforeEach(func() {
-				quotaManager.Disable()
-			})
-
-			It("runs nothing", func() {
-				err := quotaManager.SetLimits(logger, subvolumePath, limits)
-
-				Expect(err).ToNot(HaveOccurred())
-
-				for _, cmd := range fakeRunner.ExecutedCommands() {
-					Expect(cmd.Path).ToNot(Equal("btrfs"))
-				}
-			})
-		})
 	})
 
 	Describe("getting quotas limits", func() {
@@ -151,20 +149,6 @@ var _ = Describe("btrfs quota manager", func() {
 
 			Expect(limits.ByteSoft).To(Equal(uint64(1000000)))
 			Expect(limits.ByteHard).To(Equal(uint64(1000000)))
-		})
-
-		Context("when quotas are disabled", func() {
-			BeforeEach(func() {
-				quotaManager.Disable()
-			})
-
-			It("runs nothing", func() {
-				limits, err := quotaManager.GetLimits(logger, subvolumePath)
-				Expect(err).ToNot(HaveOccurred())
-
-				Expect(limits).To(BeZero())
-				Expect(fakeRunner.ExecutedCommands()).To(HaveLen(0))
-			})
 		})
 	})
 
@@ -199,22 +183,6 @@ var _ = Describe("btrfs quota manager", func() {
 					BytesUsed:  uint64(10 * 1024 * 1024),
 					InodesUsed: uint64(0),
 				}))
-			})
-		})
-
-		Context("when quotas are disabled", func() {
-			BeforeEach(func() {
-				quotaManager.Disable()
-			})
-
-			It("runs nothing", func() {
-				usage, err := quotaManager.GetUsage(logger, subvolumePath)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(usage).To(BeZero())
-
-				for _, cmd := range fakeRunner.ExecutedCommands() {
-					Expect(cmd.Path).ToNot(Equal("btrfs"))
-				}
 			})
 		})
 	})

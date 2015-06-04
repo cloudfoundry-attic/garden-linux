@@ -40,7 +40,8 @@ type QuotaManager interface {
 	GetLimits(logger lager.Logger, containerRootFSPath string) (garden.DiskLimits, error)
 	GetUsage(logger lager.Logger, containerRootFSPath string) (garden.ContainerDiskStat, error)
 
-	Disable()
+	Setup() error
+
 	IsEnabled() bool
 }
 

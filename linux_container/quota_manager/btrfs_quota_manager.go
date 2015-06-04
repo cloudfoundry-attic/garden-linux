@@ -13,31 +13,20 @@ import (
 )
 
 type BtrfsQuotaManager struct {
-	enabled bool
-	runner  command_runner.CommandRunner
+	Runner     command_runner.CommandRunner
+	MountPoint string
 }
 
 const QUOTA_BLOCK_SIZE = 1024
 
-func New(runner command_runner.CommandRunner) *BtrfsQuotaManager {
-	return &BtrfsQuotaManager{
-		enabled: true,
-		runner:  runner,
-	}
-}
-
-func (m *BtrfsQuotaManager) Disable() {
-	m.enabled = false
+func (m *BtrfsQuotaManager) Setup() error {
+	return m.Runner.Run(exec.Command("btrfs", "quota", "enable", m.MountPoint))
 }
 
 func (m *BtrfsQuotaManager) SetLimits(logger lager.Logger, subvolumePath string, limits garden.DiskLimits) error {
-	if !m.enabled {
-		return nil
-	}
-
 	runner := logging.Runner{
 		Logger:        logger,
-		CommandRunner: m.runner,
+		CommandRunner: m.Runner,
 	}
 
 	quotaInfo, err := m.quotaInfo(logger, subvolumePath)
@@ -56,10 +45,6 @@ func (m *BtrfsQuotaManager) SetLimits(logger lager.Logger, subvolumePath string,
 func (m *BtrfsQuotaManager) GetLimits(logger lager.Logger, subvolumePath string) (garden.DiskLimits, error) {
 	var limits garden.DiskLimits
 
-	if !m.enabled {
-		return limits, nil
-	}
-
 	quotaInfo, err := m.quotaInfo(logger, subvolumePath)
 	if err != nil {
 		return limits, err
@@ -77,10 +62,6 @@ func (m *BtrfsQuotaManager) GetUsage(logger lager.Logger, subvolumePath string) 
 		err   error
 	)
 
-	if !m.enabled {
-		return usage, nil
-	}
-
 	quotaInfo, err := m.quotaInfo(logger, subvolumePath)
 	if err != nil {
 		return usage, err
@@ -92,7 +73,7 @@ func (m *BtrfsQuotaManager) GetUsage(logger lager.Logger, subvolumePath string) 
 }
 
 func (m *BtrfsQuotaManager) IsEnabled() bool {
-	return m.enabled
+	return true
 }
 
 type QuotaInfo struct {
@@ -110,7 +91,7 @@ func (m *BtrfsQuotaManager) quotaInfo(logger lager.Logger, path string) (*QuotaI
 
 	runner := logging.Runner{
 		Logger:        logger,
-		CommandRunner: m.runner,
+		CommandRunner: m.Runner,
 	}
 
 	cmd := exec.Command("sh", "-c", fmt.Sprintf("btrfs qgroup show -rF --raw %s", path))

@@ -44,7 +44,6 @@ then
     mkfs.btrfs $backing_store
     mkdir -p $mount_point
     mount -t btrfs $loopback_device $mount_point
-    btrfs quota enable $mount_point
 else
     echo "btrfs mount already set up, skipping"
 fi

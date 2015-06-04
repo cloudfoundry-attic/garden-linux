@@ -142,8 +142,6 @@ var _ = Describe("Container pool", func() {
 					Path: "/root/path/setup.sh",
 					Env: []string{
 						"CONTAINER_DEPOT_PATH=" + depotPath,
-						"DISK_QUOTA_ENABLED=true",
-
 						"PATH=" + os.Getenv("PATH"),
 					},
 				},
@@ -166,6 +164,19 @@ var _ = Describe("Container pool", func() {
 			It("returns the error", func() {
 				err := pool.Setup()
 				Expect(err).To(Equal(nastyError))
+			})
+		})
+
+		It("enables disk quotas", func() {
+			Expect(pool.Setup()).To(Succeed())
+			Expect(fakeQuotaManager.SetupCallCount()).To(Equal(1))
+		})
+
+		Context("when setting up disk quotas fails", func() {
+			It("returns the error", func() {
+				fakeQuotaManager.SetupReturns(errors.New("cant cook wont cook"))
+				err := pool.Setup()
+				Expect(err).To(MatchError("container_pool: enable disk quotas: cant cook wont cook"))
 			})
 		})
 
