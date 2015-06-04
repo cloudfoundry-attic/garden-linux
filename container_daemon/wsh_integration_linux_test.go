@@ -5,7 +5,6 @@ import (
 	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
-	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
 
 	"io/ioutil"
 
@@ -44,7 +43,7 @@ var _ = Describe("wsh and daemon integration", func() {
 
 		daemon = &container_daemon.ContainerDaemon{
 			CmdPreparer: &container_daemon.ProcessSpecPreparer{
-				Users:           system.LibContainerUser{},
+				Users:           container_daemon.LibContainerUser{},
 				ProcStarterPath: procStarterBin,
 				Rlimits:         &container_daemon.RlimitsManager{},
 			},

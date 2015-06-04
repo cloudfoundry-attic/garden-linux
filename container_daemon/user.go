@@ -1,4 +1,4 @@
-package system
+package container_daemon
 
 import (
 	"fmt"
@@ -6,11 +6,6 @@ import (
 
 	"github.com/docker/libcontainer/user"
 )
-
-//go:generate counterfeiter -o fake_user/fake_user.go . User
-type User interface {
-	Lookup(name string) (*osuser.User, error)
-}
 
 type LibContainerUser struct{}
 

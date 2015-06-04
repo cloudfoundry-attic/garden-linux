@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 	"io"
+	"time"
 )
 
 const (

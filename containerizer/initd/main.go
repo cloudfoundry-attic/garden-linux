@@ -99,7 +99,7 @@ func main() {
 
 	daemon := &container_daemon.ContainerDaemon{
 		CmdPreparer: &container_daemon.ProcessSpecPreparer{
-			Users:           system.LibContainerUser{},
+			Users:           container_daemon.LibContainerUser{},
 			Rlimits:         &container_daemon.RlimitsManager{},
 			ProcStarterPath: "/sbin/proc_starter",
 		},
