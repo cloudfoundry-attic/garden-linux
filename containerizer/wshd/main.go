@@ -88,7 +88,7 @@ func main() {
 
 	cz := containerizer.Containerizer{
 		Rlimits:     &container_daemon.RlimitsManager{},
-		InitBinPath: path.Join(binPath, "initd"),
+		InitBinPath: path.Join(binPath, "initc"),
 		InitArgs: []string{
 			"--root", *rootFsPath,
 			"--config", path.Join(*libPath, "../etc/config"),

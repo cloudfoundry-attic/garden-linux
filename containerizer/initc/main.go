@@ -10,19 +10,18 @@ import (
 	"time"
 
 	"github.com/cloudfoundry-incubator/cf-lager"
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
 	"github.com/cloudfoundry-incubator/garden-linux/network"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
+	"os/exec"
 )
 
 func main() {
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Fprintf(os.Stderr, "initd: panicked: %s\n", r)
+			fmt.Fprintf(os.Stderr, "initc: panicked: %s\n", r)
 			os.Exit(4)
 		}
 	}()
@@ -37,20 +36,22 @@ func main() {
 	}
 
 	syncReader := os.NewFile(uintptr(3), "/dev/a")
+	defer syncReader.Close()
 	syncWriter := os.NewFile(uintptr(4), "/dev/d")
+	defer syncWriter.Close()
+
 	sync := &containerizer.PipeSynchronizer{
 		Reader: syncReader,
 		Writer: syncWriter,
 	}
 
 	if err := sync.Wait(time.Second * 3); err != nil {
-		fail(fmt.Sprintf("initd: wait for host: %s", err), 8)
+		fail(fmt.Sprintf("initc: wait for host: %s", err), 8)
 	}
-	syncReader.Close()
 
 	env, err := process.EnvFromFile(*configFilePath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "initd: failed to get env from config file: %s\n", err)
+		fmt.Fprintf(os.Stderr, "initc: failed to get env from config file: %s\n", err)
 		os.Exit(3)
 	}
 
@@ -90,50 +91,23 @@ func main() {
 		fail(fmt.Sprintf("failed to init containerizer: %s", err), 2)
 	}
 
-	// EXEC INITD =======
-
-	logger, _ := cf_lager.New("init")
-
-	reaper := system.StartReaper(logger)
-	defer reaper.Stop()
-
-	daemon := &container_daemon.ContainerDaemon{
-		CmdPreparer: &container_daemon.ProcessSpecPreparer{
-			Users:           container_daemon.LibContainerUser{},
-			Rlimits:         &container_daemon.RlimitsManager{},
-			ProcStarterPath: "/sbin/proc_starter",
-		},
-		Spawner: &container_daemon.Spawn{
-			Runner: reaper,
-			PTY:    system.KrPty,
-		},
-	}
-
 	socketFile := os.NewFile(uintptr(5), "/dev/host.sock")
 	defer socketFile.Close()
 
-	listener, err := unix_socket.NewListenerFromFile(socketFile)
-	if err != nil {
-		fail(fmt.Sprintf("initd: failed to create listener: %s\n", err), 5)
-	}
+	cmd := exec.Command("/sbin/initd")
 
-	if err := sync.SignalSuccess(); err != nil {
-		fail(fmt.Sprintf("signal host: %s", err), 6)
-	}
-	syncWriter.Close()
+	cmd.ExtraFiles = append(cmd.ExtraFiles, syncWriter, socketFile)
 
-	if err := daemon.Run(listener); err != nil {
-		fail(fmt.Sprintf("run daemon: %s", err), 7)
-	}
+	cmd.Run()
 }
 
 func fail(err string, code int) {
-	fmt.Fprintf(os.Stderr, "initd: %s\n", err)
+	fmt.Fprintf(os.Stderr, "initc: %s\n", err)
 	os.Exit(code)
 }
 
 func missing(flagName string) {
-	fmt.Fprintf(os.Stderr, "initd: %s is required\n", flagName)
+	fmt.Fprintf(os.Stderr, "initc: %s is required\n", flagName)
 	flag.Usage()
 	os.Exit(1)
 }
@@ -141,16 +115,16 @@ func missing(flagName string) {
 func setupNetwork(env process.Env) error {
 	_, ipNet, err := net.ParseCIDR(env["network_cidr"])
 	if err != nil {
-		return fmt.Errorf("initd: failed to parse network CIDR: %s", err)
+		return fmt.Errorf("initc: failed to parse network CIDR: %s", err)
 	}
 
 	mtu, err := strconv.ParseInt(env["container_iface_mtu"], 0, 64)
 	if err != nil {
-		return fmt.Errorf("initd: failed to parse container interface MTU: %s", err)
+		return fmt.Errorf("initc: failed to parse container interface MTU: %s", err)
 	}
 
 	logger, _ := cf_lager.New("hook")
-	configurer := network.NewConfigurer(logger.Session("initd: hook.CHILD_AFTER_PIVOT"))
+	configurer := network.NewConfigurer(logger.Session("initc: hook.CHILD_AFTER_PIVOT"))
 	err = configurer.ConfigureContainer(&network.ContainerConfig{
 		Hostname:      env["id"],
 		ContainerIntf: env["network_container_iface"],
@@ -160,7 +134,7 @@ func setupNetwork(env process.Env) error {
 		Mtu:           int(mtu),
 	})
 	if err != nil {
-		return fmt.Errorf("initd: failed to configure container network: %s", err)
+		return fmt.Errorf("initc: failed to configure container network: %s", err)
 	}
 
 	return nil
