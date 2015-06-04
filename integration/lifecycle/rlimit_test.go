@@ -32,7 +32,7 @@ var _ = Describe("Resource limits", func() {
 	})
 
 	Context("when setting all rlimits to minimum values", func() {
-		It("succeeds", func(done Done) {
+		PIt("succeeds", func(done Done) {
 			// Experimental minimum values tend to produce flakes.
 			fudgeFactor := 1.50
 
