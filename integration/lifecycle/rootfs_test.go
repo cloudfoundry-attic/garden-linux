@@ -164,6 +164,7 @@ func startDockerRegistry(dockerRegistryIP string, dockerRegistryPort string) gar
 			"STANDALONE=true",
 			"MIRROR_SOURCE=https://registry-1.docker.io",
 			"MIRROR_SOURCE_INDEX=https://index.docker.io",
+			"GUNICORN_OPTS=[\"--preload\"]",
 		},
 		Path: "docker-registry",
 	}, garden.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
