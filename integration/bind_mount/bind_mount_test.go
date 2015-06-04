@@ -53,17 +53,17 @@ var _ = Describe("A container", func() {
 
 	JustBeforeEach(func() {
 		gardenClient = startGarden()
-		container, containerCreateErr = gardenClient.Create(
-			garden.ContainerSpec{
-				Privileged: privilegedContainer,
-				BindMounts: []garden.BindMount{garden.BindMount{
-					SrcPath: srcPath,
-					DstPath: dstPath,
-					Mode:    bindMountMode,
-					Origin:  bindMountOrigin,
-				}},
-				Network: fmt.Sprintf("10.0.%d.0/24", GinkgoParallelNode()),
-			})
+		container, containerCreateErr = gardenClient.Create(garden.ContainerSpec{
+			Privileged: privilegedContainer,
+			BindMounts: []garden.BindMount{garden.BindMount{
+				SrcPath: srcPath,
+				DstPath: dstPath,
+				Mode:    bindMountMode,
+				Origin:  bindMountOrigin,
+			}},
+			Network: fmt.Sprintf("10.0.%d.0/24", GinkgoParallelNode()),
+		})
+		Expect(containerCreateErr).ToNot(HaveOccurred())
 	})
 
 	AfterEach(func() {

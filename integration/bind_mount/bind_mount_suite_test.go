@@ -51,7 +51,16 @@ func TestBindMount(t *testing.T) {
 	}
 
 	SynchronizedBeforeSuite(func() []byte {
-		gardenPath, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux", "-a", "-race", "-tags", "daemon")
+		var gardenPath string
+		var err error
+
+		useGshGshd := os.Getenv("USE_GSH_GSHD")
+		if useGshGshd != "" {
+			gardenPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux", "-a", "-race", "-tags", "daemon, USE_GSH_GSHD")
+		} else {
+			gardenPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux", "-a", "-race", "-tags", "daemon")
+		}
+
 		Expect(err).ToNot(HaveOccurred())
 		return []byte(gardenPath)
 	}, func(gardenPath []byte) {

@@ -84,7 +84,7 @@ func configureHostNetwork(config process.Env, configurer network.Configurer) err
 	}
 
 	// Temporary until PID is passed in from Go rewrite of wshd.
-	containerPid, _ := pidFromFile("../run/wshd.pid")
+	containerPid, _ := PidFromFile("../run/wshd.pid")
 	if err != nil {
 		return err
 	}

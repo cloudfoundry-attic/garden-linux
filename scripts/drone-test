@@ -24,6 +24,8 @@ export GODEPS_WORKSPACE=$PWD/Godeps/_workspace
 export GOPATH=$GODEPS_WORKSPACE:$GOPATH
 export PATH=$GODEPS_WORKSPACE/bin:$PATH
 
+export USE_GSH_GSHD=true
+
 make
 
 go install github.com/onsi/ginkgo/ginkgo

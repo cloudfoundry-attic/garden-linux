@@ -1,5 +1,3 @@
-// +build USE_GSH_GSHD
-
 package linux_backend
 
 import (
