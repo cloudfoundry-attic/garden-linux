@@ -102,7 +102,10 @@ func main() {
 		Signaller:   sync,
 	}
 
-	listener, err := unix_socket.NewListenerFromFd(uintptr(5))
+	socketFile := os.NewFile(uintptr(5), "/dev/host.sock")
+	defer socketFile.Close()
+
+	listener, err := unix_socket.NewListenerFromFile(socketFile)
 	if err != nil {
 		fail(fmt.Sprintf("initd: failed to create listener: %s\n", err), 5)
 	}

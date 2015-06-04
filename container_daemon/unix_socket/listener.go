@@ -16,6 +16,7 @@ type ConnectionHandler interface {
 
 type Listener struct {
 	listener net.Listener
+	socketFile *os.File
 }
 
 type Response struct {
@@ -28,7 +29,7 @@ func NewListenerFromPath(socketPath string) (*Listener, error) {
 	l := &Listener{}
 	var err error
 
-	l.listener, err = net.Listen("unix", socketPath)
+		l.listener, err = net.Listen("unix", socketPath)
 	if err != nil {
 		return nil, fmt.Errorf("unix_socket: error creating socket: %v", err)
 	}
@@ -36,11 +37,11 @@ func NewListenerFromPath(socketPath string) (*Listener, error) {
 	return l, nil
 }
 
-func NewListenerFromFd(fd uintptr) (*Listener, error) {
+func NewListenerFromFile(socketFile *os.File) (*Listener, error) {
 	l := &Listener{}
 
 	var err error
-	l.listener, err = net.FileListener(os.NewFile(fd, "/dev/host.sock"))
+	l.listener, err = net.FileListener(socketFile)
 	if err != nil {
 		return nil, fmt.Errorf("unix_socket: error creating listener: %v", err)
 	}
