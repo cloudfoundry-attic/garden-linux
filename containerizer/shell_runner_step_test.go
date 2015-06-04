@@ -1,4 +1,4 @@
-package container_daemon_test
+package containerizer_test
 
 import (
 	"errors"
@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
+	"github.com/cloudfoundry-incubator/garden-linux/containerizer"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -40,7 +40,7 @@ var _ = Describe("ShellRunnerStep", func() {
 		})
 
 		It("runs a shell command", func() {
-			step := &container_daemon.ShellRunnerStep{Runner: runner, Path: path}
+			step := &containerizer.ShellRunnerStep{Runner: runner, Path: path}
 			err := step.Init()
 			Expect(err).ToNot(HaveOccurred())
 			Expect(runner).To(HaveStartedExecuting(
@@ -56,7 +56,7 @@ var _ = Describe("ShellRunnerStep", func() {
 				return errors.New("what")
 			})
 
-			step := &container_daemon.ShellRunnerStep{Runner: runner, Path: path}
+			step := &containerizer.ShellRunnerStep{Runner: runner, Path: path}
 			err := step.Init()
 			Expect(err).To(HaveOccurred())
 		})
@@ -66,7 +66,7 @@ var _ = Describe("ShellRunnerStep", func() {
 				return errors.New("booo")
 			})
 
-			step := &container_daemon.ShellRunnerStep{Runner: runner, Path: path}
+			step := &containerizer.ShellRunnerStep{Runner: runner, Path: path}
 			err := step.Init()
 			Expect(err).To(HaveOccurred())
 		})
@@ -74,13 +74,13 @@ var _ = Describe("ShellRunnerStep", func() {
 
 	Context("when a given path does not exist", func() {
 		It("does not execute a shell command", func() {
-			step := &container_daemon.ShellRunnerStep{Runner: runner, Path: "/whatever.sh"}
+			step := &containerizer.ShellRunnerStep{Runner: runner, Path: "/whatever.sh"}
 			step.Init()
 			Expect(runner.StartedCommands()).To(HaveLen(0))
 		})
 
 		It("does not return an error", func() {
-			step := &container_daemon.ShellRunnerStep{Runner: runner, Path: "/whatever.sh"}
+			step := &containerizer.ShellRunnerStep{Runner: runner, Path: "/whatever.sh"}
 			Expect(step.Init()).To(Succeed())
 		})
 	})

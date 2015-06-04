@@ -72,7 +72,7 @@ func main() {
 			&step{func() error {
 				return setupNetwork(env)
 			}},
-			&container_daemon.ShellRunnerStep{
+			&containerizer.ShellRunnerStep{
 				Runner: linux_command_runner.New(),
 				Path:   "/etc/seed",
 			},
