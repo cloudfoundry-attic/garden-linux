@@ -5,11 +5,6 @@ set -o nounset
 set -o errexit
 shopt -s nullglob
 
-# exec 1<&-
-# exec 2<&-
-# exec 1<>/tmp/container-hook.log
-# exec 2>&1
-
 cd $(dirname $0)/../
 
 source ./etc/config
