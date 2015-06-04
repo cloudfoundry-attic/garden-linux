@@ -15,7 +15,7 @@ type ConnectionHandler interface {
 }
 
 type Listener struct {
-	listener net.Listener
+	listener   net.Listener
 	socketFile *os.File
 }
 
@@ -29,7 +29,7 @@ func NewListenerFromPath(socketPath string) (*Listener, error) {
 	l := &Listener{}
 	var err error
 
-		l.listener, err = net.Listen("unix", socketPath)
+	l.listener, err = net.Listen("unix", socketPath)
 	if err != nil {
 		return nil, fmt.Errorf("unix_socket: error creating socket: %v", err)
 	}

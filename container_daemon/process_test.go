@@ -12,7 +12,7 @@ import (
 	. "github.com/cloudfoundry-incubator/garden-linux/container_daemon"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_connector"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
-	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system/fake_term"
+	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_term"
 	"github.com/docker/docker/pkg/term"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

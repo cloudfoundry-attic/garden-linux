@@ -10,7 +10,6 @@ import (
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
-	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
 	"golang.org/x/crypto/ssh/terminal"
 )
 
@@ -52,7 +51,7 @@ func main() {
 			SocketPath: *socketPath,
 		},
 
-		Term: system.TermPkg{},
+		Term: container_daemon.TermPkg{},
 
 		Pidfile: pidfileWriter,
 
