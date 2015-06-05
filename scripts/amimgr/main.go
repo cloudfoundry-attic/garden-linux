@@ -23,6 +23,7 @@ mkdir -p ~/go/src/github.com/cloudfoundry-incubator &&
 	git clone git://github.com/cloudfoundry-incubator/garden-linux.git &&
 	cd garden-linux &&
 	git reset --hard %s &&
+	scripts/prepare_btrfs.sh &&
 	scripts/drone-test
 '
 `

@@ -17,5 +17,6 @@ fi
 
 cd $repoPath
 
+export BTRFS_SUPPORTED=true
 go run scripts/amimgr/main.go --commit `git rev-parse HEAD` \
                         --imageID `cat packer/garden-ci/AMI_IMAGE_ID`
