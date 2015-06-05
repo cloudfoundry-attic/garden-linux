@@ -5,7 +5,6 @@ import (
 	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
-	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
 
 	"io/ioutil"
 
@@ -39,13 +38,12 @@ var _ = Describe("wsh and daemon integration", func() {
 		tempDir, err = ioutil.TempDir("", "")
 		Expect(err).ToNot(HaveOccurred())
 		socketPath = path.Join(tempDir, "test.sock")
+		listener, err := unix_socket.NewListenerFromPath(socketPath)
+		Expect(err).ToNot(HaveOccurred())
 
 		daemon = &container_daemon.ContainerDaemon{
-			Listener: &unix_socket.Listener{
-				SocketPath: socketPath,
-			},
 			CmdPreparer: &container_daemon.ProcessSpecPreparer{
-				Users:           system.LibContainerUser{},
+				Users:           container_daemon.LibContainerUser{},
 				ProcStarterPath: procStarterBin,
 				Rlimits:         &container_daemon.RlimitsManager{},
 			},
@@ -54,12 +52,10 @@ var _ = Describe("wsh and daemon integration", func() {
 			},
 		}
 
-		Expect(daemon.Init()).To(Succeed())
-
-		go func() {
+		go func(listener container_daemon.Listener) {
 			defer GinkgoRecover()
-			Expect(daemon.Run()).To(Succeed())
-		}()
+			Expect(daemon.Run(listener)).To(Succeed())
+		}(listener)
 	})
 
 	It("should run a program when no pidfile is specified", func() {

@@ -12,6 +12,9 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket/fake_connection_handler"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+
+	"fmt"
+	"net"
 )
 
 var _ = Describe("Unix socket", func() {
@@ -41,31 +44,74 @@ var _ = Describe("Unix socket", func() {
 		connector = &unix_socket.Connector{
 			SocketPath: socketPath,
 		}
-
-		listener = &unix_socket.Listener{
-			SocketPath: socketPath,
-		}
 	})
 
-	Describe("Listener.Init", func() {
-		It("creates a unix socket for the given socket path", func() {
-			err := listener.Init()
-			Expect(err).ToNot(HaveOccurred())
+	Describe("Listener creation", func() {
+		Context("when listener is created by socket path", func() {
+			Context("when file does not exist", func() {
+				Context("when there is no permission to create the file", func() {
+					It("returns an error", func() {
+						socketPath := "/proc/a_socket.sock"
+						_, err := unix_socket.NewListenerFromPath(socketPath)
+						Expect(err).To(HaveOccurred())
+					})
+				})
 
-			stat, err := os.Stat(socketPath)
-			Expect(err).ToNot(HaveOccurred())
+				Context("when there is permission to create the file", func() {
+					It("creates the listener", func() {
+						socketPath := fmt.Sprintf("/tmp/a_socket-%d.sock", GinkgoParallelNode())
 
-			Expect(stat.Mode() & os.ModeSocket).ToNot(Equal(0))
-		})
+						listener, err := unix_socket.NewListenerFromPath(socketPath)
+						Expect(err).ToNot(HaveOccurred())
 
-		Context("when the socket cannot be created", func() {
-			BeforeEach(func() {
-				socketPath = "somewhere/that/does/not/exist"
+						Expect(listener.Close()).To(Succeed())
+					})
+				})
 			})
 
-			It("returns an error", func() {
-				err := listener.Init()
-				Expect(err).To(HaveOccurred())
+			Context("when the file does exist", func() {
+				It("returns an error", func() {
+					socketFile, err := ioutil.TempFile("", "")
+					Expect(err).ToNot(HaveOccurred())
+
+					_, err = unix_socket.NewListenerFromPath(socketFile.Name())
+					Expect(err).To(HaveOccurred())
+
+					socketFile.Close()
+				})
+			})
+		})
+
+		Context("when listener is created by socket file", func() {
+			Context("when the file does exist", func() {
+				Context("when the file is not a socket file", func() {
+					It("returns an error", func() {
+						socketFile, err := ioutil.TempFile("", "")
+						Expect(err).ToNot(HaveOccurred())
+
+						_, err = unix_socket.NewListenerFromPath(socketFile.Name())
+						Expect(err).To(HaveOccurred())
+
+						socketFile.Close()
+					})
+				})
+
+				Context("when the file is a socket file", func() {
+					It("creates the listener", func() {
+						socketPath := fmt.Sprintf("/tmp/a_socket-%d.sock", GinkgoParallelNode())
+						socketListener, err := net.Listen("unix", socketPath)
+						Expect(err).ToNot(HaveOccurred())
+
+						socketFile, err := socketListener.(*net.UnixListener).File()
+						Expect(err).ToNot(HaveOccurred())
+
+						listener, err := unix_socket.NewListenerFromFile(socketFile)
+						Expect(err).ToNot(HaveOccurred())
+
+						Expect(socketFile.Close()).To(Succeed())
+						Expect(listener.Close()).To(Succeed())
+					})
+				})
 			})
 		})
 	})
@@ -84,7 +130,9 @@ var _ = Describe("Unix socket", func() {
 			var stubDone chan bool
 
 			JustBeforeEach(func() {
-				Expect(listener.Init()).To(Succeed())
+				var err error
+				listener, err = unix_socket.NewListenerFromPath(socketPath)
+				Expect(err).NotTo(HaveOccurred())
 
 				f1r, f1w, err := os.Pipe()
 				Expect(err).ToNot(HaveOccurred())
@@ -97,6 +145,8 @@ var _ = Describe("Unix socket", func() {
 				stubDone = make(chan bool, 1)
 
 				sentFilesCp := []*os.File{f1w, f2r}
+				sentErrorMutex.Lock()
+				defer sentErrorMutex.Unlock()
 				sentErrorCp := sentError
 				sentPidCp := sentPid
 				connectionHandler.HandleStub = func(decoder *json.Decoder) ([]*os.File, int, error) {
@@ -109,6 +159,12 @@ var _ = Describe("Unix socket", func() {
 				}
 
 				go listener.Listen(connectionHandler)
+			})
+
+			AfterEach(func() {
+				if listener != nil {
+					Expect(listener.Close()).To(Succeed())
+				}
 			})
 
 			It("calls the handler with the sent message", func() {
@@ -162,15 +218,6 @@ var _ = Describe("Unix socket", func() {
 					_, _, err := connector.Connect(sentMsg)
 					Expect(err).To(MatchError("no cake"))
 				})
-			})
-		})
-	})
-
-	Describe("Listener.Run", func() {
-		Context("when the listener is not initialized", func() {
-			It("returns an error", func() {
-				err := listener.Listen(connectionHandler)
-				Expect(err).To(MatchError("unix_socket: listener is not initialized"))
 			})
 		})
 	})

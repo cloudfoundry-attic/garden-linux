@@ -12,7 +12,7 @@ import (
 	"github.com/cloudfoundry/gunk/command_runner"
 )
 
-var timeout = time.Second * 3
+var timeout = time.Second * 15
 
 //go:generate counterfeiter -o fake_rlimits_initializer/FakeRlimitsInitializer.go . RlimitsInitializer
 type RlimitsInitializer interface {
@@ -34,12 +34,6 @@ type ContainerInitializer interface {
 	Init() error
 }
 
-//go:generate counterfeiter -o fake_container_daemon/FakeContainerDaemon.go . ContainerDaemon
-type ContainerDaemon interface {
-	Init() error
-	Run() error
-}
-
 //go:generate counterfeiter -o fake_signaller/FakeSignaller.go . Signaller
 type Signaller interface {
 	SignalError(err error) error
@@ -59,7 +53,6 @@ type Containerizer struct {
 	Execer      ContainerExecer
 	RootfsPath  string
 	Initializer ContainerInitializer
-	Daemon      ContainerDaemon
 	Signaller   Signaller
 	Waiter      Waiter
 	// Temporary until we merge the hook scripts functionality in Golang
@@ -111,25 +104,9 @@ func (c *Containerizer) Create() error {
 	return nil
 }
 
-func (c *Containerizer) Run() error {
-	if err := c.Daemon.Init(); err != nil {
-		return c.signalErrorf("containerizer: initialize daemon: %s", err)
-	}
-
-	if err := c.Waiter.Wait(timeout); err != nil {
-		return c.signalErrorf("containerizer: wait for host: %s", err)
-	}
-
+func (c *Containerizer) Init() error {
 	if err := c.Initializer.Init(); err != nil {
 		return c.signalErrorf("containerizer: initializing the container: %s", err)
-	}
-
-	if err := c.Signaller.SignalSuccess(); err != nil {
-		return c.signalErrorf("containerizer: signal host: %s", err)
-	}
-
-	if err := c.Daemon.Run(); err != nil {
-		return c.signalErrorf("containerizer: run daemon: %s", err)
 	}
 
 	return nil

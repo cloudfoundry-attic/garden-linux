@@ -1,11 +1,10 @@
 package system
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"syscall"
-
-	"fmt"
 
 	"github.com/cloudfoundry/gunk/command_runner"
 )

@@ -15,8 +15,8 @@ const DefaultUserPath = "/usr/local/bin:/usr/bin:/bin"
 
 //go:generate counterfeiter -o fake_listener/FakeListener.go . Listener
 type Listener interface {
-	Init() error
 	Listen(ch unix_socket.ConnectionHandler) error
+	Close() error
 }
 
 //go:generate counterfeiter -o fake_cmdpreparer/fake_cmdpreparer.go . CmdPreparer
@@ -30,23 +30,13 @@ type Spawner interface {
 }
 
 type ContainerDaemon struct {
-	Listener    Listener
 	CmdPreparer CmdPreparer
 
 	Spawner Spawner
 }
 
-// This method should be called from the host namespace, to open the socket file in the right file system.
-func (cd *ContainerDaemon) Init() error {
-	if err := cd.Listener.Init(); err != nil {
-		return fmt.Errorf("container_daemon: initializing the listener: %s", err)
-	}
-
-	return nil
-}
-
-func (cd *ContainerDaemon) Run() error {
-	if err := cd.Listener.Listen(cd); err != nil {
+func (cd *ContainerDaemon) Run(listener Listener) error {
+	if err := listener.Listen(cd); err != nil {
 		return fmt.Errorf("container_daemon: listening for connections: %s", err)
 	}
 

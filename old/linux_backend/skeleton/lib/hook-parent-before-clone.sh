@@ -5,11 +5,6 @@ set -o nounset
 set -o errexit
 shopt -s nullglob
 
-# exec 1<&-
-# exec 2<&-
-# exec 1<>/tmp/container-hook.log
-# exec 2>&1
-
 cd $(dirname $0)/../
 
 source ./etc/config
@@ -18,8 +13,10 @@ if [ -n "$USE_GSH_GSHD" ]
 then
   mkdir -p $rootfs_path/sbin
   cp lib/proc_starter $rootfs_path/sbin/proc_starter
+  cp bin/initd $rootfs_path/sbin/initd
   cp etc/config $rootfs_path/etc/config
   chown $root_uid:$root_uid $rootfs_path/sbin/proc_starter
+  chown $root_uid:$root_uid $rootfs_path/sbin/initd
   chown $root_uid:$root_uid $rootfs_path/etc/config
 
   mkdir -p $rootfs_path/dev/pts

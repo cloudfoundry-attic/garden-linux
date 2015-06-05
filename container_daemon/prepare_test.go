@@ -10,7 +10,7 @@ import (
 	"os/exec"
 	"os/user"
 
-	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system/fake_user"
+	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_user"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )

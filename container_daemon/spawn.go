@@ -111,7 +111,9 @@ func wireExit(cmd *exec.Cmd, runner Runner) (*os.File, error) {
 func handleCompletion(runner Runner, cmd *exec.Cmd, exitW *os.File, stdout, stderr io.Writer) {
 	defer exitW.Close()
 	defer tryClose(stdout)
-	defer tryClose(stderr)
+	if stderr != stdout {
+		defer tryClose(stderr)
+	}
 	status := runner.Wait(cmd)
 	exitW.Write([]byte{status})
 }

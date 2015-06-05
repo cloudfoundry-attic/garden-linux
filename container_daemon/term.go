@@ -1,18 +1,8 @@
-package system
+package container_daemon
 
 import (
 	"github.com/docker/docker/pkg/term"
 )
-
-// wraps docker/docker/pkg/term for mockability
-//go:generate counterfeiter -o fake_term/fake_term.go . Term
-type Term interface {
-	GetWinsize(fd uintptr) (*term.Winsize, error)
-	SetWinsize(fd uintptr, size *term.Winsize) error
-
-	SetRawTerminal(fd uintptr) (*term.State, error)
-	RestoreTerminal(fd uintptr, state *term.State) error
-}
 
 type TermPkg struct{}
 

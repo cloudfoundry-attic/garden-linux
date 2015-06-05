@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	osuser "os/user"
 	"strings"
 	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
 )
 
 //go:generate counterfeiter -o fake_iowirer/fake_iowirer.go . IOWirer
@@ -21,8 +21,13 @@ type RlimitsEnvEncoder interface {
 	EncodeLimits(garden.ResourceLimits) string
 }
 
+//go:generate counterfeiter -o fake_user/fake_user.go . User
+type User interface {
+	Lookup(name string) (*osuser.User, error)
+}
+
 type ProcessSpecPreparer struct {
-	Users           system.User
+	Users           User
 	ProcStarterPath string
 	Rlimits         RlimitsEnvEncoder
 }

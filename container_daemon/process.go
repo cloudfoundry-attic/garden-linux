@@ -10,7 +10,6 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
-	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
 	"github.com/docker/docker/pkg/term"
 )
 
@@ -18,7 +17,7 @@ const UnknownExitStatus = 255
 
 type Process struct {
 	Connector  Connector
-	Term       system.Term
+	Term       Term
 	SigwinchCh <-chan os.Signal
 	Spec       *garden.ProcessSpec
 	Pidfile    PidfileWriter
@@ -39,6 +38,16 @@ type PidfileWriter interface {
 //go:generate counterfeiter -o fake_connector/FakeConnector.go . Connector
 type Connector interface {
 	Connect(msg interface{}) ([]unix_socket.Fd, int, error)
+}
+
+// wraps docker/docker/pkg/term for mockability
+//go:generate counterfeiter -o fake_term/fake_term.go . Term
+type Term interface {
+	GetWinsize(fd uintptr) (*term.Winsize, error)
+	SetWinsize(fd uintptr, size *term.Winsize) error
+
+	SetRawTerminal(fd uintptr) (*term.State, error)
+	RestoreTerminal(fd uintptr, state *term.State) error
 }
 
 func (p *Process) Start() error {

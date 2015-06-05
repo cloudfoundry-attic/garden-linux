@@ -1,4 +1,4 @@
-package container_daemon_test
+package containerizer_test
 
 import (
 	"errors"
@@ -7,18 +7,19 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	. "github.com/cloudfoundry-incubator/garden-linux/container_daemon"
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_runner"
+	"github.com/cloudfoundry-incubator/garden-linux/containerizer"
 
+	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
+	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("ShellRunnerStep", func() {
-	var runner *fake_runner.FakeRunner
+	var runner *fake_command_runner.FakeCommandRunner
 
 	BeforeEach(func() {
-		runner = new(fake_runner.FakeRunner)
+		runner = fake_command_runner.New()
 	})
 
 	Context("when a given path exists", func() {
@@ -39,24 +40,33 @@ var _ = Describe("ShellRunnerStep", func() {
 		})
 
 		It("runs a shell command", func() {
-			step := &ShellRunnerStep{Runner: runner, Path: path}
+			step := &containerizer.ShellRunnerStep{Runner: runner, Path: path}
 			err := step.Init()
 			Expect(err).ToNot(HaveOccurred())
-			Expect(runner.StartArgsForCall(0)).To(Equal(exec.Command("sh", path)))
+			Expect(runner).To(HaveStartedExecuting(
+				fake_command_runner.CommandSpec{
+					Path: "sh",
+					Args: []string{path},
+				},
+			))
 		})
 
 		It("returns error if fails to start a shell command", func() {
-			runner.StartReturns(errors.New("what"))
+			runner.WhenRunning(fake_command_runner.CommandSpec{}, func(*exec.Cmd) error {
+				return errors.New("what")
+			})
 
-			step := &ShellRunnerStep{Runner: runner, Path: path}
+			step := &containerizer.ShellRunnerStep{Runner: runner, Path: path}
 			err := step.Init()
 			Expect(err).To(HaveOccurred())
 		})
 
 		It("returns error if shell command does not exit 0", func() {
-			runner.WaitReturns(byte(1))
+			runner.WhenWaitingFor(fake_command_runner.CommandSpec{}, func(*exec.Cmd) error {
+				return errors.New("booo")
+			})
 
-			step := &ShellRunnerStep{Runner: runner, Path: path}
+			step := &containerizer.ShellRunnerStep{Runner: runner, Path: path}
 			err := step.Init()
 			Expect(err).To(HaveOccurred())
 		})
@@ -64,13 +74,13 @@ var _ = Describe("ShellRunnerStep", func() {
 
 	Context("when a given path does not exist", func() {
 		It("does not execute a shell command", func() {
-			step := &ShellRunnerStep{Runner: runner, Path: "/whatever.sh"}
+			step := &containerizer.ShellRunnerStep{Runner: runner, Path: "/whatever.sh"}
 			step.Init()
-			Expect(runner.StartCallCount()).To(Equal(0))
+			Expect(runner.StartedCommands()).To(HaveLen(0))
 		})
 
 		It("does not return an error", func() {
-			step := &ShellRunnerStep{Runner: runner, Path: "/whatever.sh"}
+			step := &containerizer.ShellRunnerStep{Runner: runner, Path: "/whatever.sh"}
 			Expect(step.Init()).To(Succeed())
 		})
 	})

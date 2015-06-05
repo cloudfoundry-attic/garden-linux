@@ -1,13 +1,15 @@
-package container_daemon
+package containerizer
 
 import (
 	"fmt"
 	"os"
 	"os/exec"
+
+	"github.com/cloudfoundry/gunk/command_runner"
 )
 
 type ShellRunnerStep struct {
-	Runner Runner
+	Runner command_runner.CommandRunner
 	Path   string
 }
 
@@ -21,8 +23,8 @@ func (step *ShellRunnerStep) Init() error {
 		return fmt.Errorf("starting command %s: %s", step.Path, err)
 	}
 
-	if status := step.Runner.Wait(command); status != 0 {
-		return fmt.Errorf("expected command %s to exit zero, it exited %d", step.Path, status)
+	if err := step.Runner.Wait(command); err != nil {
+		return fmt.Errorf("runnng command %s: %s", step.Path, err)
 	}
 
 	return nil

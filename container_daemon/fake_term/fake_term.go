@@ -4,7 +4,7 @@ package fake_term
 import (
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
+	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
 	"github.com/docker/docker/pkg/term"
 )
 
@@ -179,4 +179,4 @@ func (fake *FakeTerm) RestoreTerminalReturns(result1 error) {
 	}{result1}
 }
 
-var _ system.Term = new(FakeTerm)
+var _ container_daemon.Term = new(FakeTerm)
