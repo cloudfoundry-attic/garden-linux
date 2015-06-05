@@ -145,6 +145,18 @@
     },
     {
       "type": "shell",
+      "script": "garden-ci/scripts/install_btrfsprogs.sh",
+      "override": {
+        "garden-ci-virtualbox-iso": {
+          "execute_command": "chmod +x {{ .Path }}; {{ .Vars }} sudo {{ .Path }}"
+        },
+        "amazon-ebs": {
+          "execute_command": "chmod +x {{ .Path }}; {{ .Vars }} sudo {{ .Path }}"
+        }
+      }
+    },
+    {
+      "type": "shell",
       "script": "garden-ci/scripts/cleanup.sh",
       "override": {
         "garden-ci-virtualbox-iso": {
