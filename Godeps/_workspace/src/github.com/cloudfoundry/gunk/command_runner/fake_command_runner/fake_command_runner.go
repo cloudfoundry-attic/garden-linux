@@ -20,6 +20,8 @@ type FakeCommandRunner struct {
 	commandCallbacks map[*CommandSpec]func(*exec.Cmd) error
 	waitingCallbacks map[*CommandSpec]func(*exec.Cmd) error
 
+	process *os.Process
+
 	sync.RWMutex
 }
 
@@ -91,7 +93,19 @@ func (r *FakeCommandRunner) Run(cmd *exec.Cmd) error {
 		}
 	}
 
+	r.RLock()
+	if r.process != nil {
+		cmd.Process = r.process
+	}
+	r.RUnlock()
+
 	return nil
+}
+
+func (r *FakeCommandRunner) RunInjectsProcessToCmd(process *os.Process) {
+	r.Lock()
+	r.process = process
+	r.Unlock()
 }
 
 func (r *FakeCommandRunner) Start(cmd *exec.Cmd) error {
@@ -108,6 +122,12 @@ func (r *FakeCommandRunner) Start(cmd *exec.Cmd) error {
 			return callback(cmd)
 		}
 	}
+
+	r.RLock()
+	if r.process != nil {
+		cmd.Process = r.process
+	}
+	r.RUnlock()
 
 	return nil
 }

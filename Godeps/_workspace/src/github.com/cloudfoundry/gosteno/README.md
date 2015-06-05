@@ -68,6 +68,10 @@ codec, tagging the information.
         t.Info("Hello")
     }
 
+<!-- Added by ErikJasiak; according to github user jtuley of CF Loggregator, these no longer work-->
+<!-- I'm removing as a comment for now until I can get more context as well as a better solution -->
+<!-- if still commented out by July 23rd, 2015, probably safe to delete -->
+<!--
 ## Change logger properties on the fly
 
 Changing logger properties such as log level without restarting system is
@@ -79,6 +83,7 @@ data is exchanged as JSON:
   3. GET /loggers/{name} : get information about the logger by name
   4. PUT /loggers/{name} : put with data like {"Level" : "fatal" }
   5. GET /loggers : get information about all loggers
+-->
 
 ## Supported platforms
 

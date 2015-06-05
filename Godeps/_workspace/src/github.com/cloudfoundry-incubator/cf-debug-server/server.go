@@ -37,14 +37,14 @@ func Runner(address string, sink *lager.ReconfigurableSink) ifrit.Runner {
 	return http_server.New(address, Handler(sink))
 }
 
-func Run(address string, sink *lager.ReconfigurableSink) error {
+func Run(address string, sink *lager.ReconfigurableSink) (ifrit.Process, error) {
 	p := ifrit.Invoke(Runner(address, sink))
 	select {
 	case <-p.Ready():
 	case err := <-p.Wait():
-		return err
+		return nil, err
 	}
-	return nil
+	return p, nil
 }
 
 func Handler(sink *lager.ReconfigurableSink) http.Handler {

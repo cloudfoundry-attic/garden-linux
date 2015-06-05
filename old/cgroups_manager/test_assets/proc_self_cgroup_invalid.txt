@@ -1,0 +1,3 @@
+4memory:/somedir/mem
+5devices:/instance-oekeoeo75ln
+2:cpu/somedir1:cpuset:/instance-oekeoeo75ln

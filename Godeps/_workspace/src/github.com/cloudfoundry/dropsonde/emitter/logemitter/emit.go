@@ -1,15 +1,16 @@
 package logemitter
 
 import (
-	"code.google.com/p/gogoprotobuf/proto"
 	"errors"
+	"os"
+	"strings"
+	"time"
+
 	"github.com/cloudfoundry/dropsonde/events"
 	"github.com/cloudfoundry/loggregatorlib/cfcomponent/generic_logger"
 	"github.com/cloudfoundry/loggregatorlib/loggregatorclient"
 	"github.com/cloudfoundry/loggregatorlib/logmessage"
-	"os"
-	"strings"
-	"time"
+	"github.com/gogo/protobuf/proto"
 )
 
 var (

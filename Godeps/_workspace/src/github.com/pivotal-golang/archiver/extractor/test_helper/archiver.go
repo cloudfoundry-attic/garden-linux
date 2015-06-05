@@ -20,7 +20,7 @@ type ArchiveFile struct {
 
 func CreateZipArchive(filename string, files []ArchiveFile) {
 	file, err := os.Create(filename)
-	Ω(err).ShouldNot(HaveOccurred())
+	Expect(err).NotTo(HaveOccurred())
 
 	w := zip.NewWriter(file)
 
@@ -41,46 +41,46 @@ func CreateZipArchive(filename string, files []ArchiveFile) {
 		}
 
 		f, err := w.CreateHeader(header)
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).NotTo(HaveOccurred())
 
 		if file.Link != "" {
 			_, err = f.Write([]byte(file.Link))
 		} else {
 			_, err = f.Write([]byte(file.Body))
 		}
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).NotTo(HaveOccurred())
 	}
 
 	err = w.Close()
-	Ω(err).ShouldNot(HaveOccurred())
+	Expect(err).NotTo(HaveOccurred())
 
 	err = file.Close()
-	Ω(err).ShouldNot(HaveOccurred())
+	Expect(err).NotTo(HaveOccurred())
 }
 
 func CreateTarGZArchive(filename string, files []ArchiveFile) {
 	file, err := os.Create(filename)
-	Ω(err).ShouldNot(HaveOccurred())
+	Expect(err).NotTo(HaveOccurred())
 
 	gw := gzip.NewWriter(file)
 
 	WriteTar(gw, files)
 
 	err = gw.Close()
-	Ω(err).ShouldNot(HaveOccurred())
+	Expect(err).NotTo(HaveOccurred())
 
 	err = file.Close()
-	Ω(err).ShouldNot(HaveOccurred())
+	Expect(err).NotTo(HaveOccurred())
 }
 
 func CreateTarArchive(filename string, files []ArchiveFile) {
 	file, err := os.Create(filename)
-	Ω(err).ShouldNot(HaveOccurred())
+	Expect(err).NotTo(HaveOccurred())
 
 	WriteTar(file, files)
 
 	err = file.Close()
-	Ω(err).ShouldNot(HaveOccurred())
+	Expect(err).NotTo(HaveOccurred())
 }
 
 func WriteTar(destination io.Writer, files []ArchiveFile) {
@@ -116,12 +116,12 @@ func WriteTar(destination io.Writer, files []ArchiveFile) {
 		}
 
 		err := w.WriteHeader(header)
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).NotTo(HaveOccurred())
 
 		_, err = w.Write([]byte(file.Body))
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).NotTo(HaveOccurred())
 	}
 
 	err := w.Close()
-	Ω(err).ShouldNot(HaveOccurred())
+	Expect(err).NotTo(HaveOccurred())
 }

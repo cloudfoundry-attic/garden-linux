@@ -1,7 +1,7 @@
 // Go support for Protocol Buffers - Google's data interchange format
 //
 // Copyright 2011 The Go Authors.  All rights reserved.
-// http://code.google.com/p/goprotobuf/
+// https://github.com/golang/protobuf
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -78,6 +78,22 @@ func TestClone(t *testing.T) {
 	*m.Inner.Port++
 	if proto.Equal(m, cloneTestMessage) {
 		t.Error("Mutating clone changed the original")
+	}
+	// Byte fields and repeated fields should be copied.
+	if &m.Pet[0] == &cloneTestMessage.Pet[0] {
+		t.Error("Pet: repeated field not copied")
+	}
+	if &m.Others[0] == &cloneTestMessage.Others[0] {
+		t.Error("Others: repeated field not copied")
+	}
+	if &m.Others[0].Value[0] == &cloneTestMessage.Others[0].Value[0] {
+		t.Error("Others[0].Value: bytes field not copied")
+	}
+	if &m.RepBytes[0] == &cloneTestMessage.RepBytes[0] {
+		t.Error("RepBytes: repeated field not copied")
+	}
+	if &m.RepBytes[0][0] == &cloneTestMessage.RepBytes[0][0] {
+		t.Error("RepBytes[0]: bytes field not copied")
 	}
 }
 

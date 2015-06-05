@@ -19,7 +19,7 @@ func TestIntegration(t *testing.T) {
 var _ = BeforeSuite(func() {
 	var err error
 	testBinary, err = gexec.Build("github.com/cloudfoundry-incubator/cf-lager/integration", "-race")
-	Ω(err).ShouldNot(HaveOccurred())
+	Expect(err).NotTo(HaveOccurred())
 })
 
 var _ = AfterSuite(func() {
@@ -29,38 +29,38 @@ var _ = AfterSuite(func() {
 var _ = Describe("CF-Lager", func() {
 	It("provides flags", func() {
 		session, err := gexec.Start(exec.Command(testBinary, "--help"), GinkgoWriter, GinkgoWriter)
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).NotTo(HaveOccurred())
 		session.Wait()
-		Ω(session.Err.Contents()).Should(ContainSubstring("-logLevel"))
+		Expect(session.Err.Contents()).To(ContainSubstring("-logLevel"))
 	})
 
 	It("pipes output to stdout", func() {
 		session, err := gexec.Start(exec.Command(testBinary), GinkgoWriter, GinkgoWriter)
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).NotTo(HaveOccurred())
 		session.Wait()
 
-		Ω(session.Out.Contents()).Should(ContainSubstring("info"))
+		Expect(session.Out.Contents()).To(ContainSubstring("info"))
 	})
 
 	It("defaults to the info log level", func() {
 		session, err := gexec.Start(exec.Command(testBinary), GinkgoWriter, GinkgoWriter)
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).NotTo(HaveOccurred())
 		session.Wait()
 
-		Ω(session.Out.Contents()).ShouldNot(ContainSubstring("debug"))
-		Ω(session.Out.Contents()).Should(ContainSubstring("info"))
-		Ω(session.Out.Contents()).Should(ContainSubstring("error"))
-		Ω(session.Out.Contents()).Should(ContainSubstring("fatal"))
+		Expect(session.Out.Contents()).NotTo(ContainSubstring("debug"))
+		Expect(session.Out.Contents()).To(ContainSubstring("info"))
+		Expect(session.Out.Contents()).To(ContainSubstring("error"))
+		Expect(session.Out.Contents()).To(ContainSubstring("fatal"))
 	})
 
 	It("honors the passed-in log level", func() {
 		session, err := gexec.Start(exec.Command(testBinary, "-logLevel=debug"), GinkgoWriter, GinkgoWriter)
-		Ω(err).ShouldNot(HaveOccurred())
+		Expect(err).NotTo(HaveOccurred())
 		session.Wait()
 
-		Ω(session.Out.Contents()).Should(ContainSubstring("debug"))
-		Ω(session.Out.Contents()).Should(ContainSubstring("info"))
-		Ω(session.Out.Contents()).Should(ContainSubstring("error"))
-		Ω(session.Out.Contents()).Should(ContainSubstring("fatal"))
+		Expect(session.Out.Contents()).To(ContainSubstring("debug"))
+		Expect(session.Out.Contents()).To(ContainSubstring("info"))
+		Expect(session.Out.Contents()).To(ContainSubstring("error"))
+		Expect(session.Out.Contents()).To(ContainSubstring("fatal"))
 	})
 })

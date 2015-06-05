@@ -1,7 +1,7 @@
 // Go support for Protocol Buffers - Google's data interchange format
 //
 // Copyright 2010 The Go Authors.  All rights reserved.
-// http://code.google.com/p/goprotobuf/
+// https://github.com/golang/protobuf
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -36,7 +36,10 @@ package proto
  */
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"reflect"
 	"sort"
 )
@@ -188,14 +191,82 @@ func UnmarshalMessageSet(buf []byte, m map[int32]Extension) error {
 		return err
 	}
 	for _, item := range ms.Item {
-		// restore wire type and field number varint, plus length varint.
-		b := EncodeVarint(uint64(*item.TypeId)<<3 | WireBytes)
-		b = append(b, EncodeVarint(uint64(len(item.Message)))...)
-		b = append(b, item.Message...)
+		id := *item.TypeId
+		msg := item.Message
 
-		m[*item.TypeId] = Extension{enc: b}
+		// Restore wire type and field number varint, plus length varint.
+		// Be careful to preserve duplicate items.
+		b := EncodeVarint(uint64(id)<<3 | WireBytes)
+		if ext, ok := m[id]; ok {
+			// Existing data; rip off the tag and length varint
+			// so we join the new data correctly.
+			// We can assume that ext.enc is set because we are unmarshaling.
+			o := ext.enc[len(b):]   // skip wire type and field number
+			_, n := DecodeVarint(o) // calculate length of length varint
+			o = o[n:]               // skip length varint
+			msg = append(o, msg...) // join old data and new data
+		}
+		b = append(b, EncodeVarint(uint64(len(msg)))...)
+		b = append(b, msg...)
+
+		m[id] = Extension{enc: b}
 	}
 	return nil
+}
+
+// MarshalMessageSetJSON encodes the extension map represented by m in JSON format.
+// It is called by generated MarshalJSON methods on protocol buffer messages with the message_set_wire_format option.
+func MarshalMessageSetJSON(m map[int32]Extension) ([]byte, error) {
+	var b bytes.Buffer
+	b.WriteByte('{')
+
+	// Process the map in key order for deterministic output.
+	ids := make([]int32, 0, len(m))
+	for id := range m {
+		ids = append(ids, id)
+	}
+	sort.Sort(int32Slice(ids)) // int32Slice defined in text.go
+
+	for i, id := range ids {
+		ext := m[id]
+		if i > 0 {
+			b.WriteByte(',')
+		}
+
+		msd, ok := messageSetMap[id]
+		if !ok {
+			// Unknown type; we can't render it, so skip it.
+			continue
+		}
+		fmt.Fprintf(&b, `"[%s]":`, msd.name)
+
+		x := ext.value
+		if x == nil {
+			x = reflect.New(msd.t.Elem()).Interface()
+			if err := Unmarshal(ext.enc, x.(Message)); err != nil {
+				return nil, err
+			}
+		}
+		d, err := json.Marshal(x)
+		if err != nil {
+			return nil, err
+		}
+		b.Write(d)
+	}
+	b.WriteByte('}')
+	return b.Bytes(), nil
+}
+
+// UnmarshalMessageSetJSON decodes the extension map encoded in buf in JSON format.
+// It is called by generated UnmarshalJSON methods on protocol buffer messages with the message_set_wire_format option.
+func UnmarshalMessageSetJSON(buf []byte, m map[int32]Extension) error {
+	// Common-case fast path.
+	if len(buf) == 0 || bytes.Equal(buf, []byte("{}")) {
+		return nil
+	}
+
+	// This is fairly tricky, and it's not clear that it is needed.
+	return errors.New("TODO: UnmarshalMessageSetJSON not yet implemented")
 }
 
 // A global registry of types that can be used in a MessageSet.
@@ -208,9 +279,9 @@ type messageSetDesc struct {
 }
 
 // RegisterMessageSetType is called from the generated code.
-func RegisterMessageSetType(i messageTypeIder, name string) {
-	messageSetMap[i.MessageTypeId()] = messageSetDesc{
-		t:    reflect.TypeOf(i),
+func RegisterMessageSetType(m Message, fieldNum int32, name string) {
+	messageSetMap[fieldNum] = messageSetDesc{
+		t:    reflect.TypeOf(m),
 		name: name,
 	}
 }

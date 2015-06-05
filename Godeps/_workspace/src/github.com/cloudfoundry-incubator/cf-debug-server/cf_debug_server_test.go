@@ -1,16 +1,18 @@
 package cf_debug_server_test
 
 import (
+	"bytes"
 	"flag"
 	"fmt"
 	"io/ioutil"
 	"net"
 	"net/http"
-	"os"
+	"strconv"
 
 	cf_debug_server "github.com/cloudfoundry-incubator/cf-debug-server"
 	"github.com/pivotal-golang/lager"
 	"github.com/tedsuo/ifrit"
+	"github.com/tedsuo/ifrit/ginkgomon"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -35,10 +37,7 @@ var _ = Describe("CF Debug Server", func() {
 	})
 
 	AfterEach(func() {
-		if process != nil {
-			process.Signal(os.Interrupt)
-			<-process.Wait()
-		}
+		ginkgomon.Interrupt(process)
 	})
 
 	Describe("AddFlags", func() {
@@ -47,7 +46,7 @@ var _ = Describe("CF Debug Server", func() {
 			cf_debug_server.AddFlags(flags)
 
 			f := flags.Lookup(cf_debug_server.DebugFlag)
-			Ω(f).ShouldNot(BeNil())
+			Expect(f).NotTo(BeNil())
 		})
 	})
 
@@ -55,7 +54,7 @@ var _ = Describe("CF Debug Server", func() {
 		Context("when flags are not added", func() {
 			It("returns the empty string", func() {
 				flags := flag.NewFlagSet("test", flag.ContinueOnError)
-				Ω(cf_debug_server.DebugAddress(flags)).Should(Equal(""))
+				Expect(cf_debug_server.DebugAddress(flags)).To(Equal(""))
 			})
 		})
 
@@ -68,16 +67,15 @@ var _ = Describe("CF Debug Server", func() {
 
 			Context("when set", func() {
 				It("returns the address", func() {
-					address := "127.0.0.1:10003"
 					flags.Parse([]string{"-debugAddr", address})
 
-					Ω(cf_debug_server.DebugAddress(flags)).Should(Equal(address))
+					Expect(cf_debug_server.DebugAddress(flags)).To(Equal(address))
 				})
 			})
 
 			Context("when not set", func() {
 				It("returns the empty string", func() {
-					Ω(cf_debug_server.DebugAddress(flags)).Should(Equal(""))
+					Expect(cf_debug_server.DebugAddress(flags)).To(Equal(""))
 				})
 			})
 		})
@@ -85,33 +83,81 @@ var _ = Describe("CF Debug Server", func() {
 
 	Describe("Run", func() {
 		It("serves debug information", func() {
-			address := "127.0.0.1:10003"
-
-			err := cf_debug_server.Run(address, sink)
-			Ω(err).ShouldNot(HaveOccurred())
+			var err error
+			process, err = cf_debug_server.Run(address, sink)
+			Expect(err).NotTo(HaveOccurred())
 
 			debugResponse, err := http.Get(fmt.Sprintf("http://%s/debug/pprof/goroutine", address))
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred())
 
 			debugInfo, err := ioutil.ReadAll(debugResponse.Body)
-			Ω(err).ShouldNot(HaveOccurred())
+			Expect(err).NotTo(HaveOccurred())
 
-			Ω(debugInfo).Should(ContainSubstring("goroutine profile: total"))
+			Expect(debugInfo).To(ContainSubstring("goroutine profile: total"))
+
 		})
 
 		Context("when the address is already in use", func() {
+			var listener net.Listener
+
+			BeforeEach(func() {
+				var err error
+				listener, err = net.Listen("tcp", address)
+				Expect(err).NotTo(HaveOccurred())
+			})
+
+			AfterEach(func() {
+				listener.Close()
+			})
+
 			It("returns an error", func() {
-				address := "127.0.0.1:10004"
-
-				_, err := net.Listen("tcp", address)
-				Ω(err).ShouldNot(HaveOccurred())
-
-				err = cf_debug_server.Run(address, sink)
-				Ω(err).Should(HaveOccurred())
-				Ω(err).Should(BeAssignableToTypeOf(&net.OpError{}))
+				var err error
+				process, err = cf_debug_server.Run(address, sink)
+				Expect(err).To(HaveOccurred())
+				Expect(err).To(BeAssignableToTypeOf(&net.OpError{}))
 				netErr := err.(*net.OpError)
-				Ω(netErr.Op).Should(Equal("listen"))
+				Expect(netErr.Op).To(Equal("listen"))
 			})
 		})
+
+		Context("checking log-level endpoint", func() {
+			validForms := map[lager.LogLevel][]string{
+				lager.DEBUG: []string{"debug", "DEBUG", "d", strconv.Itoa(int(lager.DEBUG))},
+				lager.INFO:  []string{"info", "INFO", "i", strconv.Itoa(int(lager.INFO))},
+				lager.ERROR: []string{"error", "ERROR", "e", strconv.Itoa(int(lager.ERROR))},
+				lager.FATAL: []string{"fatal", "FATAL", "f", strconv.Itoa(int(lager.FATAL))},
+			}
+
+			//This will add another 16 unit tests to the suit
+			for level, acceptedForms := range validForms {
+				for _, form := range acceptedForms {
+					testLevel := level
+					testForm := form
+
+					It("can reconfigure the given sink with "+form, func() {
+						var err error
+						process, err = cf_debug_server.Run(address, sink)
+						Expect(err).NotTo(HaveOccurred())
+
+						sink.Log(testLevel, []byte("hello before level change"))
+						Eventually(logBuf).ShouldNot(gbytes.Say("hello before level change"))
+
+						request, err := http.NewRequest("PUT", fmt.Sprintf("http://%s/log-level", address), bytes.NewBufferString(testForm))
+
+						Expect(err).NotTo(HaveOccurred())
+
+						response, err := http.DefaultClient.Do(request)
+						Expect(err).NotTo(HaveOccurred())
+
+						Expect(response.StatusCode).To(Equal(http.StatusOK))
+						response.Body.Close()
+
+						sink.Log(testLevel, []byte("Logs sent with log-level "+testForm))
+						Eventually(logBuf).Should(gbytes.Say("Logs sent with log-level " + testForm))
+					})
+				}
+			}
+		})
+
 	})
 })

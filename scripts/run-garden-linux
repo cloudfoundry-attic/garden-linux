@@ -11,6 +11,6 @@ sudo ./out/garden \
   -depot=/opt/garden/containers \
   -bin=$PWD/linux_backend/bin \
   -rootfs=/opt/warden/rootfs \
+  -graph=/opt/warden/graph \
   -snapshots=/opt/garden/snapshots \
-  -overlays=/opt/garden/overlays \
   "$@"

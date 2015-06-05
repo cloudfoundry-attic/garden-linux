@@ -263,6 +263,13 @@ var _ = Describe("Container pool", func() {
 			})
 		}
 
+		itTearsDownTheIPTableFilters := func() {
+			It("tears down the IP table filters", func() {
+				Expect(fakeFilterProvider.ProvideFilterCallCount()).To(Equal(2)) // one to setup, one to teae down
+				Expect(fakeFilter.TearDownCallCount()).To(Equal(1))
+			})
+		}
+
 		It("returns containers with unique IDs", func() {
 			container1, err := pool.Create(garden.ContainerSpec{})
 			Expect(err).ToNot(HaveOccurred())
@@ -985,6 +992,31 @@ var _ = Describe("Container pool", func() {
 			itReleasesTheIPBlock()
 			itCleansUpTheRootfs()
 			itDeletesTheContainerDirectory()
+		})
+
+		Context("the container environment is invalid", func() {
+			var err error
+
+			BeforeEach(func() {
+				_, err = pool.Create(garden.ContainerSpec{
+					Env: []string{
+						"hello=world",
+						"invalidstring",
+						"",
+						"=12",
+					},
+				})
+			})
+
+			It("returns an error", func() {
+				Expect(err).To(HaveOccurred())
+			})
+
+			itTearsDownTheIPTableFilters()
+			itReleasesTheIPBlock()
+			itDeletesTheContainerDirectory()
+			itCleansUpTheRootfs()
+			itReleasesAndDestroysTheBridge()
 		})
 	})
 

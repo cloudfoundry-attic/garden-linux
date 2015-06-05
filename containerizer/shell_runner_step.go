@@ -2,9 +2,10 @@ package containerizer
 
 import (
 	"fmt"
-	"github.com/cloudfoundry/gunk/command_runner"
 	"os"
 	"os/exec"
+
+	"github.com/cloudfoundry/gunk/command_runner"
 )
 
 type ShellRunnerStep struct {

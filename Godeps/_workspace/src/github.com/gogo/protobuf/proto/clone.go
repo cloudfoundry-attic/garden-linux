@@ -1,7 +1,7 @@
 // Go support for Protocol Buffers - Google's data interchange format
 //
 // Copyright 2011 The Go Authors.  All rights reserved.
-// http://code.google.com/p/goprotobuf/
+// https://github.com/golang/protobuf
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -130,6 +130,14 @@ func mergeAny(out, in reflect.Value) {
 		if in.IsNil() {
 			return
 		}
+		if in.Type().Elem().Kind() == reflect.Uint8 {
+			// []byte is a scalar bytes field, not a repeated field.
+			// Make a deep copy.
+			// Append to []byte{} instead of []byte(nil) so that we never end up
+			// with a nil result.
+			out.SetBytes(append([]byte{}, in.Bytes()...))
+			return
+		}
 		n := in.Len()
 		if out.IsNil() {
 			out.Set(reflect.MakeSlice(in.Type(), 0, n))
@@ -138,9 +146,6 @@ func mergeAny(out, in reflect.Value) {
 		case reflect.Bool, reflect.Float32, reflect.Float64, reflect.Int32, reflect.Int64,
 			reflect.String, reflect.Uint32, reflect.Uint64:
 			out.Set(reflect.AppendSlice(out, in))
-		case reflect.Uint8:
-			// []byte is a scalar bytes field.
-			out.Set(in)
 		default:
 			for i := 0; i < n; i++ {
 				x := reflect.Indirect(reflect.New(in.Type().Elem()))

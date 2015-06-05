@@ -6,7 +6,7 @@
 // Go support for Protocol Buffers - Google's data interchange format
 //
 // Copyright 2010 The Go Authors.  All rights reserved.
-// http://code.google.com/p/goprotobuf/
+// http://github.com/golang/protobuf/
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -39,6 +39,10 @@ package proto
 import (
 	"reflect"
 )
+
+func NewRequiredNotSetError(field string) *RequiredNotSetError {
+	return &RequiredNotSetError{field}
+}
 
 type Sizer interface {
 	Size() int
@@ -91,13 +95,35 @@ func (o *Buffer) enc_ref_int32(p *Properties, base structPointer) error {
 	if refWord32_IsNil(v) {
 		return ErrNil
 	}
-	x := refWord32_Get(v)
+	x := int32(refWord32_Get(v))
 	o.buf = append(o.buf, p.tagcode...)
 	p.valEnc(o, uint64(x))
 	return nil
 }
 
 func size_ref_int32(p *Properties, base structPointer) (n int) {
+	v := structPointer_RefWord32(base, p.field)
+	if refWord32_IsNil(v) {
+		return 0
+	}
+	x := int32(refWord32_Get(v))
+	n += len(p.tagcode)
+	n += p.valSize(uint64(x))
+	return
+}
+
+func (o *Buffer) enc_ref_uint32(p *Properties, base structPointer) error {
+	v := structPointer_RefWord32(base, p.field)
+	if refWord32_IsNil(v) {
+		return ErrNil
+	}
+	x := refWord32_Get(v)
+	o.buf = append(o.buf, p.tagcode...)
+	p.valEnc(o, uint64(x))
+	return nil
+}
+
+func size_ref_uint32(p *Properties, base structPointer) (n int) {
 	v := structPointer_RefWord32(base, p.field)
 	if refWord32_IsNil(v) {
 		return 0
@@ -175,7 +201,7 @@ func (o *Buffer) enc_ref_struct_message(p *Properties, base structPointer) error
 	}
 
 	o.buf = append(o.buf, p.tagcode...)
-	return o.enc_len_struct(p.stype, p.sprop, structp, &state)
+	return o.enc_len_struct(p.sprop, structp, &state)
 }
 
 //TODO this is only copied, please fix this
@@ -195,7 +221,7 @@ func size_ref_struct_message(p *Properties, base structPointer) int {
 	}
 
 	n0 := len(p.tagcode)
-	n1 := size_struct(p.stype, p.sprop, structp)
+	n1 := size_struct(p.sprop, structp)
 	n2 := sizeVarint(uint64(n1)) // size of encoded length
 	return n0 + n1 + n2
 }
@@ -226,7 +252,7 @@ func (o *Buffer) enc_slice_ref_struct_message(p *Properties, base structPointer)
 		}
 
 		o.buf = append(o.buf, p.tagcode...)
-		err := o.enc_len_struct(p.stype, p.sprop, structp, &state)
+		err := o.enc_len_struct(p.sprop, structp, &state)
 		if err != nil && !state.shouldContinue(err, nil) {
 			if err == ErrNil {
 				return ErrRepeatedHasNil
@@ -260,7 +286,7 @@ func size_slice_ref_struct_message(p *Properties, base structPointer) (n int) {
 			continue
 		}
 
-		n0 := size_struct(p.stype, p.sprop, structp)
+		n0 := size_struct(p.sprop, structp)
 		n1 := sizeVarint(uint64(n0)) // size of encoded length
 		n += n0 + n1
 	}

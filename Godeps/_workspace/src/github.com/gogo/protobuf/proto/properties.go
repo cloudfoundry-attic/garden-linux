@@ -6,7 +6,7 @@
 // Go support for Protocol Buffers - Google's data interchange format
 //
 // Copyright 2010 The Go Authors.  All rights reserved.
-// http://code.google.com/p/goprotobuf/
+// https://github.com/golang/protobuf
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -150,17 +150,19 @@ func (sp *StructProperties) Swap(i, j int) { sp.order[i], sp.order[j] = sp.order
 
 // Properties represents the protocol-specific behavior of a single struct field.
 type Properties struct {
-	Name       string // name of the field, for error messages
-	OrigName   string // original name before protocol compiler (always set)
-	Wire       string
-	WireType   int
-	Tag        int
-	Required   bool
-	Optional   bool
-	Repeated   bool
-	Packed     bool   // relevant for repeated primitives only
-	Enum       string // set for enum types only
+	Name     string // name of the field, for error messages
+	OrigName string // original name before protocol compiler (always set)
+	Wire     string
+	WireType int
+	Tag      int
+	Required bool
+	Optional bool
+	Repeated bool
+	Packed   bool   // relevant for repeated primitives only
+	Enum     string // set for enum types only
+
 	Default    string // default value
+	HasDefault bool   // whether an explicit default was provided
 	CustomType string
 	def_uint64 uint64
 
@@ -209,7 +211,7 @@ func (p *Properties) String() string {
 	if len(p.Enum) > 0 {
 		s += ",enum=" + p.Enum
 	}
-	if len(p.Default) > 0 {
+	if p.HasDefault {
 		s += ",def=" + p.Default
 	}
 	return s
@@ -281,6 +283,7 @@ func (p *Properties) Parse(s string) {
 		case strings.HasPrefix(f, "enum="):
 			p.Enum = f[5:]
 		case strings.HasPrefix(f, "def="):
+			p.HasDefault = true
 			p.Default = f[4:] // rest of string
 			if i+1 < len(fields) {
 				// Commas aren't escaped, and def is always last.
@@ -314,7 +317,7 @@ func (p *Properties) setEncAndDec(typ reflect.Type, lockGetProp bool) {
 	switch t1 := typ; t1.Kind() {
 	default:
 		if !p.setNonNullableEncAndDec(t1) {
-			fmt.Fprintf(os.Stderr, "proto: no coders for %T\n", t1)
+			fmt.Fprintf(os.Stderr, "proto: no coders for %v\n", t1)
 		}
 	case reflect.Ptr:
 		switch t2 := t1.Elem(); t2.Kind() {
@@ -325,18 +328,22 @@ func (p *Properties) setEncAndDec(typ reflect.Type, lockGetProp bool) {
 			p.enc = (*Buffer).enc_bool
 			p.dec = (*Buffer).dec_bool
 			p.size = size_bool
-		case reflect.Int32, reflect.Uint32:
+		case reflect.Int32:
 			p.enc = (*Buffer).enc_int32
 			p.dec = (*Buffer).dec_int32
 			p.size = size_int32
+		case reflect.Uint32:
+			p.enc = (*Buffer).enc_uint32
+			p.dec = (*Buffer).dec_int32 // can reuse
+			p.size = size_uint32
 		case reflect.Int64, reflect.Uint64:
 			p.enc = (*Buffer).enc_int64
 			p.dec = (*Buffer).dec_int64
 			p.size = size_int64
 		case reflect.Float32:
-			p.enc = (*Buffer).enc_int32 // can just treat them as bits
+			p.enc = (*Buffer).enc_uint32 // can just treat them as bits
 			p.dec = (*Buffer).dec_int32
-			p.size = size_int32
+			p.size = size_uint32
 		case reflect.Float64:
 			p.enc = (*Buffer).enc_int64 // can just treat them as bits
 			p.dec = (*Buffer).dec_int64
@@ -375,48 +382,50 @@ func (p *Properties) setEncAndDec(typ reflect.Type, lockGetProp bool) {
 			}
 			p.dec = (*Buffer).dec_slice_bool
 			p.packedDec = (*Buffer).dec_slice_packed_bool
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
-			switch t2.Bits() {
-			case 32:
-				if p.Packed {
-					p.enc = (*Buffer).enc_slice_packed_int32
-					p.size = size_slice_packed_int32
-				} else {
-					p.enc = (*Buffer).enc_slice_int32
-					p.size = size_slice_int32
-				}
-				p.dec = (*Buffer).dec_slice_int32
-				p.packedDec = (*Buffer).dec_slice_packed_int32
-			case 64:
-				if p.Packed {
-					p.enc = (*Buffer).enc_slice_packed_int64
-					p.size = size_slice_packed_int64
-				} else {
-					p.enc = (*Buffer).enc_slice_int64
-					p.size = size_slice_int64
-				}
-				p.dec = (*Buffer).dec_slice_int64
-				p.packedDec = (*Buffer).dec_slice_packed_int64
-			case 8:
-				if t2.Kind() == reflect.Uint8 {
-					p.enc = (*Buffer).enc_slice_byte
-					p.dec = (*Buffer).dec_slice_byte
-					p.size = size_slice_byte
-				}
-			default:
-				logNoSliceEnc(t1, t2)
-				break
+		case reflect.Int32:
+			if p.Packed {
+				p.enc = (*Buffer).enc_slice_packed_int32
+				p.size = size_slice_packed_int32
+			} else {
+				p.enc = (*Buffer).enc_slice_int32
+				p.size = size_slice_int32
 			}
+			p.dec = (*Buffer).dec_slice_int32
+			p.packedDec = (*Buffer).dec_slice_packed_int32
+		case reflect.Uint32:
+			if p.Packed {
+				p.enc = (*Buffer).enc_slice_packed_uint32
+				p.size = size_slice_packed_uint32
+			} else {
+				p.enc = (*Buffer).enc_slice_uint32
+				p.size = size_slice_uint32
+			}
+			p.dec = (*Buffer).dec_slice_int32
+			p.packedDec = (*Buffer).dec_slice_packed_int32
+		case reflect.Int64, reflect.Uint64:
+			if p.Packed {
+				p.enc = (*Buffer).enc_slice_packed_int64
+				p.size = size_slice_packed_int64
+			} else {
+				p.enc = (*Buffer).enc_slice_int64
+				p.size = size_slice_int64
+			}
+			p.dec = (*Buffer).dec_slice_int64
+			p.packedDec = (*Buffer).dec_slice_packed_int64
+		case reflect.Uint8:
+			p.enc = (*Buffer).enc_slice_byte
+			p.dec = (*Buffer).dec_slice_byte
+			p.size = size_slice_byte
 		case reflect.Float32, reflect.Float64:
 			switch t2.Bits() {
 			case 32:
 				// can just treat them as bits
 				if p.Packed {
-					p.enc = (*Buffer).enc_slice_packed_int32
-					p.size = size_slice_packed_int32
+					p.enc = (*Buffer).enc_slice_packed_uint32
+					p.size = size_slice_packed_uint32
 				} else {
-					p.enc = (*Buffer).enc_slice_int32
-					p.size = size_slice_int32
+					p.enc = (*Buffer).enc_slice_uint32
+					p.size = size_slice_uint32
 				}
 				p.dec = (*Buffer).dec_slice_int32
 				p.packedDec = (*Buffer).dec_slice_packed_int32
@@ -539,7 +548,11 @@ var (
 )
 
 // GetProperties returns the list of properties for the type represented by t.
+// t must represent a generated struct type of a protocol message.
 func GetProperties(t reflect.Type) *StructProperties {
+	if t.Kind() != reflect.Struct {
+		panic("proto: type must have kind struct")
+	}
 	mutex.Lock()
 	sprop := getPropertiesLocked(t)
 	mutex.Unlock()

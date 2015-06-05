@@ -41,6 +41,10 @@ You can create a router by mixing the routes and handlers together:
 The router is just an http.Handler, so it can be used to create a server in the usual fashion:
   server := httptest.NewServer(router)
 
+The handlers can obtain parameters derived from the URL path:
+
+  ownerId := rata.Param(request, "owner_id")
+
 Meanwhile, on the client side, you can create a request generator:
   requestGenerator := rata.NewRequestGenerator(server.URL, petRoutes)
 

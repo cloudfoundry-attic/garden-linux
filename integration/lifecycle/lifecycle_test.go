@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -160,6 +161,53 @@ var _ = Describe("Creating a container", func() {
 		})
 	})
 
+	Context("when the create container fails because of env failure", func() {
+		allBridges := func() []byte {
+			stdout := gbytes.NewBuffer()
+			cmd, err := gexec.Start(exec.Command("ip", "a"), stdout, GinkgoWriter)
+			Expect(err).ToNot(HaveOccurred())
+			cmd.Wait()
+			return stdout.Contents()
+		}
+
+		It("does not leave bridges resources around", func() {
+			client = startGarden()
+			bridgePrefix := fmt.Sprintf("w%db-", GinkgoParallelNode())
+			Expect(allBridges()).ToNot(ContainSubstring(bridgePrefix))
+			var err error
+			_, err = client.Create(garden.ContainerSpec{
+				Env: []string{"hello"}})
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError(HavePrefix("process: malformed environment")))
+			//check no bridges are leaked
+			Eventually(allBridges).ShouldNot(ContainSubstring(bridgePrefix))
+		})
+
+		It("does not leave network namespaces resources around", func() {
+			client = startGarden()
+			var err error
+			_, err = client.Create(garden.ContainerSpec{
+				Env: []string{"hello"}})
+			Expect(err).To(HaveOccurred())
+			Expect(err).To(MatchError(HavePrefix("process: malformed environment")))
+			//check no network namespaces are leaked
+			stdout := gbytes.NewBuffer()
+			cmd, err := gexec.Start(
+				exec.Command(
+					"sh",
+					"-c",
+					"mount -n -t tmpfs tmpfs /sys && ip netns list && umount /sys",
+				),
+				stdout,
+				GinkgoWriter,
+			)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(cmd.Wait("1s").ExitCode()).To(Equal(0))
+			Expect(stdout.Contents()).To(Equal([]byte{}))
+		})
+
+	})
+
 	Context("when the container fails to start", func() {
 		It("does not leave resources around", func() {
 			client = startGarden()
@@ -258,6 +306,40 @@ var _ = Describe("Creating a container", func() {
 
 			Expect(outBuf).To(gbytes.Say("tmpfs /dev/shm tmpfs"))
 			Expect(outBuf).To(gbytes.Say("rw,nodev,relatime"))
+		})
+
+		Context("when the rootfs is a symlink", func() {
+			var symlinkDir string
+
+			BeforeEach(func() {
+				symlinkDir, err := ioutil.TempDir("", "test-symlink")
+				Expect(err).ToNot(HaveOccurred())
+
+				rootfs = path.Join(symlinkDir, "rootfs")
+
+				err = os.Symlink(rootFSPath, rootfs)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			AfterEach(func() {
+				os.RemoveAll(symlinkDir)
+			})
+
+			It("follows the symlink", func() {
+				stdout := gbytes.NewBuffer()
+
+				process, err := container.Run(garden.ProcessSpec{
+					User: "vcap",
+					Path: "ls",
+					Args: []string{"/"},
+				}, garden.ProcessIO{
+					Stdout: stdout,
+				})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(process.Wait()).To(BeZero())
+
+				Expect(stdout).To(gbytes.Say("bin"))
+			})
 		})
 
 		Context("and sending a List request", func() {
@@ -658,7 +740,7 @@ var _ = Describe("Creating a container", func() {
 				stdout := gbytes.NewBuffer()
 				stderr := gbytes.NewBuffer()
 
-				for i := 0; i < 200; i++ {
+				for i := 0; i < 100; i++ {
 					process, err := container.Run(garden.ProcessSpec{
 						User: "vcap",
 						Path: "sh",

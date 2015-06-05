@@ -3,15 +3,16 @@ package runtime_stats_test
 import (
 	"github.com/cloudfoundry/dropsonde/runtime_stats"
 
-	"code.google.com/p/gogoprotobuf/proto"
 	"errors"
-	"github.com/cloudfoundry/dropsonde/emitter/fake"
-	"github.com/cloudfoundry/dropsonde/events"
-	. "github.com/onsi/ginkgo"
-	. "github.com/onsi/gomega"
 	"log"
 	"runtime"
 	"time"
+
+	"github.com/cloudfoundry/dropsonde/emitter/fake"
+	"github.com/cloudfoundry/dropsonde/events"
+	"github.com/gogo/protobuf/proto"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("RuntimeStats", func() {

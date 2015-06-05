@@ -3,6 +3,7 @@ package lifecycle_test
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
 	. "github.com/onsi/ginkgo"
@@ -33,17 +34,58 @@ var _ = Describe("Garden startup flags", func() {
 		})
 	})
 
-	Context("when started with the --maxContainers flag", func() {
+	Context("when the configured port range exceeds the linux maxiumum", func() {
 		BeforeEach(func() {
-			client = startGarden("--maxContainers", "1")
+			startGarden("--portPoolStart", "60000", "--portPoolSize", "10000")
 		})
 
-		It("returns error when attempting to create more containers than is allowed", func() {
-			c1, err := client.Create(garden.ContainerSpec{})
-			Expect(err).NotTo(HaveOccurred())
-			defer client.Destroy(c1.Handle())
-			_, err = client.Create(garden.ContainerSpec{})
-			Expect(err).To(MatchError(ContainSubstring("cannot create more than 1 containers")))
+		It("will fail server initializaion", func() {
+			select {
+			case err := <-gardenProcess.Wait():
+				Expect(err).To(HaveOccurred())
+			case <-time.After(time.Second * 5):
+				Fail("timeout waiting for server to die")
+			}
+		})
+	})
+
+	Context("when started with the --maxContainers flag", func() {
+		Context("when maxContainers is lower than the subnet pool capacity", func() {
+			BeforeEach(func() {
+				client = startGarden("--maxContainers", "1")
+			})
+
+			Context("when attempting to create more than maxContainers containers", func() {
+				It("returns an error", func() {
+					c1, err := client.Create(garden.ContainerSpec{})
+					Expect(err).NotTo(HaveOccurred())
+					defer client.Destroy(c1.Handle())
+					_, err = client.Create(garden.ContainerSpec{})
+					Expect(err).To(MatchError(ContainSubstring("cannot create more than 1 containers")))
+				})
+			})
+
+			Context("when getting the capacity", func() {
+				It("returns the maxContainers flag value", func() {
+					capacity, err := client.Capacity()
+					Expect(err).ToNot(HaveOccurred())
+					Expect(capacity.MaxContainers).To(Equal(uint64(1)))
+				})
+			})
+		})
+
+		Context("when maxContainers is higher than the subnet pool capacity", func() {
+			BeforeEach(func() {
+				client = startGarden("--maxContainers", "1000")
+			})
+
+			Context("when getting the capacity", func() {
+				It("returns the capacity of the subnet pool", func() {
+					capacity, err := client.Capacity()
+					Expect(err).ToNot(HaveOccurred())
+					Expect(capacity.MaxContainers).To(Equal(uint64(64)))
+				})
+			})
 		})
 	})
 

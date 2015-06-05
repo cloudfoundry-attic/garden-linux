@@ -37,7 +37,7 @@ func (r *RequestGenerator) CreateRequest(
 ) (*http.Request, error) {
 	route, ok := r.routes.FindRouteByName(name)
 	if !ok {
-		return &http.Request{}, fmt.Errorf("No route exists with the name %", name)
+		return &http.Request{}, fmt.Errorf("No route exists with the name %s", name)
 	}
 	path, err := route.CreatePath(params)
 	if err != nil {

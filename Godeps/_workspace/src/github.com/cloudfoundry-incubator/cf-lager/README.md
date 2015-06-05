@@ -1,4 +1,3 @@
-[![Build Status](https://travis-ci.org/cloudfoundry-incubator/cf-lager.svg?branch=master)](https://travis-ci.org/cloudfoundry-incubator/cf-lager)
 cf-lager
 ========
 

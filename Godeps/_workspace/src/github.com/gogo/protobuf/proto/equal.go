@@ -1,7 +1,7 @@
 // Go support for Protocol Buffers - Google's data interchange format
 //
 // Copyright 2011 The Go Authors.  All rights reserved.
-// http://code.google.com/p/goprotobuf/
+// https://github.com/golang/protobuf
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -57,7 +57,7 @@ Equality is defined in this way:
     although represented by []byte, is not a repeated field)
   - Two unset fields are equal.
   - Two unknown field sets are equal if their current
-    encoded state is equal. (TODO)
+    encoded state is equal.
   - Two extension sets are equal iff they have corresponding
     elements that are pairwise equal.
   - Every other combination of things are not equal.

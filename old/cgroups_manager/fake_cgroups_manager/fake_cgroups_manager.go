@@ -87,8 +87,8 @@ func (m *FakeCgroupsManager) Get(subsytem, name string) (string, error) {
 	return "", nil
 }
 
-func (m *FakeCgroupsManager) SubsystemPath(subsystem string) string {
-	return path.Join(m.cgroupsPath, subsystem, "instance-"+m.id)
+func (m *FakeCgroupsManager) SubsystemPath(subsystem string) (string, error) {
+	return path.Join(m.cgroupsPath, subsystem, "instance-"+m.id), nil
 }
 
 func (m *FakeCgroupsManager) AddedValues() []AddValue {

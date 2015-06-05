@@ -8,9 +8,21 @@ import (
 )
 
 var _ = Describe("Port pool", func() {
+
+	Describe("initialization", func() {
+		Context("when port range exeeding Linux limit given", func() {
+			It("will return an error", func() {
+				_, err := port_pool.New(61001, 5000)
+				Expect(err).To(MatchError(ContainSubstring("invalid port range")))
+
+			})
+		})
+	})
+
 	Describe("acquiring", func() {
 		It("returns the next available port from the pool", func() {
-			pool := port_pool.New(10000, 5)
+			pool, err := port_pool.New(10000, 5)
+			Expect(err).ToNot(HaveOccurred())
 
 			port1, err := pool.Acquire()
 			Expect(err).ToNot(HaveOccurred())
@@ -24,14 +36,15 @@ var _ = Describe("Port pool", func() {
 
 		Context("when the pool is exhausted", func() {
 			It("returns an error", func() {
-				pool := port_pool.New(10000, 5)
+				pool, err := port_pool.New(10000, 5)
+				Expect(err).ToNot(HaveOccurred())
 
 				for i := 0; i < 5; i++ {
 					_, err := pool.Acquire()
 					Expect(err).ToNot(HaveOccurred())
 				}
 
-				_, err := pool.Acquire()
+				_, err = pool.Acquire()
 				Expect(err).To(HaveOccurred())
 			})
 		})
@@ -39,9 +52,10 @@ var _ = Describe("Port pool", func() {
 
 	Describe("removing", func() {
 		It("acquires a specific port from the pool", func() {
-			pool := port_pool.New(10000, 2)
+			pool, err := port_pool.New(10000, 2)
+			Expect(err).ToNot(HaveOccurred())
 
-			err := pool.Remove(10000)
+			err = pool.Remove(10000)
 			Expect(err).ToNot(HaveOccurred())
 
 			port, err := pool.Acquire()
@@ -54,7 +68,8 @@ var _ = Describe("Port pool", func() {
 
 		Context("when the resource is already acquired", func() {
 			It("returns a PortTakenError", func() {
-				pool := port_pool.New(10000, 2)
+				pool, err := port_pool.New(10000, 2)
+				Expect(err).ToNot(HaveOccurred())
 
 				port, err := pool.Acquire()
 				Expect(err).ToNot(HaveOccurred())
@@ -67,7 +82,8 @@ var _ = Describe("Port pool", func() {
 
 	Describe("releasing", func() {
 		It("places a port back at the end of the pool", func() {
-			pool := port_pool.New(10000, 2)
+			pool, err := port_pool.New(10000, 2)
+			Expect(err).ToNot(HaveOccurred())
 
 			port1, err := pool.Acquire()
 			Expect(err).ToNot(HaveOccurred())
@@ -86,18 +102,20 @@ var _ = Describe("Port pool", func() {
 
 		Context("when the released port is out of the range", func() {
 			It("does not add it to the pool", func() {
-				pool := port_pool.New(10000, 0)
+				pool, err := port_pool.New(10000, 0)
+				Expect(err).ToNot(HaveOccurred())
 
 				pool.Release(20000)
 
-				_, err := pool.Acquire()
+				_, err = pool.Acquire()
 				Expect(err).To(HaveOccurred())
 			})
 		})
 
 		Context("when the released port is already released", func() {
 			It("does not duplicate it", func() {
-				pool := port_pool.New(10000, 2)
+				pool, err := port_pool.New(10000, 2)
+				Expect(err).ToNot(HaveOccurred())
 
 				port1, err := pool.Acquire()
 				Expect(err).ToNot(HaveOccurred())

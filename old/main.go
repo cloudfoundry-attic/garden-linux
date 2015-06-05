@@ -13,7 +13,6 @@ import (
 	"syscall"
 
 	"github.com/cloudfoundry/gunk/command_runner"
-	"github.com/cloudfoundry/gunk/localip"
 	"github.com/docker/docker/daemon/graphdriver"
 	_ "github.com/docker/docker/daemon/graphdriver/aufs"
 	_ "github.com/docker/docker/daemon/graphdriver/vfs"
@@ -21,6 +20,7 @@ import (
 	"github.com/docker/docker/registry"
 	"github.com/pivotal-golang/clock"
 	"github.com/pivotal-golang/lager"
+	"github.com/pivotal-golang/localip"
 
 	"github.com/cloudfoundry-incubator/cf-debug-server"
 	"github.com/cloudfoundry-incubator/cf-lager"
@@ -78,12 +78,6 @@ var depotPath = flag.String(
 	"directory in which to store containers",
 )
 
-var overlaysPath = flag.String(
-	"overlays",
-	"",
-	"directory in which to store containers mount points",
-)
-
 var rootFSPath = flag.String(
 	"rootfs",
 	"",
@@ -104,7 +98,7 @@ var containerGraceTime = flag.Duration(
 
 var portPoolStart = flag.Uint(
 	"portPoolStart",
-	61001,
+	60000,
 	"start of ephemeral port range used for mapped container ports",
 )
 
@@ -194,9 +188,9 @@ var externalIP = flag.String(
 	"",
 	"IP address to use to reach container's mapped ports")
 
-var maxContainers = flag.Int(
+var maxContainers = flag.Uint(
 	"maxContainers",
-	-1,
+	0,
 	"Maximum number of containers that can be created")
 
 func Main() {
@@ -222,10 +216,6 @@ func Main() {
 		missing("-depot")
 	}
 
-	if *overlaysPath == "" {
-		missing("-overlays")
-	}
-
 	if len(*tag) > 2 {
 		println("-tag parameter must be less than 3 characters long")
 		println()
@@ -237,7 +227,10 @@ func Main() {
 	subnetPool, _ := subnets.NewSubnets(dynamicRange)
 
 	// TODO: use /proc/sys/net/ipv4/ip_local_port_range by default (end + 1)
-	portPool := port_pool.New(uint32(*portPoolStart), uint32(*portPoolSize))
+	portPool, err := port_pool.New(uint32(*portPoolStart), uint32(*portPoolSize))
+	if err != nil {
+		logger.Fatal("invalid pool range", err)
+	}
 
 	useKernelLogging := true
 	switch *iptablesLogMethod {
@@ -277,7 +270,7 @@ func Main() {
 	}
 
 	repoFetcher := repository_fetcher.Retryable{
-		repository_fetcher.New(
+		repository_fetcher.NewRemote(
 			repository_fetcher.NewRepositoryProvider(
 				*dockerRegistry,
 				strings.Split(*insecureRegistries, ","),
@@ -306,8 +299,17 @@ func Main() {
 		logger.Fatal("failed-to-construct-docker-rootfs-provider", err)
 	}
 
+	wardenRootFSProvider, err := rootfs_provider.NewDocker(&repository_fetcher.Local{
+		Graph:             graph,
+		DefaultRootFSPath: *rootFSPath,
+		IDer:              repository_fetcher.MD5ID{},
+	}, graphDriver, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, copier, clock.NewClock())
+	if err != nil {
+		logger.Fatal("failed-to-construct-warden-rootfs-provider", err)
+	}
+
 	rootFSProviders := map[string]rootfs_provider.RootFSProvider{
-		"":       rootfs_provider.NewOverlay(*binPath, *overlaysPath, *rootFSPath, runner),
+		"":       wardenRootFSProvider,
 		"docker": dockerRootFSProvider,
 	}
 
@@ -354,7 +356,7 @@ func Main() {
 
 	systemInfo := system_info.NewProvider(*depotPath)
 
-	backend := linux_backend.New(logger, pool, container_repository.New(), systemInfo, *snapshotsPath, *maxContainers)
+	backend := linux_backend.New(logger, pool, container_repository.New(), systemInfo, *snapshotsPath, int(*maxContainers))
 
 	err = backend.Setup()
 	if err != nil {

@@ -9,6 +9,7 @@ import (
 
 type Config struct {
 	CgroupPath             string
+	CgroupNodeFilePath     string
 	NetworkInterfacePrefix string
 	IPTables               IPTablesConfig
 	Tag                    string
@@ -38,7 +39,8 @@ func NewConfig(tag string, allowHostAccess bool) Config {
 		NetworkInterfacePrefix: fmt.Sprintf("w%s", tag),
 		Tag: tag,
 
-		CgroupPath: fmt.Sprintf("/tmp/garden-%s/cgroup", tag),
+		CgroupPath:         fmt.Sprintf("/tmp/garden-%s/cgroup", tag),
+		CgroupNodeFilePath: "/proc/self/cgroup",
 
 		IPTables: IPTablesConfig{
 			Filter: IPTablesFilterConfig{

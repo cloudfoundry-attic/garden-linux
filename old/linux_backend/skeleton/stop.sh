@@ -47,7 +47,8 @@ ms_start=$(ms)
 ms_end=$(($ms_start + ($WAIT * 1000)))
 
 pid=$(cat ./run/wshd.pid)
-path=${GARDEN_CGROUP_PATH}/cpu/instance-$id
+cgroup_path_segment=$(cat /proc/self/cgroup | grep cpu: | cut -d ':' -f 3)
+path=${GARDEN_CGROUP_PATH}/cpu${cgroup_path_segment}/instance-$id
 tasks=$path/cgroup.procs
 
 while true

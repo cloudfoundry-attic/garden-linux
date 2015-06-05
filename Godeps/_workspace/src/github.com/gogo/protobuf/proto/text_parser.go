@@ -6,7 +6,7 @@
 // Go support for Protocol Buffers - Google's data interchange format
 //
 // Copyright 2010 The Go Authors.  All rights reserved.
-// http://code.google.com/p/goprotobuf/
+// https://github.com/golang/protobuf
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -40,6 +40,7 @@ package proto
 // TODO: message sets.
 
 import (
+	"encoding"
 	"errors"
 	"fmt"
 	"reflect"
@@ -47,13 +48,6 @@ import (
 	"strings"
 	"unicode/utf8"
 )
-
-// textUnmarshaler is implemented by Messages that can unmarshal themsleves.
-// It is identical to encoding.TextUnmarshaler, introduced in go 1.2,
-// which will eventually replace it.
-type textUnmarshaler interface {
-	UnmarshalText(text []byte) error
-}
 
 type ParseError struct {
 	Message string
@@ -366,8 +360,8 @@ func (p *textParser) next() *token {
 	return &p.cur
 }
 
-// Return an error indicating which required field was not set.
-func (p *textParser) missingRequiredFieldError(sv reflect.Value) *ParseError {
+// Return a RequiredNotSetError indicating which required field was not set.
+func (p *textParser) missingRequiredFieldError(sv reflect.Value) *RequiredNotSetError {
 	st := sv.Type()
 	sprops := GetProperties(st)
 	for i := 0; i < st.NumField(); i++ {
@@ -377,10 +371,10 @@ func (p *textParser) missingRequiredFieldError(sv reflect.Value) *ParseError {
 
 		props := sprops.Prop[i]
 		if props.Required {
-			return p.errorf("message %v missing required field %q", st, props.OrigName)
+			return &RequiredNotSetError{fmt.Sprintf("%v.%v", st, props.OrigName)}
 		}
 	}
-	return p.errorf("message %v missing required field", st) // should not happen
+	return &RequiredNotSetError{fmt.Sprintf("%v.<unknown field name>", st)} // should not happen
 }
 
 // Returns the index in the struct for the named field, as well as the parsed tag properties.
@@ -431,9 +425,11 @@ func (p *textParser) checkForColon(props *Properties, typ reflect.Type) *ParseEr
 	return nil
 }
 
-func (p *textParser) readStruct(sv reflect.Value, terminator string) *ParseError {
+func (p *textParser) readStruct(sv reflect.Value, terminator string) error {
 	st := sv.Type()
 	reqCount := GetProperties(st).reqCount
+	var reqFieldErr error
+	fieldSet := make(map[string]bool)
 	// A struct is a sequence of "name: value", terminated by one of
 	// '>' or '}', or the end of the input.  A name may also be
 	// "[extension]".
@@ -494,7 +490,10 @@ func (p *textParser) readStruct(sv reflect.Value, terminator string) *ParseError
 				ext = reflect.New(typ.Elem()).Elem()
 			}
 			if err := p.readAny(ext, props); err != nil {
-				return err
+				if _, ok := err.(*RequiredNotSetError); !ok {
+					return err
+				}
+				reqFieldErr = err
 			}
 			ep := sv.Addr().Interface().(extendableProto)
 			if !rep {
@@ -512,17 +511,17 @@ func (p *textParser) readStruct(sv reflect.Value, terminator string) *ParseError
 			}
 		} else {
 			// This is a normal, non-extension field.
-			fi, props, ok := structFieldByName(st, tok.value)
+			name := tok.value
+			fi, props, ok := structFieldByName(st, name)
 			if !ok {
-				return p.errorf("unknown field name %q in %v", tok.value, st)
+				return p.errorf("unknown field name %q in %v", name, st)
 			}
 
 			dst := sv.Field(fi)
-			isDstNil := isNil(dst)
 
 			// Check that it's not already set if it's not a repeated field.
-			if !props.Repeated && !isDstNil && dst.Kind() == reflect.Ptr {
-				return p.errorf("non-repeated field %q was repeated", tok.value)
+			if !props.Repeated && fieldSet[name] {
+				return p.errorf("non-repeated field %q was repeated", name)
 			}
 
 			if err := p.checkForColon(props, st.Field(fi).Type); err != nil {
@@ -530,11 +529,13 @@ func (p *textParser) readStruct(sv reflect.Value, terminator string) *ParseError
 			}
 
 			// Parse into the field.
+			fieldSet[name] = true
 			if err := p.readAny(dst, props); err != nil {
-				return err
-			}
-
-			if props.Required {
+				if _, ok := err.(*RequiredNotSetError); !ok {
+					return err
+				}
+				reqFieldErr = err
+			} else if props.Required {
 				reqCount--
 			}
 		}
@@ -552,10 +553,10 @@ func (p *textParser) readStruct(sv reflect.Value, terminator string) *ParseError
 	if reqCount > 0 {
 		return p.missingRequiredFieldError(sv)
 	}
-	return nil
+	return reqFieldErr
 }
 
-func (p *textParser) readAny(v reflect.Value, props *Properties) *ParseError {
+func (p *textParser) readAny(v reflect.Value, props *Properties) error {
 	tok := p.next()
 	if tok.err != nil {
 		return tok.err
@@ -695,7 +696,7 @@ func (p *textParser) readAny(v reflect.Value, props *Properties) *ParseError {
 		default:
 			return p.errorf("expected '{' or '<', found %q", tok.value)
 		}
-		// TODO: Handle nested messages which implement textUnmarshaler.
+		// TODO: Handle nested messages which implement encoding.TextUnmarshaler.
 		return p.readStruct(fv, terminator)
 	case reflect.Uint32:
 		if x, err := strconv.ParseUint(tok.value, 0, 32); err == nil {
@@ -713,8 +714,10 @@ func (p *textParser) readAny(v reflect.Value, props *Properties) *ParseError {
 
 // UnmarshalText reads a protocol buffer in Text format. UnmarshalText resets pb
 // before starting to unmarshal, so any existing data in pb is always removed.
+// If a required field is not set and no other error occurs,
+// UnmarshalText returns *RequiredNotSetError.
 func UnmarshalText(s string, pb Message) error {
-	if um, ok := pb.(textUnmarshaler); ok {
+	if um, ok := pb.(encoding.TextUnmarshaler); ok {
 		err := um.UnmarshalText([]byte(s))
 		return err
 	}

@@ -67,7 +67,6 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 	}
 
 	depotPath := filepath.Join(r.tmpdir, "containers")
-	overlaysPath := filepath.Join(r.tmpdir, "overlays")
 	snapshotsPath := filepath.Join(r.tmpdir, "snapshots")
 
 	if err := os.MkdirAll(depotPath, 0755); err != nil {
@@ -78,7 +77,6 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 		return err
 	}
 
-	MustMountTmpfs(overlaysPath)
 	MustMountTmpfs(r.graphPath)
 
 	var appendDefaultFlag = func(ar []string, key, value string) []string {
@@ -105,7 +103,6 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 		gardenArgs = appendDefaultFlag(gardenArgs, "--rootfs", r.rootFSPath)
 	}
 	gardenArgs = appendDefaultFlag(gardenArgs, "--depot", depotPath)
-	gardenArgs = appendDefaultFlag(gardenArgs, "--overlays", overlaysPath)
 	gardenArgs = appendDefaultFlag(gardenArgs, "--snapshots", snapshotsPath)
 	gardenArgs = appendDefaultFlag(gardenArgs, "--graph", r.graphPath)
 	gardenArgs = appendDefaultFlag(gardenArgs, "--logLevel", "debug")
