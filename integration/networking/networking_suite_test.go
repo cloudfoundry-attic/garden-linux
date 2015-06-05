@@ -41,7 +41,7 @@ func startGarden(argv ...string) garden.Client {
 		b.Close()
 	}
 
-	gardenRunner = runner.New("unix", gardenAddr, gardenBin, binPath, rootFSPath, graphPath, argv...)
+	gardenRunner = runner.New("unix", gardenAddr, gardenBin, binPath, rootFSPath, graphPath, os.Getenv("BTRFS_SUPPORTED") != "", argv...)
 
 	gardenProcess = ifrit.Invoke(gardenRunner)
 

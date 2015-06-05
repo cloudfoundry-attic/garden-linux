@@ -35,9 +35,11 @@ type Runner struct {
 	tmpdir    string
 	graphRoot string
 	graphPath string
+
+	btrfs bool
 }
 
-func New(network, addr string, bin, binPath, rootFSPath, graphRoot string, argv ...string) *Runner {
+func New(network, addr string, bin, binPath, rootFSPath, graphRoot string, btrfs bool, argv ...string) *Runner {
 	tmpDir := filepath.Join(
 		os.TempDir(),
 		fmt.Sprintf("test-garden-%d", ginkgo.GinkgoParallelNode()),
@@ -60,6 +62,8 @@ func New(network, addr string, bin, binPath, rootFSPath, graphRoot string, argv 
 		graphRoot:  graphRoot,
 		graphPath:  graphPath,
 		tmpdir:     tmpDir,
+
+		btrfs: btrfs,
 	}
 }
 
@@ -115,6 +119,10 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 	gardenArgs = appendDefaultFlag(gardenArgs, "--portPoolSize", "1000")
 	gardenArgs = appendDefaultFlag(gardenArgs, "--tag", strconv.Itoa(ginkgo.GinkgoParallelNode()))
 
+	if !r.btrfs {
+		gardenArgs = appendDefaultFlag(gardenArgs, "--disableQuotas", "")
+	}
+
 	gardenArgs = appendDefaultFlag(gardenArgs, "--debugAddr", fmt.Sprintf(":808%d", ginkgo.GinkgoParallelNode()))
 
 	var signal os.Signal
@@ -136,28 +144,30 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 					logger.Error("remove graph", err)
 				}
 
-				// need to remove subvolumes before cleaning graphpath
-				subvolumesOutput, err := exec.Command("btrfs", "subvolume", "list", r.graphRoot).CombinedOutput()
-				if err != nil {
-					logger.Fatal("listing-subvolumes", err)
-				}
-				for _, line := range strings.Split(string(subvolumesOutput), "\n") {
-					fields := strings.Fields(line)
-					if len(fields) < 1 {
-						continue
+				if r.btrfs {
+					// need to remove subvolumes before cleaning graphpath
+					subvolumesOutput, err := exec.Command("btrfs", "subvolume", "list", r.graphRoot).CombinedOutput()
+					logger.Debug(fmt.Sprintf("listing-subvolumes: %s", string(subvolumesOutput)))
+					if err != nil {
+						logger.Fatal("listing-subvolumes-error", err)
 					}
-					subvolume := fields[len(fields)-1]
-					subvolumePath := filepath.Join(r.graphRoot, subvolume)
-					if strings.Contains(subvolume, fmt.Sprintf("node-%d", ginkgo.GinkgoParallelNode())) {
-						if b, err := exec.Command("btrfs", "subvolume", "delete", subvolumePath).CombinedOutput(); err != nil {
-							logger.Fatal(fmt.Sprintf("deleting-subvolume: %s", string(b)), err)
+					for _, line := range strings.Split(string(subvolumesOutput), "\n") {
+						fields := strings.Fields(line)
+						if len(fields) < 1 {
+							continue
+						}
+						subvolumeRelativePath := fields[len(fields)-1]
+						subvolumeAbsolutePath := filepath.Join(r.graphRoot, subvolumeRelativePath)
+						if strings.Contains(subvolumeAbsolutePath, r.graphPath) {
+							if b, err := exec.Command("btrfs", "subvolume", "delete", subvolumeAbsolutePath).CombinedOutput(); err != nil {
+								logger.Fatal(fmt.Sprintf("deleting-subvolume: %s", string(b)), err)
+							}
 						}
 					}
-				}
 
-				//	ignore "device busy" error from subdirectory of subvolume: it is empty anyway
-				if err := os.RemoveAll(r.graphPath); err != nil {
-					logger.Error("remove graph again", err)
+					if err := os.RemoveAll(r.graphPath); err != nil {
+						logger.Error("remove graph again", err)
+					}
 				}
 
 				logger.Info("cleanup-tempdirs")

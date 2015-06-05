@@ -8,5 +8,5 @@ if [ $# -gt 1 ] && [ "$1" == "-u" ]; then
   vagrant ssh -c "cd /home/vagrant/go/src/github.com/cloudfoundry-incubator/garden-linux && sudo -E ./scripts/linux-unit-test $*"
 else
   vagrant ssh -c "cd /home/vagrant/go/src/github.com/cloudfoundry-incubator/garden-linux && sudo -E ./scripts/prepare_btrfs.sh"
-  vagrant ssh -c "cd /home/vagrant/go/src/github.com/cloudfoundry-incubator/garden-linux && sudo -E ./scripts/drone-test $*"
+  vagrant ssh -c "export BTRFS_SUPPORTED=true && cd /home/vagrant/go/src/github.com/cloudfoundry-incubator/garden-linux && sudo -E ./scripts/drone-test $*"
 fi

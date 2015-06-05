@@ -34,6 +34,10 @@ type Cleaner interface {
 	Clean(id string) error
 }
 
+type NoopCleaner struct{}
+
+func (NoopCleaner) Clean(id string) error { return nil }
+
 func NewDocker(
 	repoFetcher repository_fetcher.RepositoryFetcher,
 	graphDriver GraphDriver,

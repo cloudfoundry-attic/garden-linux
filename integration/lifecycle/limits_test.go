@@ -2,6 +2,8 @@ package lifecycle_test
 
 import (
 	"fmt"
+	"log"
+	"os"
 	"strings"
 
 	"github.com/cloudfoundry-incubator/garden"
@@ -59,6 +61,11 @@ var _ = Describe("Limits", func() {
 	})
 
 	Context("with a disk limit", func() {
+		if os.Getenv("BTRFS_SUPPORTED") == "" {
+			log.Println("btrfs not supported: skipping disk limit tests")
+			return
+		}
+
 		BeforeEach(func() {
 			privilegedContainer = false
 			rootfs = rootFSPath

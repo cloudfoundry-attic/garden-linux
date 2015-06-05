@@ -15,6 +15,7 @@ import (
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/docker/docker/daemon/graphdriver"
 	_ "github.com/docker/docker/daemon/graphdriver/btrfs"
+	_ "github.com/docker/docker/daemon/graphdriver/vfs"
 	"github.com/docker/docker/graph"
 	"github.com/docker/docker/registry"
 	"github.com/pivotal-golang/clock"
@@ -290,14 +291,17 @@ func Main() {
 
 	graphMountPoint := mountPoint(logger, *graphRoot)
 
-	btrfsCleaner := &btrfs_cleanup.Cleaner{
-		Runner:          runner,
-		GraphDriver:     graphDriver,
-		BtrfsMountPoint: graphMountPoint,
-		RemoveAll:       os.RemoveAll,
+	var rootfsCleaner rootfs_provider.Cleaner = &rootfs_provider.NoopCleaner{}
+	if graphDriver.String() == "btrfs" {
+		rootfsCleaner = &btrfs_cleanup.Cleaner{
+			Runner:          runner,
+			GraphDriver:     graphDriver,
+			BtrfsMountPoint: graphMountPoint,
+			RemoveAll:       os.RemoveAll,
+		}
 	}
 
-	dockerRootFSProvider, err := rootfs_provider.NewDocker(repoFetcher, graphDriver, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock(), btrfsCleaner)
+	dockerRootFSProvider, err := rootfs_provider.NewDocker(repoFetcher, graphDriver, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock(), rootfsCleaner)
 	if err != nil {
 		logger.Fatal("failed-to-construct-docker-rootfs-provider", err)
 	}
@@ -306,7 +310,7 @@ func Main() {
 		Graph:             graph,
 		DefaultRootFSPath: *rootFSPath,
 		IDer:              repository_fetcher.MD5ID{},
-	}, graphDriver, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock(), btrfsCleaner)
+	}, graphDriver, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock(), rootfsCleaner)
 	if err != nil {
 		logger.Fatal("failed-to-construct-warden-rootfs-provider", err)
 	}
