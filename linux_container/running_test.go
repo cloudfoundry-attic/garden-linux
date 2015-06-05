@@ -17,7 +17,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
-	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fakes"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_quota_manager"
 	networkFakes "github.com/cloudfoundry-incubator/garden-linux/network/fakes"
 	"github.com/cloudfoundry-incubator/garden-linux/old/bandwidth_manager/fake_bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/cgroups_manager/fake_cgroups_manager"
@@ -72,7 +72,7 @@ var _ = Describe("Linux containers", func() {
 			fake_port_pool.New(1000),
 			fakeRunner,
 			fake_cgroups_manager.New("/cgroups", "some-id"),
-			&fakes.FakeQuotaManager{},
+			new(fake_quota_manager.FakeQuotaManager),
 			fake_bandwidth_manager.New(),
 			fakeProcessTracker,
 			process.Env{"env1": "env1Value", "env2": "env2Value"},

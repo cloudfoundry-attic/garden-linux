@@ -129,9 +129,14 @@ var _ = Describe("Local", func() {
 		})
 
 		It("registers the image with the correct layer data", func() {
-			var registeredLayer archive.ArchiveReader
 			fakeGraph.WhenRegistering = func(image *image.Image, layer archive.ArchiveReader) error {
-				registeredLayer = layer
+				tmp, err := ioutil.TempDir("", "")
+				Expect(err).NotTo(HaveOccurred())
+				defer os.RemoveAll(tmp)
+
+				Expect(archive.Untar(layer, tmp, nil)).To(Succeed())
+				Expect(path.Join(tmp, "a", "test", "file")).To(BeAnExistingFile())
+
 				return nil
 			}
 
@@ -143,19 +148,17 @@ var _ = Describe("Local", func() {
 
 			_, _, _, err = fetcher.Fetch(logger, &url.URL{Path: tmp}, "")
 			Expect(err).NotTo(HaveOccurred())
-
-			tmp, err = ioutil.TempDir("", "")
-			Expect(err).NotTo(HaveOccurred())
-
-			Expect(archive.Untar(registeredLayer, tmp, nil)).To(Succeed())
-			Expect(path.Join(tmp, "a", "test", "file")).To(BeAnExistingFile())
 		})
 
 		Context("when the path is a symlink", func() {
 			It("registers the image with the correct layer data", func() {
-				var registeredLayer archive.ArchiveReader
 				fakeGraph.WhenRegistering = func(image *image.Image, layer archive.ArchiveReader) error {
-					registeredLayer = layer
+					tmp, err := ioutil.TempDir("", "")
+					Expect(err).NotTo(HaveOccurred())
+					defer os.RemoveAll(tmp)
+
+					Expect(archive.Untar(layer, tmp, nil)).To(Succeed())
+					Expect(path.Join(tmp, "a", "test", "file")).To(BeAnExistingFile())
 					return nil
 				}
 
@@ -176,14 +179,6 @@ var _ = Describe("Local", func() {
 
 				_, _, _, err = fetcher.Fetch(logger, &url.URL{Path: symlinkDir}, "")
 				Expect(err).NotTo(HaveOccurred())
-
-				tmp, err = ioutil.TempDir("", "")
-				Expect(err).NotTo(HaveOccurred())
-				defer os.RemoveAll(tmp2)
-
-				Expect(archive.Untar(registeredLayer, tmp, nil)).To(Succeed())
-				Expect(path.Join(tmp, "a", "test", "file")).To(BeAnExistingFile())
-
 			})
 		})
 	})

@@ -147,7 +147,6 @@ func (p *LinuxContainerPool) Setup() error {
 	setup := exec.Command(path.Join(p.binPath, "setup.sh"))
 	setup.Env = []string{
 		"CONTAINER_DEPOT_PATH=" + p.depotPath,
-		"CONTAINER_DEPOT_MOUNT_POINT_PATH=" + p.quotaManager.MountPoint(),
 		fmt.Sprintf("DISK_QUOTA_ENABLED=%v", p.quotaManager.IsEnabled()),
 		"PATH=" + os.Getenv("PATH"),
 	}

@@ -13,18 +13,16 @@ import (
 )
 
 type BtrfsQuotaManager struct {
-	enabled    bool
-	mountPoint string
-	runner     command_runner.CommandRunner
+	enabled bool
+	runner  command_runner.CommandRunner
 }
 
 const QUOTA_BLOCK_SIZE = 1024
 
-func New(runner command_runner.CommandRunner, mountPoint string) *BtrfsQuotaManager {
+func New(runner command_runner.CommandRunner) *BtrfsQuotaManager {
 	return &BtrfsQuotaManager{
-		enabled:    true,
-		runner:     runner,
-		mountPoint: mountPoint,
+		enabled: true,
+		runner:  runner,
 	}
 }
 
@@ -99,10 +97,6 @@ func (m *BtrfsQuotaManager) GetUsage(logger lager.Logger, subvolumePath string) 
 	usage.BytesUsed = quotaInfo.Usage
 
 	return usage, nil
-}
-
-func (m *BtrfsQuotaManager) MountPoint() string {
-	return m.mountPoint
 }
 
 func (m *BtrfsQuotaManager) IsEnabled() bool {

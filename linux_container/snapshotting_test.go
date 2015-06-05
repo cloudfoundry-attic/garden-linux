@@ -16,7 +16,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
-	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fakes"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_quota_manager"
 	networkFakes "github.com/cloudfoundry-incubator/garden-linux/network/fakes"
 	"github.com/cloudfoundry-incubator/garden-linux/old/bandwidth_manager/fake_bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/cgroups_manager/fake_cgroups_manager"
@@ -30,7 +30,7 @@ import (
 
 var _ = Describe("Linux containers", func() {
 	var fakeCgroups *fake_cgroups_manager.FakeCgroupsManager
-	var fakeQuotaManager *fakes.FakeQuotaManager
+	var fakeQuotaManager *fake_quota_manager.FakeQuotaManager
 	var fakeBandwidthManager *fake_bandwidth_manager.FakeBandwidthManager
 	var fakeRunner *fake_command_runner.FakeCommandRunner
 	var containerResources *linux_backend.Resources
@@ -62,7 +62,7 @@ var _ = Describe("Linux containers", func() {
 
 		fakeCgroups = fake_cgroups_manager.New("/cgroups", "some-id")
 
-		fakeQuotaManager = &fakes.FakeQuotaManager{}
+		fakeQuotaManager = new(fake_quota_manager.FakeQuotaManager)
 		fakeBandwidthManager = fake_bandwidth_manager.New()
 		fakeProcessTracker = new(fake_process_tracker.FakeProcessTracker)
 		fakeFilter = new(networkFakes.FakeFilter)

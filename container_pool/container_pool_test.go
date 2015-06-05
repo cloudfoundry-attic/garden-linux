@@ -19,24 +19,23 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/pivotal-golang/lager/lagertest"
 
+	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/container_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/container_pool/fake_container_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/container_pool/fake_subnet_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_quota_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/network"
 	"github.com/cloudfoundry-incubator/garden-linux/network/bridgemgr/fake_bridge_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/network/fakes"
 	"github.com/cloudfoundry-incubator/garden-linux/network/iptables"
 	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
 	"github.com/cloudfoundry-incubator/garden-linux/old/port_pool/fake_port_pool"
-	"github.com/cloudfoundry-incubator/garden-linux/old/quota_manager/fake_quota_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/old/rootfs_provider/fake_rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
-
-	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
 )
@@ -79,7 +78,7 @@ var _ = Describe("Container pool", func() {
 		}
 
 		fakeRunner = fake_command_runner.New()
-		fakeQuotaManager = fake_quota_manager.New()
+		fakeQuotaManager = new(fake_quota_manager.FakeQuotaManager)
 		fakePortPool = fake_port_pool.New(1000)
 		defaultFakeRootFSProvider = new(fake_rootfs_provider.FakeRootFSProvider)
 		fakeRootFSProvider = new(fake_rootfs_provider.FakeRootFSProvider)
@@ -133,7 +132,7 @@ var _ = Describe("Container pool", func() {
 
 	Describe("Setup", func() {
 		It("executes setup.sh with the correct environment", func() {
-			fakeQuotaManager.MountPointResult = "/depot/mount/point"
+			fakeQuotaManager.IsEnabledReturns(true)
 
 			err := pool.Setup()
 			Expect(err).ToNot(HaveOccurred())
@@ -143,7 +142,6 @@ var _ = Describe("Container pool", func() {
 					Path: "/root/path/setup.sh",
 					Env: []string{
 						"CONTAINER_DEPOT_PATH=" + depotPath,
-						"CONTAINER_DEPOT_MOUNT_POINT_PATH=/depot/mount/point",
 						"DISK_QUOTA_ENABLED=true",
 
 						"PATH=" + os.Getenv("PATH"),

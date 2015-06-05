@@ -26,7 +26,7 @@ var _ = Describe("btrfs quota manager", func() {
 	BeforeEach(func() {
 		fakeRunner = fake_command_runner.New()
 		logger = lagertest.NewTestLogger("test")
-		quotaManager = quota_manager.New(fakeRunner, "/some/mount/point")
+		quotaManager = quota_manager.New(fakeRunner)
 		subvolumePath = "/some/volume/path"
 	})
 
@@ -237,12 +237,6 @@ var _ = Describe("btrfs quota manager", func() {
 					Expect(cmd.Path).ToNot(Equal("btrfs"))
 				}
 			})
-		})
-	})
-
-	Describe("getting the mount point", func() {
-		It("returns the mount point of the container depot", func() {
-			Expect(quotaManager.MountPoint()).To(Equal("/some/mount/point"))
 		})
 	})
 })

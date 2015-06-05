@@ -1,12 +1,10 @@
 package old
 
 import (
-	"bytes"
 	"flag"
 	"fmt"
 	"net"
 	"os"
-	"os/exec"
 	"os/signal"
 	"runtime"
 	"strings"
@@ -249,7 +247,7 @@ func Main() {
 
 	runner := sysconfig.NewRunner(config, linux_command_runner.New())
 
-	quotaManager := quota_manager.New(runner, getMountPoint(logger, *depotPath))
+	quotaManager := quota_manager.New(runner)
 
 	if *disableQuotas {
 		quotaManager.Disable()
@@ -387,23 +385,6 @@ func Main() {
 	})
 
 	select {}
-}
-
-func getMountPoint(logger lager.Logger, depotPath string) string {
-	dfOut := new(bytes.Buffer)
-
-	df := exec.Command("df", depotPath)
-	df.Stdout = dfOut
-	df.Stderr = os.Stderr
-
-	err := df.Run()
-	if err != nil {
-		logger.Fatal("failed-to-get-mount-info", err)
-	}
-
-	dfOutputWords := strings.Split(string(dfOut.Bytes()), " ")
-
-	return strings.Trim(dfOutputWords[len(dfOutputWords)-1], "\n")
 }
 
 func missing(flagName string) {

@@ -34,13 +34,12 @@ func (err UndefinedPropertyError) Error() string {
 	return fmt.Sprintf("property does not exist: %s", err.Key)
 }
 
-//go:generate counterfeiter -o fakes/fake_quota_manager.go . QuotaManager
+//go:generate counterfeiter -o fake_quota_manager/fake_quota_manager.go . QuotaManager
 type QuotaManager interface {
 	SetLimits(logger lager.Logger, containerRootFSPath string, limits garden.DiskLimits) error
 	GetLimits(logger lager.Logger, containerRootFSPath string) (garden.DiskLimits, error)
 	GetUsage(logger lager.Logger, containerRootFSPath string) (garden.ContainerDiskStat, error)
 
-	MountPoint() string
 	Disable()
 	IsEnabled() bool
 }

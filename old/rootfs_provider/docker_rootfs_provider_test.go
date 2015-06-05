@@ -129,7 +129,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 					Expect(fakeGraphDriver.CreateCallCount()).To(Equal(2))
 					id, parent := fakeGraphDriver.CreateArgsForCall(0)
 					Expect(id).To(Equal("some-image-id@namespaced"))
-					Expect(parent).To(Equal(""))
+					Expect(parent).To(Equal("some-image-id"))
 
 					id, parent = fakeGraphDriver.CreateArgsForCall(1)
 					Expect(id).To(Equal("some-id"))
