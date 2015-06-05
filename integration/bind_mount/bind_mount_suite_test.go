@@ -56,7 +56,7 @@ func TestBindMount(t *testing.T) {
 
 		useGshGshd := os.Getenv("USE_GSH_GSHD")
 		if useGshGshd != "" {
-			gardenPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux", "-a", "-race", "-tags", "daemon, USE_GSH_GSHD")
+			gardenPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux", "-a", "-race", "-tags", "USE_GSH_GSHD")
 		} else {
 			gardenPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux", "-a", "-race", "-tags", "daemon")
 		}

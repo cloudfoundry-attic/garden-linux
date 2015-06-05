@@ -6,6 +6,8 @@ import (
 	"os"
 	"path"
 
+	"io/ioutil"
+
 	"github.com/cloudfoundry-incubator/cf-lager"
 	"github.com/cloudfoundry-incubator/garden-linux/hook"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
@@ -16,6 +18,10 @@ import (
 )
 
 func main() {
+	logFile, _ := ioutil.TempFile("", "hookmain.log")
+	os.Stdout = logFile
+	os.Stderr = logFile
+
 	cf_lager.AddFlags(flag.CommandLine)
 	flag.Parse()
 	logger, _ := cf_lager.New("hook")

@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"syscall"
 
@@ -14,6 +15,9 @@ import (
 )
 
 func main() {
+	logFile, _ := ioutil.TempFile("", "initd.log")
+	os.Stdout = logFile
+	os.Stderr = logFile
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Fprintf(os.Stderr, "initd: panicked: %s\n", r)

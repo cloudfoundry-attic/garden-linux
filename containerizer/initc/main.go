@@ -9,6 +9,8 @@ import (
 	"syscall"
 	"time"
 
+	"io/ioutil"
+
 	"github.com/cloudfoundry-incubator/cf-lager"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
@@ -18,6 +20,11 @@ import (
 )
 
 func main() {
+	logFile, _ := ioutil.TempFile("", "initc.log")
+	os.Stdout = logFile
+	os.Stderr = logFile
+
+	fmt.Fprintln(os.Stderr, "initc started")
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Fprintf(os.Stderr, "initc: panicked: %s\n", r)
@@ -44,15 +51,21 @@ func main() {
 		Writer: syncWriter,
 	}
 
+	fmt.Fprintln(os.Stderr, "initc about to wait for host")
+
 	if err := sync.Wait(time.Second * 3); err != nil {
 		fail(fmt.Sprintf("initc: wait for host: %s", err), 8)
 	}
+
+	fmt.Fprintln(os.Stderr, "initc completed wait for host")
 
 	env, err := process.EnvFromFile(*configFilePath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "initc: failed to get env from config file: %s\n", err)
 		os.Exit(3)
 	}
+
+	fmt.Fprintln(os.Stderr, "initc read environment")
 
 	initializer := &system.ContainerInitializer{
 		Steps: []system.Initializer{
@@ -86,15 +99,21 @@ func main() {
 		Signaller:   sync,
 	}
 
+	fmt.Fprintln(os.Stderr, "initc about to Init containerizer")
+
 	if err := containerizer.Init(); err != nil {
 		fail(fmt.Sprintf("failed to init containerizer: %s", err), 2)
 	}
+
+	fmt.Fprintln(os.Stderr, "initc about to create socketFile")
 
 	socketFile := os.NewFile(uintptr(5), "/dev/host.sock")
 	defer socketFile.Close()
 
 	syscall.RawSyscall(syscall.SYS_FCNTL, uintptr(4), syscall.F_SETFD, 0)
 	syscall.RawSyscall(syscall.SYS_FCNTL, uintptr(5), syscall.F_SETFD, 0)
+
+	fmt.Fprintln(os.Stderr, "initc about to exec initd")
 
 	syscall.Exec("/sbin/initd", []string{"/sbin/initd"}, os.Environ())
 }

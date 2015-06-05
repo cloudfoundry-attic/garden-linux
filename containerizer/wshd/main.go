@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -19,6 +20,9 @@ import (
 
 // TODO: Catch the system errors and panic
 func main() {
+	logFile, _ := ioutil.TempFile("", "wshd.log")
+	os.Stdout = logFile
+	os.Stderr = logFile
 	libPath := flag.String("lib", "./lib", "Directory containing hooks")
 	rootFsPath := flag.String("root", "", "Directory that will become root in the new mount namespace")
 	runPath := flag.String("run", "./run", "Directory where server socket is placed")

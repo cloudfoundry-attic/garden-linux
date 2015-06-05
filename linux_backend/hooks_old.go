@@ -51,7 +51,7 @@ func RegisterHooks(hs hook.HookSet, runner Runner, config process.Env, configure
 	containerInitializer := NewContainerInitializer()
 
 	hs.Register(hook.PARENT_BEFORE_CLONE, func() {
-		must(runner.Run(exec.Command("./hook-parent-before-clone.sh")))
+		must(runner.Run(exec.Command("./hook-parent-before-clone-old.sh")))
 	})
 
 	hs.Register(hook.PARENT_AFTER_CLONE, func() {

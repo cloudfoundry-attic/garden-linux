@@ -47,6 +47,8 @@ func BuildIn(gopath string, packagePath string, args ...string) (compiledPath st
 	build := exec.Command("go", cmdArgs...)
 	build.Env = append([]string{"GOPATH=" + gopath}, os.Environ()...)
 
+	fmt.Printf("gexec.Build about to issue:\n%v\n", build)
+
 	output, err := build.CombinedOutput()
 	if err != nil {
 		return "", fmt.Errorf("Failed to build %s:\n\nError:\n%s\n\nOutput:\n%s", packagePath, err, string(output))

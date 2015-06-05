@@ -4,12 +4,6 @@
 set -o nounset
 set -o errexit
 shopt -s nullglob
-set -o xtrace
-
-exec 1<&-
-exec 2<&-
-exec 1<>/tmp/container-hook.log
-exec 2>&1
 
 cd $(dirname $0)/../
 
@@ -28,3 +22,4 @@ mkdir -p $rootfs_path/dev/pts
 chown $root_uid:$root_uid $rootfs_path/dev/pts
 mount -n -t devpts -o newinstance,ptmxmode=0666 devpts $rootfs_path/dev/pts
 mkdir -p $rootfs_path/dev/shm
+
