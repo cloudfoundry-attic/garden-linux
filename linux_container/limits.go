@@ -39,7 +39,7 @@ func (c *LinuxContainer) CurrentBandwidthLimits() (garden.BandwidthLimits, error
 func (c *LinuxContainer) LimitDisk(limits garden.DiskLimits) error {
 	cLog := c.logger.Session("limit-disk")
 
-	err := c.quotaManager.SetLimits(cLog, c.resources.UserUID, limits)
+	err := c.quotaManager.SetLimits(cLog, c.RootFSPath(), limits)
 	if err != nil {
 		return err
 	}
@@ -54,7 +54,7 @@ func (c *LinuxContainer) LimitDisk(limits garden.DiskLimits) error {
 
 func (c *LinuxContainer) CurrentDiskLimits() (garden.DiskLimits, error) {
 	cLog := c.logger.Session("current-disk-limits")
-	return c.quotaManager.GetLimits(cLog, c.resources.UserUID)
+	return c.quotaManager.GetLimits(cLog, c.RootFSPath())
 }
 
 func (c *LinuxContainer) LimitMemory(limits garden.MemoryLimits) error {

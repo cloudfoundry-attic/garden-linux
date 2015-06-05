@@ -28,7 +28,6 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/old/bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/logging"
-	"github.com/cloudfoundry-incubator/garden-linux/old/quota_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
@@ -80,7 +79,7 @@ type LinuxContainerPool struct {
 
 	runner command_runner.CommandRunner
 
-	quotaManager quota_manager.QuotaManager
+	quotaManager linux_container.QuotaManager
 
 	containerIDs chan string
 }
@@ -100,7 +99,7 @@ func New(
 	portPool linux_container.PortPool,
 	denyNetworks, allowNetworks []string,
 	runner command_runner.CommandRunner,
-	quotaManager quota_manager.QuotaManager,
+	quotaManager linux_container.QuotaManager,
 ) *LinuxContainerPool {
 	pool := &LinuxContainerPool{
 		logger: logger.Session("pool"),
@@ -246,7 +245,7 @@ func (p *LinuxContainerPool) Create(spec garden.ContainerSpec) (c linux_backend.
 
 	handle := getHandle(spec.Handle, id)
 
-	rootFSEnv, err := p.acquireSystemResources(id, handle, containerPath, spec.RootFSPath, resources, spec.BindMounts, pLog)
+	containerRootFSPath, rootFSEnv, err := p.acquireSystemResources(id, handle, containerPath, spec.RootFSPath, resources, spec.BindMounts, pLog)
 	if err != nil {
 		return nil, err
 	}
@@ -271,6 +270,7 @@ func (p *LinuxContainerPool) Create(spec garden.ContainerSpec) (c linux_backend.
 		id,
 		handle,
 		containerPath,
+		containerRootFSPath,
 		spec.Properties,
 		spec.GraceTime,
 		resources,
@@ -294,6 +294,7 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 	}
 
 	id := containerSnapshot.ID
+	containerRootFSPath := containerSnapshot.RootFSPath
 
 	rLog := p.logger.Session("restore", lager.Data{
 		"id": id,
@@ -346,6 +347,7 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 		id,
 		containerSnapshot.Handle,
 		containerPath,
+		containerRootFSPath,
 		containerSnapshot.Properties,
 		containerSnapshot.GraceTime,
 		linux_backend.NewResources(
@@ -519,9 +521,9 @@ func (p *LinuxContainerPool) releasePoolResources(resources *linux_backend.Resou
 	}
 }
 
-func (p *LinuxContainerPool) acquireSystemResources(id, handle, containerPath, rootFSPath string, resources *linux_backend.Resources, bindMounts []garden.BindMount, pLog lager.Logger) (process.Env, error) {
+func (p *LinuxContainerPool) acquireSystemResources(id, handle, containerPath, rootFSPath string, resources *linux_backend.Resources, bindMounts []garden.BindMount, pLog lager.Logger) (string, process.Env, error) {
 	if err := os.MkdirAll(containerPath, 0755); err != nil {
-		return nil, fmt.Errorf("containerpool: creating container directory: %v", err)
+		return "", nil, fmt.Errorf("containerpool: creating container directory: %v", err)
 	}
 
 	rootfsURL, err := url.Parse(rootFSPath)
@@ -529,7 +531,7 @@ func (p *LinuxContainerPool) acquireSystemResources(id, handle, containerPath, r
 		pLog.Error("parse-rootfs-path-failed", err, lager.Data{
 			"RootFSPath": rootFSPath,
 		})
-		return nil, err
+		return "", nil, err
 	}
 
 	provider, found := p.rootfsProviders[rootfsURL.Scheme]
@@ -537,13 +539,13 @@ func (p *LinuxContainerPool) acquireSystemResources(id, handle, containerPath, r
 		pLog.Error("unknown-rootfs-provider", nil, lager.Data{
 			"provider": rootfsURL.Scheme,
 		})
-		return nil, ErrUnknownRootFSProvider
+		return "", nil, ErrUnknownRootFSProvider
 	}
 
 	rootfsPath, rootFSEnvVars, err := provider.ProvideRootFS(pLog.Session("create-rootfs"), id, rootfsURL, resources.RootUID != 0)
 	if err != nil {
 		pLog.Error("provide-rootfs-failed", err)
-		return nil, err
+		return "", nil, err
 	}
 
 	if resources.Bridge, err = p.bridges.Reserve(resources.Network.Subnet, id); err != nil {
@@ -554,7 +556,7 @@ func (p *LinuxContainerPool) acquireSystemResources(id, handle, containerPath, r
 		})
 
 		provider.CleanupRootFS(pLog, rootfsPath)
-		return nil, err
+		return "", nil, err
 	}
 
 	if err = p.saveBridgeName(id, resources.Bridge); err != nil {
@@ -564,7 +566,7 @@ func (p *LinuxContainerPool) acquireSystemResources(id, handle, containerPath, r
 		})
 
 		provider.CleanupRootFS(pLog, rootfsPath)
-		return nil, err
+		return "", nil, err
 	}
 
 	createCmd := path.Join(p.binPath, "create.sh")
@@ -601,7 +603,7 @@ func (p *LinuxContainerPool) acquireSystemResources(id, handle, containerPath, r
 			"CreateCmd": createCmd,
 			"Env":       create.Env,
 		})
-		return nil, err
+		return "", nil, err
 	}
 
 	err = p.saveRootFSProvider(id, rootfsURL.Scheme)
@@ -610,13 +612,13 @@ func (p *LinuxContainerPool) acquireSystemResources(id, handle, containerPath, r
 			"Id":     id,
 			"rootfs": rootfsURL.String(),
 		})
-		return nil, err
+		return "", nil, err
 	}
 
 	err = p.writeBindMounts(containerPath, rootfsPath, bindMounts)
 	if err != nil {
 		p.logger.Error("bind-mounts-failed", err)
-		return nil, err
+		return "", nil, err
 	}
 
 	filterLog := pLog.Session("setup-filter")
@@ -624,11 +626,11 @@ func (p *LinuxContainerPool) acquireSystemResources(id, handle, containerPath, r
 	filterLog.Debug("starting")
 	if err = p.filterProvider.ProvideFilter(id).Setup(handle); err != nil {
 		p.logger.Error("set-up-filter-failed", err)
-		return nil, fmt.Errorf("container_pool: set up filter: %v", err)
+		return "", nil, fmt.Errorf("container_pool: set up filter: %v", err)
 	}
 	filterLog.Debug("finished")
 
-	return rootFSEnvVars, nil
+	return rootfsPath, rootFSEnvVars, nil
 }
 
 func (p *LinuxContainerPool) tryReleaseSystemResources(logger lager.Logger, id string) {

@@ -2,8 +2,6 @@ package rootfs_provider
 
 import (
 	"net/url"
-	"os"
-	"os/exec"
 	"sync"
 	"time"
 
@@ -20,7 +18,6 @@ type dockerRootFSProvider struct {
 	volumeCreator VolumeCreator
 	repoFetcher   repository_fetcher.RepositoryFetcher
 	namespacer    Namespacer
-	copier        Copier
 	clock         clock.Clock
 	mutex         *sync.Mutex
 
@@ -32,17 +29,11 @@ type GraphDriver interface {
 	graphdriver.Driver
 }
 
-//go:generate counterfeiter -o fake_copier/fake_copier.go . Copier
-type Copier interface {
-	Copy(src, dest string) error
-}
-
 func NewDocker(
 	repoFetcher repository_fetcher.RepositoryFetcher,
 	graphDriver GraphDriver,
 	volumeCreator VolumeCreator,
 	namespacer Namespacer,
-	copier Copier,
 	clock clock.Clock,
 ) (RootFSProvider, error) {
 	return &dockerRootFSProvider{
@@ -50,7 +41,6 @@ func NewDocker(
 		graphDriver:   graphDriver,
 		volumeCreator: volumeCreator,
 		namespacer:    namespacer,
-		copier:        copier,
 		clock:         clock,
 		mutex:         &sync.Mutex{},
 	}, nil
@@ -109,36 +99,24 @@ func (provider *dockerRootFSProvider) namespace(imageID string) (string, error) 
 func (provider *dockerRootFSProvider) createNamespacedLayer(id string, parentId string) error {
 	var err error
 	var path string
-	if path, err = provider.createAufsWorkaroundLayer(id, parentId); err != nil {
+	if path, err = provider.createLayer(id, parentId); err != nil {
 		return err
 	}
 
 	return provider.namespacer.Namespace(path)
 }
 
-// aufs directory permissions dont overlay cleanly, so we create an empty layer
-// and copy the parent layer in while namespacing (rather than just creating a
-// regular overlay layer and doing the namespacing directly inside it)
-func (provider *dockerRootFSProvider) createAufsWorkaroundLayer(id, parentId string) (string, error) {
+func (provider *dockerRootFSProvider) createLayer(id, parentId string) (string, error) {
 	errs := func(err error) (string, error) {
 		return "", err
 	}
 
-	originalRootfs, err := provider.graphDriver.Get(parentId, "")
+	if err := provider.graphDriver.Create(id, parentId); err != nil {
+		return errs(err)
+	}
+
+	namespacedRootfs, err := provider.graphDriver.Get(id, "")
 	if err != nil {
-		return errs(err)
-	}
-
-	if err := provider.graphDriver.Create(id, ""); err != nil { // empty layer
-		return errs(err)
-	}
-
-	namespacedRootfs, err := provider.graphDriver.Get(id, "") // path where empty layer is
-	if err != nil {
-		return errs(err)
-	}
-
-	if err := provider.copier.Copy(originalRootfs, namespacedRootfs); err != nil {
 		return errs(err)
 	}
 
@@ -166,16 +144,4 @@ func (provider *dockerRootFSProvider) CleanupRootFS(logger lager.Logger, id stri
 	}
 
 	return err
-}
-
-type ShellOutCp struct {
-	WorkDir string
-}
-
-func (s ShellOutCp) Copy(src, dest string) error {
-	if err := os.Remove(dest); err != nil {
-		return err
-	}
-
-	return exec.Command("cp", "-a", src, dest).Run()
 }

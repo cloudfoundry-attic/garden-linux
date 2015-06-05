@@ -36,9 +36,10 @@ function mountBtrfs()
     mknod /dev/fake-dev0 b 7 200
     losetup /dev/fake-dev0 /opt/dev0-backstore || return
     mkfs.btrfs /opt/dev0-backstore
-    rm -fr /tmp
-    mkdir /tmp
-    mount -t btrfs /dev/fake-dev0 /tmp
+    rm -fr /tmp/test-graphpath
+    mkdir /tmp/test-graphpath
+    mount -t btrfs /dev/fake-dev0 /tmp/test-graphpath
+    btrfs quota enable /tmp/test-graphpath
 }
 
 if [ ! -f /usr/include/btrfs/version.h ]
@@ -46,6 +47,9 @@ then
     prepareBtrfs
     mountBtrfs || true # does not work on concourse
 fi
+
+export GARDEN_TEST_GRAPHPATH=/tmp/test-graphpath
+mkdir -p $GARDEN_TEST_GRAPHPATH
 
 export GARDEN_TEST_ROOTFS=$(mountOnTmpfs /opt/warden/rootfs)
 

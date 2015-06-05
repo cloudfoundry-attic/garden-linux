@@ -102,6 +102,32 @@ var _ = Describe("Creating a container", func() {
 		})
 	})
 
+	Describe("concurrently creating", func() {
+		It("does not deadlock", func() {
+			client = startGarden()
+			wg := new(sync.WaitGroup)
+
+			errors := make(chan error, 50)
+			for i := 0; i < 40; i++ {
+				wg.Add(1)
+				go func() {
+					container, err := client.Create(garden.ContainerSpec{})
+					Expect(err).ToNot(HaveOccurred())
+					defer client.Destroy(container.Handle())
+
+					if err != nil {
+						errors <- err
+					}
+
+					wg.Done()
+				}()
+			}
+			wg.Wait()
+
+			Expect(errors).ToNot(Receive())
+		})
+	})
+
 	Describe("concurrently destroying", func() {
 		allBridges := func() []byte {
 			stdout := gbytes.NewBuffer()

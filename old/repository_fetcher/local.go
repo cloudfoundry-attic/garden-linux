@@ -73,6 +73,7 @@ func (l *Local) fetch(path string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("repository_fetcher: fetch local rootfs: %s", err)
 	}
+	defer tar.Close()
 
 	if err := l.Graph.Register(&image.Image{ID: id}, tar); err != nil {
 		return "", fmt.Errorf("repository_fetcher: fetch local rootfs: %v", err)

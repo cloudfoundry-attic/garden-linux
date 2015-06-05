@@ -12,11 +12,11 @@ import (
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fakes"
 	networkFakes "github.com/cloudfoundry-incubator/garden-linux/network/fakes"
 	"github.com/cloudfoundry-incubator/garden-linux/old/bandwidth_manager/fake_bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/cgroups_manager/fake_cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/port_pool/fake_port_pool"
-	"github.com/cloudfoundry-incubator/garden-linux/old/quota_manager/fake_quota_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/cloudfoundry-incubator/garden-linux/process_tracker/fake_process_tracker"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
@@ -24,14 +24,14 @@ import (
 
 var _ = Describe("Linux containers", func() {
 	var fakeCgroups *fake_cgroups_manager.FakeCgroupsManager
-	var fakeQuotaManager *fake_quota_manager.FakeQuotaManager
+	var fakeQuotaManager *fakes.FakeQuotaManager
 	var container *linux_container.LinuxContainer
 	var containerDir string
 
 	BeforeEach(func() {
 		fakeCgroups = fake_cgroups_manager.New("/cgroups", "some-id")
 
-		fakeQuotaManager = fake_quota_manager.New()
+		fakeQuotaManager = &fakes.FakeQuotaManager{}
 	})
 
 	JustBeforeEach(func() {
@@ -52,6 +52,7 @@ var _ = Describe("Linux containers", func() {
 			"some-id",
 			"some-handle",
 			containerDir,
+			"some-rootfs-path",
 			nil,
 			1*time.Second,
 			containerResources,
@@ -213,10 +214,10 @@ system 2
 
 		Describe("disk usage info", func() {
 			It("is returned in the response", func() {
-				fakeQuotaManager.GetUsageResult = garden.ContainerDiskStat{
+				fakeQuotaManager.GetUsageReturns(garden.ContainerDiskStat{
 					BytesUsed:  1,
 					InodesUsed: 2,
-				}
+				}, nil)
 
 				metrics, err := container.Metrics()
 				Expect(err).ToNot(HaveOccurred())
@@ -232,7 +233,7 @@ system 2
 				disaster := errors.New("oh no!")
 
 				JustBeforeEach(func() {
-					fakeQuotaManager.GetUsageError = disaster
+					fakeQuotaManager.GetUsageReturns(garden.ContainerDiskStat{}, disaster)
 				})
 
 				It("returns the error", func() {

@@ -8,8 +8,9 @@ import (
 )
 
 type ContainerSnapshot struct {
-	ID     string
-	Handle string
+	ID         string
+	Handle     string
+	RootFSPath string
 
 	GraceTime time.Duration
 

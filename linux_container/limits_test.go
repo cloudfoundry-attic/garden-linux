@@ -15,11 +15,11 @@ import (
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fakes"
 	networkFakes "github.com/cloudfoundry-incubator/garden-linux/network/fakes"
 	"github.com/cloudfoundry-incubator/garden-linux/old/bandwidth_manager/fake_bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/cgroups_manager/fake_cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/port_pool/fake_port_pool"
-	"github.com/cloudfoundry-incubator/garden-linux/old/quota_manager/fake_quota_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/cloudfoundry-incubator/garden-linux/process_tracker/fake_process_tracker"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
@@ -28,7 +28,7 @@ import (
 
 var _ = Describe("Linux containers", func() {
 	var fakeCgroups *fake_cgroups_manager.FakeCgroupsManager
-	var fakeQuotaManager *fake_quota_manager.FakeQuotaManager
+	var fakeQuotaManager *fakes.FakeQuotaManager
 	var fakeBandwidthManager *fake_bandwidth_manager.FakeBandwidthManager
 	var fakeRunner *fake_command_runner.FakeCommandRunner
 	var containerResources *linux_backend.Resources
@@ -40,7 +40,7 @@ var _ = Describe("Linux containers", func() {
 
 		fakeCgroups = fake_cgroups_manager.New("/cgroups", "some-id")
 
-		fakeQuotaManager = fake_quota_manager.New()
+		fakeQuotaManager = &fakes.FakeQuotaManager{}
 		fakeBandwidthManager = fake_bandwidth_manager.New()
 
 		var err error
@@ -67,6 +67,7 @@ var _ = Describe("Linux containers", func() {
 			"some-id",
 			"some-handle",
 			containerDir,
+			"some-volume-path",
 			nil,
 			1*time.Second,
 			containerResources,
@@ -478,30 +479,21 @@ var _ = Describe("Linux containers", func() {
 			ByteHard: 24,
 		}
 
-		It("sets the quota via the quota manager with the uid and limits", func() {
-			resultingLimits := garden.DiskLimits{
-				BlockHard: 1234567,
-			}
-
-			fakeQuotaManager.GetLimitsResult = resultingLimits
-
+		It("sets the quota via the quota manager with the container id", func() {
 			err := container.LimitDisk(limits)
 			Expect(err).ToNot(HaveOccurred())
 
-			uid := containerResources.UserUID
-
-			Expect(fakeQuotaManager.Limited).To(HaveKey(uid))
-			Expect(fakeQuotaManager.Limited[uid]).To(Equal(limits))
+			Expect(fakeQuotaManager.SetLimitsCallCount()).To(Equal(1))
+			_, path, receivedLimits := fakeQuotaManager.SetLimitsArgsForCall(0)
+			Expect(path).To(Equal(container.RootFSPath()))
+			Expect(receivedLimits).To(Equal(limits))
 		})
 
 		Context("when setting the quota fails", func() {
-			disaster := errors.New("oh no!")
-
-			BeforeEach(func() {
-				fakeQuotaManager.SetLimitsError = disaster
-			})
-
 			It("returns the error", func() {
+				disaster := errors.New("oh no!")
+				fakeQuotaManager.SetLimitsReturns(disaster)
+
 				err := container.LimitDisk(limits)
 				Expect(err).To(Equal(disaster))
 			})
@@ -514,7 +506,7 @@ var _ = Describe("Linux containers", func() {
 				BlockHard: 1234567,
 			}
 
-			fakeQuotaManager.GetLimitsResult = limits
+			fakeQuotaManager.GetLimitsReturns(limits, nil)
 
 			receivedLimits, err := container.CurrentDiskLimits()
 			Expect(err).ToNot(HaveOccurred())
@@ -525,7 +517,7 @@ var _ = Describe("Linux containers", func() {
 			disaster := errors.New("oh no!")
 
 			JustBeforeEach(func() {
-				fakeQuotaManager.GetLimitsError = disaster
+				fakeQuotaManager.GetLimitsReturns(garden.DiskLimits{}, disaster)
 			})
 
 			It("returns the error", func() {

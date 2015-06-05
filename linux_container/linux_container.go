@@ -20,7 +20,6 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/old/bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/logging"
-	"github.com/cloudfoundry-incubator/garden-linux/old/quota_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/cloudfoundry-incubator/garden-linux/process_tracker"
 	"github.com/cloudfoundry/gunk/command_runner"
@@ -35,12 +34,24 @@ func (err UndefinedPropertyError) Error() string {
 	return fmt.Sprintf("property does not exist: %s", err.Key)
 }
 
+//go:generate counterfeiter -o fakes/fake_quota_manager.go . QuotaManager
+type QuotaManager interface {
+	SetLimits(logger lager.Logger, containerRootFSPath string, limits garden.DiskLimits) error
+	GetLimits(logger lager.Logger, containerRootFSPath string) (garden.DiskLimits, error)
+	GetUsage(logger lager.Logger, containerRootFSPath string) (garden.ContainerDiskStat, error)
+
+	MountPoint() string
+	Disable()
+	IsEnabled() bool
+}
+
 type LinuxContainer struct {
 	logger lager.Logger
 
-	id     string
-	handle string
-	path   string
+	id         string
+	handle     string
+	path       string
+	rootFSPath string
 
 	properties      garden.Properties
 	propertiesMutex sync.RWMutex
@@ -60,7 +71,7 @@ type LinuxContainer struct {
 	runner command_runner.CommandRunner
 
 	cgroupsManager   cgroups_manager.CgroupsManager
-	quotaManager     quota_manager.QuotaManager
+	quotaManager     QuotaManager
 	bandwidthManager bandwidth_manager.BandwidthManager
 
 	processTracker process_tracker.ProcessTracker
@@ -138,14 +149,14 @@ const (
 
 func NewLinuxContainer(
 	logger lager.Logger,
-	id, handle, path string,
+	id, handle, path, rootFSPath string,
 	properties garden.Properties,
 	graceTime time.Duration,
 	resources *linux_backend.Resources,
 	portPool PortPool,
 	runner command_runner.CommandRunner,
 	cgroupsManager cgroups_manager.CgroupsManager,
-	quotaManager quota_manager.QuotaManager,
+	quotaManager QuotaManager,
 	bandwidthManager bandwidth_manager.BandwidthManager,
 	processTracker process_tracker.ProcessTracker,
 	env process.Env,
@@ -154,9 +165,10 @@ func NewLinuxContainer(
 	return &LinuxContainer{
 		logger: logger,
 
-		id:     id,
-		handle: handle,
-		path:   path,
+		id:         id,
+		handle:     handle,
+		path:       path,
+		rootFSPath: rootFSPath,
 
 		properties: properties,
 
@@ -186,6 +198,10 @@ func NewLinuxContainer(
 
 func (c *LinuxContainer) ID() string {
 	return c.id
+}
+
+func (c *LinuxContainer) RootFSPath() string {
+	return c.rootFSPath
 }
 
 func (c *LinuxContainer) Handle() string {
@@ -255,8 +271,9 @@ func (c *LinuxContainer) Snapshot(out io.Writer) error {
 	properties, _ := c.Properties()
 
 	snapshot := ContainerSnapshot{
-		ID:     c.id,
-		Handle: c.handle,
+		ID:         c.id,
+		Handle:     c.handle,
+		RootFSPath: c.RootFSPath(),
 
 		GraceTime: c.graceTime,
 

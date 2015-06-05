@@ -18,11 +18,11 @@ import (
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fakes"
 	networkFakes "github.com/cloudfoundry-incubator/garden-linux/network/fakes"
 	"github.com/cloudfoundry-incubator/garden-linux/old/bandwidth_manager/fake_bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/cgroups_manager/fake_cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/port_pool/fake_port_pool"
-	"github.com/cloudfoundry-incubator/garden-linux/old/quota_manager/fake_quota_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/cloudfoundry-incubator/garden-linux/process_tracker/fake_process_tracker"
 	wfakes "github.com/cloudfoundry-incubator/garden/fakes"
@@ -32,7 +32,7 @@ import (
 
 var _ = Describe("Linux containers", func() {
 	var fakeCgroups *fake_cgroups_manager.FakeCgroupsManager
-	var fakeQuotaManager *fake_quota_manager.FakeQuotaManager
+	var fakeQuotaManager *fakes.FakeQuotaManager
 	var fakeBandwidthManager *fake_bandwidth_manager.FakeBandwidthManager
 	var fakeRunner *fake_command_runner.FakeCommandRunner
 	var containerResources *linux_backend.Resources
@@ -49,7 +49,7 @@ var _ = Describe("Linux containers", func() {
 
 		fakeCgroups = fake_cgroups_manager.New("/cgroups", "some-id")
 
-		fakeQuotaManager = fake_quota_manager.New()
+		fakeQuotaManager = &fakes.FakeQuotaManager{}
 		fakeBandwidthManager = fake_bandwidth_manager.New()
 		fakeProcessTracker = new(fake_process_tracker.FakeProcessTracker)
 		fakeFilter = new(networkFakes.FakeFilter)
@@ -91,6 +91,7 @@ var _ = Describe("Linux containers", func() {
 			"some-id",
 			"some-handle",
 			containerDir,
+			"some-volume-path",
 			containerProps,
 			1*time.Second,
 			containerResources,
@@ -111,6 +112,10 @@ var _ = Describe("Linux containers", func() {
 
 	It("sets the container handle", func() {
 		Expect(container.Handle()).To(Equal("some-handle"))
+	})
+
+	It("sets the container subvolume path", func() {
+		Expect(container.RootFSPath()).To(Equal("some-volume-path"))
 	})
 
 	It("sets the container grace time", func() {

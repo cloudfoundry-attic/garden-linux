@@ -27,13 +27,13 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/container_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/container_repository"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_container/quota_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/network"
 	"github.com/cloudfoundry-incubator/garden-linux/network/bridgemgr"
 	"github.com/cloudfoundry-incubator/garden-linux/network/devices"
 	"github.com/cloudfoundry-incubator/garden-linux/network/iptables"
 	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
 	"github.com/cloudfoundry-incubator/garden-linux/old/port_pool"
-	"github.com/cloudfoundry-incubator/garden-linux/old/quota_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/repository_fetcher"
 	"github.com/cloudfoundry-incubator/garden-linux/old/rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
@@ -249,7 +249,7 @@ func Main() {
 
 	runner := sysconfig.NewRunner(config, linux_command_runner.New())
 
-	quotaManager := quota_manager.New(runner, getMountPoint(logger, *depotPath), *binPath)
+	quotaManager := quota_manager.New(runner, getMountPoint(logger, *depotPath))
 
 	if *disableQuotas {
 		quotaManager.Disable()
@@ -293,8 +293,7 @@ func Main() {
 		).Translate,
 	}
 
-	copier := &rootfs_provider.ShellOutCp{}
-	dockerRootFSProvider, err := rootfs_provider.NewDocker(repoFetcher, graphDriver, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, copier, clock.NewClock())
+	dockerRootFSProvider, err := rootfs_provider.NewDocker(repoFetcher, graphDriver, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock())
 	if err != nil {
 		logger.Fatal("failed-to-construct-docker-rootfs-provider", err)
 	}
@@ -303,7 +302,7 @@ func Main() {
 		Graph:             graph,
 		DefaultRootFSPath: *rootFSPath,
 		IDer:              repository_fetcher.MD5ID{},
-	}, graphDriver, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, copier, clock.NewClock())
+	}, graphDriver, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock())
 	if err != nil {
 		logger.Fatal("failed-to-construct-warden-rootfs-provider", err)
 	}

@@ -17,11 +17,11 @@ import (
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fakes"
 	networkFakes "github.com/cloudfoundry-incubator/garden-linux/network/fakes"
 	"github.com/cloudfoundry-incubator/garden-linux/old/bandwidth_manager/fake_bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/cgroups_manager/fake_cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/port_pool/fake_port_pool"
-	"github.com/cloudfoundry-incubator/garden-linux/old/quota_manager/fake_quota_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/cloudfoundry-incubator/garden-linux/process_tracker"
 	"github.com/cloudfoundry-incubator/garden-linux/process_tracker/fake_process_tracker"
@@ -65,13 +65,14 @@ var _ = Describe("Linux containers", func() {
 			"some-id",
 			"some-handle",
 			containerDir,
+			"some-rootfs-path",
 			nil,
 			1*time.Second,
 			containerResources,
 			fake_port_pool.New(1000),
 			fakeRunner,
 			fake_cgroups_manager.New("/cgroups", "some-id"),
-			fake_quota_manager.New(),
+			&fakes.FakeQuotaManager{},
 			fake_bandwidth_manager.New(),
 			fakeProcessTracker,
 			process.Env{"env1": "env1Value", "env2": "env2Value"},

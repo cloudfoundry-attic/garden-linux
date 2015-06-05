@@ -11,7 +11,7 @@ import (
 func (c *LinuxContainer) Metrics() (garden.Metrics, error) {
 	cLog := c.logger.Session("metrics")
 
-	diskStat, err := c.quotaManager.GetUsage(cLog, c.resources.UserUID)
+	diskStat, err := c.quotaManager.GetUsage(cLog, c.RootFSPath())
 	if err != nil {
 		return garden.Metrics{}, err
 	}
