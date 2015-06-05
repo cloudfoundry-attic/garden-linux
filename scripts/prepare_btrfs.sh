@@ -21,11 +21,11 @@ then
     mkfs.btrfs $backing_store
 fi
 
-if [ -z $(df $mount_point) ]
+if cat /proc/mounts | grep $mount_point
 then
+    echo "btrfs volume already mounted"
+else
     echo "mounting btrfs volume"
     mkdir -p $mount_point
     mount -t btrfs $loopback_device $mount_point
-else
-    echo "btrfs volume already mounted"
 fi
