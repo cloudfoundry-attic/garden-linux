@@ -171,7 +171,7 @@ func startDockerRegistry(dockerRegistryIP string, dockerRegistryPort string) gar
 
 	Eventually(
 		fmt.Sprintf("http://%s:%s/_ping", dockerRegistryIP, dockerRegistryPort),
-		"10s",
+		"60s",
 	).Should(RespondToGETWith(200))
 
 	return dockerRegistry
