@@ -33,11 +33,6 @@ var _ = Describe("PipeSynchronizer", func() {
 		}
 	})
 
-	AfterEach(func() {
-		reader.Close()
-		writer.Close()
-	})
-
 	Describe("Wait", func() {
 		Context("when the buffer is signaled", func() {
 			Context("with successful signal", func() {
