@@ -3,9 +3,11 @@ package linux_backend
 import (
 	"encoding/json"
 	"net"
-	"os"
 	"os/exec"
 	"strconv"
+
+	"fmt"
+	"os"
 
 	"github.com/cloudfoundry-incubator/garden-linux/hook"
 	"github.com/cloudfoundry-incubator/garden-linux/network"
@@ -16,13 +18,7 @@ type Config struct {
 	Network json.RawMessage `json:"network"`
 }
 
-//go:generate counterfeiter . ContainerInitializer
-type ContainerInitializer interface {
-	MountProc() error
-	MountTmp() error
-}
-
-func RegisterHooks(hs hook.HookSet, runner Runner, config process.Env, containerInitializer ContainerInitializer, configurer network.Configurer) {
+func RegisterHooks(hs hook.HookSet, runner Runner, config process.Env, configurer network.Configurer) {
 	hs.Register(hook.PARENT_BEFORE_CLONE, func() {
 		must(runner.Run(exec.Command("./hook-parent-before-clone.sh")))
 	})
@@ -30,18 +26,6 @@ func RegisterHooks(hs hook.HookSet, runner Runner, config process.Env, container
 	hs.Register(hook.PARENT_AFTER_CLONE, func() {
 		must(runner.Run(exec.Command("./hook-parent-after-clone.sh")))
 		must(configureHostNetwork(config, configurer))
-	})
-
-	hs.Register(hook.CHILD_AFTER_PIVOT, func() {
-		must(configureContainerNetwork(config, configurer))
-
-		must(containerInitializer.MountProc())
-		must(containerInitializer.MountTmp())
-
-		// Temporary until /etc/seed functionality removed
-		if _, err := os.Stat("/etc/seed"); err == nil {
-			must(exec.Command("/bin/sh", "-c", ". /etc/seed").Run())
-		}
 	})
 }
 
@@ -56,10 +40,11 @@ func configureHostNetwork(config process.Env, configurer network.Configurer) err
 		return err
 	}
 
-	// Temporary until PID is passed in from Go rewrite of wshd.
-	containerPid, _ := pidFromFile("../run/wshd.pid")
+	// Temporary until PID is passed in as a parameter.
+	var containerPid int
+	_, err = fmt.Sscanf(os.Getenv("PID"), "%d", &containerPid)
 	if err != nil {
-		return err
+		return fmt.Errorf("linux_backend: can't parse PID string from ENV: %v", err)
 	}
 
 	err = configurer.ConfigureHost(&network.HostConfig{

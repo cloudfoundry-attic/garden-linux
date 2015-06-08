@@ -59,6 +59,8 @@ then
 
   umount -l $rootfs_path/dev/pts || true
 
+  ./unbindmount.sh || true
+
   exit 0
 fi
 

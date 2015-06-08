@@ -13,6 +13,8 @@ import (
 	"github.com/onsi/gomega/gexec"
 	"github.com/tedsuo/ifrit"
 
+	"encoding/json"
+
 	"github.com/cloudfoundry-incubator/garden-linux/integration/runner"
 )
 
@@ -20,7 +22,7 @@ var binPath = "../../old/linux_backend/bin" // relative to test suite directory
 var rootFSPath = os.Getenv("GARDEN_TEST_ROOTFS")
 var graphPath = os.Getenv("GARDEN_TEST_GRAPHPATH")
 
-var gardenBin string
+var gardenBin, shmTestBin string
 
 var gardenRunner *runner.Runner
 var gardenProcess ifrit.Process
@@ -46,7 +48,7 @@ func startGarden(argv ...string) garden.Client {
 func restartGarden(argv ...string) {
 	Expect(client.Ping()).To(Succeed(), "tried to restart garden while it was not running")
 	gardenProcess.Signal(syscall.SIGTERM)
-	Eventually(gardenProcess.Wait(), 10).Should(Receive())
+	Eventually(gardenProcess.Wait(), 30).Should(Receive())
 
 	startGarden(argv...)
 }
@@ -59,17 +61,37 @@ func ensureGardenRunning() {
 }
 
 func TestLifecycle(t *testing.T) {
+	var beforeSuite struct {
+		GardenPath  string
+		ShmTestPath string
+	}
+
 	if rootFSPath == "" {
 		log.Println("GARDEN_TEST_ROOTFS undefined; skipping")
 		return
 	}
 
 	SynchronizedBeforeSuite(func() []byte {
-		gardenPath, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux", "-a", "-race", "-tags", "daemon")
+		var err error
+		beforeSuite.GardenPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux", "-a", "-race", "-tags", "daemon")
 		Expect(err).ToNot(HaveOccurred())
-		return []byte(gardenPath)
-	}, func(gardenPath []byte) {
-		gardenBin = string(gardenPath)
+
+		beforeSuite.ShmTestPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/integration/lifecycle/shm_test")
+		Expect(err).ToNot(HaveOccurred())
+
+		b, err := json.Marshal(beforeSuite)
+		Expect(err).ToNot(HaveOccurred())
+
+		return b
+	}, func(paths []byte) {
+		err := json.Unmarshal(paths, &beforeSuite)
+		Expect(err).ToNot(HaveOccurred())
+
+		gardenBin = beforeSuite.GardenPath
+		Expect(gardenBin).NotTo(BeEmpty())
+
+		shmTestBin = beforeSuite.ShmTestPath
+		Expect(shmTestBin).NotTo(BeEmpty())
 	})
 
 	AfterEach(func() {

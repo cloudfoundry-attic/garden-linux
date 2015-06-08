@@ -885,6 +885,14 @@ var _ = Describe("Container pool", func() {
 								" >> " + containerPath + "/lib/hook-parent-before-clone.sh",
 						},
 					},
+					fake_command_runner.CommandSpec{
+						Path: "bash",
+						Args: []string{
+							"-c",
+							"echo umount " + rootfsPath + "/dst/path-rw" +
+								" >> " + containerPath + "/unbindmount.sh",
+						},
+					},
 				))
 			})
 

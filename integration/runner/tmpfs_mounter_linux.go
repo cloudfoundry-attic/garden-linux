@@ -13,14 +13,8 @@ func MustMountTmpfs(destination string) {
 }
 
 func MustUnmountTmpfs(destination string) {
-	if _, err := os.Stat(destination); os.IsNotExist(err) {
-		return
-	}
-
-	for i := 0; i < 10; i++ {
-		syscall.Unmount(destination, syscall.MNT_DETACH)
-		os.Remove(destination)
-	}
+	must(syscall.Unmount(destination, 0))
+	must(os.Remove(destination))
 }
 
 func must(err error) {

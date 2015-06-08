@@ -1,11 +1,11 @@
 package ifrit_test
 
 import (
-	"os"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/tedsuo/ifrit"
 	"github.com/tedsuo/ifrit/test_helpers"
+	"os"
 )
 
 var _ = Describe("Process", func() {

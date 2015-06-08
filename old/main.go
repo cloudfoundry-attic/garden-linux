@@ -14,7 +14,6 @@ import (
 
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/docker/docker/daemon/graphdriver"
-	_ "github.com/docker/docker/daemon/graphdriver/aufs"
 	_ "github.com/docker/docker/daemon/graphdriver/vfs"
 	"github.com/docker/docker/graph"
 	"github.com/docker/docker/registry"
@@ -416,7 +415,7 @@ func missing(flagName string) {
 func initializeDropsonde(logger lager.Logger) {
 	err := dropsonde.Initialize(*dropsondeDestination, *dropsondeOrigin)
 	if err != nil {
-		logger.Error("failed to initialize dropsonde: %v", err)
+		logger.Error("failed to initialize dropsonde", err)
 	}
 }
 
