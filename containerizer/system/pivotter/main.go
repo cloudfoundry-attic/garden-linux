@@ -25,8 +25,6 @@ int enterns() {
     return 1;
   }
 
-	printf("%s", mntnspath);
-
   mntnsfd = open(mntnspath, O_RDONLY);
   if(mntnsfd == -1) {
     perror("open mnt namespace");
