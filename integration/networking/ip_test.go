@@ -189,7 +189,7 @@ var _ = Describe("IP settings", func() {
 					}, garden.ProcessIO{})
 					Expect(err).ToNot(HaveOccurred())
 
-					Expect(checkConnection(container3, info2.ContainerIP, 8080)).To(Succeed())
+					Eventually(func() error { return checkConnection(container3, info2.ContainerIP, 8080) }).Should(Succeed())
 
 					Expect(listener.Wait()).To(Equal(0))
 				})
