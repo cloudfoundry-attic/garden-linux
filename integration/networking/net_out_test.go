@@ -175,7 +175,9 @@ var _ = Describe("Net Out", func() {
 
 		ByAllowingTCP := func() {
 			By("allowing tcp traffic to it", func() {
-				Expect(checkConnection(container, targetIP(otherContainer), tcpPort)).To(Succeed())
+				Eventually(func() error {
+					return checkConnection(container, targetIP(otherContainer), tcpPort)
+				}).Should(Succeed())
 			})
 		}
 
