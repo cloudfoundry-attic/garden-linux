@@ -3,8 +3,10 @@ package main
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"os/exec"
+	"strconv"
 	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
@@ -15,6 +17,8 @@ func main() {
 		fmt.Fprintf(os.Stderr, "ERROR: No arguments were provided!\n")
 		os.Exit(255)
 	}
+
+	closeFds()
 
 	mgr := &container_daemon.RlimitsManager{}
 	rlimits := mgr.DecodeLimits(decodeRLimitsArg(os.Args[1]))
@@ -46,4 +50,29 @@ func decodeRLimitsArg(rlimitsArg string) string {
 	}
 
 	return rlimits
+}
+
+func closeFds() {
+	fds, err := ioutil.ReadDir("/proc/self/fd")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: read /proc/self/fd: %s", err)
+		os.Exit(255)
+	}
+
+	for _, fd := range fds {
+		if fd.IsDir() {
+			continue
+		}
+
+		fdI, err := strconv.Atoi(fd.Name())
+		if err != nil {
+			panic(err) // cant happen
+		}
+
+		if fdI <= 2 {
+			continue
+		}
+
+		syscall.CloseOnExec(fdI)
+	}
 }

@@ -55,6 +55,29 @@ var _ = Describe("Security", func() {
 			}).Should(HaveLen(6)) // header, wshd, sleep, sh, ps, \n
 		})
 
+		It("does not leak fds in to spawned processes", func() {
+			client = startGarden()
+			container, err := client.Create(garden.ContainerSpec{})
+			Expect(err).ToNot(HaveOccurred())
+
+			stdout := gbytes.NewBuffer()
+			process, err := container.Run(garden.ProcessSpec{
+				User: "root",
+				Path: "ls",
+				Args: []string{"/proc/self/fd"},
+			}, garden.ProcessIO{
+				Stdout: stdout,
+				Stderr: GinkgoWriter,
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			exitStatus, err := process.Wait()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(exitStatus).To(Equal(0))
+
+			Expect(stdout).To(gbytes.Say("0\n1\n2\n3\n")) // stdin, stdout, stderr, /proc/self/fd
+		})
+
 		It("has the correct initial process", func() {
 			client = startGarden()
 			container, err := client.Create(garden.ContainerSpec{})
