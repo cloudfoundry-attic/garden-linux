@@ -79,7 +79,7 @@ func TestDevice(t *testing.T) {
 
 	AfterEach(func() {
 		gardenProcess.Signal(syscall.SIGQUIT)
-		Eventually(gardenProcess.Wait(), "10s").Should(Receive())
+		Eventually(gardenProcess.Wait(), "20s").Should(Receive())
 	})
 
 	SynchronizedAfterSuite(func() {
