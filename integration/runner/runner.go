@@ -81,8 +81,6 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 		return err
 	}
 
-	//MustMountTmpfs(r.graphPath)
-
 	var appendDefaultFlag = func(ar []string, key, value string) []string {
 		for _, a := range r.argv {
 			if a == key {
@@ -126,9 +124,7 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 	gardenArgs = appendDefaultFlag(gardenArgs, "--tag", strconv.Itoa(ginkgo.GinkgoParallelNode()))
 
 	btrfs := strings.EqualFold(os.Getenv("BTRFS_SUPPORTED"), "true")
-	if hasFlag(gardenArgs, "-disableQuotas=true") {
-		btrfs = false
-	} else if !btrfs {
+	if !hasFlag(gardenArgs, "-disableQuotas=true") {
 		gardenArgs = appendDefaultFlag(gardenArgs, "--disableQuotas", "")
 	}
 
@@ -180,7 +176,6 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 				}
 
 				logger.Info("cleanup-tempdirs")
-				//MustUnmountTmpfs(overlaysPath)
 				if err := os.RemoveAll(r.tmpdir); err != nil {
 					logger.Error("cleanup-tempdirs-failed", err, lager.Data{"tmpdir": r.tmpdir})
 				} else {
