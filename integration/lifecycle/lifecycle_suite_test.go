@@ -97,7 +97,7 @@ func TestLifecycle(t *testing.T) {
 	AfterEach(func() {
 		ensureGardenRunning()
 		gardenProcess.Signal(syscall.SIGQUIT)
-		Eventually(gardenProcess.Wait(), 10).Should(Receive())
+		Eventually(gardenProcess.Wait(), 60).Should(Receive())
 	})
 
 	SynchronizedAfterSuite(func() {
