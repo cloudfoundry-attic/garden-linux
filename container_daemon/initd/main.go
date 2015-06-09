@@ -49,13 +49,12 @@ func main() {
 	}
 
 	socketFile := os.NewFile(uintptr(5), "/dev/host.sock")
-	syscall.RawSyscall(syscall.SYS_FCNTL, uintptr(5), syscall.F_SETFD, syscall.FD_CLOEXEC)
-	defer socketFile.Close()
-
 	listener, err := unix_socket.NewListenerFromFile(socketFile)
 	if err != nil {
 		fail(fmt.Sprintf("initd: failed to create listener: %s\n", err), 5)
 	}
+
+	socketFile.Close()
 
 	if err := sync.SignalSuccess(); err != nil {
 		fail(fmt.Sprintf("signal host: %s", err), 6)

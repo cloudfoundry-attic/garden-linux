@@ -93,9 +93,6 @@ func main() {
 		fail(fmt.Sprintf("failed to init containerizer: %s", err), 2)
 	}
 
-	socketFile := os.NewFile(uintptr(5), "/dev/host.sock")
-	defer socketFile.Close()
-
 	syscall.RawSyscall(syscall.SYS_FCNTL, uintptr(4), syscall.F_SETFD, 0)
 	syscall.RawSyscall(syscall.SYS_FCNTL, uintptr(5), syscall.F_SETFD, 0)
 

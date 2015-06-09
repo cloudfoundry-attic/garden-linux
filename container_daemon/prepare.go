@@ -64,6 +64,7 @@ func (p *ProcessSpecPreparer) PrepareCmd(spec garden.ProcessSpec) (*exec.Cmd, er
 			break
 		}
 	}
+
 	if !hasPath {
 		if uid == 0 {
 			cmd.Env = append(cmd.Env, fmt.Sprintf("PATH=%s", DefaultRootPATH))

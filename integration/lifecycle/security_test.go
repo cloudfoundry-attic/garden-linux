@@ -78,6 +78,26 @@ var _ = Describe("Security", func() {
 			Expect(stdout).To(gbytes.Say("0\n1\n2\n3\n")) // stdin, stdout, stderr, /proc/self/fd
 		})
 
+		It("does not keep any host files open", func() {
+			client = startGarden()
+			container, err := client.Create(garden.ContainerSpec{})
+			Expect(err).ToNot(HaveOccurred())
+
+			ps, err := gexec.Start(
+				exec.Command("sh", "-c",
+					fmt.Sprintf("ps -A -opid,args | grep wshd | grep %s | head -n 1 | awk '{ print $1 }'", container.Handle())),
+				GinkgoWriter, GinkgoWriter)
+			Expect(err).ToNot(HaveOccurred())
+			Eventually(ps).Should(gexec.Exit(0))
+
+			lsof, err := gexec.Start(
+				exec.Command("lsof", "-p", strings.TrimSpace(string(ps.Out.Contents()))),
+				GinkgoWriter, GinkgoWriter)
+
+			Eventually(lsof).Should(gexec.Exit(0))
+			Expect(lsof).NotTo(gbytes.Say(container.Handle()))
+		})
+
 		It("has the correct initial process", func() {
 			client = startGarden()
 			container, err := client.Create(garden.ContainerSpec{})
