@@ -79,7 +79,7 @@ var _ = Describe("Preparing a command to run", func() {
 				thePreparedCmd, theReturnedError = preparer.PrepareCmd(spec)
 			})
 
-			It("has the correct path and args", func() {
+			It("executes the proc_starter binary with the process path and args", func() {
 				Expect(theReturnedError).To(BeNil())
 				Expect(thePreparedCmd.Path).To(Equal("/path/to/proc/starter"))
 				Expect(thePreparedCmd.Args).To(Equal([]string{"/path/to/proc/starter", "ENCODEDRLIMITS=", "fishfinger", "foo", "bar"}))
