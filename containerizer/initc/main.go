@@ -17,6 +17,8 @@ import (
 	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
 )
 
+// initc initializes a newly created container and then execs to become
+// the init process
 func main() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -27,6 +29,7 @@ func main() {
 
 	rootFsPath := flag.String("root", "", "Path for the root file system directory")
 	configFilePath := flag.String("config", "./etc/config", "Path for the configuration file")
+	title := flag.String("title", "", "")
 	cf_lager.AddFlags(flag.CommandLine)
 	flag.Parse()
 
@@ -96,7 +99,7 @@ func main() {
 	syscall.RawSyscall(syscall.SYS_FCNTL, uintptr(4), syscall.F_SETFD, 0)
 	syscall.RawSyscall(syscall.SYS_FCNTL, uintptr(5), syscall.F_SETFD, 0)
 
-	syscall.Exec("/sbin/initd", []string{"/sbin/initd"}, os.Environ())
+	syscall.Exec("/sbin/initd", []string{*title}, os.Environ())
 }
 
 func fail(err string, code int) {

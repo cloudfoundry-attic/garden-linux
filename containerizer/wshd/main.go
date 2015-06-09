@@ -17,13 +17,12 @@ import (
 	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
 )
 
-// TODO: Catch the system errors and panic
 func main() {
 	libPath := flag.String("lib", "./lib", "Directory containing hooks")
 	rootFsPath := flag.String("root", "", "Directory that will become root in the new mount namespace")
 	runPath := flag.String("run", "./run", "Directory where server socket is placed")
 	userNsFlag := flag.String("userns", "enabled", "If specified, use user namespacing")
-	flag.String("title", "", "") // todo: potentially remove this if unused
+	title := flag.String("title", "", "")
 	flag.Parse()
 
 	if *rootFsPath == "" {
@@ -92,6 +91,7 @@ func main() {
 		InitArgs: []string{
 			"--root", *rootFsPath,
 			"--config", path.Join(*libPath, "../etc/config"),
+			"--title", *title,
 		},
 		Execer: &system.NamespacingExecer{
 			CommandRunner:    linux_command_runner.New(),

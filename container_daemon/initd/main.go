@@ -1,18 +1,19 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"os"
 	"syscall"
 
-	"github.com/cloudfoundry-incubator/cf-lager"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
+	"github.com/pivotal-golang/lager"
 )
 
+// initd listens on a socket, spawns requested processes and reaps their
+// exit statuses.
 func main() {
 	defer func() {
 		if r := recover(); r != nil {
@@ -21,9 +22,8 @@ func main() {
 		}
 	}()
 
-	cf_lager.AddFlags(flag.CommandLine)
-	flag.Parse()
-	logger, _ := cf_lager.New("init")
+	container_daemon.Detach("/dev/null", "/dev/null")
+	logger := lager.NewLogger("initd")
 
 	syncWriter := os.NewFile(uintptr(4), "/dev/sync_writer")
 	syscall.RawSyscall(syscall.SYS_FCNTL, uintptr(4), syscall.F_SETFD, syscall.FD_CLOEXEC)

@@ -87,7 +87,7 @@ var _ = Describe("Security", func() {
 			process, err := container.Run(garden.ProcessSpec{
 				User: "root",
 				Path: "/bin/ps",
-				Args: []string{"-o", "pid,comm"},
+				Args: []string{"-o", "pid,args"},
 			}, garden.ProcessIO{
 				Stdout: stdout,
 				Stderr: GinkgoWriter,
@@ -98,7 +98,7 @@ var _ = Describe("Security", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(exitStatus).To(Equal(0))
 
-			Expect(stdout).To(gbytes.Say(`\s+1\s+initd`))
+			Expect(stdout).To(gbytes.Say(`\s+1\s+{initd}\s+wshd: %s`, container.Handle()))
 		})
 	})
 

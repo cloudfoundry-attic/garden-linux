@@ -12,6 +12,8 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
 )
 
+// proc_starter starts a user process with the correct rlimits and after
+// closing any open FDs.
 func main() {
 	if len(os.Args) < 3 {
 		fmt.Fprintf(os.Stderr, "ERROR: No arguments were provided!\n")
