@@ -78,8 +78,9 @@ func TestDevice(t *testing.T) {
 	})
 
 	AfterEach(func() {
+		ensureGardenRunning()
 		gardenProcess.Signal(syscall.SIGQUIT)
-		Eventually(gardenProcess.Wait(), "20s").Should(Receive())
+		Eventually(gardenProcess.Wait(), "30s").Should(Receive())
 	})
 
 	SynchronizedAfterSuite(func() {
@@ -90,4 +91,11 @@ func TestDevice(t *testing.T) {
 
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Device Suite")
+}
+
+func ensureGardenRunning() {
+	if err := client.Ping(); err != nil {
+		client = startGarden()
+	}
+	Expect(client.Ping()).ToNot(HaveOccurred())
 }
