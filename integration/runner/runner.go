@@ -35,11 +35,9 @@ type Runner struct {
 	tmpdir    string
 	graphRoot string
 	graphPath string
-
-	btrfs bool
 }
 
-func New(network, addr string, bin, binPath, rootFSPath, graphRoot string, btrfs bool, argv ...string) *Runner {
+func New(network, addr string, bin, binPath, rootFSPath, graphRoot string, argv ...string) *Runner {
 	tmpDir := filepath.Join(
 		os.TempDir(),
 		fmt.Sprintf("test-garden-%d", ginkgo.GinkgoParallelNode()),
@@ -62,8 +60,6 @@ func New(network, addr string, bin, binPath, rootFSPath, graphRoot string, btrfs
 		graphRoot:  graphRoot,
 		graphPath:  graphPath,
 		tmpdir:     tmpDir,
-
-		btrfs: btrfs,
 	}
 }
 
@@ -101,6 +97,16 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 		}
 	}
 
+	var hasFlag = func(ar []string, key string) bool {
+		for _, a := range ar {
+			if a == key {
+				return true
+			}
+		}
+
+		return false
+	}
+
 	gardenArgs := make([]string, len(r.argv))
 	copy(gardenArgs, r.argv)
 
@@ -119,7 +125,10 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 	gardenArgs = appendDefaultFlag(gardenArgs, "--portPoolSize", "1000")
 	gardenArgs = appendDefaultFlag(gardenArgs, "--tag", strconv.Itoa(ginkgo.GinkgoParallelNode()))
 
-	if !r.btrfs {
+	btrfs := strings.EqualFold(os.Getenv("BTRFS_SUPPORTED"), "true")
+	if hasFlag(gardenArgs, "-disableQuotas=true") {
+		btrfs = false
+	} else if !btrfs {
 		gardenArgs = appendDefaultFlag(gardenArgs, "--disableQuotas", "")
 	}
 
@@ -144,7 +153,7 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 					logger.Error("remove graph", err)
 				}
 
-				if r.btrfs {
+				if btrfs {
 					// need to remove subvolumes before cleaning graphpath
 					subvolumesOutput, err := exec.Command("btrfs", "subvolume", "list", r.graphRoot).CombinedOutput()
 					logger.Debug(fmt.Sprintf("listing-subvolumes: %s", string(subvolumesOutput)))

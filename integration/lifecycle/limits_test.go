@@ -14,15 +14,14 @@ import (
 
 var _ = Describe("Limits", func() {
 	var container garden.Container
+	var startGardenArgs []string
 
 	var privilegedContainer bool
 	var rootfs string
 
 	JustBeforeEach(func() {
-		client = startGarden()
-
 		var err error
-
+		client = startGarden(startGardenArgs...)
 		container, err = client.Create(garden.ContainerSpec{Privileged: privilegedContainer, RootFSPath: rootfs})
 		Expect(err).ToNot(HaveOccurred())
 	})
@@ -36,6 +35,7 @@ var _ = Describe("Limits", func() {
 	BeforeEach(func() {
 		privilegedContainer = false
 		rootfs = ""
+		startGardenArgs = []string{}
 	})
 
 	Context("with a memory limit", func() {
@@ -56,6 +56,43 @@ var _ = Describe("Limits", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(process.Wait()).ToNot(Equal(0))
+			})
+		})
+	})
+
+	Context("without a disk limit (quota disabled)", func() {
+		BeforeEach(func() {
+			startGardenArgs = []string{"-disableQuotas=true"}
+			rootfs = rootFSPath
+			privilegedContainer = true
+		})
+
+		Context("when there is a disk quota", func() {
+			quotaLimit := garden.DiskLimits{
+				ByteSoft: 5 * 1024 * 1024,
+				ByteHard: 5 * 1024 * 1024,
+			}
+
+			JustBeforeEach(func() {
+				Expect(container.LimitDisk(quotaLimit)).To(Succeed())
+			})
+
+			It("reports the disk limit size of the container as zero", func() {
+				limit, err := container.CurrentDiskLimits()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(limit).To(Equal(garden.DiskLimits{}))
+			})
+
+			Context("and run a process that exceeds the quota", func() {
+				It("does not kill the process", func() {
+					dd, err := container.Run(garden.ProcessSpec{
+						User: "vcap",
+						Path: "dd",
+						Args: []string{"if=/dev/zero", "of=/tmp/some-file", "bs=1M", "count=10"},
+					}, garden.ProcessIO{})
+					Expect(err).ToNot(HaveOccurred())
+					Expect(dd.Wait()).To(Equal(0))
+				})
 			})
 		})
 	})
