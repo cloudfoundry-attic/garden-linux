@@ -11,11 +11,6 @@ import (
 	"github.com/cloudfoundry-incubator/garden"
 )
 
-//go:generate counterfeiter -o fake_iowirer/fake_iowirer.go . IOWirer
-type IOWirer interface {
-	Wire(cmd *exec.Cmd) ([]*os.File, error)
-}
-
 //go:generate counterfeiter -o fake_rlimits_env_encoder/fake_rlimits_env_encoder.go . RlimitsEnvEncoder
 type RlimitsEnvEncoder interface {
 	EncodeLimits(garden.ResourceLimits) string
