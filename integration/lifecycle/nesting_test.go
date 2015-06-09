@@ -100,7 +100,7 @@ var _ = Describe("When nested", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		nestedGardenAddress := fmt.Sprintf("%s:7778", info.ContainerIP)
-		Eventually(nestedServerOutput, "30s").Should(gbytes.Say("garden-linux.started"))
+		Eventually(nestedServerOutput, "60s").Should(gbytes.Say("garden-linux.started"))
 
 		return container, nestedGardenAddress
 	}
@@ -125,7 +125,7 @@ var _ = Describe("When nested", func() {
 		}, garden.ProcessIO{Stdout: nestedOutput, Stderr: nestedOutput})
 		Expect(err).ToNot(HaveOccurred())
 
-		Eventually(nestedOutput, "30s").Should(gbytes.Say("I am nested!"))
+		Eventually(nestedOutput, "60s").Should(gbytes.Say("I am nested!"))
 	})
 
 	Context("when cgroup limits are applied to the parent garden process", func() {
