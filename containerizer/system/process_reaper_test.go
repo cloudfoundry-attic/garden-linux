@@ -82,7 +82,7 @@ var _ = Describe("ProcessReaper", func() {
 			Expect(exitStatus).To(Equal(byte(42)))
 		}
 		close(done)
-	}, 20.0)
+	}, 90.0)
 
 	It("reaps processes when they terminate in close succession", func(done Done) {
 		for i := 0; i < 100; i++ {
@@ -99,5 +99,5 @@ var _ = Describe("ProcessReaper", func() {
 			Expect(exitStatus).To(Equal(byte(255)))
 		}
 		close(done)
-	}, 10.0)
+	}, 90.0)
 })
