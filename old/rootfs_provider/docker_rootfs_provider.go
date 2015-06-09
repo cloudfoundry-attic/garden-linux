@@ -144,11 +144,10 @@ func (provider *dockerRootFSProvider) CleanupRootFS(logger lager.Logger, id stri
 
 	var err error
 	maxAttempts := 10
-
 	for errorCount := 0; errorCount < maxAttempts; errorCount++ {
 		err = provider.graphDriver.Remove(id)
 		if err == nil {
-			break
+			return nil
 		}
 
 		logger.Error("cleanup-rootfs", err, lager.Data{
@@ -159,5 +158,5 @@ func (provider *dockerRootFSProvider) CleanupRootFS(logger lager.Logger, id stri
 		provider.clock.Sleep(200 * time.Millisecond)
 	}
 
-	return nil
+	return err
 }
