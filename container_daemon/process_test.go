@@ -149,7 +149,7 @@ var _ = Describe("Process", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			remotePty.Write([]byte("Hello world"))
-			Eventually(recvStdout).Should(gbytes.Say("Hello world"))
+			Eventually(recvStdout, "5s").Should(gbytes.Say("Hello world"))
 		})
 
 		It("copies standard input to the PTY", func() {
@@ -165,7 +165,7 @@ var _ = Describe("Process", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			sentStdin.Write([]byte("Hello world"))
-			Eventually(remotePty).Should(gbytes.Say("Hello world"))
+			Eventually(remotePty, "5s").Should(gbytes.Say("Hello world"))
 		})
 	})
 
@@ -202,7 +202,7 @@ var _ = Describe("Process", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		remoteStdout.Write([]byte("Hello world"))
-		Eventually(recvStdout).Should(gbytes.Say("Hello world"))
+		Eventually(recvStdout, "5s").Should(gbytes.Say("Hello world"))
 	})
 
 	It("streams stderr back", func() {
@@ -218,7 +218,7 @@ var _ = Describe("Process", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		remoteStderr.Write([]byte("Hello world"))
-		Eventually(recvStderr).Should(gbytes.Say("Hello world"))
+		Eventually(recvStderr, "5s").Should(gbytes.Say("Hello world"))
 	})
 
 	It("streams stdin over", func() {
@@ -234,7 +234,7 @@ var _ = Describe("Process", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		sentStdin.Write([]byte("Hello world"))
-		Eventually(remoteStdin).Should(gbytes.Say("Hello world"))
+		Eventually(remoteStdin, "5s").Should(gbytes.Say("Hello world"))
 	})
 
 	It("waits for and reports the correct exit status", func() {
