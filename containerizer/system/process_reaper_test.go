@@ -57,7 +57,7 @@ var _ = Describe("ProcessReaper", func() {
 
 			Expect(reaper.Start(trap)).To(Succeed())
 			Expect(reaper.Wait(trap)).To(Equal(byte(0)))
-			Expect(stdout).To(gbytes.Say("caught SIGCHLD\n"))
+			Eventually(stdout).Should(gbytes.Say("caught SIGCHLD\n"))
 		})
 	})
 
