@@ -87,7 +87,7 @@ var _ = Describe("wsh and daemon integration", func() {
 			Expect(exitStatusFromErr(wshCmd.Wait())).To(Equal(byte(255)))
 		}
 		close(done)
-	}, 60.0)
+	}, 320.0)
 
 	It("receives the correct exit status and output from a process which is sent SIGTERM", func(done Done) {
 		stdout := gbytes.NewBuffer()
@@ -119,7 +119,7 @@ var _ = Describe("wsh and daemon integration", func() {
 		Eventually(stdout, "2s").Should(gbytes.Say("termed"))
 
 		close(done)
-	}, 20.0)
+	}, 320.0)
 
 	It("receives the correct exit status and output from a process exits 255", func(done Done) {
 		for i := 0; i < 200; i++ {
@@ -146,7 +146,7 @@ var _ = Describe("wsh and daemon integration", func() {
 			Eventually(stdout, "2s").Should(gbytes.Say("ended"))
 		}
 		close(done)
-	}, 60.0)
+	}, 320.0)
 
 	It("applies the provided rlimits", func() {
 		wshCmd := exec.Command(wshBin,
