@@ -628,7 +628,7 @@ var _ = Describe("Creating a container", func() {
 				})
 			})
 
-			PMeasure("it should stream stdout and stderr efficiently", func(b Benchmarker) {
+			Measure("it should stream stdout and stderr efficiently", func(b Benchmarker) {
 				b.Time("(baseline) streaming 50M of stdout to /dev/null", func() {
 					stdout := gbytes.NewBuffer()
 					stderr := gbytes.NewBuffer()
@@ -660,10 +660,10 @@ var _ = Describe("Creating a container", func() {
 					})
 					Expect(err).ToNot(HaveOccurred())
 
-					Eventually(stdout, "2s").Should(gbytes.Say("done\n"))
+					Eventually(stdout, "10s").Should(gbytes.Say("done\n"))
 				})
 
-				Expect(time.Seconds()).To(BeNumerically("<", 1))
+				Expect(time.Seconds()).To(BeNumerically("<", 2))
 			}, 10)
 
 			It("streams output back and reports the exit status", func() {
