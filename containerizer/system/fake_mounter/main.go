@@ -19,6 +19,7 @@ func main() {
 		Type:  system.MountType(os.Args[1]),
 		Path:  os.Args[2],
 		Flags: flags,
+		Data:  os.Args[4],
 	}
 
 	if err := mnt.Mount(); err != nil {
@@ -26,7 +27,7 @@ func main() {
 		panic("mount failed!")
 	}
 
-	cmd := exec.Command(os.Args[4], os.Args[5:]...)
+	cmd := exec.Command(os.Args[5], os.Args[6:]...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
