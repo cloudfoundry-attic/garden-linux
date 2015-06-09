@@ -69,6 +69,11 @@ func main() {
 				Flags: syscall.MS_NOSUID | syscall.MS_NODEV | syscall.MS_NOEXEC,
 				Path:  "/proc",
 			}.Mount},
+			&step{system.Mount{
+				Type: system.Devpts,
+				Path: "/dev/pts",
+				Data: "newinstance,ptmxmode=0666",
+			}.Mount},
 			&step{system.Unmount{
 				Dir: "/tmp/garden-host",
 			}.Unmount},

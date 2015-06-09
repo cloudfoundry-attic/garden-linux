@@ -461,12 +461,6 @@ func (p *LinuxContainerPool) writeBindMounts(containerPath string,
 		if err := p.runner.Run(unmount); err != nil {
 			return err
 		}
-
-		unmount := exec.Command("bash", "-c", "echo umount "+dstMount+" >> "+unhook)
-		err = p.runner.Run(unmount)
-		if err != nil {
-			return err
-		}
 	}
 
 	return nil

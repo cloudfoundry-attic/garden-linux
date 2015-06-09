@@ -359,12 +359,63 @@ var _ = Describe("DockerRootFSProvider", func() {
 		})
 
 		Context("when removing the container from the graph fails", func() {
+			disaster := errors.New("oh no!")
+
+			var (
+				succeedsAfter int
+			)
+
 			JustBeforeEach(func() {
-				fakeGraphDriver.RemoveReturns(errors.New("o no!"))
+				retryCount := 0
+				fakeGraphDriver.RemoveStub = func(id string) error {
+					if retryCount > succeedsAfter {
+						return nil
+					}
+
+					retryCount++
+					return disaster
+				}
 			})
 
-			It("returns the error", func() {
-				Expect(provider.CleanupRootFS(logger, "oi")).To(MatchError("o no!"))
+			Context("and then after a retry succeeds", func() {
+				BeforeEach(func() {
+					succeedsAfter = 0
+				})
+
+				It("removes the container from the rootfs graph", func() {
+					done := make(chan struct{})
+					go func(done chan<- struct{}) {
+						err := provider.CleanupRootFS(logger, "some-id")
+						Expect(err).ToNot(HaveOccurred())
+						close(done)
+					}(done)
+
+					Eventually(fakeGraphDriver.RemoveCallCount).Should(Equal(1), "should not sleep before first attempt")
+					fakeClock.Increment(200 * time.Millisecond)
+
+					Eventually(fakeGraphDriver.RemoveCallCount).Should(Equal(2))
+					Eventually(done).Should(BeClosed())
+				})
+			})
+
+			Context("and then after many retries still fails", func() {
+				BeforeEach(func() {
+					succeedsAfter = 10
+				})
+
+				It("gives up and returns an error", func() {
+					errs := make(chan error)
+					go func(errs chan<- error) {
+						errs <- provider.CleanupRootFS(logger, "some-id")
+					}(errs)
+
+					for i := 0; i < 10; i++ {
+						Eventually(fakeClock.WatcherCount).Should(Equal(1))
+						fakeClock.Increment(300 * time.Millisecond)
+					}
+
+					Eventually(errs).Should(Receive())
+				})
 			})
 		})
 	})

@@ -3,6 +3,7 @@ package rootfs_provider
 import (
 	"net/url"
 	"sync"
+	"time"
 
 	"github.com/docker/docker/daemon/graphdriver"
 	"github.com/pivotal-golang/clock"
@@ -141,9 +142,21 @@ func (provider *dockerRootFSProvider) CleanupRootFS(logger lager.Logger, id stri
 		return err
 	}
 
-	if err := provider.graphDriver.Remove(id); err != nil {
-		logger.Error("cleanup-rootfs", err)
-		return err
+	var err error
+	maxAttempts := 10
+
+	for errorCount := 0; errorCount < maxAttempts; errorCount++ {
+		err = provider.graphDriver.Remove(id)
+		if err == nil {
+			break
+		}
+
+		logger.Error("cleanup-rootfs", err, lager.Data{
+			"current-attempts": errorCount + 1,
+			"max-attempts":     maxAttempts,
+		})
+
+		provider.clock.Sleep(200 * time.Millisecond)
 	}
 
 	return nil

@@ -18,7 +18,6 @@ chown $root_uid:$root_uid $rootfs_path/sbin/initd
 chown $root_uid:$root_uid $rootfs_path/etc/config
 
 mkdir -p $rootfs_path/dev/pts
-mount -n -t devpts -o newinstance,ptmxmode=0666 devpts $rootfs_path/dev/pts
 ln -s /dev/pts/ptmx $rootfs_path/dev/ptmx
 chown $root_uid:$root_uid $rootfs_path/dev/ptmx
 
