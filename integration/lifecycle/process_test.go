@@ -28,9 +28,7 @@ var _ = Describe("Process", func() {
 				Args: []string{
 					"-c",
 					`
-                trap 'exit 42' SIGTERM
-
-                sleep 2
+                sleep 10
                 exit 12
                 `,
 				},
@@ -41,7 +39,7 @@ var _ = Describe("Process", func() {
 
 			err = process.Signal(garden.SignalTerminate)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(process.Wait()).To(Equal(42))
+			Expect(process.Wait()).NotTo(Equal(12))
 		})
 	})
 })
