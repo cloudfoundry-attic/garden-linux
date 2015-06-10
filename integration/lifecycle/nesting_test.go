@@ -77,7 +77,6 @@ var _ = Describe("When nested", func() {
 				fmt.Sprintf(`
 				set -e
 				mkdir /tmp/containers /tmp/snapshots /tmp/graph;
-				mount -t tmpfs tmpfs /tmp/containers
 
 				./bin/garden-linux \
 					-bin /home/vcap/binpath/bin \
@@ -129,7 +128,6 @@ var _ = Describe("When nested", func() {
 	})
 
 	Context("when cgroup limits are applied to the parent garden process", func() {
-
 		devicesCgroupNode := func() string {
 			contents, err := ioutil.ReadFile("/proc/self/cgroup")
 			Expect(err).ToNot(HaveOccurred())
