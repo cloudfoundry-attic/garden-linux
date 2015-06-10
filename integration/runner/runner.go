@@ -95,6 +95,16 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 		}
 	}
 
+	var hasFlag = func(ar []string, key string) bool {
+		for _, a := range ar {
+			if a == key {
+				return true
+			}
+		}
+
+		return false
+	}
+
 	gardenArgs := make([]string, len(r.argv))
 	copy(gardenArgs, r.argv)
 
@@ -112,6 +122,15 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 	gardenArgs = appendDefaultFlag(gardenArgs, "--portPoolStart", strconv.Itoa(51000+(1000*ginkgo.GinkgoParallelNode())))
 	gardenArgs = appendDefaultFlag(gardenArgs, "--portPoolSize", "1000")
 	gardenArgs = appendDefaultFlag(gardenArgs, "--tag", strconv.Itoa(ginkgo.GinkgoParallelNode()))
+
+	btrfsIsSupported := strings.EqualFold(os.Getenv("BTRFS_SUPPORTED"), "true")
+	hasDisabledFlag := hasFlag(gardenArgs, "-disableQuotas=true")
+
+	if !btrfsIsSupported && !hasDisabledFlag {
+		// We should disabled quotas if BTRFS is not supported
+		gardenArgs = appendDefaultFlag(gardenArgs, "--disableQuotas", "")
+	}
+
 	gardenArgs = appendDefaultFlag(gardenArgs, "--debugAddr", fmt.Sprintf(":808%d", ginkgo.GinkgoParallelNode()))
 
 	var signal os.Signal
@@ -133,7 +152,6 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 					logger.Error("remove graph", err)
 				}
 
-				btrfsIsSupported := strings.EqualFold(os.Getenv("BTRFS_SUPPORTED"), "true")
 				if btrfsIsSupported {
 					// need to remove subvolumes before cleaning graphpath
 					subvolumesOutput, err := exec.Command("btrfs", "subvolume", "list", r.graphRoot).CombinedOutput()
