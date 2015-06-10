@@ -183,7 +183,7 @@ var _ = Describe("Creating a container", func() {
 			Expect(errors).ToNot(Receive())
 			Expect(client.Containers(garden.Properties{})).To(HaveLen(0)) // sanity check
 
-			Eventually(allBridges).ShouldNot(ContainSubstring(bridgePrefix))
+			Eventually(allBridges, "60s", "10s").ShouldNot(ContainSubstring(bridgePrefix))
 		})
 	})
 
