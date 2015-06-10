@@ -41,7 +41,9 @@ func startGarden(argv ...string) garden.Client {
 
 	gardenProcess = ifrit.Invoke(gardenRunner)
 
-	return gardenRunner.NewClient()
+	client := gardenRunner.NewClient()
+	Eventually(client.Ping, "10s").Should(Succeed())
+	return client
 }
 
 func TestBindMount(t *testing.T) {
