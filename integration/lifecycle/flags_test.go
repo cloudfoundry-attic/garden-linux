@@ -3,9 +3,7 @@ package lifecycle_test
 import (
 	"fmt"
 	"net/http"
-	"time"
 
-	"github.com/cloudfoundry-incubator/garden"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -34,35 +32,10 @@ var _ = Describe("Garden startup flags", func() {
 		})
 	})
 
-	Context("when the configured port range exceeds the linux maxiumum", func() {
-		BeforeEach(func() {
-			startGarden("--portPoolStart", "60000", "--portPoolSize", "10000")
-		})
-
-		It("will fail server initializaion", func() {
-			select {
-			case err := <-gardenProcess.Wait():
-				Expect(err).To(HaveOccurred())
-			case <-time.After(time.Second * 5):
-				Fail("timeout waiting for server to die")
-			}
-		})
-	})
-
 	Context("when started with the --maxContainers flag", func() {
 		Context("when maxContainers is lower than the subnet pool capacity", func() {
 			BeforeEach(func() {
 				client = startGarden("--maxContainers", "1")
-			})
-
-			Context("when attempting to create more than maxContainers containers", func() {
-				It("returns an error", func() {
-					c1, err := client.Create(garden.ContainerSpec{})
-					Expect(err).NotTo(HaveOccurred())
-					defer client.Destroy(c1.Handle())
-					_, err = client.Create(garden.ContainerSpec{})
-					Expect(err).To(MatchError(ContainSubstring("cannot create more than 1 containers")))
-				})
 			})
 
 			Context("when getting the capacity", func() {
