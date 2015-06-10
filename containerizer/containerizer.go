@@ -1,6 +1,7 @@
 package containerizer
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
@@ -82,9 +83,11 @@ func (c *Containerizer) Create() error {
 		return fmt.Errorf("containerizer: failed to set PID env var: %s", err)
 	}
 
+	var stderr bytes.Buffer
 	cmd = exec.Command(path.Join(c.LibPath, "hook"), "parent-after-clone")
+	cmd.Stderr = &stderr
 	if err := c.CommandRunner.Run(cmd); err != nil {
-		return fmt.Errorf("containerizer: run `parent-after-clone`: %s", err)
+		return fmt.Errorf("containerizer: run `parent-after-clone`: %s. stderr: %s", err, stderr.String())
 	}
 
 	pivotter := exec.Command(filepath.Join(c.LibPath, "pivotter"), "-rootfs", c.RootfsPath)
