@@ -689,7 +689,7 @@ var _ = Describe("Creating a container", func() {
 					Eventually(stdout, "10s").Should(gbytes.Say("done\n"))
 				})
 
-				Expect(time.Seconds()).To(BeNumerically("<", 2))
+				Expect(time.Seconds()).To(BeNumerically("<", 3))
 			}, 10)
 
 			It("streams output back and reports the exit status", func() {
@@ -763,25 +763,23 @@ var _ = Describe("Creating a container", func() {
 			})
 
 			It("avoids a race condition when sending a kill signal", func(done Done) {
-				stdout := gbytes.NewBuffer()
-				stderr := gbytes.NewBuffer()
-
 				for i := 0; i < 100; i++ {
 					process, err := container.Run(garden.ProcessSpec{
 						User: "vcap",
 						Path: "sh",
 						Args: []string{"-c", `while true; do echo -n "x"; sleep 1; done`},
 					}, garden.ProcessIO{
-						Stdout: io.MultiWriter(GinkgoWriter, stdout),
-						Stderr: io.MultiWriter(GinkgoWriter, stderr),
+						Stdout: GinkgoWriter,
+						Stderr: GinkgoWriter,
 					})
 					Expect(err).ToNot(HaveOccurred())
 
 					Expect(process.Signal(garden.SignalKill)).To(Succeed())
 					Expect(process.Wait()).To(Equal(255))
 				}
+
 				close(done)
-			}, 120.0)
+			}, 480.0)
 
 			It("collects the process's full output, even if it exits quickly after", func() {
 				for i := 0; i < 100; i++ {
