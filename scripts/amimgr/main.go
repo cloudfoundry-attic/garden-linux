@@ -18,6 +18,7 @@ import (
 
 var script string = `
 sudo su --login root -c '
+export BTRFS_SUPPORTED=true
 mkdir -p ~/go/src/github.com/cloudfoundry-incubator &&
 	cd ~/go/src/github.com/cloudfoundry-incubator &&
 	git clone git://github.com/cloudfoundry-incubator/garden-linux.git &&
