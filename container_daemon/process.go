@@ -6,8 +6,6 @@ import (
 	"os"
 	"sync"
 
-	"time"
-
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
 	"github.com/docker/docker/pkg/term"
@@ -171,31 +169,10 @@ func waitForExit(exitFd io.ReadWriteCloser, streaming *sync.WaitGroup) chan int 
 			b[0] = UnknownExitStatus
 		}
 
-		// Wait for stdout/stderr streaming to end unless the process has terminated
-		// abnormally, e.g. kill -9, in which case allow streaming to continue for
-		// a short period of time.
-		if b[0] != UnknownExitStatus {
-			streaming.Wait()
-		} else {
-			streamMore(streaming)
-		}
+		streaming.Wait()
 
 		exitChan <- int(b[0])
 	}(exitFd, exitChan, streaming)
 
 	return exitChan
-}
-
-func streamMore(streaming *sync.WaitGroup) {
-	streamingComplete := make(chan struct{})
-
-	go func() {
-		streaming.Wait()
-		close(streamingComplete)
-	}()
-
-	select {
-	case <-streamingComplete:
-	case <-time.After(time.Millisecond * 100):
-	}
 }
