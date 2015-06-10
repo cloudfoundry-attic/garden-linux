@@ -7,6 +7,7 @@ import (
 	"os"
 	"syscall"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -56,6 +57,8 @@ func TestDevice(t *testing.T) {
 		log.Println("GARDEN_FUSE_TEST_ROOTFS undefined; skipping")
 		return
 	}
+
+	SetDefaultEventuallyTimeout(5 * time.Second) // CI is sometimes slow
 
 	var beforeSuite struct {
 		GardenPath string

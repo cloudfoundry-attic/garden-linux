@@ -6,6 +6,7 @@ import (
 	"os"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
 	. "github.com/onsi/ginkgo"
@@ -70,6 +71,8 @@ func TestLifecycle(t *testing.T) {
 		log.Println("GARDEN_TEST_ROOTFS undefined; skipping")
 		return
 	}
+
+	SetDefaultEventuallyTimeout(5 * time.Second) // CI is sometimes slow
 
 	SynchronizedBeforeSuite(func() []byte {
 		var err error

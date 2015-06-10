@@ -18,6 +18,7 @@ import (
 	"github.com/tedsuo/ifrit"
 
 	"testing"
+	"time"
 )
 
 var binPath = "../../old/linux_backend/bin" // relative to test suite directory
@@ -86,6 +87,8 @@ func TestNetworking(t *testing.T) {
 		log.Println("GARDEN_TEST_ROOTFS undefined; skipping")
 		return
 	}
+
+	SetDefaultEventuallyTimeout(5 * time.Second) // CI is sometimes slow
 
 	var beforeSuite struct {
 		GardenPath    string
