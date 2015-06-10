@@ -894,64 +894,6 @@ var _ = Describe("Container pool", func() {
 								" >> " + containerPath + "/lib/hook-parent-before-clone.sh",
 						},
 					},
-					fake_command_runner.CommandSpec{
-						Path: "bash",
-						Args: []string{
-							"-c",
-							"echo umount " + rootfsPath + "/dst/path-rw" +
-								" >> " + containerPath + "/unbindmount.sh",
-						},
-					},
-				))
-			})
-
-			It("appends unmount commands to unbindmount.sh", func() {
-				container, err := pool.Create(garden.ContainerSpec{
-					BindMounts: []garden.BindMount{
-						{
-							SrcPath: "/src/path-ro",
-							DstPath: "/dst/path-ro",
-							Mode:    garden.BindMountModeRO,
-						},
-						{
-							SrcPath: "/src/path-rw",
-							DstPath: "/dst/path-rw",
-							Mode:    garden.BindMountModeRW,
-						},
-						{
-							SrcPath: "/src/path-rw",
-							DstPath: "/dst/path-rw",
-							Mode:    garden.BindMountModeRW,
-							Origin:  garden.BindMountOriginContainer,
-						},
-					},
-				})
-
-				Expect(err).ToNot(HaveOccurred())
-
-				containerPath := path.Join(depotPath, container.ID())
-				rootfsPath := "/provided/rootfs/path"
-
-				Expect(fakeRunner).To(HaveExecutedSerially(
-					fake_command_runner.CommandSpec{
-						Path: "bash",
-						Args: []string{
-							"-c",
-							"echo umount " + rootfsPath + "/dst/path-rw" +
-								" >> " + containerPath + "/unbindmount.sh",
-						},
-					},
-				))
-
-				Expect(fakeRunner).To(HaveExecutedSerially(
-					fake_command_runner.CommandSpec{
-						Path: "bash",
-						Args: []string{
-							"-c",
-							"echo umount " + rootfsPath + "/dst/path-ro" +
-								" >> " + containerPath + "/unbindmount.sh",
-						},
-					},
 				))
 			})
 

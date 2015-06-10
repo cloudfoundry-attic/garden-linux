@@ -21,7 +21,7 @@ mkdir -p ./run
 
 if [ "$root_uid" -eq 0 ]
 then
-  ./bin/wshd --run ./run --lib ./lib --root $rootfs_path --title "wshd: $id" --userns disabled
+  unshare -m -- ./bin/wshd --run ./run --lib ./lib --root $rootfs_path --title "wshd: $id" --userns disabled
 else
-  ./bin/wshd --run ./run --lib ./lib --root $rootfs_path --title "wshd: $id" --userns enabled
+  unshare -m -- ./bin/wshd --run ./run --lib ./lib --root $rootfs_path --title "wshd: $id" --userns enabled
 fi
