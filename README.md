@@ -13,6 +13,44 @@ installed in your `$GOPATH` inside a linux environment, either by following the 
 
 The rest of these instructions assume you are running inside an Ubuntu environment (for example, the above vagrant box) with go installed and the code checked out.
 
+* Install Btrfs tools if not present on your machine
+
+        apt-get update
+        apt-get install -y asciidoc xmlto --no-install-recommends
+        apt-get install -y pkg-config autoconf
+        apt-get build-dep -y btrfs-tools
+
+        mkdir -p /tmp/btrfs
+        cd /tmp/btrfs
+        git clone git://git.kernel.org/pub/scm/linux/kernel/git/kdave/btrfs-progs.git
+        cd btrfs-progs
+        ./autogen.sh
+        ./configure
+        make && make install
+
+* Setup a loopback device as a btrfs formatted volume. The commands below should be run as root
+
+        backing_store=/opt/garden/btrfs_backing_store
+        loopback_device=/dev/btrfs_loop
+        mount_point=/opt/garden/graph
+
+        if [ ! -d $mount_point ]
+        then
+            dd if=/dev/zero of=$backing_store bs=1M count=3000  # Here we are writing 3GB. You can adjust this value accordingly.
+            mknod $loopback_device b 7 200
+            losetup $loopback_device $backing_store
+            mkfs.btrfs $backing_store
+        fi
+
+        if cat /proc/mounts | grep $mount_point
+        then
+            echo "btrfs volume already mounted"
+        else
+            echo "mounting btrfs volume"
+            mkdir -p $mount_point
+            mount -t btrfs $loopback_device $mount_point
+        fi
+
 * Build garden-linux
 
         cd $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux # assuming your $GOPATH has only one entry
