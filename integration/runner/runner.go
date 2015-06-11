@@ -142,7 +142,7 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 		Command:           r.Command,
 		AnsiColorCode:     "31m",
 		StartCheck:        "garden-linux.started",
-		StartCheckTimeout: 10 * time.Second,
+		StartCheckTimeout: 30 * time.Second,
 		Cleanup: func() {
 			if signal == syscall.SIGQUIT {
 				logger.Info("cleanup-subvolumes")
