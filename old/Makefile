@@ -11,6 +11,7 @@ skeleton:
 	GOPATH=${PWD}/../Godeps/_workspace:${GOPATH} CGO_ENABLED=0 go build -a -installsuffix static -o linux_backend/skeleton/bin/initd github.com/cloudfoundry-incubator/garden-linux/container_daemon/initd
 	GOPATH=${PWD}/../Godeps/_workspace:${GOPATH} CGO_ENABLED=0 go build -a -installsuffix static -o linux_backend/skeleton/lib/proc_starter github.com/cloudfoundry-incubator/garden-linux/container_daemon/proc_starter
 	GOPATH=${PWD}/../Godeps/_workspace:${GOPATH} CGO_ENABLED=0 go build -a -installsuffix static -o linux_backend/skeleton/lib/hook github.com/cloudfoundry-incubator/garden-linux/hook/hook
+	GOPATH=${PWD}/../Godeps/_workspace:${GOPATH} go build -o ${PWD}/../out/garden-linux -tags daemon github.com/cloudfoundry-incubator/garden-linux
 	cd linux_backend/src && make clean all
 	cp linux_backend/src/oom/oom linux_backend/skeleton/bin
 	cp linux_backend/src/nstar/nstar linux_backend/skeleton/bin

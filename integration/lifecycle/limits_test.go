@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/cloudfoundry-incubator/garden"
+	"github.com/cloudfoundry-incubator/garden-linux/integration/runner"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
@@ -63,7 +64,7 @@ var _ = Describe("Limits", func() {
 	Context("without a disk limit (quota disabled)", func() {
 		BeforeEach(func() {
 			startGardenArgs = []string{"-disableQuotas=true"}
-			rootfs = rootFSPath
+			rootfs = runner.RootFSPath
 			privilegedContainer = true
 		})
 
@@ -105,7 +106,7 @@ var _ = Describe("Limits", func() {
 
 		BeforeEach(func() {
 			privilegedContainer = false
-			rootfs = rootFSPath
+			rootfs = runner.RootFSPath
 		})
 
 		JustBeforeEach(func() {

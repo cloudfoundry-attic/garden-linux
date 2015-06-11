@@ -362,7 +362,7 @@ var _ = Describe("Through a restart", func() {
 		})
 	})
 
-	Describe("a container's state", func() {
+	FDescribe("a container's state", func() {
 		It("is still reported", func() {
 			info, err := container.Info()
 			Expect(err).ToNot(HaveOccurred())
