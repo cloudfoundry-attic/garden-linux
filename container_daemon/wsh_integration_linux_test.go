@@ -70,7 +70,7 @@ var _ = Describe("wsh and daemon integration", func() {
 	})
 
 	It("should avoid a race condition when sending a kill signal", func(done Done) {
-		for i := 0; i < 200; i++ {
+		for i := 0; i < 20; i++ {
 			pidfilePath := path.Join(tempDir, "cmd.pid")
 			wshCmd := exec.Command(wshBin,
 				"--socket", socketPath,
@@ -87,7 +87,7 @@ var _ = Describe("wsh and daemon integration", func() {
 			Expect(exitStatusFromErr(wshCmd.Wait())).To(Equal(byte(255)))
 		}
 		close(done)
-	}, 320.0)
+	}, 40.0)
 
 	It("receives the correct exit status and output from a process which is sent SIGTERM", func(done Done) {
 		stdout := gbytes.NewBuffer()
