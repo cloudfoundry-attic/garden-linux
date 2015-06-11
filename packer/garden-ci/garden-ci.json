@@ -119,6 +119,11 @@
       "destination": "/opt/warden/docker-registry-rootfs.tar"
     },
     {
+      "type": "file",
+      "source": "rootfs/preexisting_users/preexisting_users.tar",
+      "destination": "/opt/warden/preexisting-users-rootfs.tar"
+    },    
+    {
       "type": "shell",
       "inline": ["mkdir /opt/warden/empty"]
     },
