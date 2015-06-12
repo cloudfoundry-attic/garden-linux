@@ -225,8 +225,12 @@ func main() {
 		return
 	}
 
-	_, dynamicRange, _ := net.ParseCIDR(*networkPool)
-	subnetPool, _ := subnets.NewSubnets(dynamicRange)
+	if _, dynamicRange, err := net.ParseCIDR(*networkPool); err != nil {
+		logger.Fatal("failed-to-parse-network-pool", err)
+	}
+	if subnetPool, err := subnets.NewSubnets(dynamicRange); err != nil {
+		logger.Fatal("failed-to-create-subnet-pool", err)
+	}
 
 	// TODO: use /proc/sys/net/ipv4/ip_local_port_range by default (end + 1)
 	portPool, err := port_pool.New(uint32(*portPoolStart), uint32(*portPoolSize))
