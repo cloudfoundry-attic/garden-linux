@@ -112,12 +112,13 @@ var _ = Describe("Creating a container", func() {
 			for i := 0; i < 40; i++ {
 				wg.Add(1)
 				go func() {
-					container, err := client.Create(garden.ContainerSpec{})
-					Expect(err).ToNot(HaveOccurred())
-					defer client.Destroy(container.Handle())
+					defer GinkgoRecover()
 
+					container, err := client.Create(garden.ContainerSpec{})
 					if err != nil {
 						errors <- err
+					} else {
+						client.Destroy(container.Handle())
 					}
 
 					wg.Done()

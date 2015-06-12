@@ -24,7 +24,7 @@ func TestBindMount(t *testing.T) {
 	}
 
 	AfterEach(func() {
-		err := client.Stop()
+		err := client.DestroyAndStop()
 		client.Cleanup()
 		Expect(err).NotTo(HaveOccurred())
 	})

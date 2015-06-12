@@ -28,7 +28,7 @@ func TestDevice(t *testing.T) {
 	SetDefaultEventuallyTimeout(5 * time.Second) // CI is sometimes slow
 
 	AfterEach(func() {
-		err := client.Stop()
+		err := client.DestroyAndStop()
 		client.Cleanup()
 		Expect(err).NotTo(HaveOccurred())
 	})
