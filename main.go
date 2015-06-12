@@ -225,10 +225,13 @@ func main() {
 		return
 	}
 
-	if _, dynamicRange, err := net.ParseCIDR(*networkPool); err != nil {
+	_, dynamicRange, err := net.ParseCIDR(*networkPool)
+	if err != nil {
 		logger.Fatal("failed-to-parse-network-pool", err)
 	}
-	if subnetPool, err := subnets.NewSubnets(dynamicRange); err != nil {
+
+	subnetPool, err := subnets.NewSubnets(dynamicRange)
+	if err != nil {
 		logger.Fatal("failed-to-create-subnet-pool", err)
 	}
 
