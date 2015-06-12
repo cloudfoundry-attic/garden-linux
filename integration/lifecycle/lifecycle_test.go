@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
+	"github.com/cloudfoundry-incubator/garden-linux/integration/runner"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
@@ -343,7 +344,7 @@ var _ = Describe("Creating a container", func() {
 
 				rootfs = path.Join(symlinkDir, "rootfs")
 
-				err = os.Symlink(rootFSPath, rootfs)
+				err = os.Symlink(runner.RootFSPath, rootfs)
 				Expect(err).ToNot(HaveOccurred())
 			})
 
@@ -826,7 +827,7 @@ var _ = Describe("Creating a container", func() {
 
 			It("does not leak open files", func() {
 				openFileCount := func() int {
-					procFd := fmt.Sprintf("/proc/%d/fd", gardenRunner.Command.Process.Pid)
+					procFd := fmt.Sprintf("/proc/%d/fd", client.Pid)
 					files, err := ioutil.ReadDir(procFd)
 					Expect(err).ToNot(HaveOccurred())
 					return len(files)

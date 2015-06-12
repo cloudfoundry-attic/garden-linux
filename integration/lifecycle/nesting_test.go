@@ -17,6 +17,7 @@ import (
 	"io/ioutil"
 
 	"github.com/cloudfoundry-incubator/garden"
+	"github.com/cloudfoundry-incubator/garden-linux/integration/runner"
 	gclient "github.com/cloudfoundry-incubator/garden/client"
 	gconn "github.com/cloudfoundry-incubator/garden/client/connection"
 )
@@ -33,8 +34,14 @@ var _ = Describe("When nested", func() {
 	})
 
 	startNestedGarden := func() (garden.Container, string) {
-		absoluteBinPath, err := filepath.Abs(binPath)
+		absoluteBinPath, err := filepath.Abs(runner.BinPath)
 		Expect(err).ToNot(HaveOccurred())
+
+		absoluteGardenPath, err := filepath.Abs(runner.GardenBin)
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(absoluteBinPath).To(BeADirectory())
+		Expect(filepath.Join(absoluteBinPath, "..", "skeleton")).To(BeADirectory())
 
 		container, err := client.Create(garden.ContainerSpec{
 			RootFSPath: nestedRootfsPath,
@@ -42,7 +49,7 @@ var _ = Describe("When nested", func() {
 			Privileged: true,
 			BindMounts: []garden.BindMount{
 				{
-					SrcPath: filepath.Dir(gardenBin),
+					SrcPath: filepath.Dir(absoluteGardenPath),
 					DstPath: "/home/vcap/bin/",
 					Mode:    garden.BindMountModeRO,
 				},
@@ -57,7 +64,7 @@ var _ = Describe("When nested", func() {
 					Mode:    garden.BindMountModeRO,
 				},
 				{
-					SrcPath: rootFSPath,
+					SrcPath: runner.RootFSPath,
 					DstPath: "/home/vcap/rootfs",
 					Mode:    garden.BindMountModeRO,
 				},

@@ -52,8 +52,8 @@ var _ = Describe("A container", func() {
 	})
 
 	JustBeforeEach(func() {
-		gardenClient = startGarden()
-		container, containerCreateErr = gardenClient.Create(
+		client = startGarden()
+		container, containerCreateErr = client.Create(
 			garden.ContainerSpec{
 				Privileged: privilegedContainer,
 				BindMounts: []garden.BindMount{garden.BindMount{
@@ -68,7 +68,7 @@ var _ = Describe("A container", func() {
 
 	AfterEach(func() {
 		if container != nil {
-			err := gardenClient.Destroy(container.Handle())
+			err := client.Destroy(container.Handle())
 			Expect(err).ToNot(HaveOccurred())
 		}
 

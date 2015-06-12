@@ -1,10 +1,8 @@
 package lifecycle_test
 
 import (
-	"fmt"
 	"log"
 	"os"
-	"syscall"
 	"testing"
 	"time"
 
@@ -12,64 +10,26 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
-	"github.com/tedsuo/ifrit"
-
-	"encoding/json"
 
 	"github.com/cloudfoundry-incubator/garden-linux/integration/runner"
 )
 
-var binPath = "../../old/linux_backend/bin" // relative to test suite directory
-var rootFSPath = os.Getenv("GARDEN_TEST_ROOTFS")
-var graphPath = os.Getenv("GARDEN_TEST_GRAPHPATH")
+var shmTestBin string
 
-var gardenBin, shmTestBin string
+var client *runner.RunningGarden
 
-var gardenRunner *runner.Runner
-var gardenProcess ifrit.Process
-
-var client garden.Client
-
-func startGarden(argv ...string) garden.Client {
-	gardenAddr := fmt.Sprintf("/tmp/garden_%d.sock", GinkgoParallelNode())
-
-	{ // Check this test suite is in the correct directory
-		b, err := os.Open(binPath)
-		Expect(err).ToNot(HaveOccurred())
-		b.Close()
-	}
-
-	gardenRunner = runner.New("unix", gardenAddr, gardenBin, binPath, rootFSPath, graphPath, argv...)
-
-	gardenProcess = ifrit.Invoke(gardenRunner)
-
-	client := gardenRunner.NewClient()
-	Eventually(client.Ping, "10s").Should(Succeed())
-	return client
+func startGarden(argv ...string) *runner.RunningGarden {
+	return runner.Start(argv...)
 }
 
 func restartGarden(argv ...string) {
 	Expect(client.Ping()).To(Succeed(), "tried to restart garden while it was not running")
-	gardenProcess.Signal(syscall.SIGTERM)
-	Eventually(gardenProcess.Wait(), 30).Should(Receive())
-
-	startGarden(argv...)
-}
-
-func ensureGardenRunning() {
-	if err := client.Ping(); err != nil {
-		client = startGarden()
-	}
-	Expect(client.Ping()).ToNot(HaveOccurred())
+	Expect(client.Stop()).To(Succeed())
+	client = startGarden(argv...)
 }
 
 func TestLifecycle(t *testing.T) {
-	var beforeSuite struct {
-		GardenPath  string
-		ShmTestPath string
-	}
-
-	if rootFSPath == "" {
+	if os.Getenv("GARDEN_TEST_ROOTFS") == "" {
 		log.Println("GARDEN_TEST_ROOTFS undefined; skipping")
 		return
 	}
@@ -77,32 +37,18 @@ func TestLifecycle(t *testing.T) {
 	SetDefaultEventuallyTimeout(5 * time.Second) // CI is sometimes slow
 
 	SynchronizedBeforeSuite(func() []byte {
-		var err error
-		beforeSuite.GardenPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux", "-a", "-race", "-tags", "daemon")
+		shmPath, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/integration/lifecycle/shm_test")
 		Expect(err).ToNot(HaveOccurred())
-
-		beforeSuite.ShmTestPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/integration/lifecycle/shm_test")
-		Expect(err).ToNot(HaveOccurred())
-
-		b, err := json.Marshal(beforeSuite)
-		Expect(err).ToNot(HaveOccurred())
-
-		return b
-	}, func(paths []byte) {
-		err := json.Unmarshal(paths, &beforeSuite)
-		Expect(err).ToNot(HaveOccurred())
-
-		gardenBin = beforeSuite.GardenPath
-		Expect(gardenBin).NotTo(BeEmpty())
-
-		shmTestBin = beforeSuite.ShmTestPath
-		Expect(shmTestBin).NotTo(BeEmpty())
+		return []byte(shmPath)
+	}, func(path []byte) {
+		Expect(string(path)).NotTo(BeEmpty())
+		shmTestBin = string(path)
 	})
 
 	AfterEach(func() {
-		ensureGardenRunning()
-		gardenProcess.Signal(syscall.SIGQUIT)
-		Eventually(gardenProcess.Wait(), 60).Should(Receive())
+		err := client.Stop()
+		client.Cleanup()
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	SynchronizedAfterSuite(func() {

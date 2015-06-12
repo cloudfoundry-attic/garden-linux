@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/cloudfoundry-incubator/garden"
+	"github.com/cloudfoundry-incubator/garden-linux/integration/runner"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
@@ -38,33 +39,35 @@ var _ = Describe("Limits", func() {
 		startGardenArgs = []string{}
 	})
 
-	Context("with a memory limit", func() {
-		JustBeforeEach(func() {
-			err := container.LimitMemory(garden.MemoryLimits{
-				LimitInBytes: 64 * 1024 * 1024,
-			})
-			Expect(err).ToNot(HaveOccurred())
-		})
-
-		Context("when the process writes too much to /dev/shm", func() {
-			It("is killed", func() {
-				process, err := container.Run(garden.ProcessSpec{
-					User: "vcap",
-					Path: "dd",
-					Args: []string{"if=/dev/urandom", "of=/dev/shm/too-big", "bs=1M", "count=65"},
-				}, garden.ProcessIO{})
+	Describe("LimitMemory", func() {
+		Context("with a memory limit", func() {
+			JustBeforeEach(func() {
+				err := container.LimitMemory(garden.MemoryLimits{
+					LimitInBytes: 64 * 1024 * 1024,
+				})
 				Expect(err).ToNot(HaveOccurred())
+			})
 
-				Expect(process.Wait()).ToNot(Equal(0))
+			Context("when the process writes too much to /dev/shm", func() {
+				It("is killed", func() {
+					process, err := container.Run(garden.ProcessSpec{
+						User: "vcap",
+						Path: "dd",
+						Args: []string{"if=/dev/urandom", "of=/dev/shm/too-big", "bs=1M", "count=65"},
+					}, garden.ProcessIO{})
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(process.Wait()).ToNot(Equal(0))
+				})
 			})
 		})
 	})
 
 	Describe("LimitDisk", func() {
-		Context("when quotas are disabled", func() {
+		Context("with quotas disabled", func() {
 			BeforeEach(func() {
 				startGardenArgs = []string{"-disableQuotas=true"}
-				rootfs = rootFSPath
+				rootfs = runner.RootFSPath
 				privilegedContainer = true
 			})
 
@@ -107,6 +110,11 @@ var _ = Describe("Limits", func() {
 			}
 
 			BeforeEach(func() {
+				privilegedContainer = false
+				rootfs = runner.RootFSPath
+			})
+
+			BeforeEach(func() {
 				quotaLimit = garden.DiskLimits{
 					ByteSoft: 180 * 1024 * 1024,
 					ByteHard: 180 * 1024 * 1024,
@@ -121,7 +129,7 @@ var _ = Describe("Limits", func() {
 			Context("on a directory rootfs container", func() {
 				BeforeEach(func() {
 					privilegedContainer = false
-					rootfs = rootFSPath
+					rootfs = runner.RootFSPath
 				})
 
 				It("reports correct disk usage", func() {
@@ -176,7 +184,7 @@ var _ = Describe("Limits", func() {
 					}
 
 					BeforeEach(func() {
-						rootFSPath = os.Getenv("GARDEN_PREEXISTING_USERS_TEST_ROOTFS")
+						rootfs = os.Getenv("GARDEN_PREEXISTING_USERS_TEST_ROOTFS")
 						quotaLimit = garden.DiskLimits{
 							ByteSoft: 10 * 1024 * 1024,
 							ByteHard: 10 * 1024 * 1024,
@@ -239,7 +247,7 @@ var _ = Describe("Limits", func() {
 
 				Context("on a rootfs with pre-existing users", func() {
 					BeforeEach(func() {
-						rootFSPath = "docker:///cloudfoundry/preexisting_users"
+						rootfs = "docker:///cloudfoundry/preexisting_users"
 						quotaLimit = garden.DiskLimits{
 							ByteSoft: 10 * 1024 * 1024,
 							ByteHard: 10 * 1024 * 1024,
@@ -316,7 +324,7 @@ var _ = Describe("Limits", func() {
 
 				BeforeEach(func() {
 					privilegedContainer = false
-					rootfs = rootFSPath
+					rootfs = runner.RootFSPath
 					quotaLimit = garden.DiskLimits{
 						ByteSoft: 50 * 1024 * 1024,
 						ByteHard: 50 * 1024 * 1024,

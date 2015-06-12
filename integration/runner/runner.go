@@ -1,8 +1,8 @@
 package runner
 
 import (
+	"errors"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,75 +14,105 @@ import (
 	"github.com/cloudfoundry-incubator/garden/client"
 	"github.com/cloudfoundry-incubator/garden/client/connection"
 	"github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	"github.com/pivotal-golang/lager"
 	"github.com/pivotal-golang/lager/lagertest"
 	"github.com/tedsuo/ifrit"
 	"github.com/tedsuo/ifrit/ginkgomon"
 )
 
-type Runner struct {
-	Command *exec.Cmd
+var RootFSPath = os.Getenv("GARDEN_TEST_ROOTFS")
+var GraphRoot = os.Getenv("GARDEN_TEST_GRAPHPATH")
+var BinPath = "../../old/linux_backend/bin"
+var GardenBin = "../../out/garden-linux"
 
-	network string
-	addr    string
+type RunningGarden struct {
+	client.Client
+	process ifrit.Process
 
-	bin  string
-	argv []string
-
-	binPath    string
-	rootFSPath string
+	Pid int
 
 	tmpdir    string
-	graphRoot string
+	GraphRoot string
 	graphPath string
+
+	logger lager.Logger
 }
 
-func New(network, addr string, bin, binPath, rootFSPath, graphRoot string, argv ...string) *Runner {
+func Start(argv ...string) *RunningGarden {
+	gardenAddr := fmt.Sprintf("/tmp/garden_%d.sock", GinkgoParallelNode())
+	return start("unix", gardenAddr, argv...)
+}
+
+func start(network, addr string, argv ...string) *RunningGarden {
 	tmpDir := filepath.Join(
 		os.TempDir(),
 		fmt.Sprintf("test-garden-%d", ginkgo.GinkgoParallelNode()),
 	)
 
-	if graphRoot == "" {
-		graphRoot = filepath.Join(tmpDir, "graph")
+	if GraphRoot == "" {
+		GraphRoot = filepath.Join(tmpDir, "graph")
 	}
-	graphPath := filepath.Join(graphRoot, fmt.Sprintf("node-%d", ginkgo.GinkgoParallelNode()))
 
-	return &Runner{
-		network: network,
-		addr:    addr,
+	graphPath := filepath.Join(GraphRoot, fmt.Sprintf("node-%d", ginkgo.GinkgoParallelNode()))
 
-		bin:  bin,
-		argv: argv,
+	r := &RunningGarden{
+		GraphRoot: GraphRoot,
+		graphPath: graphPath,
+		tmpdir:    tmpDir,
+		logger:    lagertest.NewTestLogger("garden-runner"),
 
-		binPath:    binPath,
-		rootFSPath: rootFSPath,
-		graphRoot:  graphRoot,
-		graphPath:  graphPath,
-		tmpdir:     tmpDir,
+		Client: client.New(connection.New(network, addr)),
+	}
+
+	c := cmd(tmpDir, graphPath, network, addr, GardenBin, BinPath, RootFSPath, argv...)
+	r.process = ifrit.Invoke(&ginkgomon.Runner{
+		Name:              "garden-linux",
+		Command:           c,
+		AnsiColorCode:     "31m",
+		StartCheck:        "garden-linux.started",
+		StartCheckTimeout: 30 * time.Second,
+	})
+	r.Pid = c.Process.Pid
+
+	return r
+}
+
+func (r *RunningGarden) Kill() error {
+	r.process.Signal(syscall.SIGKILL)
+	select {
+	case err := <-r.process.Wait():
+		return err
+	case <-time.After(time.Second * 10):
+		r.process.Signal(syscall.SIGKILL)
+		return errors.New("timed out waiting for garden to shutdown after 10 seconds")
 	}
 }
 
-func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
-	logger := lagertest.NewTestLogger("garden-runner")
-
-	if err := os.MkdirAll(r.tmpdir, 0755); err != nil {
+func (r *RunningGarden) Stop() error {
+	r.process.Signal(syscall.SIGTERM)
+	select {
+	case err := <-r.process.Wait():
 		return err
+	case <-time.After(time.Second * 10):
+		r.process.Signal(syscall.SIGKILL)
+		return errors.New("timed out waiting for garden to shutdown after 10 seconds")
 	}
+}
 
-	depotPath := filepath.Join(r.tmpdir, "containers")
-	snapshotsPath := filepath.Join(r.tmpdir, "snapshots")
+func cmd(tmpdir, graphPath, network, addr, bin, binPath, RootFSPath string, argv ...string) *exec.Cmd {
+	Expect(os.MkdirAll(tmpdir, 0755)).To(Succeed())
 
-	if err := os.MkdirAll(depotPath, 0755); err != nil {
-		return err
-	}
+	depotPath := filepath.Join(tmpdir, "containers")
+	snapshotsPath := filepath.Join(tmpdir, "snapshots")
 
-	if err := os.MkdirAll(snapshotsPath, 0755); err != nil {
-		return err
-	}
+	Expect(os.MkdirAll(depotPath, 0755)).To(Succeed())
 
-	var appendDefaultFlag = func(ar []string, key, value string) []string {
-		for _, a := range r.argv {
+	Expect(os.MkdirAll(snapshotsPath, 0755)).To(Succeed())
+
+	appendDefaultFlag := func(ar []string, key, value string) []string {
+		for _, a := range argv {
 			if a == key {
 				return ar
 			}
@@ -95,7 +125,7 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 		}
 	}
 
-	var hasFlag = func(ar []string, key string) bool {
+	hasFlag := func(ar []string, key string) bool {
 		for _, a := range ar {
 			if a == key {
 				return true
@@ -105,18 +135,18 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 		return false
 	}
 
-	gardenArgs := make([]string, len(r.argv))
-	copy(gardenArgs, r.argv)
+	gardenArgs := make([]string, len(argv))
+	copy(gardenArgs, argv)
 
-	gardenArgs = appendDefaultFlag(gardenArgs, "--listenNetwork", r.network)
-	gardenArgs = appendDefaultFlag(gardenArgs, "--listenAddr", r.addr)
-	gardenArgs = appendDefaultFlag(gardenArgs, "--bin", r.binPath)
-	if r.rootFSPath != "" { //rootfs is an optional parameter
-		gardenArgs = appendDefaultFlag(gardenArgs, "--rootfs", r.rootFSPath)
+	gardenArgs = appendDefaultFlag(gardenArgs, "--listenNetwork", network)
+	gardenArgs = appendDefaultFlag(gardenArgs, "--listenAddr", addr)
+	gardenArgs = appendDefaultFlag(gardenArgs, "--bin", binPath)
+	if RootFSPath != "" { //rootfs is an optional parameter
+		gardenArgs = appendDefaultFlag(gardenArgs, "--rootfs", RootFSPath)
 	}
 	gardenArgs = appendDefaultFlag(gardenArgs, "--depot", depotPath)
 	gardenArgs = appendDefaultFlag(gardenArgs, "--snapshots", snapshotsPath)
-	gardenArgs = appendDefaultFlag(gardenArgs, "--graph", r.graphPath)
+	gardenArgs = appendDefaultFlag(gardenArgs, "--graph", graphPath)
 	gardenArgs = appendDefaultFlag(gardenArgs, "--logLevel", "debug")
 	gardenArgs = appendDefaultFlag(gardenArgs, "--networkPool", fmt.Sprintf("10.250.%d.0/24", ginkgo.GinkgoParallelNode()))
 	gardenArgs = appendDefaultFlag(gardenArgs, "--portPoolStart", strconv.Itoa(51000+(1000*ginkgo.GinkgoParallelNode())))
@@ -133,113 +163,66 @@ func (r *Runner) Run(signals <-chan os.Signal, ready chan<- struct{}) error {
 
 	gardenArgs = appendDefaultFlag(gardenArgs, "--debugAddr", fmt.Sprintf(":808%d", ginkgo.GinkgoParallelNode()))
 
-	var signal os.Signal
+	return exec.Command(bin, gardenArgs...)
+}
 
-	r.Command = exec.Command(r.bin, gardenArgs...)
+func (r *RunningGarden) Cleanup() {
+	if err := r.destroyContainers(); err != nil {
+		r.logger.Error("destroy-containers-failed", err)
+	}
 
-	process := ifrit.Invoke(&ginkgomon.Runner{
-		Name:              "garden-linux",
-		Command:           r.Command,
-		AnsiColorCode:     "31m",
-		StartCheck:        "garden-linux.started",
-		StartCheckTimeout: 30 * time.Second,
-		Cleanup: func() {
-			if signal == syscall.SIGQUIT {
-				logger.Info("cleanup-subvolumes")
+	if err := os.RemoveAll(r.graphPath); err != nil {
+		r.logger.Error("remove graph", err)
+	}
 
-				// remove contents of subvolumes before deleting the subvolume
-				if err := os.RemoveAll(r.graphPath); err != nil {
-					logger.Error("remove graph", err)
-				}
+	if os.Getenv("BTRFS_SUPPORTED") != "" {
+		r.cleanupSubvolumes()
+	}
 
-				if btrfsIsSupported {
-					// need to remove subvolumes before cleaning graphpath
-					subvolumesOutput, err := exec.Command("btrfs", "subvolume", "list", r.graphRoot).CombinedOutput()
-					logger.Debug(fmt.Sprintf("listing-subvolumes: %s", string(subvolumesOutput)))
-					if err != nil {
-						logger.Fatal("listing-subvolumes-error", err)
-					}
-					for _, line := range strings.Split(string(subvolumesOutput), "\n") {
-						fields := strings.Fields(line)
-						if len(fields) < 1 {
-							continue
-						}
-						subvolumeRelativePath := fields[len(fields)-1]
-						subvolumeAbsolutePath := filepath.Join(r.graphRoot, subvolumeRelativePath)
-						if strings.Contains(subvolumeAbsolutePath, r.graphPath) {
-							if b, err := exec.Command("btrfs", "subvolume", "delete", subvolumeAbsolutePath).CombinedOutput(); err != nil {
-								logger.Fatal(fmt.Sprintf("deleting-subvolume: %s", string(b)), err)
-							}
-						}
-					}
+	r.logger.Info("cleanup-tempdirs")
+	if err := os.RemoveAll(r.tmpdir); err != nil {
+		r.logger.Error("cleanup-tempdirs-failed", err, lager.Data{"tmpdir": r.tmpdir})
+	} else {
+		r.logger.Info("tempdirs-removed")
+	}
+}
 
-					if err := os.RemoveAll(r.graphPath); err != nil {
-						logger.Error("remove graph again", err)
-					}
-				}
+func (r *RunningGarden) cleanupSubvolumes() {
+	r.logger.Info("cleanup-subvolumes")
 
-				logger.Info("cleanup-tempdirs")
-				if err := os.RemoveAll(r.tmpdir); err != nil {
-					logger.Error("cleanup-tempdirs-failed", err, lager.Data{"tmpdir": r.tmpdir})
-				} else {
-					logger.Info("tempdirs-removed")
-				}
+	// need to remove subvolumes before cleaning graphpath
+	subvolumesOutput, err := exec.Command("btrfs", "subvolume", "list", r.GraphRoot).CombinedOutput()
+	r.logger.Debug(fmt.Sprintf("listing-subvolumes: %s", string(subvolumesOutput)))
+	if err != nil {
+		r.logger.Fatal("listing-subvolumes-error", err)
+	}
+	for _, line := range strings.Split(string(subvolumesOutput), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) < 1 {
+			continue
+		}
+		subvolumeRelativePath := fields[len(fields)-1]
+		subvolumeAbsolutePath := filepath.Join(r.GraphRoot, subvolumeRelativePath)
+		if strings.Contains(subvolumeAbsolutePath, r.graphPath) {
+			if b, err := exec.Command("btrfs", "subvolume", "delete", subvolumeAbsolutePath).CombinedOutput(); err != nil {
+				r.logger.Fatal(fmt.Sprintf("deleting-subvolume: %s", string(b)), err)
 			}
-		},
-	})
-
-	close(ready)
-
-	for {
-		select {
-		case signal = <-signals:
-			// SIGQUIT means clean up the containers, the garden process (SIGTERM) and the temporary directories
-			// SIGKILL, SIGTERM and SIGINT are passed through to the garden process
-			if signal == syscall.SIGQUIT {
-				logger.Info("received-signal SIGQUIT")
-				if err := r.destroyContainers(); err != nil {
-					logger.Error("destroy-containers-failed", err)
-					return err
-				}
-				logger.Info("destroyed-containers")
-				process.Signal(syscall.SIGTERM)
-			} else {
-				logger.Info("received-signal", lager.Data{"signal": signal})
-				process.Signal(signal)
-			}
-
-		case waitErr := <-process.Wait():
-			logger.Info("process-exited")
-			return waitErr
 		}
 	}
-}
 
-func (r *Runner) TryDial() error {
-	conn, dialErr := net.DialTimeout(r.network, r.addr, 100*time.Millisecond)
-
-	if dialErr == nil {
-		conn.Close()
-		return nil
+	if err := os.RemoveAll(r.graphPath); err != nil {
+		r.logger.Error("remove graph again", err)
 	}
-
-	return dialErr
 }
 
-func (r *Runner) NewClient() client.Client {
-	return client.New(connection.New(r.network, r.addr))
-}
-
-func (r *Runner) destroyContainers() error {
-	client := r.NewClient()
-
-	containers, err := client.Containers(nil)
+func (r *RunningGarden) destroyContainers() error {
+	containers, err := r.Containers(nil)
 	if err != nil {
 		return err
 	}
 
 	for _, container := range containers {
-		err := client.Destroy(container.Handle())
+		err := r.Destroy(container.Handle())
 		if err != nil {
 			return err
 		}

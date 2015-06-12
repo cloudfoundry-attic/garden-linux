@@ -3,7 +3,6 @@ package networking_test
 import (
 	"fmt"
 	"os/exec"
-	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden"
 	. "github.com/onsi/ginkgo"
@@ -17,6 +16,7 @@ var _ = Describe("Networking recovery", func() {
 			ctr2           garden.Container
 			bridgeEvidence string
 		)
+
 		BeforeEach(func() {
 			client = startGarden()
 
@@ -34,8 +34,7 @@ var _ = Describe("Networking recovery", func() {
 
 		Context("when garden is killed and restarted using SIGKILL", func() {
 			BeforeEach(func() {
-				gardenProcess.Signal(syscall.SIGKILL)
-				Eventually(gardenProcess.Wait(), "10s").Should(Receive())
+				killGarden()
 
 				client = startGarden()
 				Expect(client.Ping()).ToNot(HaveOccurred())
@@ -49,8 +48,7 @@ var _ = Describe("Networking recovery", func() {
 
 		Context("when garden is shut down cleanly and restarted, and the containers are deleted", func() {
 			BeforeEach(func() {
-				gardenProcess.Signal(syscall.SIGTERM)
-				Eventually(gardenProcess.Wait(), "10s").Should(Receive())
+				stopGarden()
 
 				client = startGarden()
 				Expect(client.Ping()).ToNot(HaveOccurred())
@@ -70,8 +68,7 @@ var _ = Describe("Networking recovery", func() {
 
 		Context("when garden is shut down and restarted", func() {
 			BeforeEach(func() {
-				gardenProcess.Signal(syscall.SIGTERM)
-				Eventually(gardenProcess.Wait(), "10s").Should(Receive())
+				stopGarden()
 
 				client = startGarden()
 				Expect(client.Ping()).ToNot(HaveOccurred())
@@ -96,5 +93,4 @@ var _ = Describe("Networking recovery", func() {
 			})
 		})
 	})
-
 })
