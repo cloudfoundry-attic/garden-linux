@@ -37,13 +37,19 @@ var _ = Describe("When nested", func() {
 		absoluteBinPath, err := filepath.Abs(runner.BinPath)
 		Expect(err).ToNot(HaveOccurred())
 
+		absoluteGardenPath, err := filepath.Abs(runner.GardenBin)
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(absoluteBinPath).To(BeADirectory())
+		Expect(filepath.Join(absoluteBinPath, "..", "skeleton")).To(BeADirectory())
+
 		container, err := client.Create(garden.ContainerSpec{
 			RootFSPath: nestedRootfsPath,
 			// only privileged containers support nesting
 			Privileged: true,
 			BindMounts: []garden.BindMount{
 				{
-					SrcPath: filepath.Dir(runner.GardenBin),
+					SrcPath: filepath.Dir(absoluteGardenPath),
 					DstPath: "/home/vcap/bin/",
 					Mode:    garden.BindMountModeRO,
 				},

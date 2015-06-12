@@ -79,6 +79,17 @@ func start(network, addr string, argv ...string) *RunningGarden {
 	return r
 }
 
+func (r *RunningGarden) Kill() error {
+	r.process.Signal(syscall.SIGKILL)
+	select {
+	case err := <-r.process.Wait():
+		return err
+	case <-time.After(time.Second * 10):
+		r.process.Signal(syscall.SIGKILL)
+		return errors.New("timed out waiting for garden to shutdown after 10 seconds")
+	}
+}
+
 func (r *RunningGarden) Stop() error {
 	r.process.Signal(syscall.SIGTERM)
 	select {

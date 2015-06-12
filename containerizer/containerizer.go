@@ -67,9 +67,12 @@ func (c *Containerizer) Create() error {
 	}
 
 	// Temporary until we merge the hook scripts functionality in Golang
+	var stdout, stderr bytes.Buffer
 	cmd := exec.Command(path.Join(c.LibPath, "hook"), "parent-before-clone")
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
 	if err := c.CommandRunner.Run(cmd); err != nil {
-		return fmt.Errorf("containerizer: run `parent-before-clone`: %s", err)
+		return fmt.Errorf("containerizer: run `parent-before-clone`: %s, \nstdout: %s, \nstderr: %s", err, stdout.String(), stderr.String())
 	}
 
 	pid, err := c.Execer.Exec(c.InitBinPath, c.InitArgs...)
@@ -83,7 +86,7 @@ func (c *Containerizer) Create() error {
 		return fmt.Errorf("containerizer: failed to set PID env var: %s", err)
 	}
 
-	var stderr bytes.Buffer
+	stderr = bytes.Buffer{}
 	cmd = exec.Command(path.Join(c.LibPath, "hook"), "parent-after-clone")
 	cmd.Stderr = &stderr
 	if err := c.CommandRunner.Run(cmd); err != nil {
