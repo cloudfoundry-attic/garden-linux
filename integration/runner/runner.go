@@ -90,6 +90,18 @@ func (r *RunningGarden) Kill() error {
 	}
 }
 
+func (r *RunningGarden) DestroyAndStop() error {
+	if err := r.DestroyContainers(); err != nil {
+		return err
+	}
+
+	if err := r.Stop(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
 func (r *RunningGarden) Stop() error {
 	r.process.Signal(syscall.SIGTERM)
 	select {
@@ -167,10 +179,6 @@ func cmd(tmpdir, graphPath, network, addr, bin, binPath, RootFSPath string, argv
 }
 
 func (r *RunningGarden) Cleanup() {
-	if err := r.destroyContainers(); err != nil {
-		r.logger.Error("destroy-containers-failed", err)
-	}
-
 	if err := os.RemoveAll(r.graphPath); err != nil {
 		r.logger.Error("remove graph", err)
 	}
@@ -215,7 +223,7 @@ func (r *RunningGarden) cleanupSubvolumes() {
 	}
 }
 
-func (r *RunningGarden) destroyContainers() error {
+func (r *RunningGarden) DestroyContainers() error {
 	containers, err := r.Containers(nil)
 	if err != nil {
 		return err
