@@ -38,6 +38,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/old/repository_fetcher"
 	"github.com/cloudfoundry-incubator/garden-linux/old/rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/old/rootfs_provider/btrfs_cleanup"
+	"github.com/cloudfoundry-incubator/garden-linux/old/rootfs_provider/legacy_aufs_remover"
 	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
 	"github.com/cloudfoundry-incubator/garden-linux/old/system_info"
 	"github.com/cloudfoundry-incubator/garden/server"
@@ -298,16 +299,6 @@ func main() {
 
 	graphMountPoint := mountPoint(logger, *graphRoot)
 
-	var rootFSRemover rootfs_provider.RootFSRemover = &rootfs_provider.VfsRootFSRemover{GraphDriver: graphDriver}
-	if graphDriver.String() == "btrfs" {
-		rootFSRemover = &btrfs_cleanup.BtrfsRootFSRemover{
-			Runner:          runner,
-			GraphDriver:     graphDriver,
-			BtrfsMountPoint: graphMountPoint,
-			RemoveAll:       os.RemoveAll,
-		}
-	}
-
 	dockerRootFSProvider, err := rootfs_provider.NewDocker(repoFetcher, graphDriver, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock())
 	if err != nil {
 		logger.Fatal("failed-to-construct-docker-rootfs-provider", err)
@@ -362,7 +353,7 @@ func main() {
 		*depotPath,
 		config,
 		rootFSProviders,
-		rootFSRemover,
+		rootfsRemovers(graphDriver, runner, graphMountPoint),
 		*uidMappingOffset,
 		parsedExternalIP,
 		*mtu,
@@ -428,6 +419,28 @@ func mountPoint(logger lager.Logger, path string) string {
 	dfOutputWords := strings.Split(string(dfOut.Bytes()), " ")
 
 	return strings.Trim(dfOutputWords[len(dfOutputWords)-1], "\n")
+}
+
+func rootfsRemovers(graphDriver graphdriver.Driver, runner command_runner.CommandRunner, groupMountPoint string) map[string]rootfs_provider.RootFSRemover {
+	var rootFSRemover rootfs_provider.RootFSRemover = &rootfs_provider.VfsRootFSRemover{GraphDriver: graphDriver}
+
+	if graphDriver.String() == "btrfs" {
+		rootFSRemover = &btrfs_cleanup.BtrfsRootFSRemover{
+			Runner:          runner,
+			GraphDriver:     graphDriver,
+			BtrfsMountPoint: groupMountPoint,
+			RemoveAll:       os.RemoveAll,
+		}
+	}
+
+	return map[string]rootfs_provider.RootFSRemover{
+		"warden": rootFSRemover,
+		"docker": rootFSRemover,
+		"": &legacy_aufs_remover.Remover{
+			Unmounter: legacy_aufs_remover.AufsUnmounter{},
+			DepotDir:  *depotPath,
+		},
+	}
 }
 
 func missing(flagName string) {

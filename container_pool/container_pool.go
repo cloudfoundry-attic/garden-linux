@@ -63,7 +63,7 @@ type LinuxContainerPool struct {
 	allowNetworks []string
 
 	rootfsProviders    map[string]rootfs_provider.RootFSProvider
-	rootfsRemover      rootfs_provider.RootFSRemover
+	rootfsRemovers     map[string]rootfs_provider.RootFSRemover
 	uidNamespaceOffset int
 
 	subnetPool SubnetPool
@@ -90,7 +90,7 @@ func New(
 	binPath, depotPath string,
 	sysconfig sysconfig.Config,
 	rootfsProviders map[string]rootfs_provider.RootFSProvider,
-	rootfsRemover rootfs_provider.RootFSRemover,
+	rootfsRemovers map[string]rootfs_provider.RootFSRemover,
 	uidNamespaceOffset int,
 	externalIP net.IP,
 	mtu int,
@@ -112,7 +112,7 @@ func New(
 		sysconfig: sysconfig,
 
 		rootfsProviders:    rootfsProviders,
-		rootfsRemover:      rootfsRemover,
+		rootfsRemovers:     rootfsRemovers,
 		uidNamespaceOffset: uidNamespaceOffset,
 
 		allowNetworks: allowNetworks,
@@ -536,6 +536,16 @@ func (p *LinuxContainerPool) acquireSystemResources(id, handle, containerPath, r
 		return "", nil, ErrUnknownRootFSProvider
 	}
 
+	scheme := rootfsURL.Scheme
+	if scheme == "" {
+		scheme = "warden"
+	}
+
+	rootfsRemover, ok := p.rootfsRemovers[scheme]
+	if !ok {
+		return "", nil, fmt.Errorf("unknown rootfs scheme %s", scheme)
+	}
+
 	rootfsPath, rootFSEnvVars, err := provider.ProvideRootFS(pLog.Session("create-rootfs"), id, rootfsURL, resources.RootUID != 0)
 	if err != nil {
 		pLog.Error("provide-rootfs-failed", err)
@@ -549,7 +559,7 @@ func (p *LinuxContainerPool) acquireSystemResources(id, handle, containerPath, r
 			"Bridge": resources.Bridge,
 		})
 
-		p.rootfsRemover.CleanupRootFS(pLog, rootfsPath)
+		rootfsRemover.CleanupRootFS(pLog, rootfsPath)
 		return "", nil, err
 	}
 
@@ -559,7 +569,7 @@ func (p *LinuxContainerPool) acquireSystemResources(id, handle, containerPath, r
 			"Bridge": resources.Bridge,
 		})
 
-		p.rootfsRemover.CleanupRootFS(pLog, rootfsPath)
+		rootfsRemover.CleanupRootFS(pLog, rootfsPath)
 		return "", nil, err
 	}
 
@@ -600,10 +610,6 @@ func (p *LinuxContainerPool) acquireSystemResources(id, handle, containerPath, r
 		return "", nil, err
 	}
 
-	scheme := rootfsURL.Scheme
-	if scheme == "" {
-		scheme = "warden"
-	}
 	err = p.saveRootFSProvider(id, scheme)
 	if err != nil {
 		p.logger.Error("save-rootfs-provider-failed", err, lager.Data{
@@ -653,7 +659,7 @@ func (p *LinuxContainerPool) releaseSystemResources(logger lager.Logger, id stri
 
 	rootfsProvider, err := ioutil.ReadFile(path.Join(p.depotPath, id, "rootfs-provider"))
 	if err != nil {
-		rootfsProvider = []byte("invalid-rootfs-provider")
+		rootfsProvider = []byte("warden")
 	}
 
 	destroy := exec.Command(path.Join(p.binPath, "destroy.sh"), path.Join(p.depotPath, id))
@@ -663,25 +669,16 @@ func (p *LinuxContainerPool) releaseSystemResources(logger lager.Logger, id stri
 		return err
 	}
 
-	if shouldCleanRootfs(string(rootfsProvider)) {
-		if err = p.rootfsRemover.CleanupRootFS(logger, id); err != nil {
-			return err
-		}
+	rootfsRemover, ok := p.rootfsRemovers[string(rootfsProvider)]
+	if !ok {
+		return fmt.Errorf("unknown rootfs scheme %s", rootfsProvider)
+	}
+	if err = rootfsRemover.CleanupRootFS(logger, id); err != nil {
+		return err
 	}
 
 	p.filterProvider.ProvideFilter(id).TearDown()
 	return nil
-}
-
-func shouldCleanRootfs(rootfsProvider string) bool {
-	// invalid-rootfs-provider indicates that this is probably a recent container that failed on create.
-	// we should try to clean it up
-	for _, provider := range []string{"docker", "warden", "invalid-rootfs-provider"} {
-		if provider == rootfsProvider {
-			return true
-		}
-	}
-	return false
 }
 
 func getHandle(handle, id string) string {

@@ -49,6 +49,7 @@ var _ = Describe("Container pool", func() {
 	var defaultFakeRootFSProvider *fake_rootfs_provider.FakeRootFSProvider
 	var fakeRootFSProvider *fake_rootfs_provider.FakeRootFSProvider
 	var fakeRootfsRemover *fake_rootfs_provider.FakeRootFSRemover
+	var alternateRootfsRemover *fake_rootfs_provider.FakeRootFSRemover
 	var fakeBridges *fake_bridge_manager.FakeBridgeManager
 	var fakeFilterProvider *fake_container_pool.FakeFilterProvider
 	var fakeFilter *fakes.FakeFilter
@@ -83,6 +84,13 @@ var _ = Describe("Container pool", func() {
 		fakePortPool = fake_port_pool.New(1000)
 		defaultFakeRootFSProvider = new(fake_rootfs_provider.FakeRootFSProvider)
 		fakeRootfsRemover = new(fake_rootfs_provider.FakeRootFSRemover)
+		alternateRootfsRemover = new(fake_rootfs_provider.FakeRootFSRemover)
+		fakeRootfsRemovers := map[string]rootfs_provider.RootFSRemover{
+			"docker": fakeRootfsRemover,
+			"warden": fakeRootfsRemover,
+			"fake":   fakeRootfsRemover,
+			"":       alternateRootfsRemover,
+		}
 		fakeRootFSProvider = new(fake_rootfs_provider.FakeRootFSProvider)
 
 		defaultFakeRootFSProvider.ProvideRootFSReturns("/provided/rootfs/path", nil, nil)
@@ -101,7 +109,7 @@ var _ = Describe("Container pool", func() {
 				"":     defaultFakeRootFSProvider,
 				"fake": fakeRootFSProvider,
 			},
-			fakeRootfsRemover,
+			fakeRootfsRemovers,
 			700000,
 			net.ParseIP("1.2.3.4"),
 			345,
