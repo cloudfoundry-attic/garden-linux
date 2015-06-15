@@ -42,8 +42,12 @@ func (p *ProcessSpecPreparer) PrepareCmd(spec garden.ProcessSpec) (*exec.Cmd, er
 
 	var uid, gid uint32
 	if user, err := p.Users.Lookup(spec.User); err == nil && user != nil {
-		fmt.Sscanf(user.Uid, "%d", &uid) // todo(jz): handle errors
-		fmt.Sscanf(user.Gid, "%d", &gid)
+		if _, err := fmt.Sscanf(user.Uid, "%d", &uid); err != nil {
+			return nil, fmt.Errorf("container_daemon: failed to parse uid %q", user.Uid)
+		}
+		if _, err := fmt.Sscanf(user.Gid, "%d", &gid); err != nil {
+			return nil, fmt.Errorf("container_daemon: failed to parse gid %q", user.Gid)
+		}
 		env["USER"] = spec.User
 		_, hasHome := env["HOME"]
 		if !hasHome {

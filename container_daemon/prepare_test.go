@@ -27,7 +27,8 @@ var _ = Describe("Preparing a command to run", func() {
 		"a-user":       &user.User{Uid: "66", Gid: "99"},
 		"another-user": &user.User{Uid: "77", Gid: "88", HomeDir: "/the/home/dir"},
 		"root":         &user.User{Uid: "0", Gid: "0", HomeDir: "/root"},
-		"a-root-user":  &user.User{},
+		"missing-uid":  &user.User{},
+		"missing-gid":  &user.User{Uid: "0"},
 	}
 
 	BeforeEach(func() {
@@ -133,16 +134,6 @@ var _ = Describe("Preparing a command to run", func() {
 					})
 				})
 
-				Context("and the uid is 0", func() {
-					BeforeEach(func() {
-						spec.User = "a-root-user"
-					})
-
-					It("appends the DefaultRootPATH to the environment", func() {
-						Expect(thePreparedCmd.Env).To(ContainElement(fmt.Sprintf("PATH=%s", container_daemon.DefaultRootPATH)))
-					})
-				})
-
 				Context("when the ENV already contains a PATH", func() {
 					BeforeEach(func() {
 						spec.Env = []string{"PATH=cake"}
@@ -162,6 +153,26 @@ var _ = Describe("Preparing a command to run", func() {
 
 				It("returns an error", func() {
 					Expect(theReturnedError).To(MatchError(ContainSubstring("container_daemon: invalid environment")))
+				})
+			})
+
+			Context("when the uid is omitted from /etc/passwd", func() {
+				BeforeEach(func() {
+					spec.User = "missing-uid"
+				})
+
+				It("returns an error", func() {
+					Expect(theReturnedError).To(MatchError(`container_daemon: failed to parse uid ""`))
+				})
+			})
+
+			Context("when the gid is omitted from /etc/passwd", func() {
+				BeforeEach(func() {
+					spec.User = "missing-gid"
+				})
+
+				It("return an error", func() {
+					Expect(theReturnedError).To(MatchError(`container_daemon: failed to parse gid ""`))
 				})
 			})
 
