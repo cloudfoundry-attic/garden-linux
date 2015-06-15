@@ -9,16 +9,27 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden-linux/old/rootfs_provider"
 	"github.com/cloudfoundry/gunk/command_runner"
+	"github.com/pivotal-golang/lager"
 )
 
-type Cleaner struct {
+type BtrfsRootFSRemover struct {
 	Runner          command_runner.CommandRunner
 	GraphDriver     rootfs_provider.GraphDriver
 	BtrfsMountPoint string
 	RemoveAll       func(dir string) error
 }
 
-func (c *Cleaner) Clean(id string) error {
+func (c *BtrfsRootFSRemover) CleanupRootFS(logger lager.Logger, id string) error {
+	c.GraphDriver.Put(id)
+
+	if err := c.clean(id); err != nil {
+		return err
+	}
+
+	return c.GraphDriver.Remove(id)
+}
+
+func (c *BtrfsRootFSRemover) clean(id string) error {
 	layerPath, err := c.GraphDriver.Get(id, "")
 	if err != nil {
 		return err
@@ -60,7 +71,7 @@ func finalColumns(lines []string) []string {
 	return result
 }
 
-func (c *Cleaner) run(cmd *exec.Cmd) (string, error) {
+func (c *BtrfsRootFSRemover) run(cmd *exec.Cmd) (string, error) {
 	var buffer bytes.Buffer
 	cmd.Stdout = &buffer
 	if err := c.Runner.Run(cmd); err != nil {

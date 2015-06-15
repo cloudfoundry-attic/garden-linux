@@ -3,7 +3,6 @@ package rootfs_provider
 import (
 	"net/url"
 	"sync"
-	"time"
 
 	"github.com/docker/docker/daemon/graphdriver"
 	"github.com/pivotal-golang/clock"
@@ -19,7 +18,6 @@ type dockerRootFSProvider struct {
 	repoFetcher   repository_fetcher.RepositoryFetcher
 	namespacer    Namespacer
 	clock         clock.Clock
-	cleaner       Cleaner
 	mutex         *sync.Mutex
 
 	fallback RootFSProvider
@@ -45,7 +43,6 @@ func NewDocker(
 	volumeCreator VolumeCreator,
 	namespacer Namespacer,
 	clock clock.Clock,
-	cleaner Cleaner,
 ) (RootFSProvider, error) {
 	return &dockerRootFSProvider{
 		repoFetcher:   repoFetcher,
@@ -53,7 +50,6 @@ func NewDocker(
 		volumeCreator: volumeCreator,
 		namespacer:    namespacer,
 		clock:         clock,
-		cleaner:       cleaner,
 		mutex:         &sync.Mutex{},
 	}, nil
 }
@@ -133,30 +129,4 @@ func (provider *dockerRootFSProvider) createLayer(id, parentId string) (string, 
 	}
 
 	return namespacedRootfs, nil
-}
-
-func (provider *dockerRootFSProvider) CleanupRootFS(logger lager.Logger, id string) error {
-	provider.graphDriver.Put(id)
-
-	if err := provider.cleaner.Clean(id); err != nil {
-		return err
-	}
-
-	var err error
-	maxAttempts := 10
-	for errorCount := 0; errorCount < maxAttempts; errorCount++ {
-		err = provider.graphDriver.Remove(id)
-		if err == nil {
-			return nil
-		}
-
-		logger.Error("cleanup-rootfs", err, lager.Data{
-			"current-attempts": errorCount + 1,
-			"max-attempts":     maxAttempts,
-		})
-
-		provider.clock.Sleep(200 * time.Millisecond)
-	}
-
-	return err
 }

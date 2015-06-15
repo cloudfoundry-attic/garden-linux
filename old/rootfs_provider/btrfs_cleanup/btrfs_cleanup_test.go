@@ -8,16 +8,17 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/old/rootfs_provider/btrfs_cleanup"
 	"github.com/cloudfoundry-incubator/garden-linux/old/rootfs_provider/fake_graph_driver"
 
+	"github.com/cloudfoundry-incubator/garden-linux/Godeps/_workspace/src/github.com/pivotal-golang/lager/lagertest"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("BtrfsCleanup", func() {
+var _ = Describe("BtrfsRootFSRemover", func() {
 
 	var (
-		cleaner              *btrfs_cleanup.Cleaner
+		cleaner              *btrfs_cleanup.BtrfsRootFSRemover
 		runner               *fake_command_runner.FakeCommandRunner
 		graphDriver          *fake_graph_driver.FakeGraphDriver
 		listSubvolumesOutput string
@@ -28,14 +29,19 @@ var _ = Describe("BtrfsCleanup", func() {
 		graphDriverErr   error
 
 		removedDirectories []string
+
+		logger *lagertest.TestLogger
 	)
 
 	BeforeEach(func() {
+		graphDriverErr = nil
+		listSubVolumeErr = nil
 		removedDirectories = []string{}
+		logger = lagertest.NewTestLogger("btrfs-rootfs-remover")
 
 		runner = fake_command_runner.New()
 		graphDriver = new(fake_graph_driver.FakeGraphDriver)
-		cleaner = &btrfs_cleanup.Cleaner{
+		cleaner = &btrfs_cleanup.BtrfsRootFSRemover{
 			Runner:          runner,
 			GraphDriver:     graphDriver,
 			BtrfsMountPoint: btrfsMountPoint,
@@ -59,13 +65,25 @@ var _ = Describe("BtrfsCleanup", func() {
 		}
 	})
 
+	It("acquires system resources from graphdriver", func() {
+		Expect(cleaner.CleanupRootFS(logger, layerId)).To(Succeed())
+		Expect(graphDriver.PutCallCount()).To(Equal(1))
+		Expect(graphDriver.PutArgsForCall(0)).To(Equal(layerId))
+	})
+
+	It("removes layer from graph", func() {
+		Expect(cleaner.CleanupRootFS(logger, layerId)).To(Succeed())
+		Expect(graphDriver.RemoveCallCount()).To(Equal(1))
+		Expect(graphDriver.RemoveArgsForCall(0)).To(Equal(layerId))
+	})
+
 	Context("when there are no subvolumes", func() {
 		BeforeEach(func() {
 			listSubvolumesOutput = "\n"
 		})
 
 		It("does not invoke subvolume delete", func() {
-			Expect(cleaner.Clean(layerId)).To(Succeed())
+			Expect(cleaner.CleanupRootFS(logger, layerId)).To(Succeed())
 			Expect(runner).NotTo(HaveExecutedSerially(fake_command_runner.CommandSpec{
 				Path: "btrfs",
 				Args: []string{"subvolume", "delete", "/path/to/" + layerId},
@@ -73,7 +91,7 @@ var _ = Describe("BtrfsCleanup", func() {
 		})
 
 		It("does not delete any directories", func() {
-			Expect(cleaner.Clean(layerId)).To(Succeed())
+			Expect(cleaner.CleanupRootFS(logger, layerId)).To(Succeed())
 			Expect(removedDirectories).To(BeEmpty())
 		})
 	})
@@ -84,7 +102,7 @@ var _ = Describe("BtrfsCleanup", func() {
 		})
 
 		It("does not invoke subvolume delete", func() {
-			Expect(cleaner.Clean(layerId)).To(Succeed())
+			Expect(cleaner.CleanupRootFS(logger, layerId)).To(Succeed())
 			Expect(runner).NotTo(HaveExecutedSerially(fake_command_runner.CommandSpec{
 				Path: "btrfs",
 				Args: []string{"subvolume", "delete", "/absolute/btrfs_mount/relative/path/to/" + layerId},
@@ -92,7 +110,7 @@ var _ = Describe("BtrfsCleanup", func() {
 		})
 
 		It("does not delete any directories", func() {
-			Expect(cleaner.Clean(layerId)).To(Succeed())
+			Expect(cleaner.CleanupRootFS(logger, layerId)).To(Succeed())
 			Expect(removedDirectories).To(BeEmpty())
 		})
 	})
@@ -109,7 +127,7 @@ ID 259 gen 9 top level 257 path relative/path/to/%s/subvolume2
 		})
 
 		It("deletes the subvolume", func() {
-			Expect(cleaner.Clean(layerId)).To(Succeed())
+			Expect(cleaner.CleanupRootFS(logger, layerId)).To(Succeed())
 			Expect(runner).To(HaveExecutedSerially(fake_command_runner.CommandSpec{
 				Path: "btrfs",
 				Args: []string{"subvolume", "delete", subvolume1},
@@ -129,7 +147,7 @@ ID 259 gen 9 top level 257 path relative/path/to/%s/subvolume2
 				return nil
 			})
 
-			Expect(cleaner.Clean(layerId)).To(Succeed())
+			Expect(cleaner.CleanupRootFS(logger, layerId)).To(Succeed())
 		})
 
 		PIt("when deleting dir contents fails", func() {})
@@ -143,7 +161,7 @@ ID 259 gen 9 top level 257 path relative/path/to/%s/subvolume1/subsubvol1
 			})
 
 			It("deletes the subvolumes deepest-first", func() {
-				Expect(cleaner.Clean(layerId)).To(Succeed())
+				Expect(cleaner.CleanupRootFS(logger, layerId)).To(Succeed())
 				Expect(runner).To(HaveExecutedSerially(fake_command_runner.CommandSpec{
 					Path: "btrfs",
 					Args: []string{"subvolume", "delete", subvolume1 + "/subsubvol1"},
@@ -161,7 +179,12 @@ ID 259 gen 9 top level 257 path relative/path/to/%s/subvolume1/subsubvol1
 		})
 
 		It("returns the same error", func() {
-			Expect(cleaner.Clean(layerId)).To(MatchError("listing subvolumes failed!"))
+			Expect(cleaner.CleanupRootFS(logger, layerId)).To(MatchError("listing subvolumes failed!"))
+		})
+
+		It("does not remove layer from graph", func() {
+			cleaner.CleanupRootFS(logger, layerId)
+			Expect(graphDriver.RemoveCallCount()).To(Equal(0))
 		})
 	})
 
@@ -171,7 +194,18 @@ ID 259 gen 9 top level 257 path relative/path/to/%s/subvolume1/subsubvol1
 		})
 
 		It("returns the same error", func() {
-			Expect(cleaner.Clean(layerId)).To(MatchError("graphdriver fail!"))
+			Expect(cleaner.CleanupRootFS(logger, layerId)).To(MatchError("graphdriver fail!"))
+			Expect(graphDriver.RemoveCallCount()).To(Equal(0))
+		})
+	})
+
+	Context("when layer cannot be removed from graph", func() {
+		BeforeEach(func() {
+			graphDriver.RemoveReturns(errors.New("o no!"))
+		})
+
+		It("returns the same error", func() {
+			Expect(cleaner.CleanupRootFS(logger, layerId)).To(MatchError("o no!"))
 		})
 	})
 })

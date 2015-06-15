@@ -63,6 +63,7 @@ type LinuxContainerPool struct {
 	allowNetworks []string
 
 	rootfsProviders    map[string]rootfs_provider.RootFSProvider
+	rootfsRemover      rootfs_provider.RootFSRemover
 	uidNamespaceOffset int
 
 	subnetPool SubnetPool
@@ -89,6 +90,7 @@ func New(
 	binPath, depotPath string,
 	sysconfig sysconfig.Config,
 	rootfsProviders map[string]rootfs_provider.RootFSProvider,
+	rootfsRemover rootfs_provider.RootFSRemover,
 	uidNamespaceOffset int,
 	externalIP net.IP,
 	mtu int,
@@ -110,6 +112,7 @@ func New(
 		sysconfig: sysconfig,
 
 		rootfsProviders:    rootfsProviders,
+		rootfsRemover:      rootfsRemover,
 		uidNamespaceOffset: uidNamespaceOffset,
 
 		allowNetworks: allowNetworks,
@@ -401,7 +404,7 @@ func (p *LinuxContainerPool) Destroy(container linux_backend.Container) error {
 	return nil
 }
 
-func (p *LinuxContainerPool) generateContainerIDs() string {
+func (p *LinuxContainerPool) generateContainerIDs() {
 	for containerNum := time.Now().UnixNano(); ; containerNum++ {
 		containerID := []byte{}
 
@@ -546,7 +549,7 @@ func (p *LinuxContainerPool) acquireSystemResources(id, handle, containerPath, r
 			"Bridge": resources.Bridge,
 		})
 
-		provider.CleanupRootFS(pLog, rootfsPath)
+		p.rootfsRemover.CleanupRootFS(pLog, rootfsPath)
 		return "", nil, err
 	}
 
@@ -556,7 +559,7 @@ func (p *LinuxContainerPool) acquireSystemResources(id, handle, containerPath, r
 			"Bridge": resources.Bridge,
 		})
 
-		provider.CleanupRootFS(pLog, rootfsPath)
+		p.rootfsRemover.CleanupRootFS(pLog, rootfsPath)
 		return "", nil, err
 	}
 
@@ -597,7 +600,11 @@ func (p *LinuxContainerPool) acquireSystemResources(id, handle, containerPath, r
 		return "", nil, err
 	}
 
-	err = p.saveRootFSProvider(id, rootfsURL.Scheme)
+	scheme := rootfsURL.Scheme
+	if scheme == "" {
+		scheme = "warden"
+	}
+	err = p.saveRootFSProvider(id, scheme)
 	if err != nil {
 		p.logger.Error("save-rootfs-provider-failed", err, lager.Data{
 			"Id":     id,
@@ -636,21 +643,17 @@ func (p *LinuxContainerPool) releaseSystemResources(logger lager.Logger, id stri
 		CommandRunner: p.runner,
 		Logger:        logger,
 	}
-	rootfsProvider, err := ioutil.ReadFile(path.Join(p.depotPath, id, "rootfs-provider"))
-	if err != nil {
-		rootfsProvider = []byte("")
-	}
-
-	provider, found := p.rootfsProviders[string(rootfsProvider)]
-	if !found {
-		return ErrUnknownRootFSProvider
-	}
 
 	bridgeName, err := ioutil.ReadFile(path.Join(p.depotPath, id, "bridge-name"))
 	if err == nil {
 		if err := p.bridges.Release(string(bridgeName), id); err != nil {
 			return fmt.Errorf("containerpool: release bridge %s: %v", bridgeName, err)
 		}
+	}
+
+	rootfsProvider, err := ioutil.ReadFile(path.Join(p.depotPath, id, "rootfs-provider"))
+	if err != nil {
+		rootfsProvider = []byte("invalid-rootfs-provider")
 	}
 
 	destroy := exec.Command(path.Join(p.binPath, "destroy.sh"), path.Join(p.depotPath, id))
@@ -660,12 +663,25 @@ func (p *LinuxContainerPool) releaseSystemResources(logger lager.Logger, id stri
 		return err
 	}
 
-	if err = provider.CleanupRootFS(logger, id); err != nil {
-		return err
+	if shouldCleanRootfs(string(rootfsProvider)) {
+		if err = p.rootfsRemover.CleanupRootFS(logger, id); err != nil {
+			return err
+		}
 	}
 
 	p.filterProvider.ProvideFilter(id).TearDown()
 	return nil
+}
+
+func shouldCleanRootfs(rootfsProvider string) bool {
+	// invalid-rootfs-provider indicates that this is probably a recent container that failed on create.
+	// we should try to clean it up
+	for _, provider := range []string{"docker", "warden", "invalid-rootfs-provider"} {
+		if provider == rootfsProvider {
+			return true
+		}
+	}
+	return false
 }
 
 func getHandle(handle, id string) string {

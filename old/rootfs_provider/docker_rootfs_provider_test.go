@@ -6,7 +6,6 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden-linux/old/repository_fetcher/fake_repository_fetcher"
 	. "github.com/cloudfoundry-incubator/garden-linux/old/rootfs_provider"
-	"github.com/cloudfoundry-incubator/garden-linux/old/rootfs_provider/fake_cleaner"
 	"github.com/cloudfoundry-incubator/garden-linux/old/rootfs_provider/fake_graph_driver"
 	"github.com/cloudfoundry-incubator/garden-linux/old/rootfs_provider/fake_namespacer"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
@@ -39,7 +38,6 @@ var _ = Describe("DockerRootFSProvider", func() {
 		fakeNamespacer        *fake_namespacer.FakeNamespacer
 		fakeVolumeCreator     *FakeVolumeCreator
 		fakeClock             *fakeclock.FakeClock
-		fakeCleaner           *fake_cleaner.FakeCleaner
 
 		provider RootFSProvider
 
@@ -52,7 +50,6 @@ var _ = Describe("DockerRootFSProvider", func() {
 		fakeVolumeCreator = &FakeVolumeCreator{}
 		fakeNamespacer = &fake_namespacer.FakeNamespacer{}
 		fakeClock = fakeclock.NewFakeClock(time.Now())
-		fakeCleaner = new(fake_cleaner.FakeCleaner)
 
 		var err error
 		provider, err = NewDocker(
@@ -61,7 +58,6 @@ var _ = Describe("DockerRootFSProvider", func() {
 			fakeVolumeCreator,
 			fakeNamespacer,
 			fakeClock,
-			fakeCleaner,
 		)
 		Expect(err).ToNot(HaveOccurred())
 
@@ -324,98 +320,6 @@ var _ = Describe("DockerRootFSProvider", func() {
 					false,
 				)
 				Expect(err).To(Equal(disaster))
-			})
-		})
-	})
-
-	Describe("CleanupRootFS", func() {
-		It("removes the container from the rootfs graph", func() {
-			err := provider.CleanupRootFS(logger, "some-id")
-			Expect(err).ToNot(HaveOccurred())
-
-			Expect(fakeGraphDriver.PutCallCount()).To(Equal(1))
-			putted := fakeGraphDriver.PutArgsForCall(0)
-			Expect(putted).To(Equal("some-id"))
-
-			Expect(fakeGraphDriver.RemoveCallCount()).To(Equal(1))
-			removed := fakeGraphDriver.RemoveArgsForCall(0)
-			Expect(removed).To(Equal("some-id"))
-		})
-
-		It("cleans the rootfs using graphdriver-specific hook", func() {
-			Expect(provider.CleanupRootFS(logger, "some-id")).To(Succeed())
-			Expect(fakeCleaner.CleanCallCount()).To(Equal(1))
-			Expect(fakeCleaner.CleanArgsForCall(0)).To(Equal("some-id"))
-		})
-
-		Context("when cleaning the rootfs before deleting it from the graph fails", func() {
-			JustBeforeEach(func() {
-				fakeCleaner.CleanReturns(errors.New("unclean, unclean"))
-			})
-
-			It("returns the error", func() {
-				Expect(provider.CleanupRootFS(logger, "oi")).To(MatchError("unclean, unclean"))
-			})
-		})
-
-		Context("when removing the container from the graph fails", func() {
-			disaster := errors.New("oh no!")
-
-			var (
-				succeedsAfter int
-			)
-
-			JustBeforeEach(func() {
-				retryCount := 0
-				fakeGraphDriver.RemoveStub = func(id string) error {
-					if retryCount > succeedsAfter {
-						return nil
-					}
-
-					retryCount++
-					return disaster
-				}
-			})
-
-			Context("and then after a retry succeeds", func() {
-				BeforeEach(func() {
-					succeedsAfter = 0
-				})
-
-				It("removes the container from the rootfs graph", func() {
-					done := make(chan struct{})
-					go func(done chan<- struct{}) {
-						err := provider.CleanupRootFS(logger, "some-id")
-						Expect(err).ToNot(HaveOccurred())
-						close(done)
-					}(done)
-
-					Eventually(fakeGraphDriver.RemoveCallCount).Should(Equal(1), "should not sleep before first attempt")
-					fakeClock.Increment(200 * time.Millisecond)
-
-					Eventually(fakeGraphDriver.RemoveCallCount).Should(Equal(2))
-					Eventually(done).Should(BeClosed())
-				})
-			})
-
-			Context("and then after many retries still fails", func() {
-				BeforeEach(func() {
-					succeedsAfter = 10
-				})
-
-				It("gives up and returns an error", func() {
-					errs := make(chan error)
-					go func(errs chan<- error) {
-						errs <- provider.CleanupRootFS(logger, "some-id")
-					}(errs)
-
-					for i := 0; i < 10; i++ {
-						Eventually(fakeClock.WatcherCount).Should(Equal(1))
-						fakeClock.Increment(300 * time.Millisecond)
-					}
-
-					Eventually(errs).Should(Receive())
-				})
 			})
 		})
 	})

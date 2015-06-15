@@ -24,15 +24,6 @@ type FakeRootFSProvider struct {
 		result2 process.Env
 		result3 error
 	}
-	CleanupRootFSStub        func(logger lager.Logger, id string) error
-	cleanupRootFSMutex       sync.RWMutex
-	cleanupRootFSArgsForCall []struct {
-		logger lager.Logger
-		id     string
-	}
-	cleanupRootFSReturns struct {
-		result1 error
-	}
 }
 
 func (fake *FakeRootFSProvider) ProvideRootFS(logger lager.Logger, id string, rootfs *url.URL, namespaced bool) (mountpoint string, envvar process.Env, err error) {
@@ -70,39 +61,6 @@ func (fake *FakeRootFSProvider) ProvideRootFSReturns(result1 string, result2 pro
 		result2 process.Env
 		result3 error
 	}{result1, result2, result3}
-}
-
-func (fake *FakeRootFSProvider) CleanupRootFS(logger lager.Logger, id string) error {
-	fake.cleanupRootFSMutex.Lock()
-	fake.cleanupRootFSArgsForCall = append(fake.cleanupRootFSArgsForCall, struct {
-		logger lager.Logger
-		id     string
-	}{logger, id})
-	fake.cleanupRootFSMutex.Unlock()
-	if fake.CleanupRootFSStub != nil {
-		return fake.CleanupRootFSStub(logger, id)
-	} else {
-		return fake.cleanupRootFSReturns.result1
-	}
-}
-
-func (fake *FakeRootFSProvider) CleanupRootFSCallCount() int {
-	fake.cleanupRootFSMutex.RLock()
-	defer fake.cleanupRootFSMutex.RUnlock()
-	return len(fake.cleanupRootFSArgsForCall)
-}
-
-func (fake *FakeRootFSProvider) CleanupRootFSArgsForCall(i int) (lager.Logger, string) {
-	fake.cleanupRootFSMutex.RLock()
-	defer fake.cleanupRootFSMutex.RUnlock()
-	return fake.cleanupRootFSArgsForCall[i].logger, fake.cleanupRootFSArgsForCall[i].id
-}
-
-func (fake *FakeRootFSProvider) CleanupRootFSReturns(result1 error) {
-	fake.CleanupRootFSStub = nil
-	fake.cleanupRootFSReturns = struct {
-		result1 error
-	}{result1}
 }
 
 var _ rootfs_provider.RootFSProvider = new(FakeRootFSProvider)

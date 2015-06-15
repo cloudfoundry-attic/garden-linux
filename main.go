@@ -298,9 +298,9 @@ func main() {
 
 	graphMountPoint := mountPoint(logger, *graphRoot)
 
-	var rootfsCleaner rootfs_provider.Cleaner = &rootfs_provider.NoopCleaner{}
+	var rootFSRemover rootfs_provider.RootFSRemover = &rootfs_provider.VfsRootFSRemover{GraphDriver: graphDriver}
 	if graphDriver.String() == "btrfs" {
-		rootfsCleaner = &btrfs_cleanup.Cleaner{
+		rootFSRemover = &btrfs_cleanup.BtrfsRootFSRemover{
 			Runner:          runner,
 			GraphDriver:     graphDriver,
 			BtrfsMountPoint: graphMountPoint,
@@ -308,7 +308,7 @@ func main() {
 		}
 	}
 
-	dockerRootFSProvider, err := rootfs_provider.NewDocker(repoFetcher, graphDriver, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock(), rootfsCleaner)
+	dockerRootFSProvider, err := rootfs_provider.NewDocker(repoFetcher, graphDriver, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock())
 	if err != nil {
 		logger.Fatal("failed-to-construct-docker-rootfs-provider", err)
 	}
@@ -317,7 +317,7 @@ func main() {
 		Graph:             graph,
 		DefaultRootFSPath: *rootFSPath,
 		IDer:              repository_fetcher.MD5ID{},
-	}, graphDriver, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock(), rootfsCleaner)
+	}, graphDriver, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock())
 	if err != nil {
 		logger.Fatal("failed-to-construct-warden-rootfs-provider", err)
 	}
@@ -362,6 +362,7 @@ func main() {
 		*depotPath,
 		config,
 		rootFSProviders,
+		rootFSRemover,
 		*uidMappingOffset,
 		parsedExternalIP,
 		*mtu,
