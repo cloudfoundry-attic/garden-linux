@@ -2,13 +2,12 @@ package container_daemon
 
 import (
 	"fmt"
-	"os"
 	"os/exec"
 	osuser "os/user"
-	"strings"
 	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden"
+	"github.com/cloudfoundry-incubator/garden-linux/process"
 )
 
 //go:generate counterfeiter -o fake_rlimits_env_encoder/fake_rlimits_env_encoder.go . RlimitsEnvEncoder
@@ -36,14 +35,20 @@ func (p *ProcessSpecPreparer) PrepareCmd(spec garden.ProcessSpec) (*exec.Cmd, er
 	args = append(args, spec.Args...)
 	cmd := exec.Command(p.ProcStarterPath, args...)
 
-	cmd.Env = spec.Env
+	env, err := process.NewEnv(spec.Env)
+	if err != nil {
+		return nil, fmt.Errorf("container_daemon: invalid environment %v: %s", spec.Env, err)
+	}
 
 	var uid, gid uint32
 	if user, err := p.Users.Lookup(spec.User); err == nil && user != nil {
 		fmt.Sscanf(user.Uid, "%d", &uid) // todo(jz): handle errors
 		fmt.Sscanf(user.Gid, "%d", &gid)
-		cmd.Env = append(cmd.Env, "USER="+spec.User)
-		cmd.Env = append(cmd.Env, "HOME="+user.HomeDir)
+		env["USER"] = spec.User
+		_, hasHome := env["HOME"]
+		if !hasHome {
+			env["HOME"] = user.HomeDir
+		}
 
 		if spec.Dir != "" {
 			cmd.Dir = spec.Dir
@@ -56,20 +61,13 @@ func (p *ProcessSpecPreparer) PrepareCmd(spec garden.ProcessSpec) (*exec.Cmd, er
 		return nil, fmt.Errorf("container_daemon: lookup user %s: %s", spec.User, err)
 	}
 
-	hasPath := false
-	for _, env := range spec.Env {
-		parts := strings.SplitN(env, "=", 2)
-		if parts[0] == "PATH" {
-			hasPath = true
-			break
-		}
-	}
+	_, hasPath := env["PATH"]
 
 	if !hasPath {
 		if uid == 0 {
-			cmd.Env = append(cmd.Env, fmt.Sprintf("PATH=%s", DefaultRootPATH))
+			env["PATH"] = DefaultRootPATH
 		} else {
-			cmd.Env = append(cmd.Env, fmt.Sprintf("PATH=%s", DefaultUserPath))
+			env["PATH"] = DefaultUserPath
 		}
 	}
 
@@ -80,10 +78,6 @@ func (p *ProcessSpecPreparer) PrepareCmd(spec garden.ProcessSpec) (*exec.Cmd, er
 		},
 	}
 
+	cmd.Env = env.Array()
 	return cmd, nil
-}
-
-func tryToReportErrorf(errWriter *os.File, format string, inserts ...interface{}) {
-	message := fmt.Sprintf(format, inserts)
-	errWriter.Write([]byte(message)) // Ignore error - nothing to do.
 }

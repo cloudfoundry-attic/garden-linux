@@ -115,6 +115,17 @@ var _ = Describe("Preparing a command to run", func() {
 				Expect(thePreparedCmd.Env).To(ContainElement("HOME=/the/home/dir"))
 			})
 
+			Context("when the Env contains a HOME", func() {
+				BeforeEach(func() {
+					spec.Env = append(spec.Env, "HOME=/nowhere")
+				})
+
+				It("sets the HOME environment variable to the value in the Env", func() {
+					Expect(thePreparedCmd.Env).To(ContainElement("HOME=/nowhere"))
+					Expect(thePreparedCmd.Env).ToNot(ContainElement("HOME=/the/home/dir"))
+				})
+			})
+
 			Context("when the ENV does not contain a PATH", func() {
 				Context("and the uid is not 0", func() {
 					It("appends the DefaultUserPATH to the environment", func() {
@@ -141,6 +152,16 @@ var _ = Describe("Preparing a command to run", func() {
 						Expect(thePreparedCmd.Env).To(ContainElement("PATH=cake"))
 						Expect(thePreparedCmd.Env).NotTo(ContainElement(fmt.Sprintf("PATH=%s", container_daemon.DefaultUserPath)))
 					})
+				})
+			})
+
+			Context("when the provided Env contains invalid entries", func() {
+				BeforeEach(func() {
+					spec.Env = append(spec.Env, "=12")
+				})
+
+				It("returns an error", func() {
+					Expect(theReturnedError).To(MatchError(ContainSubstring("container_daemon: invalid environment")))
 				})
 			})
 

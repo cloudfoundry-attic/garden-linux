@@ -487,6 +487,33 @@ var _ = Describe("Security", func() {
 				Expect(stdout).To(gbytes.Say("HOME=/home/vcap\nPATH=/usr/local/bin:/usr/bin:/bin\nPWD=/home/vcap\nSHLVL=1\nUSER=vcap\n"))
 			})
 
+			Context("when $HOME is set in the spec", func() {
+				It("sets $HOME from the spec", func() {
+					client = startGarden()
+					container, err := client.Create(garden.ContainerSpec{})
+					Expect(err).ToNot(HaveOccurred())
+
+					stdout := gbytes.NewBuffer()
+					process, err := container.Run(garden.ProcessSpec{
+						User: "vcap",
+						Path: "/bin/sh",
+						Args: []string{"-c", "echo $HOME"},
+						Env: []string{
+							"HOME=/nowhere",
+						},
+					}, garden.ProcessIO{
+						Stdout: stdout,
+						Stderr: GinkgoWriter,
+					})
+					Expect(err).ToNot(HaveOccurred())
+
+					exitStatus, err := process.Wait()
+					Expect(err).ToNot(HaveOccurred())
+					Expect(exitStatus).To(Equal(0))
+					Expect(stdout).To(gbytes.Say("/nowhere"))
+				})
+			})
+
 			It("executes in the user's home directory", func() {
 				client = startGarden()
 				container, err := client.Create(garden.ContainerSpec{})
