@@ -1,4 +1,4 @@
-package container_pool
+package resource_pool
 
 import (
 	"encoding/json"
@@ -23,23 +23,19 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
 	"github.com/cloudfoundry-incubator/garden-linux/network"
 	"github.com/cloudfoundry-incubator/garden-linux/network/bridgemgr"
-	"github.com/cloudfoundry-incubator/garden-linux/network/devices"
 	"github.com/cloudfoundry-incubator/garden-linux/network/iptables"
 	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
-	"github.com/cloudfoundry-incubator/garden-linux/old/bandwidth_manager"
-	"github.com/cloudfoundry-incubator/garden-linux/old/cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/logging"
 	"github.com/cloudfoundry-incubator/garden-linux/old/rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
-	"github.com/cloudfoundry-incubator/garden-linux/process_tracker"
 )
 
 var ErrUnknownRootFSProvider = errors.New("unknown rootfs provider")
 
 var vcapUid int = 10001
 
-//go:generate counterfeiter -o fake_container_pool/FakeFilterProvider.go . FilterProvider
+//go:generate counterfeiter -o fake_filter_provider/FakeFilterProvider.go . FilterProvider
 type FilterProvider interface {
 	ProvideFilter(containerId string) network.Filter
 }
@@ -52,7 +48,7 @@ type SubnetPool interface {
 	Capacity() int
 }
 
-type LinuxContainerPool struct {
+type LinuxResourcePool struct {
 	logger lager.Logger
 
 	binPath   string
@@ -103,8 +99,8 @@ func New(
 	denyNetworks, allowNetworks []string,
 	runner command_runner.CommandRunner,
 	quotaManager linux_container.QuotaManager,
-) *LinuxContainerPool {
-	pool := &LinuxContainerPool{
+) *LinuxResourcePool {
+	pool := &LinuxResourcePool{
 		logger: logger.Session("pool"),
 
 		binPath:   binPath,
@@ -143,11 +139,11 @@ func New(
 	return pool
 }
 
-func (p *LinuxContainerPool) MaxContainers() int {
+func (p *LinuxResourcePool) MaxContainers() int {
 	return p.subnetPool.Capacity()
 }
 
-func (p *LinuxContainerPool) Setup() error {
+func (p *LinuxResourcePool) Setup() error {
 	setup := exec.Command(path.Join(p.binPath, "setup.sh"))
 	setup.Env = []string{
 		"CONTAINER_DEPOT_PATH=" + p.depotPath,
@@ -160,20 +156,20 @@ func (p *LinuxContainerPool) Setup() error {
 	}
 
 	if err := p.quotaManager.Setup(); err != nil {
-		return fmt.Errorf("container_pool: enable disk quotas: %s", err)
+		return fmt.Errorf("resource_pool: enable disk quotas: %s", err)
 	}
 
 	return p.setupIPTables()
 }
 
-func (p *LinuxContainerPool) setupIPTables() error {
+func (p *LinuxResourcePool) setupIPTables() error {
 	for _, n := range p.allowNetworks {
 		if n == "" {
 			continue
 		}
 
 		if err := p.defaultChain.AppendRule("", n, iptables.Return); err != nil {
-			return fmt.Errorf("container_pool: setting up allow rules in iptables: %v", err)
+			return fmt.Errorf("resource_pool: setting up allow rules in iptables: %v", err)
 		}
 	}
 
@@ -183,14 +179,14 @@ func (p *LinuxContainerPool) setupIPTables() error {
 		}
 
 		if err := p.defaultChain.AppendRule("", n, iptables.Reject); err != nil {
-			return fmt.Errorf("container_pool: setting up deny rules in iptables: %v", err)
+			return fmt.Errorf("resource_pool: setting up deny rules in iptables: %v", err)
 		}
 	}
 
 	return nil
 }
 
-func (p *LinuxContainerPool) Prune(keep map[string]bool) error {
+func (p *LinuxResourcePool) Prune(keep map[string]bool) error {
 	entries, err := ioutil.ReadDir(p.depotPath)
 	if err != nil {
 		p.logger.Error("prune-container-pool-path-error", err, lager.Data{"depotPath": p.depotPath})
@@ -219,7 +215,7 @@ func (p *LinuxContainerPool) Prune(keep map[string]bool) error {
 }
 
 // pruneEntry does not report errors, only log them
-func (p *LinuxContainerPool) pruneEntry(id string) {
+func (p *LinuxResourcePool) pruneEntry(id string) {
 	pLog := p.logger.Session("prune", lager.Data{"id": id})
 
 	pLog.Info("prune")
@@ -232,7 +228,7 @@ func (p *LinuxContainerPool) pruneEntry(id string) {
 	pLog.Info("end of prune")
 }
 
-func (p *LinuxContainerPool) Create(spec garden.ContainerSpec) (c linux_backend.Container, err error) {
+func (p *LinuxResourcePool) Acquire(spec garden.ContainerSpec) (linux_backend.LinuxContainerSpec, error) {
 	id := <-p.containerIDs
 	containerPath := path.Join(p.depotPath, id)
 	pLog := p.logger.Session(id)
@@ -241,7 +237,7 @@ func (p *LinuxContainerPool) Create(spec garden.ContainerSpec) (c linux_backend.
 
 	resources, err := p.acquirePoolResources(spec, id)
 	if err != nil {
-		return nil, err
+		return linux_backend.LinuxContainerSpec{}, err
 	}
 	defer cleanup(&err, func() {
 		p.releasePoolResources(resources)
@@ -253,7 +249,7 @@ func (p *LinuxContainerPool) Create(spec garden.ContainerSpec) (c linux_backend.
 
 	containerRootFSPath, rootFSEnv, err := p.acquireSystemResources(id, handle, containerPath, spec.RootFSPath, resources, spec.BindMounts, pLog)
 	if err != nil {
-		return nil, err
+		return linux_backend.LinuxContainerSpec{}, err
 	}
 
 	pLog.Info("created")
@@ -261,7 +257,7 @@ func (p *LinuxContainerPool) Create(spec garden.ContainerSpec) (c linux_backend.
 	specEnv, err := process.NewEnv(spec.Env)
 	if err != nil {
 		p.tryReleaseSystemResources(p.logger, id)
-		return nil, err
+		return linux_backend.LinuxContainerSpec{}, err
 	}
 
 	pLog.Debug("calculate-environment", lager.Data{
@@ -269,43 +265,31 @@ func (p *LinuxContainerPool) Create(spec garden.ContainerSpec) (c linux_backend.
 		"create-env": specEnv,
 	})
 
-	cgroupReader := &cgroups_manager.LinuxCgroupReader{
-		Path: p.sysconfig.CgroupNodeFilePath,
-	}
+	spec.Env = rootFSEnv.Merge(specEnv).Array()
+	spec.Handle = handle
 
-	container := linux_container.NewLinuxContainer(
-		pLog,
-		id,
-		handle,
-		containerPath,
-		containerRootFSPath,
-		spec.Properties,
-		spec.GraceTime,
-		resources,
-		p.portPool,
-		p.runner,
-		cgroups_manager.New(p.sysconfig.CgroupPath, id, cgroupReader),
-		p.quotaManager,
-		bandwidth_manager.New(containerPath, id, p.runner),
-		process_tracker.New(containerPath, p.runner),
-		rootFSEnv.Merge(specEnv),
-		p.filterProvider.ProvideFilter(id),
-	)
-	container.NetworkStatisticser = devices.Link{Name: p.sysconfig.NetworkInterfacePrefix + id + "-0"}
+	return linux_backend.LinuxContainerSpec{
+		ID:                  id,
+		ContainerPath:       containerPath,
+		ContainerRootFSPath: containerRootFSPath,
+		Resources:           resources,
+		Events:              []string{},
+		State:               linux_backend.StateBorn,
 
-	return container, nil
+		ContainerSpec: spec,
+	}, nil
 }
 
-func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Container, error) {
+func (p *LinuxResourcePool) Restore(snapshot io.Reader) (linux_backend.LinuxContainerSpec, error) {
 	var containerSnapshot linux_container.ContainerSnapshot
 
 	err := json.NewDecoder(snapshot).Decode(&containerSnapshot)
 	if err != nil {
-		return nil, err
+		return linux_backend.LinuxContainerSpec{}, err
 	}
 
 	id := containerSnapshot.ID
-	containerRootFSPath := containerSnapshot.RootFSPath
+	// containerRootFSPath := containerSnapshot.RootFSPath
 
 	rLog := p.logger.Session("restore", lager.Data{
 		"id": id,
@@ -316,12 +300,12 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 	resources := containerSnapshot.Resources
 
 	if err = p.subnetPool.Remove(resources.Network); err != nil {
-		return nil, err
+		return linux_backend.LinuxContainerSpec{}, err
 	}
 
 	if err = p.bridges.Rereserve(resources.Bridge, resources.Network.Subnet, id); err != nil {
 		p.subnetPool.Release(resources.Network)
-		return nil, err
+		return linux_backend.LinuxContainerSpec{}, err
 	}
 
 	for _, port := range resources.Ports {
@@ -333,35 +317,24 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 				p.portPool.Release(port)
 			}
 
-			return nil, err
+			return linux_backend.LinuxContainerSpec{}, err
 		}
 	}
 
-	containerPath := path.Join(p.depotPath, id)
+	spec := linux_backend.LinuxContainerSpec{
+		ID:                  id,
+		ContainerPath:       path.Join(p.depotPath, id),
+		ContainerRootFSPath: containerSnapshot.RootFSPath,
 
-	cgroupsReader := &cgroups_manager.LinuxCgroupReader{
-		Path: p.sysconfig.CgroupNodeFilePath,
-	}
-	cgroupsManager := cgroups_manager.New(p.sysconfig.CgroupPath, id, cgroupsReader)
+		State:  linux_backend.State(containerSnapshot.State),
+		Events: containerSnapshot.Events,
+		ContainerSpec: garden.ContainerSpec{
+			Handle:     containerSnapshot.Handle,
+			GraceTime:  containerSnapshot.GraceTime,
+			Properties: containerSnapshot.Properties,
+		},
 
-	bandwidthManager := bandwidth_manager.New(containerPath, id, p.runner)
-
-	containerLogger := p.logger.Session(id)
-
-	containerEnv, err := process.NewEnv(containerSnapshot.EnvVars)
-	if err != nil {
-		return nil, err
-	}
-
-	container := linux_container.NewLinuxContainer(
-		containerLogger,
-		id,
-		containerSnapshot.Handle,
-		containerPath,
-		containerRootFSPath,
-		containerSnapshot.Properties,
-		containerSnapshot.GraceTime,
-		linux_backend.NewResources(
+		Resources: linux_backend.NewResources(
 			resources.UserUID,
 			resources.RootUID,
 			resources.Network,
@@ -369,49 +342,37 @@ func (p *LinuxContainerPool) Restore(snapshot io.Reader) (linux_backend.Containe
 			resources.Ports,
 			p.externalIP,
 		),
-		p.portPool,
-		p.runner,
-		cgroupsManager,
-		p.quotaManager,
-		bandwidthManager,
-		process_tracker.New(containerPath, p.runner),
-		containerEnv,
-		p.filterProvider.ProvideFilter(id),
-	)
 
-	err = container.Restore(containerSnapshot)
-	if err != nil {
-		return nil, err
+		Limits:    containerSnapshot.Limits,
+		NetIns:    containerSnapshot.NetIns,
+		NetOuts:   containerSnapshot.NetOuts,
+		Processes: containerSnapshot.Processes,
 	}
 
-	rLog.Info("restored")
-
-	return container, nil
+	return spec, nil
 }
 
-func (p *LinuxContainerPool) Destroy(container linux_backend.Container) error {
-	pLog := p.logger.Session("destroy", lager.Data{
-		"id": container.ID(),
+func (p *LinuxResourcePool) Release(container linux_backend.LinuxContainerSpec) error {
+	pLog := p.logger.Session("release", lager.Data{
+		"id": container.ID,
 	})
 
-	pLog.Info("destroying")
+	pLog.Info("releasing")
 
-	err := p.releaseSystemResources(pLog, container.ID())
+	err := p.releaseSystemResources(pLog, container.ID)
 	if err != nil {
 		pLog.Error("release-system-resources", err)
 		return err
 	}
 
-	linuxContainer := container.(*linux_container.LinuxContainer)
-	resources := linuxContainer.Resources()
-	p.releasePoolResources(resources)
+	p.releasePoolResources(container.Resources)
 
-	pLog.Info("destroyed")
+	pLog.Info("released")
 
 	return nil
 }
 
-func (p *LinuxContainerPool) generateContainerIDs() {
+func (p *LinuxResourcePool) generateContainerIDs() {
 	for containerNum := time.Now().UnixNano(); ; containerNum++ {
 		containerID := []byte{}
 
@@ -428,7 +389,7 @@ func (p *LinuxContainerPool) generateContainerIDs() {
 	}
 }
 
-func (p *LinuxContainerPool) writeBindMounts(containerPath string,
+func (p *LinuxResourcePool) writeBindMounts(containerPath string,
 	rootfsPath string,
 	bindMounts []garden.BindMount) error {
 	hook := path.Join(containerPath, "lib", "hook-parent-before-clone.sh")
@@ -470,17 +431,17 @@ func (p *LinuxContainerPool) writeBindMounts(containerPath string,
 	return nil
 }
 
-func (p *LinuxContainerPool) saveBridgeName(id string, bridgeName string) error {
+func (p *LinuxResourcePool) saveBridgeName(id string, bridgeName string) error {
 	bridgeNameFile := path.Join(p.depotPath, id, "bridge-name")
 	return ioutil.WriteFile(bridgeNameFile, []byte(bridgeName), 0644)
 }
 
-func (p *LinuxContainerPool) saveRootFSProvider(id string, provider string) error {
+func (p *LinuxResourcePool) saveRootFSProvider(id string, provider string) error {
 	providerFile := path.Join(p.depotPath, id, "rootfs-provider")
 	return ioutil.WriteFile(providerFile, []byte(provider), 0644)
 }
 
-func (p *LinuxContainerPool) acquirePoolResources(spec garden.ContainerSpec, id string) (*linux_backend.Resources, error) {
+func (p *LinuxResourcePool) acquirePoolResources(spec garden.ContainerSpec, id string) (*linux_backend.Resources, error) {
 	resources := linux_backend.NewResources(0, 1, nil, "", nil, p.externalIP)
 
 	subnet, ip, err := parseNetworkSpec(spec.Network)
@@ -500,7 +461,7 @@ func (p *LinuxContainerPool) acquirePoolResources(spec garden.ContainerSpec, id 
 	return resources, nil
 }
 
-func (p *LinuxContainerPool) acquireUID(resources *linux_backend.Resources, privileged bool) error {
+func (p *LinuxResourcePool) acquireUID(resources *linux_backend.Resources, privileged bool) error {
 	if !privileged {
 		resources.UserUID = vcapUid + p.uidNamespaceOffset
 		resources.RootUID = p.uidNamespaceOffset
@@ -512,7 +473,7 @@ func (p *LinuxContainerPool) acquireUID(resources *linux_backend.Resources, priv
 	return nil
 }
 
-func (p *LinuxContainerPool) releasePoolResources(resources *linux_backend.Resources) {
+func (p *LinuxResourcePool) releasePoolResources(resources *linux_backend.Resources) {
 	for _, port := range resources.Ports {
 		p.portPool.Release(port)
 	}
@@ -522,7 +483,7 @@ func (p *LinuxContainerPool) releasePoolResources(resources *linux_backend.Resou
 	}
 }
 
-func (p *LinuxContainerPool) acquireSystemResources(id, handle, containerPath, rootFSPath string, resources *linux_backend.Resources, bindMounts []garden.BindMount, pLog lager.Logger) (string, process.Env, error) {
+func (p *LinuxResourcePool) acquireSystemResources(id, handle, containerPath, rootFSPath string, resources *linux_backend.Resources, bindMounts []garden.BindMount, pLog lager.Logger) (string, process.Env, error) {
 	if err := os.MkdirAll(containerPath, 0755); err != nil {
 		return "", nil, fmt.Errorf("containerpool: creating container directory: %v", err)
 	}
@@ -627,21 +588,21 @@ func (p *LinuxContainerPool) acquireSystemResources(id, handle, containerPath, r
 	filterLog.Debug("starting")
 	if err = p.filterProvider.ProvideFilter(id).Setup(handle); err != nil {
 		p.logger.Error("set-up-filter-failed", err)
-		return "", nil, fmt.Errorf("container_pool: set up filter: %v", err)
+		return "", nil, fmt.Errorf("resource_pool: set up filter: %v", err)
 	}
 	filterLog.Debug("finished")
 
 	return rootfsPath, rootFSEnvVars, nil
 }
 
-func (p *LinuxContainerPool) tryReleaseSystemResources(logger lager.Logger, id string) {
+func (p *LinuxResourcePool) tryReleaseSystemResources(logger lager.Logger, id string) {
 	err := p.releaseSystemResources(logger, id)
 	if err != nil {
 		logger.Error("failed-to-undo-failed-create", err)
 	}
 }
 
-func (p *LinuxContainerPool) releaseSystemResources(logger lager.Logger, id string) error {
+func (p *LinuxResourcePool) releaseSystemResources(logger lager.Logger, id string) error {
 	pRunner := logging.Runner{
 		CommandRunner: p.runner,
 		Logger:        logger,

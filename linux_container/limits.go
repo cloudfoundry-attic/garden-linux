@@ -20,7 +20,7 @@ func (c *LinuxContainer) LimitBandwidth(limits garden.BandwidthLimits) error {
 	c.bandwidthMutex.Lock()
 	defer c.bandwidthMutex.Unlock()
 
-	c.currentBandwidthLimits = &limits
+	c.LinuxContainerSpec.Limits.Bandwidth = &limits
 
 	return nil
 }
@@ -29,11 +29,11 @@ func (c *LinuxContainer) CurrentBandwidthLimits() (garden.BandwidthLimits, error
 	c.bandwidthMutex.RLock()
 	defer c.bandwidthMutex.RUnlock()
 
-	if c.currentBandwidthLimits == nil {
+	if c.LinuxContainerSpec.Limits.Bandwidth == nil {
 		return garden.BandwidthLimits{}, nil
 	}
 
-	return *c.currentBandwidthLimits, nil
+	return *c.LinuxContainerSpec.Limits.Bandwidth, nil
 }
 
 func (c *LinuxContainer) LimitDisk(limits garden.DiskLimits) error {
@@ -47,7 +47,7 @@ func (c *LinuxContainer) LimitDisk(limits garden.DiskLimits) error {
 	c.diskMutex.Lock()
 	defer c.diskMutex.Unlock()
 
-	c.currentDiskLimits = &limits
+	c.LinuxContainerSpec.Limits.Disk = &limits
 
 	return nil
 }
@@ -82,7 +82,7 @@ func (c *LinuxContainer) LimitMemory(limits garden.MemoryLimits) error {
 	c.memoryMutex.Lock()
 	defer c.memoryMutex.Unlock()
 
-	c.currentMemoryLimits = &limits
+	c.LinuxContainerSpec.Limits.Memory = &limits
 
 	return nil
 }
@@ -112,7 +112,7 @@ func (c *LinuxContainer) LimitCPU(limits garden.CPULimits) error {
 	c.cpuMutex.Lock()
 	defer c.cpuMutex.Unlock()
 
-	c.currentCPULimits = &limits
+	c.LinuxContainerSpec.Limits.CPU = &limits
 
 	return nil
 }
@@ -139,7 +139,7 @@ func (c *LinuxContainer) startOomNotifier() error {
 		return nil
 	}
 
-	oomPath := path.Join(c.path, "bin", "oom")
+	oomPath := path.Join(c.ContainerPath, "bin", "oom")
 
 	memorySubsystemPath, err := c.cgroupsManager.SubsystemPath("memory")
 	if err != nil {

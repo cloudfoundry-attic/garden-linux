@@ -20,7 +20,6 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/old/bandwidth_manager/fake_bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/cgroups_manager/fake_cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/port_pool/fake_port_pool"
-	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/cloudfoundry-incubator/garden-linux/process_tracker/fake_process_tracker"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
@@ -63,22 +62,24 @@ var _ = Describe("Linux containers", func() {
 
 	JustBeforeEach(func() {
 		container = linux_container.NewLinuxContainer(
-			lagertest.NewTestLogger("test"),
-			"some-id",
-			"some-handle",
-			containerDir,
-			"some-volume-path",
-			nil,
-			1*time.Second,
-			containerResources,
+			linux_backend.LinuxContainerSpec{
+				ID:                  "some-id",
+				ContainerPath:       containerDir,
+				ContainerRootFSPath: "some-volume-path",
+				Resources:           containerResources,
+				ContainerSpec: garden.ContainerSpec{
+					Handle:    "some-handle",
+					GraceTime: time.Second * 1,
+				},
+			},
 			fake_port_pool.New(1000),
 			fakeRunner,
 			fakeCgroups,
 			fakeQuotaManager,
 			fakeBandwidthManager,
 			new(fake_process_tracker.FakeProcessTracker),
-			process.Env{"env1": "env1Value", "env2": "env2Value"},
 			new(networkFakes.FakeFilter),
+			lagertest.NewTestLogger("linux-container-limits-test"),
 		)
 	})
 

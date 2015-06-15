@@ -13,8 +13,8 @@ import (
 )
 
 func (c *LinuxContainer) Run(spec garden.ProcessSpec, processIO garden.ProcessIO) (garden.Process, error) {
-	wshPath := path.Join(c.path, "bin", "wsh")
-	sockPath := path.Join(c.path, "run", "wshd.sock")
+	wshPath := path.Join(c.ContainerPath, "bin", "wsh")
+	sockPath := path.Join(c.ContainerPath, "run", "wshd.sock")
 
 	if spec.User == "" {
 		c.logger.Error("linux_container: Run:", fmt.Errorf("linux_container: Run: A User for the process to run as must be specified. ProcessSpec: %+v", spec))
@@ -29,11 +29,16 @@ func (c *LinuxContainer) Run(spec garden.ProcessSpec, processIO garden.ProcessIO
 	}
 
 	c.logger.Session("run").Debug("calculate-environment", lager.Data{
-		"container-env": c.env,
+		"container-env": c.Env,
 		"run-env":       specEnv,
 	})
 
-	processEnv := c.env.Merge(specEnv)
+	procEnv, err := process.NewEnv(c.Env)
+	if err != nil {
+		return nil, err
+	}
+
+	processEnv := procEnv.Merge(specEnv)
 
 	for _, envVar := range processEnv.Array() {
 		args = append(args, "--env", envVar)
@@ -44,13 +49,14 @@ func (c *LinuxContainer) Run(spec garden.ProcessSpec, processIO garden.ProcessIO
 	}
 
 	processID := c.processIDPool.Next()
+	c.logger.Info("next pid", lager.Data{"pid": processID})
 
-	pidfile := path.Join(c.path, "processes", fmt.Sprintf("%d.pid", processID))
+	pidfile := path.Join(c.ContainerPath, "processes", fmt.Sprintf("%d.pid", processID))
 	args = append(args, "--pidfile", pidfile)
 
 	signaller := &linux_backend.NamespacedSignaller{
 		Runner:        c.runner,
-		ContainerPath: c.path,
+		ContainerPath: c.ContainerPath,
 		PidFilePath:   pidfile,
 		Logger:        c.logger,
 	}

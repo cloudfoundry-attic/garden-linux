@@ -12,10 +12,10 @@ import (
 	"github.com/docker/docker/registry"
 	"github.com/pivotal-golang/lager/lagertest"
 
-	"github.com/cloudfoundry-incubator/garden-linux/container_pool/fake_graph"
 	. "github.com/cloudfoundry-incubator/garden-linux/old/repository_fetcher"
 	"github.com/cloudfoundry-incubator/garden-linux/old/repository_fetcher/fakes"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
+	"github.com/cloudfoundry-incubator/garden-linux/resource_pool/fake_graph"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/ghttp"

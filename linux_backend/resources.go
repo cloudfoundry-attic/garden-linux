@@ -4,6 +4,51 @@ import (
 	"encoding/json"
 	"net"
 	"sync"
+
+	"github.com/cloudfoundry-incubator/garden"
+)
+
+type LinuxContainerSpec struct {
+	ID                  string
+	ContainerPath       string
+	ContainerRootFSPath string
+
+	Resources *Resources
+	State     State
+	Events    []string
+
+	garden.ContainerSpec
+
+	Limits    Limits
+	Processes []ActiveProcess
+
+	NetIns  []NetInSpec
+	NetOuts []garden.NetOutRule
+}
+
+type ActiveProcess struct {
+	ID  uint32
+	TTY bool
+}
+
+type Limits struct {
+	Memory    *garden.MemoryLimits
+	Disk      *garden.DiskLimits
+	Bandwidth *garden.BandwidthLimits
+	CPU       *garden.CPULimits
+}
+
+type NetInSpec struct {
+	HostPort      uint32
+	ContainerPort uint32
+}
+
+type State string
+
+const (
+	StateBorn    = State("born")
+	StateActive  = State("active")
+	StateStopped = State("stopped")
 )
 
 type Network struct {

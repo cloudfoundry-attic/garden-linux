@@ -4,9 +4,9 @@ package fake_subnet_pool
 import (
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden-linux/container_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
+	"github.com/cloudfoundry-incubator/garden-linux/resource_pool"
 )
 
 type FakeSubnetPool struct {
@@ -166,4 +166,4 @@ func (fake *FakeSubnetPool) CapacityReturns(result1 int) {
 	}{result1}
 }
 
-var _ container_pool.SubnetPool = new(FakeSubnetPool)
+var _ resource_pool.SubnetPool = new(FakeSubnetPool)

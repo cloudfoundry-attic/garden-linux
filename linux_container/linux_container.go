@@ -20,7 +20,6 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/old/bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/logging"
-	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/cloudfoundry-incubator/garden-linux/process_tracker"
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/pivotal-golang/lager"
@@ -46,68 +45,38 @@ type QuotaManager interface {
 }
 
 type LinuxContainer struct {
-	logger lager.Logger
-
-	id         string
-	handle     string
-	path       string
-	rootFSPath string
-
-	properties      garden.Properties
 	propertiesMutex sync.RWMutex
+	stateMutex      sync.RWMutex
+	eventsMutex     sync.RWMutex
+	bandwidthMutex  sync.RWMutex
+	diskMutex       sync.RWMutex
+	memoryMutex     sync.RWMutex
+	cpuMutex        sync.RWMutex
+	netInsMutex     sync.RWMutex
+	netOutsMutex    sync.RWMutex
+	linux_backend.LinuxContainerSpec
 
-	graceTime time.Duration
-
-	state      State
-	stateMutex sync.RWMutex
-
-	events      []string
-	eventsMutex sync.RWMutex
-
-	resources *linux_backend.Resources
-
-	portPool PortPool
-
-	runner command_runner.CommandRunner
-
+	portPool         PortPool
+	runner           command_runner.CommandRunner
 	cgroupsManager   cgroups_manager.CgroupsManager
 	quotaManager     QuotaManager
 	bandwidthManager bandwidth_manager.BandwidthManager
+	processTracker   process_tracker.ProcessTracker
+	filter           network.Filter
+	processIDPool    *ProcessIDPool
 
-	processTracker process_tracker.ProcessTracker
-
-	filter network.Filter
-
-	oomMutex    sync.RWMutex
 	oomNotifier *exec.Cmd
-
-	currentBandwidthLimits *garden.BandwidthLimits
-	bandwidthMutex         sync.RWMutex
-
-	currentDiskLimits *garden.DiskLimits
-	diskMutex         sync.RWMutex
-
-	currentMemoryLimits *garden.MemoryLimits
-	memoryMutex         sync.RWMutex
-
-	currentCPULimits *garden.CPULimits
-	cpuMutex         sync.RWMutex
-
-	netIns      []NetInSpec
-	netInsMutex sync.RWMutex
-
-	netOuts      []garden.NetOutRule
-	netOutsMutex sync.RWMutex
+	oomMutex    sync.RWMutex
 
 	mtu uint32
 
-	env process.Env
+	NetworkStatisticser NetworkStatisticser
 
-	processIDPool *ProcessIDPool
+	logger lager.Logger
+}
 
-	NetworkStatisticser interface {
-		Statistics() (stats garden.ContainerNetworkStat, err error)
-	}
+type NetworkStatisticser interface {
+	Statistics() (stats garden.ContainerNetworkStat, err error)
 }
 
 type ProcessIDPool struct {
@@ -132,110 +101,73 @@ func (p *ProcessIDPool) Restore(id uint32) {
 	}
 }
 
-type NetInSpec struct {
-	HostPort      uint32
-	ContainerPort uint32
-}
-
 type PortPool interface {
 	Acquire() (uint32, error)
 	Remove(uint32) error
 	Release(uint32)
 }
 
-type State string
-
-const (
-	StateBorn    = State("born")
-	StateActive  = State("active")
-	StateStopped = State("stopped")
-)
-
 func NewLinuxContainer(
-	logger lager.Logger,
-	id, handle, path, rootFSPath string,
-	properties garden.Properties,
-	graceTime time.Duration,
-	resources *linux_backend.Resources,
+	spec linux_backend.LinuxContainerSpec,
 	portPool PortPool,
 	runner command_runner.CommandRunner,
 	cgroupsManager cgroups_manager.CgroupsManager,
 	quotaManager QuotaManager,
 	bandwidthManager bandwidth_manager.BandwidthManager,
 	processTracker process_tracker.ProcessTracker,
-	env process.Env,
 	filter network.Filter,
+	logger lager.Logger,
 ) *LinuxContainer {
 	return &LinuxContainer{
-		logger: logger,
+		LinuxContainerSpec: spec,
 
-		id:         id,
-		handle:     handle,
-		path:       path,
-		rootFSPath: rootFSPath,
-
-		properties: properties,
-
-		graceTime: graceTime,
-
-		state:  StateBorn,
-		events: []string{},
-
-		resources: resources,
-
-		portPool: portPool,
-
-		runner: runner,
-
+		portPool:         portPool,
+		runner:           runner,
 		cgroupsManager:   cgroupsManager,
 		quotaManager:     quotaManager,
 		bandwidthManager: bandwidthManager,
+		processTracker:   processTracker,
+		filter:           filter,
+		processIDPool:    &ProcessIDPool{},
 
-		processTracker: processTracker,
-
-		filter: filter,
-
-		env:           env,
-		processIDPool: &ProcessIDPool{},
+		logger: logger,
 	}
 }
 
 func (c *LinuxContainer) ID() string {
-	return c.id
+	return c.LinuxContainerSpec.ID
+}
+
+func (c *LinuxContainer) ResourceSpec() linux_backend.LinuxContainerSpec {
+	return c.LinuxContainerSpec
 }
 
 func (c *LinuxContainer) RootFSPath() string {
-	return c.rootFSPath
+	return c.ContainerRootFSPath
 }
 
 func (c *LinuxContainer) Handle() string {
-	return c.handle
+	return c.LinuxContainerSpec.Handle
 }
 
 func (c *LinuxContainer) GraceTime() time.Duration {
-	return c.graceTime
+	return c.LinuxContainerSpec.GraceTime
 }
 
-func (c *LinuxContainer) State() State {
+func (c *LinuxContainer) State() linux_backend.State {
 	c.stateMutex.RLock()
 	defer c.stateMutex.RUnlock()
 
-	return c.state
+	return c.LinuxContainerSpec.State
 }
 
 func (c *LinuxContainer) Events() []string {
 	c.eventsMutex.RLock()
 	defer c.eventsMutex.RUnlock()
 
-	events := make([]string, len(c.events))
-
-	copy(events, c.events)
-
+	events := make([]string, len(c.LinuxContainerSpec.Events))
+	copy(events, c.LinuxContainerSpec.Events)
 	return events
-}
-
-func (c *LinuxContainer) Resources() *linux_backend.Resources {
-	return c.resources
 }
 
 func (c *LinuxContainer) Snapshot(out io.Writer) error {
@@ -261,52 +193,47 @@ func (c *LinuxContainer) Snapshot(out io.Writer) error {
 	c.netOutsMutex.RLock()
 	defer c.netOutsMutex.RUnlock()
 
-	processSnapshots := []ProcessSnapshot{}
+	processSnapshots := []linux_backend.ActiveProcess{}
 
 	for _, p := range c.processTracker.ActiveProcesses() {
-		processSnapshots = append(
-			processSnapshots,
-			ProcessSnapshot{
-				ID: p.ID(),
-			},
-		)
+		processSnapshots = append(processSnapshots, linux_backend.ActiveProcess{ID: p.ID()})
 	}
 
 	properties, _ := c.Properties()
 
 	snapshot := ContainerSnapshot{
-		ID:         c.id,
-		Handle:     c.handle,
+		ID:         c.ID(),
+		Handle:     c.Handle(),
 		RootFSPath: c.RootFSPath(),
 
-		GraceTime: c.graceTime,
+		GraceTime: c.LinuxContainerSpec.GraceTime,
 
 		State:  string(c.State()),
 		Events: c.Events(),
 
-		Limits: LimitsSnapshot{
-			Bandwidth: c.currentBandwidthLimits,
-			CPU:       c.currentCPULimits,
-			Disk:      c.currentDiskLimits,
-			Memory:    c.currentMemoryLimits,
+		Limits: linux_backend.Limits{
+			Bandwidth: c.LinuxContainerSpec.Limits.Bandwidth,
+			CPU:       c.LinuxContainerSpec.Limits.CPU,
+			Disk:      c.LinuxContainerSpec.Limits.Disk,
+			Memory:    c.LinuxContainerSpec.Limits.Memory,
 		},
 
 		Resources: ResourcesSnapshot{
-			UserUID: c.resources.UserUID,
-			RootUID: c.resources.RootUID,
-			Network: c.resources.Network,
-			Bridge:  c.resources.Bridge,
-			Ports:   c.resources.Ports,
+			UserUID: c.Resources.UserUID,
+			RootUID: c.Resources.RootUID,
+			Network: c.Resources.Network,
+			Bridge:  c.Resources.Bridge,
+			Ports:   c.Resources.Ports,
 		},
 
-		NetIns:  c.netIns,
-		NetOuts: c.netOuts,
+		NetIns:  c.NetIns,
+		NetOuts: c.NetOuts,
 
 		Processes: processSnapshots,
 
 		Properties: properties,
 
-		EnvVars: c.env.Array(),
+		EnvVars: c.Env,
 	}
 
 	var err error
@@ -326,7 +253,7 @@ func (c *LinuxContainer) Snapshot(out io.Writer) error {
 	return nil
 }
 
-func (c *LinuxContainer) Restore(snapshot ContainerSnapshot) error {
+func (c *LinuxContainer) Restore(snapshot linux_backend.LinuxContainerSpec) error {
 	cLog := c.logger.Session("restore")
 
 	cLog.Debug("restoring")
@@ -336,16 +263,9 @@ func (c *LinuxContainer) Restore(snapshot ContainerSnapshot) error {
 		Logger:        cLog,
 	}
 
-	c.setState(State(snapshot.State))
+	c.setState(linux_backend.State(snapshot.State))
 
-	snapshotEnv, err := process.NewEnv(snapshot.EnvVars)
-	if err != nil {
-		cLog.Error("restoring-env", err, lager.Data{
-			"env": snapshot.EnvVars,
-		})
-		return err
-	}
-	c.env = snapshotEnv
+	c.Env = snapshot.Env
 
 	for _, ev := range snapshot.Events {
 		c.registerEvent(ev)
@@ -366,11 +286,11 @@ func (c *LinuxContainer) Restore(snapshot ContainerSnapshot) error {
 
 		c.processIDPool.Restore(process.ID)
 
-		pidfile := path.Join(c.path, "processes", fmt.Sprintf("%d.pid", process.ID))
+		pidfile := path.Join(c.ContainerPath, "processes", fmt.Sprintf("%d.pid", process.ID))
 
 		signaller := &linux_backend.NamespacedSignaller{
 			Runner:        c.runner,
-			ContainerPath: c.path,
+			ContainerPath: c.ContainerPath,
 			PidFilePath:   pidfile,
 			Logger:        c.logger,
 		}
@@ -378,17 +298,15 @@ func (c *LinuxContainer) Restore(snapshot ContainerSnapshot) error {
 		c.processTracker.Restore(process.ID, signaller)
 	}
 
-	net := exec.Command(path.Join(c.path, "net.sh"), "setup")
+	net := exec.Command(path.Join(c.ContainerPath, "net.sh"), "setup")
 
-	err = cRunner.Run(net)
-	if err != nil {
+	if err := cRunner.Run(net); err != nil {
 		cLog.Error("failed-to-reenforce-network-rules", err)
 		return err
 	}
 
 	for _, in := range snapshot.NetIns {
-		_, _, err = c.NetIn(in.HostPort, in.ContainerPort)
-		if err != nil {
+		if _, _, err := c.NetIn(in.HostPort, in.ContainerPort); err != nil {
 			cLog.Error("failed-to-reenforce-port-mapping", err)
 			return err
 		}
@@ -411,9 +329,9 @@ func (c *LinuxContainer) Start() error {
 
 	cLog.Debug("starting")
 
-	start := exec.Command(path.Join(c.path, "start.sh"))
+	start := exec.Command(path.Join(c.ContainerPath, "start.sh"))
 	start.Env = []string{
-		"id=" + c.id,
+		"id=" + c.ID(),
 		"PATH=" + os.Getenv("PATH"),
 	}
 
@@ -428,7 +346,7 @@ func (c *LinuxContainer) Start() error {
 		return fmt.Errorf("container: start: %v", err)
 	}
 
-	c.setState(StateActive)
+	c.setState(linux_backend.StateActive)
 
 	cLog.Info("started")
 
@@ -445,7 +363,7 @@ func (c *LinuxContainer) Cleanup() {
 }
 
 func (c *LinuxContainer) Stop(kill bool) error {
-	stop := exec.Command(path.Join(c.path, "stop.sh"))
+	stop := exec.Command(path.Join(c.ContainerPath, "stop.sh"))
 
 	if kill {
 		stop.Args = append(stop.Args, "-w", "0")
@@ -458,7 +376,7 @@ func (c *LinuxContainer) Stop(kill bool) error {
 
 	c.stopOomNotifier()
 
-	c.setState(StateStopped)
+	c.setState(linux_backend.StateStopped)
 
 	return nil
 }
@@ -467,14 +385,14 @@ func (c *LinuxContainer) Properties() (garden.Properties, error) {
 	c.propertiesMutex.RLock()
 	defer c.propertiesMutex.RUnlock()
 
-	return c.properties, nil
+	return c.LinuxContainerSpec.Properties, nil
 }
 
 func (c *LinuxContainer) Property(key string) (string, error) {
 	c.propertiesMutex.RLock()
 	defer c.propertiesMutex.RUnlock()
 
-	value, found := c.properties[key]
+	value, found := c.LinuxContainerSpec.Properties[key]
 	if !found {
 		return "", UndefinedPropertyError{key}
 	}
@@ -487,13 +405,13 @@ func (c *LinuxContainer) SetProperty(key string, value string) error {
 	defer c.propertiesMutex.Unlock()
 
 	props := garden.Properties{}
-	for k, v := range c.properties {
+	for k, v := range c.LinuxContainerSpec.Properties {
 		props[k] = v
 	}
 
 	props[key] = value
 
-	c.properties = props
+	c.LinuxContainerSpec.Properties = props
 
 	return nil
 }
@@ -502,11 +420,11 @@ func (c *LinuxContainer) RemoveProperty(key string) error {
 	c.propertiesMutex.Lock()
 	defer c.propertiesMutex.Unlock()
 
-	if _, found := c.properties[key]; !found {
+	if _, found := c.LinuxContainerSpec.Properties[key]; !found {
 		return UndefinedPropertyError{key}
 	}
 
-	delete(c.properties, key)
+	delete(c.LinuxContainerSpec.Properties, key)
 
 	return nil
 }
@@ -516,7 +434,7 @@ func (c *LinuxContainer) HasProperties(properties garden.Properties) bool {
 	defer c.propertiesMutex.RUnlock()
 
 	for k, v := range properties {
-		if value, ok := c.properties[k]; !ok || (ok && value != v) {
+		if value, ok := c.LinuxContainerSpec.Properties[k]; !ok || (ok && value != v) {
 			return false
 		}
 	}
@@ -529,7 +447,7 @@ func (c *LinuxContainer) Info() (garden.ContainerInfo, error) {
 
 	c.netInsMutex.RLock()
 
-	for _, spec := range c.netIns {
+	for _, spec := range c.NetIns {
 		mappedPorts = append(mappedPorts, garden.PortMapping{
 			HostPort:      spec.HostPort,
 			ContainerPort: spec.ContainerPort,
@@ -549,21 +467,21 @@ func (c *LinuxContainer) Info() (garden.ContainerInfo, error) {
 		State:         string(c.State()),
 		Events:        c.Events(),
 		Properties:    properties,
-		ContainerPath: c.path,
+		ContainerPath: c.ContainerPath,
 		ProcessIDs:    processIDs,
 		MappedPorts:   mappedPorts,
 	}
 
-	info.ContainerIP = c.resources.Network.IP.String()
-	info.HostIP = subnets.GatewayIP(c.resources.Network.Subnet).String()
-	info.ExternalIP = c.Resources().ExternalIP.String()
+	info.ContainerIP = c.Resources.Network.IP.String()
+	info.HostIP = subnets.GatewayIP(c.Resources.Network.Subnet).String()
+	info.ExternalIP = c.Resources.ExternalIP.String()
 
 	return info, nil
 }
 
 func (c *LinuxContainer) StreamIn(dstPath string, tarStream io.Reader) error {
-	nsTarPath := path.Join(c.path, "bin", "nstar")
-	pidPath := path.Join(c.path, "run", "wshd.pid")
+	nsTarPath := path.Join(c.ContainerPath, "bin", "nstar")
+	pidPath := path.Join(c.ContainerPath, "run", "wshd.pid")
 
 	pidFile, err := os.Open(pidPath)
 	if err != nil {
@@ -603,8 +521,8 @@ func (c *LinuxContainer) StreamOut(srcPath string) (io.ReadCloser, error) {
 		compressArg = "."
 	}
 
-	nsTarPath := path.Join(c.path, "bin", "nstar")
-	pidPath := path.Join(c.path, "run", "wshd.pid")
+	nsTarPath := path.Join(c.ContainerPath, "bin", "nstar")
+	pidPath := path.Join(c.ContainerPath, "run", "wshd.pid")
 
 	pidFile, err := os.Open(pidPath)
 	if err != nil {
@@ -652,7 +570,7 @@ func (c *LinuxContainer) NetIn(hostPort uint32, containerPort uint32) (uint32, u
 			return 0, 0, err
 		}
 
-		c.resources.AddPort(randomPort)
+		c.Resources.AddPort(randomPort)
 
 		hostPort = randomPort
 	}
@@ -661,7 +579,7 @@ func (c *LinuxContainer) NetIn(hostPort uint32, containerPort uint32) (uint32, u
 		containerPort = hostPort
 	}
 
-	net := exec.Command(path.Join(c.path, "net.sh"), "in")
+	net := exec.Command(path.Join(c.ContainerPath, "net.sh"), "in")
 	net.Env = []string{
 		fmt.Sprintf("HOST_PORT=%d", hostPort),
 		fmt.Sprintf("CONTAINER_PORT=%d", containerPort),
@@ -676,7 +594,7 @@ func (c *LinuxContainer) NetIn(hostPort uint32, containerPort uint32) (uint32, u
 	c.netInsMutex.Lock()
 	defer c.netInsMutex.Unlock()
 
-	c.netIns = append(c.netIns, NetInSpec{hostPort, containerPort})
+	c.NetIns = append(c.NetIns, linux_backend.NetInSpec{hostPort, containerPort})
 
 	return hostPort, containerPort, nil
 }
@@ -690,25 +608,21 @@ func (c *LinuxContainer) NetOut(r garden.NetOutRule) error {
 	c.netOutsMutex.Lock()
 	defer c.netOutsMutex.Unlock()
 
-	c.netOuts = append(c.netOuts, r)
+	c.NetOuts = append(c.NetOuts, r)
 
 	return nil
 }
 
-func (c *LinuxContainer) CurrentEnvVars() process.Env {
-	return c.env
-}
-
-func (c *LinuxContainer) setState(state State) {
+func (c *LinuxContainer) setState(state linux_backend.State) {
 	c.stateMutex.Lock()
 	defer c.stateMutex.Unlock()
 
-	c.state = state
+	c.LinuxContainerSpec.State = state
 }
 
 func (c *LinuxContainer) registerEvent(event string) {
 	c.eventsMutex.Lock()
 	defer c.eventsMutex.Unlock()
 
-	c.events = append(c.events, event)
+	c.LinuxContainerSpec.Events = append(c.LinuxContainerSpec.Events, event)
 }

@@ -3,6 +3,7 @@ package linux_backend_test
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"path"
@@ -13,7 +14,6 @@ import (
 	"github.com/pivotal-golang/lager/lagertest"
 
 	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/container_pool/fake_container_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/container_repository"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/fakes"
@@ -23,28 +23,88 @@ import (
 var _ = Describe("LinuxBackend", func() {
 	var logger *lagertest.TestLogger
 
-	var fakeContainerPool *fake_container_pool.FakeContainerPool
+	var fakeResourcePool *fakes.FakeResourcePool
 	var fakeSystemInfo *fake_system_info.FakeProvider
+	var fakeContainerProvider *fakes.FakeContainerProvider
 	var containerRepo linux_backend.ContainerRepository
 	var linuxBackend *linux_backend.LinuxBackend
 	var snapshotsPath string
 	var maxContainers int
+	var fakeContainers map[string]*fakes.FakeContainer
+
+	newTestContainer := func(spec linux_backend.LinuxContainerSpec) *fakes.FakeContainer {
+		container := new(fakes.FakeContainer)
+		container.HandleReturns(spec.Handle)
+		container.GraceTimeReturns(spec.GraceTime)
+
+		if spec.ID == "" {
+			spec.ID = spec.Handle
+		}
+
+		container.IDReturns(spec.ID)
+
+		container.HasPropertiesStub = func(props garden.Properties) bool {
+			for k, v := range props {
+				if value, ok := spec.Properties[k]; !ok || (ok && value != v) {
+					return false
+				}
+			}
+			return true
+		}
+
+		return container
+	}
+
+	registerTestContainer := func(container *fakes.FakeContainer) *fakes.FakeContainer {
+		fakeContainers[container.Handle()] = container
+		return container
+	}
 
 	BeforeEach(func() {
+		fakeContainers = make(map[string]*fakes.FakeContainer)
 		logger = lagertest.NewTestLogger("test")
-		fakeContainerPool = fake_container_pool.New()
+		fakeResourcePool = new(fakes.FakeResourcePool)
 		containerRepo = container_repository.New()
 		fakeSystemInfo = fake_system_info.NewFakeProvider()
 
 		snapshotsPath = ""
 		maxContainers = 0
+
+		id := 0
+		fakeResourcePool.AcquireStub = func(spec garden.ContainerSpec) (linux_backend.LinuxContainerSpec, error) {
+			if spec.Handle == "" {
+				id = id + 1
+				spec.Handle = fmt.Sprintf("handle-%d", id)
+			}
+			return linux_backend.LinuxContainerSpec{ContainerSpec: spec}, nil
+		}
+
+		fakeResourcePool.RestoreStub = func(snapshot io.Reader) (linux_backend.LinuxContainerSpec, error) {
+			b, err := ioutil.ReadAll(snapshot)
+			Expect(err).NotTo(HaveOccurred())
+
+			return linux_backend.LinuxContainerSpec{
+				ID:            string(b),
+				ContainerSpec: garden.ContainerSpec{Handle: string(b)},
+			}, nil
+		}
+
+		fakeContainerProvider = new(fakes.FakeContainerProvider)
+		fakeContainerProvider.ProvideContainerStub = func(spec linux_backend.LinuxContainerSpec) linux_backend.Container {
+			if c, ok := fakeContainers[spec.Handle]; ok {
+				return c
+			}
+
+			return newTestContainer(spec)
+		}
 	})
 
 	JustBeforeEach(func() {
 		linuxBackend = linux_backend.New(
 			logger,
-			fakeContainerPool,
+			fakeResourcePool,
 			containerRepo,
+			fakeContainerProvider,
 			fakeSystemInfo,
 			snapshotsPath,
 			maxContainers,
@@ -56,7 +116,7 @@ var _ = Describe("LinuxBackend", func() {
 			err := linuxBackend.Setup()
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(fakeContainerPool.DidSetup).To(BeTrue())
+			Expect(fakeResourcePool.SetupCallCount()).To(Equal(1))
 		})
 	})
 
@@ -126,16 +186,16 @@ var _ = Describe("LinuxBackend", func() {
 			})
 
 			It("restores them via the container pool", func() {
-				Expect(fakeContainerPool.RestoredSnapshots).To(BeEmpty())
+				Expect(fakeResourcePool.RestoreCallCount()).To(Equal(0))
 
 				err := linuxBackend.Start()
 				Expect(err).ToNot(HaveOccurred())
 
-				Expect(fakeContainerPool.RestoredSnapshots).To(HaveLen(2))
+				Expect(fakeResourcePool.RestoreCallCount()).To(Equal(2))
 			})
 
 			It("removes the snapshots", func() {
-				Expect(fakeContainerPool.RestoredSnapshots).To(BeEmpty())
+				Expect(fakeResourcePool.RestoreCallCount()).To(Equal(0))
 
 				err := linuxBackend.Start()
 				Expect(err).ToNot(HaveOccurred())
@@ -161,8 +221,8 @@ var _ = Describe("LinuxBackend", func() {
 				err := linuxBackend.Start()
 				Expect(err).ToNot(HaveOccurred())
 
-				Expect(fakeContainerPool.Pruned).To(BeTrue())
-				Expect(fakeContainerPool.KeptContainers).To(Equal(map[string]bool{
+				Expect(fakeResourcePool.PruneCallCount()).To(Equal(1))
+				Expect(fakeResourcePool.PruneArgsForCall(0)).To(Equal(map[string]bool{
 					"handle-a": true,
 					"handle-b": true,
 				}))
@@ -172,7 +232,7 @@ var _ = Describe("LinuxBackend", func() {
 				disaster := errors.New("failed to restore")
 
 				BeforeEach(func() {
-					fakeContainerPool.RestoreError = disaster
+					fakeResourcePool.RestoreReturns(linux_backend.LinuxContainerSpec{}, disaster)
 				})
 
 				It("successfully starts anyway", func() {
@@ -186,15 +246,15 @@ var _ = Describe("LinuxBackend", func() {
 			err := linuxBackend.Start()
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(fakeContainerPool.Pruned).To(BeTrue())
-			Expect(fakeContainerPool.KeptContainers).To(Equal(map[string]bool{}))
+			Expect(fakeResourcePool.PruneCallCount()).To(Equal(1))
+			Expect(fakeResourcePool.PruneArgsForCall(0)).To(Equal(map[string]bool{}))
 		})
 
 		Context("when pruning the container pool fails", func() {
 			disaster := errors.New("failed to prune")
 
 			BeforeEach(func() {
-				fakeContainerPool.PruneError = disaster
+				fakeResourcePool.PruneReturns(disaster)
 			})
 
 			It("returns the error", func() {
@@ -206,24 +266,18 @@ var _ = Describe("LinuxBackend", func() {
 
 	Describe("Stop", func() {
 		var (
-			container1 *fake_container_pool.FakeContainer
-			container2 *fake_container_pool.FakeContainer
+			container1 *fakes.FakeContainer
+			container2 *fakes.FakeContainer
 		)
 
 		BeforeEach(func() {
-			container1 = fake_container_pool.NewFakeContainer(
-				garden.ContainerSpec{
-					Handle: "some-handle",
-				},
-			)
-
-			container2 = fake_container_pool.NewFakeContainer(
-				garden.ContainerSpec{
-					Handle: "some-other-handle",
-				},
-			)
-
+			container1 = registerTestContainer(newTestContainer(linux_backend.LinuxContainerSpec{
+				ContainerSpec: garden.ContainerSpec{Handle: "container-1"},
+			}))
 			containerRepo.Add(container1)
+			container2 = registerTestContainer(newTestContainer(linux_backend.LinuxContainerSpec{
+				ContainerSpec: garden.ContainerSpec{Handle: "container-2"},
+			}))
 			containerRepo.Add(container2)
 		})
 
@@ -231,8 +285,8 @@ var _ = Describe("LinuxBackend", func() {
 			It("stops succesfully without saving snapshots", func() {
 				Expect(func() { linuxBackend.Stop() }).ToNot(Panic())
 
-				Expect(container1.SavedSnapshots).To(HaveLen(0))
-				Expect(container2.SavedSnapshots).To(HaveLen(0))
+				Expect(container1.SnapshotCallCount()).To(Equal(0))
+				Expect(container2.SnapshotCallCount()).To(Equal(0))
 			})
 		})
 
@@ -252,15 +306,15 @@ var _ = Describe("LinuxBackend", func() {
 			It("takes a snapshot of each container", func() {
 				linuxBackend.Stop()
 
-				Expect(container1.SavedSnapshots).To(HaveLen(1))
-				Expect(container2.SavedSnapshots).To(HaveLen(1))
+				Expect(container1.SnapshotCallCount()).To(Equal(1))
+				Expect(container2.SnapshotCallCount()).To(Equal(1))
 			})
 
 			It("cleans up each container", func() {
 				linuxBackend.Stop()
 
-				Expect(container1.CleanedUp).To(BeTrue())
-				Expect(container2.CleanedUp).To(BeTrue())
+				Expect(container1.CleanupCallCount()).To(Equal(1))
+				Expect(container2.CleanupCallCount()).To(Equal(1))
 			})
 		})
 	})
@@ -269,7 +323,7 @@ var _ = Describe("LinuxBackend", func() {
 		It("returns the right capacity values", func() {
 			fakeSystemInfo.TotalMemoryResult = 1111
 			fakeSystemInfo.TotalDiskResult = 2222
-			fakeContainerPool.MaxContainersValue = 42
+			fakeResourcePool.MaxContainersReturns(42)
 
 			capacity, err := linuxBackend.Capacity()
 			Expect(err).ToNot(HaveOccurred())
@@ -283,7 +337,7 @@ var _ = Describe("LinuxBackend", func() {
 			Context("and pool.MaxContainers is lower", func() {
 				BeforeEach(func() {
 					maxContainers = 60
-					fakeContainerPool.MaxContainersValue = 40
+					fakeResourcePool.MaxContainersReturns(40)
 				})
 
 				It("returns the pool.MaxContainers", func() {
@@ -295,7 +349,7 @@ var _ = Describe("LinuxBackend", func() {
 			Context("and pool.MaxContainers is higher", func() {
 				BeforeEach(func() {
 					maxContainers = 50
-					fakeContainerPool.MaxContainersValue = 60
+					fakeResourcePool.MaxContainersReturns(60)
 				})
 
 				It("returns the max containers argument", func() {
@@ -334,32 +388,45 @@ var _ = Describe("LinuxBackend", func() {
 	})
 
 	Describe("Create", func() {
-		It("creates a container from the pool", func() {
-			Expect(fakeContainerPool.CreatedContainers).To(BeEmpty())
+		It("acquires container resources from the pool", func() {
+			Expect(fakeResourcePool.AcquireCallCount()).To(Equal(0))
 
-			container, err := linuxBackend.Create(garden.ContainerSpec{})
+			spec := garden.ContainerSpec{Handle: "foo"}
+
+			_, err := linuxBackend.Create(spec)
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(fakeContainerPool.CreatedContainers).To(ContainElement(container))
+			Expect(fakeResourcePool.AcquireArgsForCall(0)).To(Equal(spec))
 		})
 
 		It("starts the container", func() {
-			container, err := linuxBackend.Create(garden.ContainerSpec{})
+			fakeContainer := registerTestContainer(newTestContainer(
+				linux_backend.LinuxContainerSpec{
+					ContainerSpec: garden.ContainerSpec{Handle: "foo"},
+				},
+			))
+
+			returnedContainer, err := linuxBackend.Create(garden.ContainerSpec{Handle: "foo"})
 			Expect(err).ToNot(HaveOccurred())
-			Expect(container.(*fake_container_pool.FakeContainer).Started).To(BeTrue())
+
+			Expect(returnedContainer).To(Equal(fakeContainer))
+			Expect(fakeContainer.StartCallCount()).To(Equal(1))
 		})
 
 		Context("when starting the container fails", func() {
 			It("destroys the container", func() {
-				var setupContainer *fake_container_pool.FakeContainer
-				fakeContainerPool.ContainerSetup = func(c *fake_container_pool.FakeContainer) {
-					c.StartError = errors.New("insufficient banana")
-					setupContainer = c
-				}
+				container := registerTestContainer(newTestContainer(
+					linux_backend.LinuxContainerSpec{
+						ContainerSpec: garden.ContainerSpec{Handle: "disastrous"},
+					},
+				))
 
-				_, err := linuxBackend.Create(garden.ContainerSpec{})
+				container.StartReturns(errors.New("insufficient banana!"))
+
+				_, err := linuxBackend.Create(garden.ContainerSpec{Handle: "disastrous"})
 				Expect(err).To(HaveOccurred())
-				Expect(fakeContainerPool.DestroyedContainers).To(ContainElement(setupContainer))
+				Expect(fakeResourcePool.ReleaseCallCount()).To(Equal(1))
+				Expect(fakeResourcePool.ReleaseArgsForCall(0).Handle).To(Equal("disastrous"))
 			})
 		})
 
@@ -377,7 +444,7 @@ var _ = Describe("LinuxBackend", func() {
 			disaster := errors.New("failed to create")
 
 			BeforeEach(func() {
-				fakeContainerPool.CreateError = disaster
+				fakeResourcePool.AcquireReturns(linux_backend.LinuxContainerSpec{}, disaster)
 			})
 
 			It("returns the error", func() {
@@ -403,9 +470,9 @@ var _ = Describe("LinuxBackend", func() {
 			disaster := errors.New("failed to start")
 
 			BeforeEach(func() {
-				fakeContainerPool.ContainerSetup = func(c *fake_container_pool.FakeContainer) {
-					c.StartError = disaster
-				}
+				container := new(fakes.FakeContainer)
+				fakeContainerProvider.ProvideContainerReturns(container)
+				container.StartReturns(disaster)
 			})
 
 			It("returns the error", func() {
@@ -440,27 +507,32 @@ var _ = Describe("LinuxBackend", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				_, err = linuxBackend.Create(garden.ContainerSpec{})
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(Equal("cannot create more than 2 containers"))
+				Expect(err).To(MatchError("cannot create more than 2 containers"))
 			})
 		})
 	})
 
 	Describe("Destroy", func() {
-		var container *fake_container_pool.FakeContainer
+		var container *fakes.FakeContainer
+
+		resources := linux_backend.LinuxContainerSpec{ID: "something"}
 
 		JustBeforeEach(func() {
-			container = fake_container_pool.NewFakeContainer(garden.ContainerSpec{Handle: "some-handle"})
+			container = new(fakes.FakeContainer)
+			container.HandleReturns("some-handle")
+			container.ResourceSpecReturns(resources)
+
 			containerRepo.Add(container)
 		})
 
-		It("removes the given container from the pool", func() {
-			Expect(fakeContainerPool.DestroyedContainers).To(BeEmpty())
+		It("removes the given container's resoureces from the pool", func() {
+			Expect(fakeResourcePool.ReleaseCallCount()).To(Equal(0))
 
 			err := linuxBackend.Destroy("some-handle")
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(fakeContainerPool.DestroyedContainers).To(ContainElement(container))
+			Expect(fakeResourcePool.ReleaseCallCount()).To(Equal(1))
+			Expect(fakeResourcePool.ReleaseArgsForCall(0)).To(Equal(resources))
 		})
 
 		It("unregisters the container", func() {
@@ -484,7 +556,7 @@ var _ = Describe("LinuxBackend", func() {
 			disaster := errors.New("failed to destroy")
 
 			BeforeEach(func() {
-				fakeContainerPool.DestroyError = disaster
+				fakeResourcePool.ReleaseReturns(disaster)
 			})
 
 			It("returns the error", func() {
@@ -702,10 +774,10 @@ var _ = Describe("LinuxBackend", func() {
 
 	Describe("Containers", func() {
 		It("returns a list of all existing containers", func() {
-			container1, err := linuxBackend.Create(garden.ContainerSpec{})
+			container1, err := linuxBackend.Create(garden.ContainerSpec{Handle: "container-1"})
 			Expect(err).ToNot(HaveOccurred())
 
-			container2, err := linuxBackend.Create(garden.ContainerSpec{})
+			container2, err := linuxBackend.Create(garden.ContainerSpec{Handle: "container-2"})
 			Expect(err).ToNot(HaveOccurred())
 
 			containers, err := linuxBackend.Containers(nil)
@@ -718,16 +790,19 @@ var _ = Describe("LinuxBackend", func() {
 		Context("when given properties to filter by", func() {
 			It("returns only containers with matching properties", func() {
 				container1, err := linuxBackend.Create(garden.ContainerSpec{
+					Handle:     "container-1",
 					Properties: garden.Properties{"a": "b"},
 				})
 				Expect(err).ToNot(HaveOccurred())
 
 				container2, err := linuxBackend.Create(garden.ContainerSpec{
+					Handle:     "container-2",
 					Properties: garden.Properties{"a": "b"},
 				})
 				Expect(err).ToNot(HaveOccurred())
 
 				container3, err := linuxBackend.Create(garden.ContainerSpec{
+					Handle:     "container-3",
 					Properties: garden.Properties{"a": "b", "c": "d", "e": "f"},
 				})
 				Expect(err).ToNot(HaveOccurred())

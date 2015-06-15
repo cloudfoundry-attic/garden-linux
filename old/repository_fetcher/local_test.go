@@ -8,8 +8,8 @@ import (
 	"path"
 	"strings"
 
-	"github.com/cloudfoundry-incubator/garden-linux/container_pool/fake_graph"
 	"github.com/cloudfoundry-incubator/garden-linux/old/repository_fetcher"
+	"github.com/cloudfoundry-incubator/garden-linux/resource_pool/fake_graph"
 	"github.com/docker/docker/image"
 	"github.com/docker/docker/pkg/archive"
 	. "github.com/onsi/ginkgo"

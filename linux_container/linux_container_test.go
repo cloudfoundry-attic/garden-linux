@@ -23,7 +23,6 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/old/bandwidth_manager/fake_bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/cgroups_manager/fake_cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/port_pool/fake_port_pool"
-	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/cloudfoundry-incubator/garden-linux/process_tracker/fake_process_tracker"
 	wfakes "github.com/cloudfoundry-incubator/garden/fakes"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
@@ -42,7 +41,6 @@ var _ = Describe("Linux containers", func() {
 	var fakeFilter *networkFakes.FakeFilter
 	var containerDir string
 	var containerProps map[string]string
-	var mtu uint32
 
 	BeforeEach(func() {
 		fakeRunner = fake_command_runner.New()
@@ -78,8 +76,6 @@ var _ = Describe("Linux containers", func() {
 			nil,
 		)
 
-		mtu = 1500
-
 		containerProps = map[string]string{
 			"property-name": "property-value",
 		}
@@ -87,22 +83,26 @@ var _ = Describe("Linux containers", func() {
 
 	JustBeforeEach(func() {
 		container = linux_container.NewLinuxContainer(
-			lagertest.NewTestLogger("test"),
-			"some-id",
-			"some-handle",
-			containerDir,
-			"some-volume-path",
-			containerProps,
-			1*time.Second,
-			containerResources,
+			linux_backend.LinuxContainerSpec{
+				ID:                  "some-id",
+				ContainerPath:       containerDir,
+				ContainerRootFSPath: "some-volume-path",
+				Resources:           containerResources,
+				State:               linux_backend.StateBorn,
+				ContainerSpec: garden.ContainerSpec{
+					Handle:     "some-handle",
+					GraceTime:  time.Second * 1,
+					Properties: containerProps,
+				},
+			},
 			fakePortPool,
 			fakeRunner,
 			fakeCgroups,
 			fakeQuotaManager,
 			fakeBandwidthManager,
 			fakeProcessTracker,
-			process.Env{"env1": "env1Value", "env2": "env2Value"},
 			fakeFilter,
+			lagertest.NewTestLogger("linux-container-limits-test"),
 		)
 	})
 
@@ -123,10 +123,6 @@ var _ = Describe("Linux containers", func() {
 	})
 
 	Describe("Starting", func() {
-		BeforeEach(func() {
-			mtu = 1400
-		})
-
 		It("executes the container's start.sh with the correct environment", func() {
 			err := container.Start()
 			Expect(err).ToNot(HaveOccurred())
@@ -143,12 +139,12 @@ var _ = Describe("Linux containers", func() {
 		})
 
 		It("changes the container's state to active", func() {
-			Expect(container.State()).To(Equal(linux_container.StateBorn))
+			Expect(container.State()).To(Equal(linux_backend.StateBorn))
 
 			err := container.Start()
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(container.State()).To(Equal(linux_container.StateActive))
+			Expect(container.State()).To(Equal(linux_backend.StateActive))
 		})
 
 		Context("when start.sh fails", func() {
@@ -170,12 +166,12 @@ var _ = Describe("Linux containers", func() {
 			})
 
 			It("does not change the container's state", func() {
-				Expect(container.State()).To(Equal(linux_container.StateBorn))
+				Expect(container.State()).To(Equal(linux_backend.StateBorn))
 
 				err := container.Start()
 				Expect(err).To(HaveOccurred())
 
-				Expect(container.State()).To(Equal(linux_container.StateBorn))
+				Expect(container.State()).To(Equal(linux_backend.StateBorn))
 			})
 		})
 	})
@@ -193,12 +189,12 @@ var _ = Describe("Linux containers", func() {
 		})
 
 		It("sets the container's state to stopped", func() {
-			Expect(container.State()).To(Equal(linux_container.StateBorn))
+			Expect(container.State()).To(Equal(linux_backend.StateBorn))
 
 			err := container.Stop(false)
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(container.State()).To(Equal(linux_container.StateStopped))
+			Expect(container.State()).To(Equal(linux_backend.StateStopped))
 
 		})
 
@@ -236,12 +232,12 @@ var _ = Describe("Linux containers", func() {
 			})
 
 			It("does not change the container's state", func() {
-				Expect(container.State()).To(Equal(linux_container.StateBorn))
+				Expect(container.State()).To(Equal(linux_backend.StateBorn))
 
 				err := container.Stop(false)
 				Expect(err).To(HaveOccurred())
 
-				Expect(container.State()).To(Equal(linux_container.StateBorn))
+				Expect(container.State()).To(Equal(linux_backend.StateBorn))
 			})
 		})
 
@@ -462,7 +458,7 @@ var _ = Describe("Linux containers", func() {
 
 				Expect(secondHostPort).ToNot(Equal(hostPort))
 
-				Expect(container.Resources().Ports).To(ContainElement(hostPort))
+				Expect(container.Resources.Ports).To(ContainElement(hostPort))
 			})
 
 			Context("and acquiring a port from the pool fails", func() {

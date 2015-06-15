@@ -45,6 +45,20 @@ type FakeContainer struct {
 	snapshotReturns struct {
 		result1 error
 	}
+	ResourceSpecStub        func() linux_backend.LinuxContainerSpec
+	resourceSpecMutex       sync.RWMutex
+	resourceSpecArgsForCall []struct{}
+	resourceSpecReturns     struct {
+		result1 linux_backend.LinuxContainerSpec
+	}
+	RestoreStub        func(linux_backend.LinuxContainerSpec) error
+	restoreMutex       sync.RWMutex
+	restoreArgsForCall []struct {
+		arg1 linux_backend.LinuxContainerSpec
+	}
+	restoreReturns struct {
+		result1 error
+	}
 	CleanupStub        func()
 	cleanupMutex       sync.RWMutex
 	cleanupArgsForCall []struct{}
@@ -360,6 +374,62 @@ func (fake *FakeContainer) SnapshotArgsForCall(i int) io.Writer {
 func (fake *FakeContainer) SnapshotReturns(result1 error) {
 	fake.SnapshotStub = nil
 	fake.snapshotReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeContainer) ResourceSpec() linux_backend.LinuxContainerSpec {
+	fake.resourceSpecMutex.Lock()
+	fake.resourceSpecArgsForCall = append(fake.resourceSpecArgsForCall, struct{}{})
+	fake.resourceSpecMutex.Unlock()
+	if fake.ResourceSpecStub != nil {
+		return fake.ResourceSpecStub()
+	} else {
+		return fake.resourceSpecReturns.result1
+	}
+}
+
+func (fake *FakeContainer) ResourceSpecCallCount() int {
+	fake.resourceSpecMutex.RLock()
+	defer fake.resourceSpecMutex.RUnlock()
+	return len(fake.resourceSpecArgsForCall)
+}
+
+func (fake *FakeContainer) ResourceSpecReturns(result1 linux_backend.LinuxContainerSpec) {
+	fake.ResourceSpecStub = nil
+	fake.resourceSpecReturns = struct {
+		result1 linux_backend.LinuxContainerSpec
+	}{result1}
+}
+
+func (fake *FakeContainer) Restore(arg1 linux_backend.LinuxContainerSpec) error {
+	fake.restoreMutex.Lock()
+	fake.restoreArgsForCall = append(fake.restoreArgsForCall, struct {
+		arg1 linux_backend.LinuxContainerSpec
+	}{arg1})
+	fake.restoreMutex.Unlock()
+	if fake.RestoreStub != nil {
+		return fake.RestoreStub(arg1)
+	} else {
+		return fake.restoreReturns.result1
+	}
+}
+
+func (fake *FakeContainer) RestoreCallCount() int {
+	fake.restoreMutex.RLock()
+	defer fake.restoreMutex.RUnlock()
+	return len(fake.restoreArgsForCall)
+}
+
+func (fake *FakeContainer) RestoreArgsForCall(i int) linux_backend.LinuxContainerSpec {
+	fake.restoreMutex.RLock()
+	defer fake.restoreMutex.RUnlock()
+	return fake.restoreArgsForCall[i].arg1
+}
+
+func (fake *FakeContainer) RestoreReturns(result1 error) {
+	fake.RestoreStub = nil
+	fake.restoreReturns = struct {
 		result1 error
 	}{result1}
 }

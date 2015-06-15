@@ -21,7 +21,6 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/old/bandwidth_manager/fake_bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/cgroups_manager/fake_cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/port_pool/fake_port_pool"
-	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/cloudfoundry-incubator/garden-linux/process_tracker/fake_process_tracker"
 	wfakes "github.com/cloudfoundry-incubator/garden/fakes"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
@@ -93,22 +92,27 @@ var _ = Describe("Linux containers", func() {
 
 	JustBeforeEach(func() {
 		container = linux_container.NewLinuxContainer(
-			lagertest.NewTestLogger("test"),
-			"some-id",
-			"some-handle",
-			containerDir,
-			"some-rootfs-path",
-			containerProps,
-			1*time.Second,
-			containerResources,
+			linux_backend.LinuxContainerSpec{
+				ID:                  "some-id",
+				ContainerPath:       containerDir,
+				ContainerRootFSPath: "some-rootfs-path",
+				Resources:           containerResources,
+				State:               linux_backend.StateBorn,
+				ContainerSpec: garden.ContainerSpec{
+					Handle:     "some-handle",
+					GraceTime:  time.Second * 1,
+					Env:        []string{"env1=env1Value", "env2=env2Value"},
+					Properties: containerProps,
+				},
+			},
 			fakePortPool,
 			fakeRunner,
 			fakeCgroups,
 			fakeQuotaManager,
 			fakeBandwidthManager,
 			fakeProcessTracker,
-			process.Env{"env1": "env1Value", "env2": "env2Value"},
 			fakeFilter,
+			lagertest.NewTestLogger("linux-container-limits-test"),
 		)
 	})
 
@@ -195,7 +199,7 @@ var _ = Describe("Linux containers", func() {
 			))
 
 			Expect(snapshot.NetIns).To(Equal(
-				[]linux_container.NetInSpec{
+				[]linux_backend.NetInSpec{
 					{
 						HostPort:      1,
 						ContainerPort: 2,
@@ -212,19 +216,19 @@ var _ = Describe("Linux containers", func() {
 			}))
 
 			Expect(snapshot.Processes).To(ContainElement(
-				linux_container.ProcessSnapshot{
+				linux_backend.ActiveProcess{
 					ID: 1,
 				},
 			))
 
 			Expect(snapshot.Processes).To(ContainElement(
-				linux_container.ProcessSnapshot{
+				linux_backend.ActiveProcess{
 					ID: 2,
 				},
 			))
 
 			Expect(snapshot.Processes).To(ContainElement(
-				linux_container.ProcessSnapshot{
+				linux_backend.ActiveProcess{
 					ID: 3,
 				},
 			))
@@ -244,7 +248,7 @@ var _ = Describe("Linux containers", func() {
 				// oom exits immediately since it's faked out; should see event,
 				// and it should show up in the snapshot
 				Eventually(container.Events).Should(ContainElement("out of memory"))
-				Eventually(container.State).Should(Equal(linux_container.StateStopped))
+				Eventually(container.State).Should(Equal(linux_backend.StateStopped))
 
 				err = container.LimitDisk(diskLimits)
 				Expect(err).ToNot(HaveOccurred())
@@ -262,16 +266,16 @@ var _ = Describe("Linux containers", func() {
 				err := container.Snapshot(out)
 				Expect(err).ToNot(HaveOccurred())
 
-				var snapshot linux_container.ContainerSnapshot
+				var snapshot linux_backend.LinuxContainerSpec
 
 				err = json.NewDecoder(out).Decode(&snapshot)
 				Expect(err).ToNot(HaveOccurred())
 
-				Expect(snapshot.State).To(Equal("stopped"))
+				Expect(snapshot.State).To(Equal(linux_backend.StateStopped))
 				Expect(snapshot.Events).To(Equal([]string{"out of memory"}))
 
 				Expect(snapshot.Limits).To(Equal(
-					linux_container.LimitsSnapshot{
+					linux_backend.Limits{
 						Memory:    &memoryLimits,
 						Disk:      &diskLimits,
 						Bandwidth: &bandwidthLimits,
@@ -288,13 +292,13 @@ var _ = Describe("Linux containers", func() {
 				err := container.Snapshot(out)
 				Expect(err).ToNot(HaveOccurred())
 
-				var snapshot linux_container.ContainerSnapshot
+				var snapshot linux_backend.LinuxContainerSpec
 
 				err = json.NewDecoder(out).Decode(&snapshot)
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(snapshot.Limits).To(Equal(
-					linux_container.LimitsSnapshot{
+					linux_backend.Limits{
 						Memory:    nil,
 						Disk:      nil,
 						Bandwidth: nil,
@@ -308,13 +312,13 @@ var _ = Describe("Linux containers", func() {
 
 	Describe("Restoring", func() {
 		It("sets the container's state and events", func() {
-			err := container.Restore(linux_container.ContainerSnapshot{
+			err := container.Restore(linux_backend.LinuxContainerSpec{
 				State:  "active",
 				Events: []string{"out of memory", "foo"},
 			})
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(container.State()).To(Equal(linux_container.State("active")))
+			Expect(container.State()).To(Equal(linux_backend.State("active")))
 			Expect(container.Events()).To(Equal([]string{
 				"out of memory",
 				"foo",
@@ -323,11 +327,11 @@ var _ = Describe("Linux containers", func() {
 		})
 
 		It("restores process state", func() {
-			err := container.Restore(linux_container.ContainerSnapshot{
+			err := container.Restore(linux_backend.LinuxContainerSpec{
 				State:  "active",
 				Events: []string{},
 
-				Processes: []linux_container.ProcessSnapshot{
+				Processes: []linux_backend.ActiveProcess{
 					{
 						ID:  0,
 						TTY: false,
@@ -348,11 +352,11 @@ var _ = Describe("Linux containers", func() {
 		})
 
 		It("makes the next process ID be higher than the highest restored ID", func() {
-			err := container.Restore(linux_container.ContainerSnapshot{
+			err := container.Restore(linux_backend.LinuxContainerSpec{
 				State:  "active",
 				Events: []string{},
 
-				Processes: []linux_container.ProcessSnapshot{
+				Processes: []linux_backend.ActiveProcess{
 					{
 						ID:  0,
 						TTY: false,
@@ -377,11 +381,11 @@ var _ = Describe("Linux containers", func() {
 		})
 
 		It("configures a signaller with the correct pidfile for the process", func() {
-			Expect(container.Restore(linux_container.ContainerSnapshot{
+			Expect(container.Restore(linux_backend.LinuxContainerSpec{
 				State:  "active",
 				Events: []string{},
 
-				Processes: []linux_container.ProcessSnapshot{
+				Processes: []linux_backend.ActiveProcess{
 					{
 						ID:  456,
 						TTY: true,
@@ -395,16 +399,15 @@ var _ = Describe("Linux containers", func() {
 		})
 
 		It("restores environment variables", func() {
-			err := container.Restore(linux_container.ContainerSnapshot{
-				EnvVars: []string{"env1=env1value", "env2=env2Value"},
+			err := container.Restore(linux_backend.LinuxContainerSpec{
+				ContainerSpec: garden.ContainerSpec{Env: []string{"env1=env1value", "env2=env2Value"}},
 			})
 			Expect(err).ToNot(HaveOccurred())
-
-			Expect(container.CurrentEnvVars()).To(Equal(process.Env{"env1": "env1value", "env2": "env2Value"}))
+			Expect(container.Env).To(Equal([]string{"env1=env1value", "env2=env2Value"}))
 		})
 
 		It("redoes net-outs", func() {
-			Expect(container.Restore(linux_container.ContainerSnapshot{
+			Expect(container.Restore(linux_backend.LinuxContainerSpec{
 				NetOuts: []garden.NetOutRule{netOutRule1, netOutRule2},
 			})).To(Succeed())
 
@@ -418,18 +421,18 @@ var _ = Describe("Linux containers", func() {
 				fakeFilter.NetOutReturns(errors.New("didn't work"))
 
 				Expect(container.Restore(
-					linux_container.ContainerSnapshot{
+					linux_backend.LinuxContainerSpec{
 						NetOuts: []garden.NetOutRule{{}},
 					})).To(MatchError("didn't work"))
 			})
 		})
 
 		It("redoes network setup and net-ins", func() {
-			err := container.Restore(linux_container.ContainerSnapshot{
+			err := container.Restore(linux_backend.LinuxContainerSpec{
 				State:  "active",
 				Events: []string{},
 
-				NetIns: []linux_container.NetInSpec{
+				NetIns: []linux_backend.NetInSpec{
 					{
 						HostPort:      1234,
 						ContainerPort: 5678,
@@ -476,11 +479,11 @@ var _ = Describe("Linux containers", func() {
 				})
 
 				It("returns the error", func() {
-					err := container.Restore(linux_container.ContainerSnapshot{
+					err := container.Restore(linux_backend.LinuxContainerSpec{
 						State:  "active",
 						Events: []string{},
 
-						NetIns: []linux_container.NetInSpec{
+						NetIns: []linux_backend.NetInSpec{
 							{
 								HostPort:      1234,
 								ContainerPort: 5678,
@@ -499,11 +502,11 @@ var _ = Describe("Linux containers", func() {
 		}
 
 		It("re-enforces the memory limit", func() {
-			err := container.Restore(linux_container.ContainerSnapshot{
+			err := container.Restore(linux_backend.LinuxContainerSpec{
 				State:  "active",
 				Events: []string{},
 
-				Limits: linux_container.LimitsSnapshot{
+				Limits: linux_backend.Limits{
 					Memory: &garden.MemoryLimits{
 						LimitInBytes: 1024,
 					},
@@ -533,7 +536,7 @@ var _ = Describe("Linux containers", func() {
 
 		Context("when no memory limit is present", func() {
 			It("does not set a limit", func() {
-				err := container.Restore(linux_container.ContainerSnapshot{
+				err := container.Restore(linux_backend.LinuxContainerSpec{
 					State:  "active",
 					Events: []string{},
 				})
@@ -553,11 +556,11 @@ var _ = Describe("Linux containers", func() {
 			})
 
 			It("returns the error", func() {
-				err := container.Restore(linux_container.ContainerSnapshot{
+				err := container.Restore(linux_backend.LinuxContainerSpec{
 					State:  "active",
 					Events: []string{},
 
-					Limits: linux_container.LimitsSnapshot{
+					Limits: linux_backend.Limits{
 						Memory: &garden.MemoryLimits{
 							LimitInBytes: 1024,
 						},

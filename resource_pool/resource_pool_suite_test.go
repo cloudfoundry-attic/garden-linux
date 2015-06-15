@@ -1,4 +1,4 @@
-package container_pool_test
+package resource_pool_test
 
 import (
 	. "github.com/onsi/ginkgo"
@@ -9,5 +9,5 @@ import (
 
 func TestContainerPool(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Container Pool Suite")
+	RunSpecs(t, "Resource Pool Suite")
 }

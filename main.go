@@ -24,7 +24,6 @@ import (
 
 	"github.com/cloudfoundry-incubator/cf-debug-server"
 	"github.com/cloudfoundry-incubator/cf-lager"
-	"github.com/cloudfoundry-incubator/garden-linux/container_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/container_repository"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
@@ -34,12 +33,16 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/network/devices"
 	"github.com/cloudfoundry-incubator/garden-linux/network/iptables"
 	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
+	"github.com/cloudfoundry-incubator/garden-linux/old/bandwidth_manager"
+	"github.com/cloudfoundry-incubator/garden-linux/old/cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/port_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/old/repository_fetcher"
 	"github.com/cloudfoundry-incubator/garden-linux/old/rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/old/rootfs_provider/btrfs_cleanup"
 	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
 	"github.com/cloudfoundry-incubator/garden-linux/old/system_info"
+	"github.com/cloudfoundry-incubator/garden-linux/process_tracker"
+	"github.com/cloudfoundry-incubator/garden-linux/resource_pool"
 	"github.com/cloudfoundry-incubator/garden/server"
 	"github.com/cloudfoundry/dropsonde"
 	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
@@ -330,13 +333,6 @@ func main() {
 		"docker": remoteRootFSProvider,
 	}
 
-	filterProvider := &provider{
-		useKernelLogging: useKernelLogging,
-		chainPrefix:      config.IPTables.Filter.InstancePrefix,
-		runner:           runner,
-		log:              logger,
-	}
-
 	if *externalIP == "" {
 		ip, err := localip.LocalIP()
 		if err != nil {
@@ -359,7 +355,17 @@ func main() {
 		}
 	}
 
-	pool := container_pool.New(
+	injector := &provider{
+		useKernelLogging: useKernelLogging,
+		chainPrefix:      config.IPTables.Filter.InstancePrefix,
+		runner:           runner,
+		log:              logger,
+		portPool:         portPool,
+		sysconfig:        config,
+		quotaManager:     quotaManager,
+	}
+
+	pool := resource_pool.New(
 		logger,
 		*binPath,
 		*depotPath,
@@ -371,7 +377,7 @@ func main() {
 		*mtu,
 		subnetPool,
 		bridgemgr.New("w"+config.Tag+"b-", &devices.Bridge{}, &devices.Link{}),
-		filterProvider,
+		injector,
 		iptables.NewGlobalChain(config.IPTables.Filter.DefaultChain, runner, logger.Session("global-chain")),
 		portPool,
 		strings.Split(*denyNetworks, ","),
@@ -382,7 +388,7 @@ func main() {
 
 	systemInfo := system_info.NewProvider(*depotPath)
 
-	backend := linux_backend.New(logger, pool, container_repository.New(), systemInfo, *snapshotsPath, int(*maxContainers))
+	backend := linux_backend.New(logger, pool, container_repository.New(), injector, systemInfo, *snapshotsPath, int(*maxContainers))
 
 	err = backend.Setup()
 	if err != nil {
@@ -451,8 +457,32 @@ type provider struct {
 	chainPrefix      string
 	runner           command_runner.CommandRunner
 	log              lager.Logger
+	portPool         *port_pool.PortPool
+	quotaManager     linux_container.QuotaManager
+	sysconfig        sysconfig.Config
 }
 
 func (p *provider) ProvideFilter(containerId string) network.Filter {
 	return network.NewFilter(iptables.NewLoggingChain(p.chainPrefix+containerId, p.useKernelLogging, p.runner, p.log.Session(containerId).Session("filter")))
+}
+
+func (p *provider) ProvideContainer(spec linux_backend.LinuxContainerSpec) linux_backend.Container {
+	cgroupReader := &cgroups_manager.LinuxCgroupReader{
+		Path: p.sysconfig.CgroupNodeFilePath,
+	}
+
+	container := linux_container.NewLinuxContainer(
+		spec,
+		p.portPool,
+		p.runner,
+		cgroups_manager.New(p.sysconfig.CgroupPath, spec.ID, cgroupReader),
+		p.quotaManager,
+		bandwidth_manager.New(spec.ContainerPath, spec.ID, p.runner),
+		process_tracker.New(spec.ContainerPath, p.runner),
+		p.ProvideFilter(spec.ID),
+		p.log,
+	)
+
+	container.NetworkStatisticser = devices.Link{Name: p.sysconfig.NetworkInterfacePrefix + spec.ID + "-0"}
+	return container
 }

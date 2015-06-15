@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
-	"syscall"
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
@@ -23,18 +22,26 @@ type Container interface {
 	Start() error
 
 	Snapshot(io.Writer) error
+	ResourceSpec() LinuxContainerSpec
+	Restore(LinuxContainerSpec) error
 	Cleanup()
 
 	garden.Container
 }
 
-type ContainerPool interface {
+//go:generate counterfeiter . ResourcePool
+type ResourcePool interface {
 	Setup() error
-	Create(garden.ContainerSpec) (Container, error)
-	Restore(io.Reader) (Container, error)
-	Destroy(Container) error
+	Acquire(garden.ContainerSpec) (LinuxContainerSpec, error)
+	Restore(io.Reader) (LinuxContainerSpec, error)
+	Release(LinuxContainerSpec) error
 	Prune(keep map[string]bool) error
 	MaxContainers() int
+}
+
+//go:generate counterfeiter . ContainerProvider
+type ContainerProvider interface {
+	ProvideContainer(LinuxContainerSpec) Container
 }
 
 type ContainerRepository interface {
@@ -48,12 +55,13 @@ type ContainerRepository interface {
 type LinuxBackend struct {
 	logger lager.Logger
 
-	containerPool ContainerPool
+	resourcePool  ResourcePool
 	systemInfo    system_info.Provider
 	snapshotsPath string
 	maxContainers int
 
-	containerRepo ContainerRepository
+	containerRepo     ContainerRepository
+	containerProvider ContainerProvider
 }
 
 type HandleExistsError struct {
@@ -82,8 +90,9 @@ func (e MaxContainersReachedError) Error() string {
 
 func New(
 	logger lager.Logger,
-	containerPool ContainerPool,
+	resourcePool ResourcePool,
 	containerRepo ContainerRepository,
+	containerProvider ContainerProvider,
 	systemInfo system_info.Provider,
 	snapshotsPath string,
 	maxContainers int,
@@ -91,17 +100,18 @@ func New(
 	return &LinuxBackend{
 		logger: logger.Session("backend"),
 
-		containerPool: containerPool,
+		resourcePool:  resourcePool,
 		systemInfo:    systemInfo,
 		snapshotsPath: snapshotsPath,
 		maxContainers: maxContainers,
 
-		containerRepo: containerRepo,
+		containerRepo:     containerRepo,
+		containerProvider: containerProvider,
 	}
 }
 
 func (b *LinuxBackend) Setup() error {
-	return b.containerPool.Setup()
+	return b.resourcePool.Setup()
 }
 
 func (b *LinuxBackend) Start() error {
@@ -130,7 +140,7 @@ func (b *LinuxBackend) Start() error {
 		return err
 	}
 
-	return b.containerPool.Prune(keep)
+	return b.resourcePool.Prune(keep)
 }
 
 func (b *LinuxBackend) Ping() error {
@@ -148,7 +158,7 @@ func (b *LinuxBackend) Capacity() (garden.Capacity, error) {
 		return garden.Capacity{}, err
 	}
 
-	maxContainers := b.containerPool.MaxContainers()
+	maxContainers := b.resourcePool.MaxContainers()
 	if b.maxContainers > 0 && maxContainers > b.maxContainers {
 		maxContainers = b.maxContainers
 	}
@@ -174,14 +184,15 @@ func (b *LinuxBackend) Create(spec garden.ContainerSpec) (garden.Container, erro
 		}
 	}
 
-	container, err := b.containerPool.Create(spec)
+	containerSpec, err := b.resourcePool.Acquire(spec)
 	if err != nil {
 		return nil, err
 	}
 
-	err = container.Start()
-	if err != nil {
-		b.containerPool.Destroy(container)
+	container := b.containerProvider.ProvideContainer(containerSpec)
+
+	if err := container.Start(); err != nil {
+		b.resourcePool.Release(containerSpec)
 		return nil, err
 	}
 
@@ -196,7 +207,7 @@ func (b *LinuxBackend) Destroy(handle string) error {
 		return err
 	}
 
-	err = b.containerPool.Destroy(container)
+	err = b.resourcePool.Release(container.ResourceSpec())
 	if err != nil {
 		return err
 	}
@@ -311,7 +322,6 @@ func (b *LinuxBackend) saveSnapshot(container Container) error {
 	})
 
 	snapshotPath := path.Join(b.snapshotsPath, container.ID())
-
 	snapshot, err := os.Create(snapshotPath)
 	if err != nil {
 		return &FailedToSnapshotError{err}
@@ -326,10 +336,14 @@ func (b *LinuxBackend) saveSnapshot(container Container) error {
 }
 
 func (b *LinuxBackend) restore(snapshot io.Reader) (garden.Container, error) {
-	container, err := b.containerPool.Restore(snapshot)
+	containerSpec, err := b.resourcePool.Restore(snapshot)
 	if err != nil {
 		return nil, err
 	}
+
+	container := b.containerProvider.ProvideContainer(containerSpec)
+	container.Restore(containerSpec)
+
 	b.containerRepo.Add(container)
 	return container, nil
 }
@@ -361,23 +375,23 @@ func toGardenContainers(cs []Container) []garden.Container {
 }
 
 func mountSysFs() error {
-	mntpoint, err := os.Stat("/sys")
-	if err != nil {
-		return err
-	}
+	// mntpoint, err := os.Stat("/sys")
+	// if err != nil {
+	// 	return err
+	// }
 
-	parent, err := os.Stat("/")
-	if err != nil {
-		return err
-	}
+	// parent, err := os.Stat("/")
+	// if err != nil {
+	// 	return err
+	// }
 
 	//mount sysfs if not mounted already
-	if mntpoint.Sys().(*syscall.Stat_t).Dev == parent.Sys().(*syscall.Stat_t).Dev {
-		err = syscall.Mount("sysfs", "/sys", "sysfs", uintptr(0), "")
-		if err != nil {
-			return fmt.Errorf("Mounting sysfs failed: %s", err)
-		}
-	}
+	//if mntpoint.Sys().(*syscall.Stat_t).Dev == parent.Sys().(*syscall.Stat_t).Dev {
+	//	err = syscall.Mount("sysfs", "/sys", "sysfs", uintptr(0), "")
+	//	if err != nil {
+	//		return fmt.Errorf("Mounting sysfs failed: %s", err)
+	//	}
+	//}
 
 	return nil
 }

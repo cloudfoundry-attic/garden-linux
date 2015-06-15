@@ -306,19 +306,14 @@ var _ = Describe("Subnet Pool", func() {
 				Context("after a subnet has been allocated, a subsequent request for an overlapping subnet which begins on the same ip", func() {
 					var (
 						firstSubnetPool  *net.IPNet
-						firstContainerIP net.IP
 						secondSubnetPool *net.IPNet
 					)
 
 					JustBeforeEach(func() {
-						var err error
-						firstContainerIP, firstSubnetPool = networkParms("10.9.3.0/30")
-						Expect(err).ToNot(HaveOccurred())
-
+						_, firstSubnetPool = networkParms("10.9.3.0/30")
 						_, secondSubnetPool = networkParms("10.9.3.0/29")
-						Expect(err).ToNot(HaveOccurred())
 
-						_, err = subnetpool.Acquire(subnets.StaticSubnetSelector{firstSubnetPool}, subnets.DynamicIPSelector)
+						_, err := subnetpool.Acquire(subnets.StaticSubnetSelector{firstSubnetPool}, subnets.DynamicIPSelector)
 						Expect(err).ToNot(HaveOccurred())
 					})
 

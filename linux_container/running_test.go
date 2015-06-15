@@ -22,7 +22,6 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/old/bandwidth_manager/fake_bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/cgroups_manager/fake_cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/port_pool/fake_port_pool"
-	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/cloudfoundry-incubator/garden-linux/process_tracker"
 	"github.com/cloudfoundry-incubator/garden-linux/process_tracker/fake_process_tracker"
 	wfakes "github.com/cloudfoundry-incubator/garden/fakes"
@@ -30,15 +29,12 @@ import (
 )
 
 var _ = Describe("Linux containers", func() {
-	var fakeRunner *fake_command_runner.FakeCommandRunner
 	var containerResources *linux_backend.Resources
 	var container *linux_container.LinuxContainer
 	var fakeProcessTracker *fake_process_tracker.FakeProcessTracker
 	var containerDir string
 
 	BeforeEach(func() {
-		fakeRunner = fake_command_runner.New()
-
 		fakeProcessTracker = new(fake_process_tracker.FakeProcessTracker)
 
 		var err error
@@ -61,22 +57,25 @@ var _ = Describe("Linux containers", func() {
 
 	JustBeforeEach(func() {
 		container = linux_container.NewLinuxContainer(
-			lagertest.NewTestLogger("test"),
-			"some-id",
-			"some-handle",
-			containerDir,
-			"some-rootfs-path",
-			nil,
-			1*time.Second,
-			containerResources,
+			linux_backend.LinuxContainerSpec{
+				ID:                  "some-id",
+				ContainerPath:       containerDir,
+				ContainerRootFSPath: "some-volume-path",
+				Resources:           containerResources,
+				ContainerSpec: garden.ContainerSpec{
+					Handle:    "some-handle",
+					GraceTime: time.Second * 1,
+					Env:       []string{"env1=env1Value", "env2=env2Value"},
+				},
+			},
 			fake_port_pool.New(1000),
-			fakeRunner,
-			fake_cgroups_manager.New("/cgroups", "some-id"),
+			fake_command_runner.New(),
+			new(fake_cgroups_manager.FakeCgroupsManager),
 			new(fake_quota_manager.FakeQuotaManager),
 			fake_bandwidth_manager.New(),
 			fakeProcessTracker,
-			process.Env{"env1": "env1Value", "env2": "env2Value"},
 			new(networkFakes.FakeFilter),
+			lagertest.NewTestLogger("linux-container-limits-test"),
 		)
 	})
 
@@ -107,6 +106,7 @@ var _ = Describe("Linux containers", func() {
 
 			Expect(err).ToNot(HaveOccurred())
 
+			Expect(fakeProcessTracker.RunCallCount()).To(Equal(1))
 			_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
 			Expect(ranCmd.Path).To(Equal(containerDir + "/bin/wsh"))
 

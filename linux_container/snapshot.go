@@ -17,25 +17,18 @@ type ContainerSnapshot struct {
 	State  string
 	Events []string
 
-	Limits LimitsSnapshot
+	Limits linux_backend.Limits
 
 	Resources ResourcesSnapshot
 
-	Processes []ProcessSnapshot
+	Processes []linux_backend.ActiveProcess
 
-	NetIns  []NetInSpec
+	NetIns  []linux_backend.NetInSpec
 	NetOuts []garden.NetOutRule
 
 	Properties garden.Properties
 
 	EnvVars []string
-}
-
-type LimitsSnapshot struct {
-	Memory    *garden.MemoryLimits
-	Disk      *garden.DiskLimits
-	Bandwidth *garden.BandwidthLimits
-	CPU       *garden.CPULimits
 }
 
 type ResourcesSnapshot struct {
@@ -44,9 +37,4 @@ type ResourcesSnapshot struct {
 	Network *linux_backend.Network
 	Bridge  string
 	Ports   []uint32
-}
-
-type ProcessSnapshot struct {
-	ID  uint32
-	TTY bool
 }
