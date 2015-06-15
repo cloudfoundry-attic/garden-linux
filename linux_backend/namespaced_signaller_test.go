@@ -38,6 +38,7 @@ var _ = Describe("Namespaced Signaller", func() {
 				Path: "/fish/finger/bin/wsh",
 				Args: []string{
 					"--socket", "/fish/finger/run/wshd.sock",
+					"--user", "root",
 					"kill", "-9", "12345",
 				},
 			}))

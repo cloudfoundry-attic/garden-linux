@@ -741,6 +741,33 @@ var _ = Describe("Creating a container", func() {
 				Expect(process.Wait()).To(Equal(42))
 			})
 
+			It("sends a TERM signal to the process run by root if requested", func() {
+
+				stdout := gbytes.NewBuffer()
+
+				process, err := container.Run(garden.ProcessSpec{
+					User: "root",
+					Path: "sh",
+					Args: []string{"-c", `
+				  trap 'echo termed; exit 42' SIGTERM
+
+					while true; do
+					  echo waiting
+					  sleep 1
+					done
+				`},
+				}, garden.ProcessIO{
+					Stdout: io.MultiWriter(GinkgoWriter, stdout),
+					Stderr: GinkgoWriter,
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				Eventually(stdout).Should(gbytes.Say("waiting"))
+				Expect(process.Signal(garden.SignalTerminate)).To(Succeed())
+				Eventually(stdout, "2s").Should(gbytes.Say("termed"))
+				Expect(process.Wait()).To(Equal(42))
+			})
+
 			It("sends a KILL signal to the process if requested", func() {
 				stdout := gbytes.NewBuffer()
 

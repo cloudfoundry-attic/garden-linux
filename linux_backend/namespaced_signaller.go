@@ -32,6 +32,7 @@ func (n *NamespacedSignaller) Signal(signal os.Signal) error {
 
 	cmd := exec.Command(filepath.Join(n.ContainerPath, "bin/wsh"),
 		"--socket", filepath.Join(n.ContainerPath, "run/wshd.sock"),
+		"--user", "root",
 		"kill", fmt.Sprintf("-%d", signal), fmt.Sprintf("%d", pid))
 
 	n.Logger.Debug("NamespacedSignaller.Signal-about-to-run-kill-command", lager.Data{"signal": signal, "cmd": cmd})
