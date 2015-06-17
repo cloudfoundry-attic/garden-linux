@@ -115,7 +115,7 @@ var _ = Describe("Local", func() {
 			}
 
 			_, _, _, err := fetcher.Fetch(logger, &url.URL{Path: tmpDir}, "")
-			Expect(err).To(MatchError("repository_fetcher: fetch local rootfs: sold out"))
+			Expect(err).To(MatchError("repository_fetcher: fetch local rootfs: register rootfs: sold out"))
 		})
 
 		It("returns the image id", func() {

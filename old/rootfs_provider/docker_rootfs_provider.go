@@ -13,6 +13,7 @@ import (
 )
 
 type dockerRootFSProvider struct {
+	name          string
 	graphDriver   graphdriver.Driver
 	volumeCreator VolumeCreator
 	repoFetcher   repository_fetcher.RepositoryFetcher
@@ -28,16 +29,8 @@ type GraphDriver interface {
 	graphdriver.Driver
 }
 
-//go:generate counterfeiter -o fake_cleaner/fake_cleaner.go . Cleaner
-type Cleaner interface {
-	Clean(id string) error
-}
-
-type NoopCleaner struct{}
-
-func (NoopCleaner) Clean(id string) error { return nil }
-
 func NewDocker(
+	name string,
 	repoFetcher repository_fetcher.RepositoryFetcher,
 	graphDriver GraphDriver,
 	volumeCreator VolumeCreator,
@@ -45,6 +38,7 @@ func NewDocker(
 	clock clock.Clock,
 ) (RootFSProvider, error) {
 	return &dockerRootFSProvider{
+		name:          name,
 		repoFetcher:   repoFetcher,
 		graphDriver:   graphDriver,
 		volumeCreator: volumeCreator,
@@ -52,6 +46,10 @@ func NewDocker(
 		clock:         clock,
 		mutex:         &sync.Mutex{},
 	}, nil
+}
+
+func (provider *dockerRootFSProvider) Name() string {
+	return provider.name
 }
 
 func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id string, url *url.URL, shouldNamespace bool) (string, process.Env, error) {

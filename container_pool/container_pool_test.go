@@ -41,21 +41,23 @@ import (
 )
 
 var _ = Describe("Container pool", func() {
-	var depotPath string
-	var fakeRunner *fake_command_runner.FakeCommandRunner
-	var fakeSubnetPool *fake_subnet_pool.FakeSubnetPool
-	var fakeQuotaManager *fake_quota_manager.FakeQuotaManager
-	var fakePortPool *fake_port_pool.FakePortPool
-	var defaultFakeRootFSProvider *fake_rootfs_provider.FakeRootFSProvider
-	var fakeRootFSProvider *fake_rootfs_provider.FakeRootFSProvider
-	var fakeRootfsRemover *fake_rootfs_provider.FakeRootFSRemover
-	var fakeBridges *fake_bridge_manager.FakeBridgeManager
-	var fakeFilterProvider *fake_container_pool.FakeFilterProvider
-	var fakeFilter *fakes.FakeFilter
-	var pool *container_pool.LinuxContainerPool
-	var config sysconfig.Config
-
-	var containerNetwork *linux_backend.Network
+	var (
+		depotPath                 string
+		fakeRunner                *fake_command_runner.FakeCommandRunner
+		fakeSubnetPool            *fake_subnet_pool.FakeSubnetPool
+		fakeQuotaManager          *fake_quota_manager.FakeQuotaManager
+		fakePortPool              *fake_port_pool.FakePortPool
+		defaultFakeRootFSProvider *fake_rootfs_provider.FakeRootFSProvider
+		fakeRootFSProvider        *fake_rootfs_provider.FakeRootFSProvider
+		fakeRootfsRemover         *fake_rootfs_provider.FakeRootFSRemover
+		fakeBridges               *fake_bridge_manager.FakeBridgeManager
+		fakeFilterProvider        *fake_container_pool.FakeFilterProvider
+		fakeFilter                *fakes.FakeFilter
+		pool                      *container_pool.LinuxContainerPool
+		config                    sysconfig.Config
+		containerNetwork          *linux_backend.Network
+		defaultProviderName       string
+	)
 
 	BeforeEach(func() {
 		fakeSubnetPool = new(fake_subnet_pool.FakeSubnetPool)
@@ -85,7 +87,10 @@ var _ = Describe("Container pool", func() {
 		fakeRootfsRemover = new(fake_rootfs_provider.FakeRootFSRemover)
 		fakeRootFSProvider = new(fake_rootfs_provider.FakeRootFSProvider)
 
+		defaultProviderName = "docker-local-vfs"
 		defaultFakeRootFSProvider.ProvideRootFSReturns("/provided/rootfs/path", nil, nil)
+		defaultFakeRootFSProvider.NameReturns(defaultProviderName)
+		fakeRootFSProvider.NameReturns("fake")
 
 		depotPath, err = ioutil.TempDir("", "depot-path")
 		Expect(err).ToNot(HaveOccurred())
@@ -610,7 +615,7 @@ var _ = Describe("Container pool", func() {
 			body, err := ioutil.ReadFile(path.Join(depotPath, container.ID(), "rootfs-provider"))
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(string(body)).To(Equal("warden"))
+			Expect(string(body)).To(Equal(defaultProviderName))
 		})
 
 		Context("when a rootfs is specified", func() {
@@ -1222,10 +1227,10 @@ var _ = Describe("Container pool", func() {
 				err = ioutil.WriteFile(path.Join(depotPath, "container-2", "bridge-name"), []byte("fake-bridge-2"), 0644)
 				Expect(err).ToNot(HaveOccurred())
 
-				err = ioutil.WriteFile(path.Join(depotPath, "container-1", "rootfs-provider"), []byte("docker"), 0644)
+				err = ioutil.WriteFile(path.Join(depotPath, "container-1", "rootfs-provider"), []byte("docker-remote-vfs"), 0644)
 				Expect(err).ToNot(HaveOccurred())
 
-				err = ioutil.WriteFile(path.Join(depotPath, "container-2", "rootfs-provider"), []byte("docker"), 0644)
+				err = ioutil.WriteFile(path.Join(depotPath, "container-2", "rootfs-provider"), []byte("docker-remote-vfs"), 0644)
 				Expect(err).ToNot(HaveOccurred())
 
 				err = ioutil.WriteFile(path.Join(depotPath, "container-3", "rootfs-provider"), []byte(""), 0644)
@@ -1296,6 +1301,44 @@ var _ = Describe("Container pool", func() {
 					Expect(err).ToNot(HaveOccurred())
 
 					Expect(fakeBridges.ReleaseCallCount()).To(Equal(0))
+				})
+			})
+
+			Context("when a container declares a docker rootfs provider", func() {
+				BeforeEach(func() {
+					err := ioutil.WriteFile(path.Join(depotPath, "container-2", "rootfs-provider"), []byte("docker"), 0644)
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				It("does not clean the rootfs", func() {
+					err := pool.Prune(map[string]bool{})
+					Expect(err).ToNot(HaveOccurred())
+
+					for i := 0; i < fakeRootfsRemover.CleanupRootFSCallCount(); i++ {
+						_, arg := fakeRootfsRemover.CleanupRootFSArgsForCall(i)
+						Expect(arg).ToNot(Equal("container-2"))
+					}
+				})
+			})
+
+			Context("when a container declares a default rootfs provider", func() {
+				BeforeEach(func() {
+					err := os.MkdirAll(path.Join(depotPath, "container-4"), 0755)
+					Expect(err).ToNot(HaveOccurred())
+
+					err = ioutil.WriteFile(path.Join(depotPath, "container-4", "rootfs-provider"), []byte(defaultProviderName), 0644)
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				It("cleans up the rootfs", func() {
+					err := pool.Prune(map[string]bool{})
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(fakeRootfsRemover.CleanupRootFSCallCount()).To(Equal(3))
+					_, id1 := fakeRootfsRemover.CleanupRootFSArgsForCall(0)
+					_, id3 := fakeRootfsRemover.CleanupRootFSArgsForCall(2)
+					Expect(id1).To(Equal("container-1"))
+					Expect(id3).To(Equal("container-4"))
 				})
 			})
 
@@ -1500,7 +1543,7 @@ var _ = Describe("Container pool", func() {
 				err := os.MkdirAll(path.Join(depotPath, createdContainer.ID()), 0755)
 				Expect(err).ToNot(HaveOccurred())
 
-				err = ioutil.WriteFile(path.Join(depotPath, createdContainer.ID(), "rootfs-provider"), []byte("docker"), 0644)
+				err = ioutil.WriteFile(path.Join(depotPath, createdContainer.ID(), "rootfs-provider"), []byte("docker-remote-vfs"), 0644)
 				Expect(err).ToNot(HaveOccurred())
 			})
 

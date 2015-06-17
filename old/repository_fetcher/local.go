@@ -48,15 +48,15 @@ func (l *Local) Fetch(
 func (l *Local) fetch(path string) (string, error) {
 	id := l.IDer.ID(path)
 
-	if l.isCached(id) {
-		return id, nil // use cache
-	}
-
 	// synchronize all downloads, we could optimize by only mutexing around each
 	// particular rootfs path, but in practice importing local rootfses is decently fast,
 	// and concurrently importing local rootfses is rare.
 	l.mu.Lock()
 	defer l.mu.Unlock()
+
+	if l.Graph.Exists(id) {
+		return id, nil // use cache
+	}
 
 	fileInfo, err := os.Lstat(path)
 	if err != nil {
@@ -71,22 +71,15 @@ func (l *Local) fetch(path string) (string, error) {
 
 	tar, err := archive.Tar(path, archive.Uncompressed)
 	if err != nil {
-		return "", fmt.Errorf("repository_fetcher: fetch local rootfs: %s", err)
+		return "", fmt.Errorf("repository_fetcher: fetch local rootfs: untar rootfs: %v", err)
 	}
 	defer tar.Close()
 
 	if err := l.Graph.Register(&image.Image{ID: id}, tar); err != nil {
-		return "", fmt.Errorf("repository_fetcher: fetch local rootfs: %v", err)
+		return "", fmt.Errorf("repository_fetcher: fetch local rootfs: register rootfs: %v", err)
 	}
 
 	return id, nil
-}
-
-func (l *Local) isCached(id string) bool {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
-
-	return l.Graph.Exists(id)
 }
 
 type MD5ID struct{}

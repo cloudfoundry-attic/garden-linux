@@ -9,6 +9,7 @@ import (
 
 //go:generate counterfeiter -o fake_rootfs_provider/fake_rootfs_provider.go . RootFSProvider
 type RootFSProvider interface {
+	Name() string
 	ProvideRootFS(logger lager.Logger, id string, rootfs *url.URL, namespaced bool) (mountpoint string, envvar process.Env, err error)
 }
 

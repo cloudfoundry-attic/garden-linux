@@ -11,6 +11,12 @@ import (
 )
 
 type FakeRootFSProvider struct {
+	NameStub        func() string
+	nameMutex       sync.RWMutex
+	nameArgsForCall []struct{}
+	nameReturns     struct {
+		result1 string
+	}
 	ProvideRootFSStub        func(logger lager.Logger, id string, rootfs *url.URL, namespaced bool) (mountpoint string, envvar process.Env, err error)
 	provideRootFSMutex       sync.RWMutex
 	provideRootFSArgsForCall []struct {
@@ -24,6 +30,30 @@ type FakeRootFSProvider struct {
 		result2 process.Env
 		result3 error
 	}
+}
+
+func (fake *FakeRootFSProvider) Name() string {
+	fake.nameMutex.Lock()
+	fake.nameArgsForCall = append(fake.nameArgsForCall, struct{}{})
+	fake.nameMutex.Unlock()
+	if fake.NameStub != nil {
+		return fake.NameStub()
+	} else {
+		return fake.nameReturns.result1
+	}
+}
+
+func (fake *FakeRootFSProvider) NameCallCount() int {
+	fake.nameMutex.RLock()
+	defer fake.nameMutex.RUnlock()
+	return len(fake.nameArgsForCall)
+}
+
+func (fake *FakeRootFSProvider) NameReturns(result1 string) {
+	fake.NameStub = nil
+	fake.nameReturns = struct {
+		result1 string
+	}{result1}
 }
 
 func (fake *FakeRootFSProvider) ProvideRootFS(logger lager.Logger, id string, rootfs *url.URL, namespaced bool) (mountpoint string, envvar process.Env, err error) {

@@ -38,6 +38,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 		fakeNamespacer        *fake_namespacer.FakeNamespacer
 		fakeVolumeCreator     *FakeVolumeCreator
 		fakeClock             *fakeclock.FakeClock
+		name                  string
 
 		provider RootFSProvider
 
@@ -50,9 +51,11 @@ var _ = Describe("DockerRootFSProvider", func() {
 		fakeVolumeCreator = &FakeVolumeCreator{}
 		fakeNamespacer = &fake_namespacer.FakeNamespacer{}
 		fakeClock = fakeclock.NewFakeClock(time.Now())
+		name = "some-name"
 
 		var err error
 		provider, err = NewDocker(
+			name,
 			fakeRepositoryFetcher,
 			fakeGraphDriver,
 			fakeVolumeCreator,
@@ -65,6 +68,12 @@ var _ = Describe("DockerRootFSProvider", func() {
 	})
 
 	Describe("Providing a namespaced", func() {
+	})
+
+	Describe("Name", func() {
+		It("returns correct name", func() {
+			Expect(provider.Name()).To(Equal(name))
+		})
 	})
 
 	Describe("ProvideRootFS", func() {

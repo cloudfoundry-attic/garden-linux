@@ -392,6 +392,7 @@ func (p *LinuxContainerPool) Destroy(container linux_backend.Container) error {
 
 	err := p.releaseSystemResources(pLog, container.ID())
 	if err != nil {
+		pLog.Error("release-system-resources", err)
 		return err
 	}
 
@@ -600,11 +601,7 @@ func (p *LinuxContainerPool) acquireSystemResources(id, handle, containerPath, r
 		return "", nil, err
 	}
 
-	scheme := rootfsURL.Scheme
-	if scheme == "" {
-		scheme = "warden"
-	}
-	err = p.saveRootFSProvider(id, scheme)
+	err = p.saveRootFSProvider(id, provider.Name())
 	if err != nil {
 		p.logger.Error("save-rootfs-provider-failed", err, lager.Data{
 			"Id":     id,
@@ -676,7 +673,16 @@ func (p *LinuxContainerPool) releaseSystemResources(logger lager.Logger, id stri
 func shouldCleanRootfs(rootfsProvider string) bool {
 	// invalid-rootfs-provider indicates that this is probably a recent container that failed on create.
 	// we should try to clean it up
-	for _, provider := range []string{"docker", "warden", "invalid-rootfs-provider"} {
+
+	providers := []string{
+		"docker-local-btrfs",
+		"docker-local-vfs",
+		"docker-remote-btrfs",
+		"docker-remote-vfs",
+		"invalid-rootfs-provider",
+	}
+
+	for _, provider := range providers {
 		if provider == rootfsProvider {
 			return true
 		}
