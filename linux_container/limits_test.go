@@ -15,6 +15,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_network_statisticser"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_quota_manager"
 	networkFakes "github.com/cloudfoundry-incubator/garden-linux/network/fakes"
 	"github.com/cloudfoundry-incubator/garden-linux/old/bandwidth_manager/fake_bandwidth_manager"
@@ -79,6 +80,7 @@ var _ = Describe("Linux containers", func() {
 			fakeBandwidthManager,
 			new(fake_process_tracker.FakeProcessTracker),
 			new(networkFakes.FakeFilter),
+			new(fake_network_statisticser.FakeNetworkStatisticser),
 			lagertest.NewTestLogger("linux-container-limits-test"),
 		)
 	})

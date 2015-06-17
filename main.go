@@ -471,7 +471,7 @@ func (p *provider) ProvideContainer(spec linux_backend.LinuxContainerSpec) linux
 		Path: p.sysconfig.CgroupNodeFilePath,
 	}
 
-	container := linux_container.NewLinuxContainer(
+	return linux_container.NewLinuxContainer(
 		spec,
 		p.portPool,
 		p.runner,
@@ -480,9 +480,7 @@ func (p *provider) ProvideContainer(spec linux_backend.LinuxContainerSpec) linux
 		bandwidth_manager.New(spec.ContainerPath, spec.ID, p.runner),
 		process_tracker.New(spec.ContainerPath, p.runner),
 		p.ProvideFilter(spec.ID),
+		devices.Link{Name: p.sysconfig.NetworkInterfacePrefix + spec.ID + "-0"},
 		p.log,
 	)
-
-	container.NetworkStatisticser = devices.Link{Name: p.sysconfig.NetworkInterfacePrefix + spec.ID + "-0"}
-	return container
 }

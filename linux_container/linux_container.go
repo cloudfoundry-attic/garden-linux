@@ -44,6 +44,11 @@ type QuotaManager interface {
 	IsEnabled() bool
 }
 
+//go:generate counterfeiter -o fake_network_statisticser/fake_network_statisticser.go . NetworkStatisticser
+type NetworkStatisticser interface {
+	Statistics() (stats garden.ContainerNetworkStat, err error)
+}
+
 type LinuxContainer struct {
 	propertiesMutex sync.RWMutex
 	stateMutex      sync.RWMutex
@@ -70,13 +75,9 @@ type LinuxContainer struct {
 
 	mtu uint32
 
-	NetworkStatisticser NetworkStatisticser
+	netStats NetworkStatisticser
 
 	logger lager.Logger
-}
-
-type NetworkStatisticser interface {
-	Statistics() (stats garden.ContainerNetworkStat, err error)
 }
 
 type ProcessIDPool struct {
@@ -116,6 +117,7 @@ func NewLinuxContainer(
 	bandwidthManager bandwidth_manager.BandwidthManager,
 	processTracker process_tracker.ProcessTracker,
 	filter network.Filter,
+	netStats NetworkStatisticser,
 	logger lager.Logger,
 ) *LinuxContainer {
 	return &LinuxContainer{
@@ -129,6 +131,7 @@ func NewLinuxContainer(
 		processTracker:   processTracker,
 		filter:           filter,
 		processIDPool:    &ProcessIDPool{},
+		netStats:         netStats,
 
 		logger: logger,
 	}

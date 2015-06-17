@@ -31,7 +31,7 @@ func (c *LinuxContainer) Metrics() (garden.Metrics, error) {
 		return garden.Metrics{}, err
 	}
 
-	hostNetworkStat, err := c.NetworkStatisticser.Statistics()
+	hostNetworkStat, err := c.netStats.Statistics()
 	if err != nil {
 		return garden.Metrics{}, err
 	}

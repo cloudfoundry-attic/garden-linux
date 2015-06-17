@@ -8,8 +8,8 @@ import (
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_network_statisticser"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_quota_manager"
-	"github.com/cloudfoundry-incubator/garden-linux/network/devices/fakedevices"
 	networkFakes "github.com/cloudfoundry-incubator/garden-linux/network/fakes"
 	"github.com/cloudfoundry-incubator/garden-linux/old/bandwidth_manager/fake_bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/old/cgroups_manager/fake_cgroups_manager"
@@ -24,12 +24,14 @@ import (
 var _ = Describe("Linux containers", func() {
 	var fakeCgroups *fake_cgroups_manager.FakeCgroupsManager
 	var fakeQuotaManager *fake_quota_manager.FakeQuotaManager
+	var fakeNetStats *fake_network_statisticser.FakeNetworkStatisticser
 	var container *linux_container.LinuxContainer
 	var containerDir string
 
 	BeforeEach(func() {
 		fakeCgroups = fake_cgroups_manager.New("/cgroups", "some-id")
 		fakeQuotaManager = new(fake_quota_manager.FakeQuotaManager)
+		fakeNetStats = new(fake_network_statisticser.FakeNetworkStatisticser)
 	})
 
 	JustBeforeEach(func() {
@@ -63,9 +65,9 @@ var _ = Describe("Linux containers", func() {
 			fake_bandwidth_manager.New(),
 			new(fake_process_tracker.FakeProcessTracker),
 			new(networkFakes.FakeFilter),
+			fakeNetStats,
 			lagertest.NewTestLogger("linux-container-limits-test"),
 		)
-		container.NetworkStatisticser = &fakedevices.FakeLink{}
 	})
 
 	Describe("Metrics", func() {
@@ -246,21 +248,25 @@ system 2
 
 		Describe("Getting network info", func() {
 			Context("on existing interface", func() {
-				It("it is returned in the response", func() {
+				It("it returns container statistics, which are the inverse of the returned values", func() {
+					fakeNetStats.StatisticsReturns(garden.ContainerNetworkStat{
+						RxBytes: 2,
+						TxBytes: 1,
+					}, nil)
+
 					metrics, err := container.Metrics()
 					Expect(err).ToNot(HaveOccurred())
 
 					Expect(metrics.NetworkStat).To(Equal(garden.ContainerNetworkStat{
-						RxBytes: 2,
-						TxBytes: 1,
+						RxBytes: 1, // the network statisticser returns the host-side stats
+						TxBytes: 2, // therefore the container should have reversed them
 					}))
 				})
 			})
 
 			Context("on non-existent interface", func() {
 				JustBeforeEach(func() {
-					container.NetworkStatisticser = &fakedevices.FakeLink{
-						StatisticsReturns: errors.New("link does not exist")}
+					fakeNetStats.StatisticsReturns(garden.ContainerNetworkStat{}, errors.New("link does not exist"))
 				})
 
 				It("it fails with error", func() {
