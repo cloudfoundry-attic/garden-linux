@@ -2,12 +2,19 @@ package devices
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net"
+	"path/filepath"
+	"strconv"
+	"strings"
 
+	"github.com/cloudfoundry-incubator/garden"
 	"github.com/docker/libcontainer/netlink"
 )
 
-type Link struct{}
+type Link struct {
+	Name string
+}
 
 func (Link) AddIP(intf *net.Interface, ip net.IP, subnet *net.IPNet) error {
 	netlinkMu.Lock()
@@ -76,6 +83,37 @@ func (Link) List() (names []string, err error) {
 	}
 
 	return names, nil
+}
+
+func (l Link) Statistics() (stats garden.ContainerNetworkStat, err error) {
+	var RxBytes, TxBytes uint64
+
+	if RxBytes, err = intfStat(l.Name, "rx_bytes"); err != nil {
+		return stats, err
+	}
+
+	if TxBytes, err = intfStat(l.Name, "tx_bytes"); err != nil {
+		return stats, err
+	}
+
+	return garden.ContainerNetworkStat{
+		RxBytes: RxBytes,
+		TxBytes: TxBytes,
+	}, nil
+}
+
+func intfStat(intf, statFile string) (stat uint64, err error) {
+	data, err := ioutil.ReadFile(filepath.Join("/sys/class/net", intf, "statistics", statFile))
+	if err != nil {
+		return 0, err
+	}
+
+	stat, err = strconv.ParseUint(strings.TrimSpace(string(data)), 10, 64)
+	if err != nil {
+		return 0, err
+	}
+
+	return stat, nil
 }
 
 func errF(err error) error {

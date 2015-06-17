@@ -31,10 +31,21 @@ func (c *LinuxContainer) Metrics() (garden.Metrics, error) {
 		return garden.Metrics{}, err
 	}
 
+	hostNetworkStat, err := c.NetworkStatisticser.Statistics()
+	if err != nil {
+		return garden.Metrics{}, err
+	}
+
+	// tx for host_intf is rx for cont_intf and vice-versa
+	var contNetworkStat garden.ContainerNetworkStat
+	contNetworkStat.RxBytes = hostNetworkStat.TxBytes
+	contNetworkStat.TxBytes = hostNetworkStat.RxBytes
+
 	return garden.Metrics{
-		MemoryStat: parseMemoryStat(memoryStat),
-		CPUStat:    parseCPUStat(cpuUsage, cpuStat),
-		DiskStat:   diskStat,
+		MemoryStat:  parseMemoryStat(memoryStat),
+		CPUStat:     parseCPUStat(cpuUsage, cpuStat),
+		DiskStat:    diskStat,
+		NetworkStat: contNetworkStat,
 	}, nil
 }
 

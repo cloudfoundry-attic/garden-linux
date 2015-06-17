@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"syscall"
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
@@ -123,6 +124,10 @@ func (b *LinuxBackend) Start() error {
 
 	for _, container := range containers {
 		keep[container.ID()] = true
+	}
+
+	if err := mountSysFs(); err != nil {
+		return err
 	}
 
 	return b.containerPool.Prune(keep)
@@ -353,4 +358,26 @@ func toGardenContainers(cs []Container) []garden.Container {
 	}
 
 	return result
+}
+
+func mountSysFs() error {
+	mntpoint, err := os.Stat("/sys")
+	if err != nil {
+		return err
+	}
+
+	parent, err := os.Stat("/")
+	if err != nil {
+		return err
+	}
+
+	//mount sysfs if not mounted already
+	if mntpoint.Sys().(*syscall.Stat_t).Dev == parent.Sys().(*syscall.Stat_t).Dev {
+		err = syscall.Mount("sysfs", "/sys", "sysfs", uintptr(0), "")
+		if err != nil {
+			return fmt.Errorf("Mounting sysfs failed: %s", err)
+		}
+	}
+
+	return nil
 }

@@ -105,7 +105,7 @@ var _ = Describe("Link Management", func() {
 		})
 
 		AfterEach(func() {
-			cmd, err := gexec.Start(exec.Command("sh", "-c", "ip netns delete gdnsetnstest; umount /sys"), GinkgoWriter, GinkgoWriter)
+			cmd, err := gexec.Start(exec.Command("sh", "-c", "ip netns delete gdnsetnstest; umount -n -l -t tmpfs /sys"), GinkgoWriter, GinkgoWriter)
 			Expect(err).ToNot(HaveOccurred())
 			Eventually(cmd).Should(gexec.Exit(0))
 		})
@@ -164,6 +164,77 @@ var _ = Describe("Link Management", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(names).To(ContainElement(name))
+		})
+	})
+
+	Describe("GetStatistics", func() {
+		BeforeEach(func() {
+			cmd, err := gexec.Start(exec.Command("sh", "-c", "mount -n -t sysfs sysfs /sys ||true"), GinkgoWriter, GinkgoWriter)
+			Expect(err).ToNot(HaveOccurred())
+			Eventually(cmd).Should(gexec.Exit(0))
+		})
+
+		Context("When the interface exist", func() {
+			BeforeEach(func() {
+				cmd, err := gexec.Start(exec.Command(
+					"sh", "-c", `
+					mount -n -t tmpfs tmpfs /sys
+					ip netns add netns1
+					ip link add veth0 type veth peer name veth1
+					ip link set veth1 netns netns1
+					ip netns exec netns1 ifconfig veth1 10.1.1.1/24 up
+					ifconfig veth0 10.1.1.2/24 up
+					umount -n -l -t tmpfs /sys
+					`,
+				), GinkgoWriter, GinkgoWriter)
+				Expect(err).ToNot(HaveOccurred())
+				Eventually(cmd, "10s").Should(gexec.Exit(0))
+			})
+
+			AfterEach(func() {
+				cmd, err := gexec.Start(exec.Command(
+					"sh", "-c", `
+					mount -n -t tmpfs tmpfs /sys
+					ip netns exec netns1 ip link del veth1
+					ip netns delete netns1
+					umount -n -l -t tmpfs /sys
+					`,
+				), GinkgoWriter, GinkgoWriter)
+				Expect(err).ToNot(HaveOccurred())
+				Eventually(cmd).Should(gexec.Exit(0))
+			})
+
+			It("Gets statistics from the interface", func() {
+				link := devices.Link{Name: "veth0"}
+				beforeStat, err := link.Statistics()
+				Expect(err).ToNot(HaveOccurred())
+				cmd, err := gexec.Start(exec.Command(
+					"sh", "-c", `
+					ping -c 10 -s 80 10.1.1.1
+					`,
+				), GinkgoWriter, GinkgoWriter)
+				Expect(err).ToNot(HaveOccurred())
+				Eventually(cmd, "15s").Should(gexec.Exit(0))
+
+				afterStat, err := link.Statistics()
+				Expect(err).ToNot(HaveOccurred())
+
+				// size of ping packet is 42 + payload_size (80 bytes)
+				// there could be additional arp messages transferred and recieved
+				// so check for range instead of absolute values
+				Expect(afterStat.TxBytes).To(BeNumerically(">=", beforeStat.TxBytes+(10*(42+80))))
+				Expect(afterStat.TxBytes).To(BeNumerically("<", beforeStat.TxBytes+(10*(42+80))+1000))
+				Expect(afterStat.RxBytes).To(BeNumerically(">=", beforeStat.RxBytes+(10*(42+80))))
+				Expect(afterStat.RxBytes).To(BeNumerically("<", beforeStat.RxBytes+(10*(42+80))+1000))
+			})
+		})
+
+		Context("when the interface does not exist", func() {
+			It("Gets statistics return an error", func() {
+				link := devices.Link{Name: "non-existent-intf"}
+				_, err := link.Statistics()
+				Expect(err).To(HaveOccurred())
+			})
 		})
 	})
 })
