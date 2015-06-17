@@ -1,6 +1,9 @@
 package lifecycle_test
 
 import (
+	"os"
+	"syscall"
+
 	"github.com/cloudfoundry-incubator/garden"
 
 	. "github.com/onsi/ginkgo"
@@ -38,6 +41,8 @@ var _ = Describe("Container information", func() {
 		})
 
 		Describe(".BulkMetrics", func() {
+			BeforeEach(ensureSysfsMounted)
+
 			It("returns container metrics for the specified handles", func() {
 				bulkInfo, err := client.BulkMetrics(handles)
 				Expect(err).ToNot(HaveOccurred())
@@ -82,6 +87,8 @@ var _ = Describe("Container information", func() {
 		})
 
 		Describe("getting container metrics without getting info", func() {
+			BeforeEach(ensureSysfsMounted)
+
 			It("can list metrics", func() {
 				metrics, err := container.Metrics()
 				Expect(err).ToNot(HaveOccurred())
@@ -172,3 +179,14 @@ var _ = Describe("Container information", func() {
 		})
 	})
 })
+
+func ensureSysfsMounted() {
+	mntpoint, err := os.Stat("/sys")
+	Expect(err).ToNot(HaveOccurred())
+	parent, err := os.Stat("/")
+	Expect(err).ToNot(HaveOccurred())
+
+	if mntpoint.Sys().(*syscall.Stat_t).Dev == parent.Sys().(*syscall.Stat_t).Dev {
+		Expect(syscall.Mount("sysfs", "/sys", "sysfs", uintptr(0), "")).To(Succeed())
+	}
+}
