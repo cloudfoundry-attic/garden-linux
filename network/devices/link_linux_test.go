@@ -22,6 +22,10 @@ var _ = Describe("Link Management", func() {
 	)
 
 	BeforeEach(func() {
+		cmd, err := gexec.Start(exec.Command("sh", "-c", "mount -n -t sysfs sysfs /sys ||true"), GinkgoWriter, GinkgoWriter)
+		Expect(err).ToNot(HaveOccurred())
+		Eventually(cmd).Should(gexec.Exit(0))
+
 		name = fmt.Sprintf("gdn-test-%d", GinkgoParallelNode())
 		Expect(netlink.NetworkLinkAdd(name, "dummy")).To(Succeed())
 		intf, _ = net.InterfaceByName(name)
@@ -99,13 +103,13 @@ var _ = Describe("Link Management", func() {
 
 	Describe("SetNs", func() {
 		BeforeEach(func() {
-			cmd, err := gexec.Start(exec.Command("sh", "-c", "mount -n -t tmpfs tmpfs /sys; ip netns add gdnsetnstest"), GinkgoWriter, GinkgoWriter)
+			cmd, err := gexec.Start(exec.Command("sh", "-c", "ip netns add gdnsetnstest"), GinkgoWriter, GinkgoWriter)
 			Expect(err).ToNot(HaveOccurred())
 			Eventually(cmd).Should(gexec.Exit(0))
 		})
 
 		AfterEach(func() {
-			cmd, err := gexec.Start(exec.Command("sh", "-c", "ip netns delete gdnsetnstest; umount -n -l -t tmpfs /sys"), GinkgoWriter, GinkgoWriter)
+			cmd, err := gexec.Start(exec.Command("sh", "-c", "ip netns delete gdnsetnstest"), GinkgoWriter, GinkgoWriter)
 			Expect(err).ToNot(HaveOccurred())
 			Eventually(cmd).Should(gexec.Exit(0))
 		})
@@ -168,23 +172,16 @@ var _ = Describe("Link Management", func() {
 	})
 
 	Describe("GetStatistics", func() {
-		BeforeEach(func() {
-			cmd, err := gexec.Start(exec.Command("sh", "-c", "mount -n -t sysfs sysfs /sys ||true"), GinkgoWriter, GinkgoWriter)
-			Expect(err).ToNot(HaveOccurred())
-			Eventually(cmd).Should(gexec.Exit(0))
-		})
 
 		Context("When the interface exist", func() {
 			BeforeEach(func() {
 				cmd, err := gexec.Start(exec.Command(
 					"sh", "-c", `
-					mount -n -t tmpfs tmpfs /sys
 					ip netns add netns1
 					ip link add veth0 type veth peer name veth1
 					ip link set veth1 netns netns1
 					ip netns exec netns1 ifconfig veth1 10.1.1.1/24 up
 					ifconfig veth0 10.1.1.2/24 up
-					umount -n -l -t tmpfs /sys
 					`,
 				), GinkgoWriter, GinkgoWriter)
 				Expect(err).ToNot(HaveOccurred())
@@ -194,10 +191,8 @@ var _ = Describe("Link Management", func() {
 			AfterEach(func() {
 				cmd, err := gexec.Start(exec.Command(
 					"sh", "-c", `
-					mount -n -t tmpfs tmpfs /sys
 					ip netns exec netns1 ip link del veth1
 					ip netns delete netns1
-					umount -n -l -t tmpfs /sys
 					`,
 				), GinkgoWriter, GinkgoWriter)
 				Expect(err).ToNot(HaveOccurred())
