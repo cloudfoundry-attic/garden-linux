@@ -22,7 +22,7 @@ var _ = Describe("Link Management", func() {
 	)
 
 	BeforeEach(func() {
-		cmd, err := gexec.Start(exec.Command("sh", "-c", "mount -n -t sysfs sysfs /sys ||true"), GinkgoWriter, GinkgoWriter)
+		cmd, err := gexec.Start(exec.Command("sh", "-c", "mountpoint /sys || mount -t sysfs sysfs /sys"), GinkgoWriter, GinkgoWriter)
 		Expect(err).ToNot(HaveOccurred())
 		Eventually(cmd).Should(gexec.Exit(0))
 
