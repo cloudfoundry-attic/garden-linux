@@ -3,11 +3,11 @@ package rootfs_provider_test
 import (
 	"errors"
 
-	"github.com/cloudfoundry-incubator/garden-linux/Godeps/_workspace/src/github.com/pivotal-golang/lager/lagertest"
 	"github.com/cloudfoundry-incubator/garden-linux/old/rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/old/rootfs_provider/fake_graph_driver"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/pivotal-golang/lager/lagertest"
 )
 
 var _ = Describe("VfsRootfsRemover", func() {

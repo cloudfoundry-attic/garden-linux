@@ -125,7 +125,7 @@ var _ = Describe("Security", func() {
 	Describe("Mount namespace", func() {
 		It("does not allow mounts in the container to show in the host", func() {
 			client = startGarden()
-			container, err := client.Create(garden.ContainerSpec{})
+			container, err := client.Create(garden.ContainerSpec{Privileged: true})
 			Expect(err).ToNot(HaveOccurred())
 
 			process, err := container.Run(garden.ProcessSpec{
@@ -218,7 +218,7 @@ var _ = Describe("Security", func() {
 		It("does not allow network configuration in the container to show in the host", func() {
 
 			client = startGarden()
-			container, err := client.Create(garden.ContainerSpec{})
+			container, err := client.Create(garden.ContainerSpec{Privileged: true})
 			Expect(err).ToNot(HaveOccurred())
 
 			process, err := container.Run(garden.ProcessSpec{
@@ -325,7 +325,7 @@ var _ = Describe("Security", func() {
 	Describe("UTS namespace", func() {
 		It("changing the container's hostname does not affect the host's hostname", func() {
 			client = startGarden()
-			container, err := client.Create(garden.ContainerSpec{})
+			container, err := client.Create(garden.ContainerSpec{Privileged: true})
 			Expect(err).ToNot(HaveOccurred())
 
 			process, err := container.Run(garden.ProcessSpec{

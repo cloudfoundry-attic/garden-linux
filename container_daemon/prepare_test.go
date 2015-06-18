@@ -41,9 +41,10 @@ var _ = Describe("Preparing a command to run", func() {
 		rlimitsEncoder = new(fake_rlimits_env_encoder.FakeRlimitsEnvEncoder)
 
 		preparer = &container_daemon.ProcessSpecPreparer{
-			Users:           users,
-			Rlimits:         rlimitsEncoder,
-			ProcStarterPath: "/path/to/proc/starter",
+			Users:            users,
+			Rlimits:          rlimitsEncoder,
+			ProcStarterPath:  "/path/to/proc/starter",
+			DropCapabilities: true,
 		}
 	})
 
@@ -83,7 +84,27 @@ var _ = Describe("Preparing a command to run", func() {
 			It("executes the proc_starter binary with the process path and args", func() {
 				Expect(theReturnedError).To(BeNil())
 				Expect(thePreparedCmd.Path).To(Equal("/path/to/proc/starter"))
-				Expect(thePreparedCmd.Args).To(Equal([]string{"/path/to/proc/starter", "ENCODEDRLIMITS=", "fishfinger", "foo", "bar"}))
+				Expect(thePreparedCmd.Args).To(Equal([]string{"/path/to/proc/starter", "-dropCapabilities=true", "-rlimits=", "--", "fishfinger", "foo", "bar"}))
+			})
+
+			Context("when configured to drop capabilities", func() {
+				BeforeEach(func() {
+					preparer.DropCapabilities = true
+				})
+
+				It("does not pass the -dropCapabilities flag as true", func() {
+					Expect(thePreparedCmd.Args).To(ContainElement("-dropCapabilities=true"))
+				})
+			})
+
+			Context("when configured not to drop capabilities", func() {
+				BeforeEach(func() {
+					preparer.DropCapabilities = false
+				})
+
+				It("passes the -dropCapabilities flag as false", func() {
+					Expect(thePreparedCmd.Args).To(ContainElement("-dropCapabilities=false"))
+				})
 			})
 
 			It("has the correct uid based on the /etc/passwd file", func() {
@@ -189,7 +210,7 @@ var _ = Describe("Preparing a command to run", func() {
 				})
 
 				It("applies the rlimits environment variables", func() {
-					Expect(thePreparedCmd.Args[1]).To(Equal("ENCODEDRLIMITS=hello=world,name=wsh"))
+					Expect(thePreparedCmd.Args).To(ContainElement("-rlimits=hello=world,name=wsh"))
 				})
 			})
 

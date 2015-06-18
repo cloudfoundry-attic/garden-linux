@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"syscall"
@@ -22,6 +23,9 @@ func main() {
 		}
 	}()
 
+	dropCaps := flag.Bool("dropCapabilities", false, "drop capabilities before running processes")
+	flag.Parse()
+
 	container_daemon.Detach("/dev/null", "/dev/null")
 	logger := lager.NewLogger("initd")
 
@@ -38,9 +42,10 @@ func main() {
 
 	daemon := &container_daemon.ContainerDaemon{
 		CmdPreparer: &container_daemon.ProcessSpecPreparer{
-			Users:           container_daemon.LibContainerUser{},
-			Rlimits:         &container_daemon.RlimitsManager{},
-			ProcStarterPath: "/sbin/proc_starter",
+			Users:            container_daemon.LibContainerUser{},
+			Rlimits:          &container_daemon.RlimitsManager{},
+			ProcStarterPath:  "/sbin/proc_starter",
+			DropCapabilities: *dropCaps,
 		},
 		Spawner: &container_daemon.Spawn{
 			Runner: reaper,

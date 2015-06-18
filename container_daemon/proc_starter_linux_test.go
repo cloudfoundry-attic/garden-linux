@@ -5,8 +5,11 @@ import (
 	"os"
 	"os/exec"
 
+	"io"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gbytes"
 	"github.com/onsi/gomega/gexec"
 )
 
@@ -15,7 +18,7 @@ var _ = Describe("proc_starter", func() {
 		testWorkDir, err := ioutil.TempDir("", "")
 		Expect(err).ToNot(HaveOccurred())
 
-		cmd := exec.Command(procStarterBin, "ENCODEDRLIMITS=", "/bin/sh", "-c", "echo $PWD")
+		cmd := exec.Command(procStarterBin, "/bin/sh", "-c", "echo $PWD")
 		cmd.Dir = testWorkDir
 		op, err := cmd.CombinedOutput()
 		Expect(err).ToNot(HaveOccurred())
@@ -23,8 +26,48 @@ var _ = Describe("proc_starter", func() {
 	})
 
 	It("runs a program from the PATH", func() {
-		cmd := exec.Command(procStarterBin, "ENCODEDRLIMITS=", "ls", "/")
+		cmd := exec.Command(procStarterBin, "ls", "/")
 		Expect(cmd.Run()).To(Succeed())
+	})
+
+	It("sets rlimits", func() {
+		cmd := exec.Command(procStarterBin, "-rlimits=RLIMIT_NOFILE=2099,RLIMIT_CPU=3", "--", "sh", "-c", "ulimit -a")
+		out := gbytes.NewBuffer()
+		cmd.Stdout = io.MultiWriter(GinkgoWriter, out)
+		cmd.Stderr = GinkgoWriter
+
+		Expect(cmd.Run()).To(Succeed())
+		Expect(out).To(gbytes.Say("nofiles\\s+2099"))
+	})
+
+	It("allows the spawned process to have its own args", func() {
+		cmd := exec.Command(procStarterBin, "-rlimits=", "-dropCapabilities=false", "--", "echo", "foo", "-bar", "-baz=beans")
+		out := gbytes.NewBuffer()
+		cmd.Stdout = io.MultiWriter(GinkgoWriter, out)
+		cmd.Stderr = GinkgoWriter
+
+		Expect(cmd.Run()).To(Succeed())
+		Expect(out).To(gbytes.Say("foo -bar -baz=beans"))
+	})
+
+	It("drops capabilities before starting the process", func() {
+		cmd := exec.Command(procStarterBin, "cat", "/proc/self/status")
+		out := gbytes.NewBuffer()
+		cmd.Stdout = io.MultiWriter(GinkgoWriter, out)
+		cmd.Stderr = io.MultiWriter(GinkgoWriter, out)
+		Expect(cmd.Run()).To(Succeed())
+		Expect(out).To(gbytes.Say("CapBnd:	00000000a80425fa"))
+	})
+
+	Context("when the dropCapabilities flag is set to false", func() {
+		It("does not drop capabilties before starting the process", func() {
+			cmd := exec.Command(procStarterBin, "-dropCapabilities=false", "cat", "/proc/self/status")
+			out := gbytes.NewBuffer()
+			cmd.Stdout = io.MultiWriter(GinkgoWriter, out)
+			cmd.Stderr = io.MultiWriter(GinkgoWriter, out)
+			Expect(cmd.Run()).To(Succeed())
+			Expect(out).ToNot(gbytes.Say("CapBnd:	0000000000000000"))
+		})
 	})
 
 	It("closes any open FDs before starting the process", func() {
@@ -34,7 +77,7 @@ var _ = Describe("proc_starter", func() {
 		pipe, _, err := os.Pipe()
 		Expect(err).NotTo(HaveOccurred())
 
-		cmd := exec.Command(procStarterBin, "ENCODEDRLIMITS=", "ls", "/proc/self/fd")
+		cmd := exec.Command(procStarterBin, "ls", "/proc/self/fd")
 		cmd.ExtraFiles = []*os.File{
 			file,
 			pipe,

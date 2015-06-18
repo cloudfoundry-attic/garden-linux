@@ -21,17 +21,18 @@ type User interface {
 }
 
 type ProcessSpecPreparer struct {
-	Users           User
-	ProcStarterPath string
-	Rlimits         RlimitsEnvEncoder
+	Users            User
+	ProcStarterPath  string
+	Rlimits          RlimitsEnvEncoder
+	DropCapabilities bool
 }
-
-const RLimitsTag = "ENCODEDRLIMITS"
 
 func (p *ProcessSpecPreparer) PrepareCmd(spec garden.ProcessSpec) (*exec.Cmd, error) {
 	rlimitsEnv := p.Rlimits.EncodeLimits(spec.Limits)
-	rlimitArg := fmt.Sprintf("%s=%s", RLimitsTag, rlimitsEnv)
-	args := append([]string{rlimitArg}, spec.Path)
+	dropCapsArg := fmt.Sprintf("-dropCapabilities=%t", p.DropCapabilities)
+	rlimitArg := fmt.Sprintf("-rlimits=%s", rlimitsEnv)
+
+	args := append([]string{dropCapsArg, rlimitArg}, "--", spec.Path)
 	args = append(args, spec.Args...)
 	cmd := exec.Command(p.ProcStarterPath, args...)
 

@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -10,7 +9,10 @@ import (
 	"strconv"
 	"syscall"
 
+	"flag"
+
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
+	"github.com/syndtr/gocapability/capability"
 )
 
 // proc_starter starts a user process with the correct rlimits and after
@@ -18,43 +20,52 @@ import (
 func main() {
 	runtime.LockOSThread()
 
-	if len(os.Args) < 3 {
-		fmt.Fprintf(os.Stderr, "ERROR: No arguments were provided!\n")
-		os.Exit(255)
-	}
+	rlimits := flag.String("rlimits", "", "encoded rlimits")
+	dropCapabilities := flag.Bool("dropCapabilities", true, "drop capabilties before starting process")
+	flag.Parse()
 
 	closeFds()
 
 	mgr := &container_daemon.RlimitsManager{}
-	rlimits := mgr.DecodeLimits(decodeRLimitsArg(os.Args[1]))
-	mgr.Apply(rlimits)
+	mgr.Apply(mgr.DecodeLimits(*rlimits))
 
-	programPath, err := exec.LookPath(os.Args[2])
+	args := flag.Args()
+
+	programPath, err := exec.LookPath(args[0])
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: Program '%s' was not found in $PATH: %s\n", os.Args[2], err)
+		fmt.Fprintf(os.Stderr, "ERROR: Program '%s' was not found in $PATH: %s\n", args[0], err)
 		os.Exit(255)
 	}
 
-	err = syscall.Exec(programPath, os.Args[2:], os.Environ())
+	if *dropCapabilities {
+		caps, err := capability.NewPid(os.Getpid())
+		mustNot(err)
+
+		caps.Clear(capability.BOUNDING)
+		caps.Set(capability.BOUNDING,
+			capability.CAP_DAC_OVERRIDE,
+			capability.CAP_FSETID,
+			capability.CAP_FOWNER,
+			capability.CAP_MKNOD,
+			capability.CAP_NET_RAW,
+			capability.CAP_SETGID,
+			capability.CAP_SETUID,
+			capability.CAP_SETFCAP,
+			capability.CAP_SETPCAP,
+			capability.CAP_NET_BIND_SERVICE,
+			capability.CAP_SYS_CHROOT,
+			capability.CAP_KILL,
+			capability.CAP_AUDIT_WRITE,
+		)
+
+		must(caps.Apply(capability.BOUNDING))
+	}
+
+	err = syscall.Exec(programPath, args, os.Environ())
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: exec: %s\n", err)
 		os.Exit(255)
 	}
-}
-
-func decodeRLimitsArg(rlimitsArg string) string {
-	var rlimits string
-	count, err := fmt.Sscanf(rlimitsArg, container_daemon.RLimitsTag+"=%s", &rlimits)
-
-	if count != 1 || err != nil {
-		if err == io.EOF {
-			return ""
-		}
-		fmt.Fprintf(os.Stderr, "ERROR: invalid rlimits argument: %s\n", rlimitsArg)
-		os.Exit(255)
-	}
-
-	return rlimits
 }
 
 func closeFds() {
@@ -79,5 +90,13 @@ func closeFds() {
 		}
 
 		syscall.CloseOnExec(fdI)
+	}
+}
+
+var must = mustNot
+
+func mustNot(err error) {
+	if err != nil {
+		panic(err)
 	}
 }

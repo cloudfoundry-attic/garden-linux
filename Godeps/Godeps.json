@@ -232,6 +232,11 @@
 			"Rev": "7ce34f58cbd4884634a0f1f82c4aaab1168ea0de"
 		},
 		{
+			"ImportPath": "github.com/docker/libcontainer/user",
+			"Comment": "v1.2.0-162-g7ce34f5",
+			"Rev": "7ce34f58cbd4884634a0f1f82c4aaab1168ea0de"
+		},
+		{
 			"ImportPath": "github.com/docker/libtrust",
 			"Rev": "9f61d4554f6af00705c15714f4711f3019da7760"
 		},
@@ -281,6 +286,10 @@
 		{
 			"ImportPath": "github.com/pivotal-golang/localip",
 			"Rev": "c773e5fa43049a431973996f93afa7ee10312139"
+		},
+		{
+			"ImportPath": "github.com/syndtr/gocapability/capability",
+			"Rev": "66ef2aa7a23ba682594e2b6f74cf40c0692b49fb"
 		},
 		{
 			"ImportPath": "github.com/tchap/go-patricia/patricia",
