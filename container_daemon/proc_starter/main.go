@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"syscall"
 
@@ -15,6 +16,8 @@ import (
 // proc_starter starts a user process with the correct rlimits and after
 // closing any open FDs.
 func main() {
+	runtime.LockOSThread()
+
 	if len(os.Args) < 3 {
 		fmt.Fprintf(os.Stderr, "ERROR: No arguments were provided!\n")
 		os.Exit(255)
