@@ -7,13 +7,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
-	"net/http"
-	"net/http/httputil"
 	"net/url"
 	"strings"
-	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden/routes"
@@ -73,13 +69,15 @@ type Connection interface {
 	RemoveProperty(handle string, name string) error
 }
 
+//go:generate counterfeiter . HijackStreamer
+type HijackStreamer interface {
+	Stream(handler string, body io.Reader, params rata.Params, query url.Values, contentType string) (io.ReadCloser, error)
+	Hijack(handler string, body io.Reader, params rata.Params, query url.Values, contentType string) (net.Conn, *bufio.Reader, error)
+}
+
 type connection struct {
-	req *rata.RequestGenerator
-
-	dialer func(string, string) (net.Conn, error)
-
-	noKeepaliveClient *http.Client
-	log               lager.Logger
+	hijacker HijackStreamer
+	log      lager.Logger
 }
 
 type Error struct {
@@ -96,23 +94,14 @@ func New(network, address string) Connection {
 }
 
 func NewWithLogger(network, address string, log lager.Logger) Connection {
-	dialer := func(string, string) (net.Conn, error) {
-		return net.DialTimeout(network, address, time.Second)
-	}
+	hijacker := NewHijackStreamer(network, address)
+	return NewWithHijacker(network, address, hijacker, log)
+}
 
+func NewWithHijacker(network, address string, hijacker HijackStreamer, log lager.Logger) Connection {
 	return &connection{
-		req: rata.NewRequestGenerator("http://api", routes.Routes),
-
-		dialer: dialer,
-
-		noKeepaliveClient: &http.Client{
-			Transport: &http.Transport{
-				Dial:              dialer,
-				DisableKeepAlives: true,
-			},
-		},
-
-		log: log,
+		hijacker: hijacker,
+		log:      log,
 	}
 }
 
@@ -177,7 +166,7 @@ func (c *connection) Run(handle string, spec garden.ProcessSpec, processIO garde
 		return nil, err
 	}
 
-	conn, br, err := c.doHijack(
+	hijackedConn, hijackedResponseReader, err := c.hijacker.Hijack(
 		routes.Run,
 		reqBody,
 		rata.Params{
@@ -190,13 +179,13 @@ func (c *connection) Run(handle string, spec garden.ProcessSpec, processIO garde
 		return nil, err
 	}
 
-	return c.streamProcess(handle, processIO, conn, br)
+	return c.streamProcess(handle, processIO, hijackedConn, hijackedResponseReader)
 }
 
 func (c *connection) Attach(handle string, processID uint32, processIO garden.ProcessIO) (garden.Process, error) {
 	reqBody := new(bytes.Buffer)
 
-	conn, br, err := c.doHijack(
+	hijackedConn, hijackedResponseReader, err := c.hijacker.Hijack(
 		routes.Attach,
 		reqBody,
 		rata.Params{
@@ -210,22 +199,88 @@ func (c *connection) Attach(handle string, processID uint32, processIO garden.Pr
 		return nil, err
 	}
 
-	return c.streamProcess(handle, processIO, conn, br)
+	return c.streamProcess(handle, processIO, hijackedConn, hijackedResponseReader)
 }
 
-func (c *connection) streamProcess(handle string, processIO garden.ProcessIO, to net.Conn, from *bufio.Reader) (garden.Process, error) {
-	decoder := json.NewDecoder(from)
+func (c *connection) streamProcess(handle string, processIO garden.ProcessIO, hijackedConn net.Conn, hijackedResponseReader *bufio.Reader) (garden.Process, error) {
+	decoder := json.NewDecoder(hijackedResponseReader)
 
-	firstResponse := &transport.ProcessPayload{}
-	err := decoder.Decode(firstResponse)
-	if err != nil {
+	payload := &transport.ProcessPayload{}
+	if err := decoder.Decode(payload); err != nil {
 		return nil, err
 	}
 
-	p := newProcess(firstResponse.ProcessID, to)
-	go p.streamPayloads(c.log, decoder, c.newIOStream(handle, firstResponse.ProcessID, firstResponse.StreamID), processIO)
+	processPipeline := &processStream{
+		processID: payload.ProcessID,
+		conn:      hijackedConn,
+	}
 
-	return p, nil
+	hijack := func(streamType string) (net.Conn, io.Reader, error) {
+		params := rata.Params{
+			"handle":   handle,
+			"pid":      fmt.Sprintf("%d", processPipeline.ProcessID()),
+			"streamid": fmt.Sprintf("%d", payload.StreamID),
+		}
+
+		return c.hijacker.Hijack(
+			streamType,
+			nil,
+			params,
+			nil,
+			"application/json",
+		)
+	}
+
+	process := newProcess(payload.ProcessID, processPipeline)
+	streamHandler := newStreamHandler(c.log)
+	streamHandler.streamIn(processPipeline, processIO.Stdin)
+
+	var stdoutConn net.Conn
+	if processIO.Stdout != nil {
+		var (
+			stdout io.Reader
+			err    error
+		)
+		stdoutConn, stdout, err = hijack(routes.Stdout)
+		if err != nil {
+			werr := fmt.Errorf("connection: failed to hijack stream %s: %s", routes.Stdout, err)
+			process.exited(0, werr)
+			hijackedConn.Close()
+			return process, nil
+		}
+		streamHandler.streamOut(processIO.Stdout, stdout)
+	}
+
+	var stderrConn net.Conn
+	if processIO.Stderr != nil {
+		var (
+			stderr io.Reader
+			err    error
+		)
+		stderrConn, stderr, err = hijack(routes.Stderr)
+		if err != nil {
+			werr := fmt.Errorf("connection: failed to hijack stream %s: %s", routes.Stderr, err)
+			process.exited(0, werr)
+			hijackedConn.Close()
+			return process, nil
+		}
+		streamHandler.streamOut(processIO.Stderr, stderr)
+	}
+
+	go func() {
+		defer hijackedConn.Close()
+		if stdoutConn != nil {
+			defer stdoutConn.Close()
+		}
+		if stderrConn != nil {
+			defer stderrConn.Close()
+		}
+
+		exitCode, err := streamHandler.wait(decoder)
+		process.exited(exitCode, err)
+	}()
+
+	return process, nil
 }
 
 func (c *connection) NetIn(handle string, hostPort, containerPort uint32) (uint32, uint32, error) {
@@ -451,7 +506,7 @@ func (c *connection) CurrentMemoryLimits(handle string) (garden.MemoryLimits, er
 }
 
 func (c *connection) StreamIn(handle string, dstPath string, reader io.Reader) error {
-	body, err := c.doStream(
+	body, err := c.hijacker.Stream(
 		routes.StreamIn,
 		reader,
 		rata.Params{
@@ -470,7 +525,7 @@ func (c *connection) StreamIn(handle string, dstPath string, reader io.Reader) e
 }
 
 func (c *connection) StreamOut(handle string, srcPath string) (io.ReadCloser, error) {
-	return c.doStream(
+	return c.hijacker.Stream(
 		routes.StreamOut,
 		nil,
 		rata.Params{
@@ -571,7 +626,7 @@ func (c *connection) do(
 		contentType = "application/json"
 	}
 
-	response, err := c.doStream(
+	response, err := c.hijacker.Stream(
 		handler,
 		body,
 		params,
@@ -585,94 +640,4 @@ func (c *connection) do(
 	defer response.Close()
 
 	return json.NewDecoder(response).Decode(res)
-}
-
-func (c *connection) doStream(
-	handler string,
-	body io.Reader,
-	params rata.Params,
-	query url.Values,
-	contentType string,
-) (io.ReadCloser, error) {
-	request, err := c.req.CreateRequest(handler, params, body)
-	if err != nil {
-		return nil, err
-	}
-
-	if contentType != "" {
-		request.Header.Set("Content-Type", contentType)
-	}
-
-	if query != nil {
-		request.URL.RawQuery = query.Encode()
-	}
-
-	httpResp, err := c.noKeepaliveClient.Do(request)
-	if err != nil {
-		return nil, err
-	}
-
-	if httpResp.StatusCode < 200 || httpResp.StatusCode > 299 {
-		errResponse, err := ioutil.ReadAll(httpResp.Body)
-		httpResp.Body.Close()
-		if err != nil {
-			return nil, fmt.Errorf("bad response: %s", httpResp.Status)
-		}
-
-		if httpResp.StatusCode == http.StatusServiceUnavailable {
-			// The body has the actual error string formed at the server.
-			return nil, garden.NewServiceUnavailableError(string(errResponse))
-		}
-
-		return nil, Error{httpResp.StatusCode, string(errResponse)}
-	}
-
-	return httpResp.Body, nil
-}
-
-func (c *connection) doHijack(
-	handler string,
-	body io.Reader,
-	params rata.Params,
-	query url.Values,
-	contentType string,
-) (net.Conn, *bufio.Reader, error) {
-	request, err := c.req.CreateRequest(handler, params, body)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if contentType != "" {
-		request.Header.Set("Content-Type", contentType)
-	}
-
-	if query != nil {
-		request.URL.RawQuery = query.Encode()
-	}
-
-	conn, err := c.dialer("tcp", "api") // net/addr don't matter here
-	if err != nil {
-		return nil, nil, err
-	}
-
-	client := httputil.NewClientConn(conn, nil)
-
-	httpResp, err := client.Do(request)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if httpResp.StatusCode < 200 || httpResp.StatusCode > 299 {
-		defer httpResp.Body.Close()
-
-		errRespBytes, err := ioutil.ReadAll(httpResp.Body)
-		if err != nil {
-			return nil, nil, fmt.Errorf("Backend error: Exit status: %d, error reading response body: %s", httpResp.StatusCode, err)
-		}
-		return nil, nil, fmt.Errorf("Backend error: Exit status: %d, message: %s", httpResp.StatusCode, errRespBytes)
-	}
-
-	conn, br := client.Hijack()
-
-	return conn, br, nil
 }

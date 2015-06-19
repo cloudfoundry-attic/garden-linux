@@ -1,6 +1,7 @@
 package connection_test
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"errors"
@@ -9,6 +10,7 @@ import (
 	"io/ioutil"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -17,9 +19,11 @@ import (
 	"github.com/onsi/gomega/gbytes"
 	"github.com/onsi/gomega/ghttp"
 	"github.com/pivotal-golang/lager/lagertest"
+	"github.com/tedsuo/rata"
 
 	"github.com/cloudfoundry-incubator/garden"
 	. "github.com/cloudfoundry-incubator/garden/client/connection"
+	"github.com/cloudfoundry-incubator/garden/client/connection/fakes"
 	"github.com/cloudfoundry-incubator/garden/transport"
 )
 
@@ -28,14 +32,20 @@ var _ = Describe("Connection", func() {
 		connection     Connection
 		resourceLimits garden.ResourceLimits
 		server         *ghttp.Server
+		hijacker       HijackStreamer
+		network        string
+		address        string
 	)
 
 	BeforeEach(func() {
 		server = ghttp.NewServer()
+		network = "tcp"
+		address = server.HTTPTestServer.Listener.Addr().String()
+		hijacker = NewHijackStreamer(network, address)
 	})
 
 	JustBeforeEach(func() {
-		connection = NewWithLogger("tcp", server.HTTPTestServer.Listener.Addr().String(), lagertest.NewTestLogger("test-connection"))
+		connection = NewWithHijacker(network, address, hijacker, lagertest.NewTestLogger("test-connection"))
 	})
 
 	BeforeEach(func() {
@@ -1132,6 +1142,47 @@ var _ = Describe("Connection", func() {
 				Ω(stdout).Should(gbytes.Say("roundtripped stdin data"))
 				Ω(stderr).Should(gbytes.Say("stderr data"))
 			})
+
+			Describe("connection leak avoidance", func() {
+				var fakeHijacker *fakes.FakeHijackStreamer
+				var wrappedConnections []*wrappedConnection
+
+				BeforeEach(func() {
+					wrappedConnections = []*wrappedConnection{}
+					netHijacker := hijacker
+					fakeHijacker = new(fakes.FakeHijackStreamer)
+					fakeHijacker.HijackStub = func(handler string, body io.Reader, params rata.Params, query url.Values, contentType string) (net.Conn, *bufio.Reader, error) {
+						conn, resp, err := netHijacker.Hijack(handler, body, params, query, contentType)
+						wc := &wrappedConnection{Conn: conn}
+						wrappedConnections = append(wrappedConnections, wc)
+						return wc, resp, err
+					}
+
+					hijacker = fakeHijacker
+				})
+
+				AfterEach(func() {
+					for _, wc := range wrappedConnections {
+						Expect(wc.isClosed()).To(BeTrue())
+					}
+				})
+
+				It("should not leak net.Conn from Run", func() {
+					stdout := gbytes.NewBuffer()
+					stderr := gbytes.NewBuffer()
+
+					process, err := connection.Run("foo-handle", spec, garden.ProcessIO{
+						Stdin:  bytes.NewBufferString("stdin data"),
+						Stdout: stdout,
+						Stderr: stderr,
+					})
+					Ω(err).ShouldNot(HaveOccurred())
+
+					process.Wait()
+					Ω(stdout).Should(gbytes.Say("roundtripped stdin data"))
+					Ω(stderr).Should(gbytes.Say("stderr data"))
+				})
+			})
 		})
 
 		Context("when the process is terminated", func() {
@@ -1376,7 +1427,7 @@ var _ = Describe("Connection", func() {
 					Ω(err).ShouldNot(HaveOccurred())
 
 					_, err = process.Wait()
-					Ω(err).Should(MatchError(ContainSubstring("connection: attach to streams:")))
+					Ω(err).Should(MatchError(ContainSubstring("connection: failed to hijack stream ")))
 
 					close(done)
 				})
