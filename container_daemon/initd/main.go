@@ -42,10 +42,10 @@ func main() {
 
 	daemon := &container_daemon.ContainerDaemon{
 		CmdPreparer: &container_daemon.ProcessSpecPreparer{
-			Users:            container_daemon.LibContainerUser{},
-			Rlimits:          &container_daemon.RlimitsManager{},
-			ProcStarterPath:  "/sbin/proc_starter",
-			DropCapabilities: *dropCaps,
+			Users:                  container_daemon.LibContainerUser{},
+			Rlimits:                &container_daemon.RlimitsManager{},
+			ProcStarterPath:        "/sbin/proc_starter",
+			AlwaysDropCapabilities: *dropCaps,
 		},
 		Spawner: &container_daemon.Spawn{
 			Runner: reaper,

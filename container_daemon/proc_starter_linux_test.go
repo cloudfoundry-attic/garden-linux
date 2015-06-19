@@ -18,7 +18,7 @@ var _ = Describe("proc_starter", func() {
 		testWorkDir, err := ioutil.TempDir("", "")
 		Expect(err).ToNot(HaveOccurred())
 
-		cmd := exec.Command(procStarterBin, "/bin/sh", "-c", "echo $PWD")
+		cmd := exec.Command(procStarterBin, "-uid=0", "-gid=0", "--", "/bin/sh", "-c", "echo $PWD")
 		cmd.Dir = testWorkDir
 		op, err := cmd.CombinedOutput()
 		Expect(err).ToNot(HaveOccurred())
@@ -26,12 +26,12 @@ var _ = Describe("proc_starter", func() {
 	})
 
 	It("runs a program from the PATH", func() {
-		cmd := exec.Command(procStarterBin, "ls", "/")
+		cmd := exec.Command(procStarterBin, "-uid=0", "-gid=0", "--", "ls", "/")
 		Expect(cmd.Run()).To(Succeed())
 	})
 
 	It("sets rlimits", func() {
-		cmd := exec.Command(procStarterBin, "-rlimits=RLIMIT_NOFILE=2099,RLIMIT_CPU=3", "--", "sh", "-c", "ulimit -a")
+		cmd := exec.Command(procStarterBin, "-uid=0", "-gid=0", "-rlimits=RLIMIT_NOFILE=2099,RLIMIT_CPU=3", "--", "sh", "-c", "ulimit -a")
 		out := gbytes.NewBuffer()
 		cmd.Stdout = io.MultiWriter(GinkgoWriter, out)
 		cmd.Stderr = GinkgoWriter
@@ -41,7 +41,7 @@ var _ = Describe("proc_starter", func() {
 	})
 
 	It("allows the spawned process to have its own args", func() {
-		cmd := exec.Command(procStarterBin, "-rlimits=", "-dropCapabilities=false", "--", "echo", "foo", "-bar", "-baz=beans")
+		cmd := exec.Command(procStarterBin, "-uid=0", "-gid=0", "-rlimits=", "-dropCapabilities=false", "--", "echo", "foo", "-bar", "-baz=beans")
 		out := gbytes.NewBuffer()
 		cmd.Stdout = io.MultiWriter(GinkgoWriter, out)
 		cmd.Stderr = GinkgoWriter
@@ -51,7 +51,7 @@ var _ = Describe("proc_starter", func() {
 	})
 
 	It("drops capabilities before starting the process", func() {
-		cmd := exec.Command(procStarterBin, "cat", "/proc/self/status")
+		cmd := exec.Command(procStarterBin, "-uid=0", "-gid=0", "--", "cat", "/proc/self/status")
 		out := gbytes.NewBuffer()
 		cmd.Stdout = io.MultiWriter(GinkgoWriter, out)
 		cmd.Stderr = io.MultiWriter(GinkgoWriter, out)
@@ -61,7 +61,7 @@ var _ = Describe("proc_starter", func() {
 
 	Context("when the dropCapabilities flag is set to false", func() {
 		It("does not drop capabilties before starting the process", func() {
-			cmd := exec.Command(procStarterBin, "-dropCapabilities=false", "cat", "/proc/self/status")
+			cmd := exec.Command(procStarterBin, "-uid=0", "-gid=0", "-dropCapabilities=false", "--", "cat", "/proc/self/status")
 			out := gbytes.NewBuffer()
 			cmd.Stdout = io.MultiWriter(GinkgoWriter, out)
 			cmd.Stderr = io.MultiWriter(GinkgoWriter, out)
@@ -77,7 +77,7 @@ var _ = Describe("proc_starter", func() {
 		pipe, _, err := os.Pipe()
 		Expect(err).NotTo(HaveOccurred())
 
-		cmd := exec.Command(procStarterBin, "ls", "/proc/self/fd")
+		cmd := exec.Command(procStarterBin, "-uid=0", "-gid=0", "--", "ls", "/proc/self/fd")
 		cmd.ExtraFiles = []*os.File{
 			file,
 			pipe,

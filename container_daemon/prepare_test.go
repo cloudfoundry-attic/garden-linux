@@ -41,10 +41,10 @@ var _ = Describe("Preparing a command to run", func() {
 		rlimitsEncoder = new(fake_rlimits_env_encoder.FakeRlimitsEnvEncoder)
 
 		preparer = &container_daemon.ProcessSpecPreparer{
-			Users:            users,
-			Rlimits:          rlimitsEncoder,
-			ProcStarterPath:  "/path/to/proc/starter",
-			DropCapabilities: true,
+			Users:                  users,
+			Rlimits:                rlimitsEncoder,
+			ProcStarterPath:        "/path/to/proc/starter",
+			AlwaysDropCapabilities: true,
 		}
 	})
 
@@ -84,34 +84,48 @@ var _ = Describe("Preparing a command to run", func() {
 			It("executes the proc_starter binary with the process path and args", func() {
 				Expect(theReturnedError).To(BeNil())
 				Expect(thePreparedCmd.Path).To(Equal("/path/to/proc/starter"))
-				Expect(thePreparedCmd.Args).To(Equal([]string{"/path/to/proc/starter", "-dropCapabilities=true", "-rlimits=", "--", "fishfinger", "foo", "bar"}))
+				Expect(thePreparedCmd.Args[0]).To(Equal("/path/to/proc/starter"))
+				Expect(thePreparedCmd.Args).To(ContainElement("fishfinger"))
+				Expect(thePreparedCmd.Args).To(ContainElement("foo"))
+				Expect(thePreparedCmd.Args).To(ContainElement("bar"))
 			})
 
-			Context("when configured to drop capabilities", func() {
+			Context("when configured to always drop capabilities", func() {
 				BeforeEach(func() {
-					preparer.DropCapabilities = true
+					preparer.AlwaysDropCapabilities = true
+					spec.User = "root"
 				})
 
-				It("does not pass the -dropCapabilities flag as true", func() {
+				It("passes the -dropCapabilities flag as true", func() {
 					Expect(thePreparedCmd.Args).To(ContainElement("-dropCapabilities=true"))
 				})
 			})
 
-			Context("when configured not to drop capabilities", func() {
+			Context("when configured not to always drop capabilities", func() {
 				BeforeEach(func() {
-					preparer.DropCapabilities = false
+					preparer.AlwaysDropCapabilities = false
 				})
 
-				It("passes the -dropCapabilities flag as false", func() {
-					Expect(thePreparedCmd.Args).To(ContainElement("-dropCapabilities=false"))
+				Context("when user is root", func() {
+					BeforeEach(func() {
+						spec.User = "root"
+					})
+
+					It("passes the -dropCapabilities flag as false", func() {
+						Expect(thePreparedCmd.Args).To(ContainElement("-dropCapabilities=false"))
+					})
+				})
+
+				Context("when user is not root", func() {
+					It("passes the -dropCapabilities flag as true", func() {
+						Expect(thePreparedCmd.Args).To(ContainElement("-dropCapabilities=true"))
+					})
 				})
 			})
 
-			It("has the correct uid based on the /etc/passwd file", func() {
-				Expect(thePreparedCmd.SysProcAttr).ToNot(BeNil())
-				Expect(thePreparedCmd.SysProcAttr.Credential).ToNot(BeNil())
-				Expect(thePreparedCmd.SysProcAttr.Credential.Uid).To(Equal(uint32(77)))
-				Expect(thePreparedCmd.SysProcAttr.Credential.Gid).To(Equal(uint32(88)))
+			It("passes the correct -uid and -gid flags", func() {
+				Expect(thePreparedCmd.Args).To(ContainElement("-uid=77"))
+				Expect(thePreparedCmd.Args).To(ContainElement("-gid=88"))
 			})
 
 			Context("when the process spec names a user which does not exist in /etc/passwd", func() {
