@@ -558,6 +558,21 @@ var _ = Describe("Creating a container", func() {
 							Expect(stdout).To(gbytes.Say(" root "))
 						})
 
+						It("sees the /dev/pts and /dev/ptmx as owned by the container's root user", func() {
+							stdout := gbytes.NewBuffer()
+							process, err := container.Run(garden.ProcessSpec{
+								User: "root",
+								Path: "sh",
+								Args: []string{"-c", "ls -l /dev/pts /dev/ptmx"},
+							}, garden.ProcessIO{Stdout: stdout, Stderr: GinkgoWriter})
+							Expect(err).ToNot(HaveOccurred())
+
+							Expect(process.Wait()).To(Equal(0))
+							Expect(stdout).NotTo(gbytes.Say("nobody"))
+							Expect(stdout).NotTo(gbytes.Say("65534"))
+							Expect(stdout).To(gbytes.Say(" root "))
+						})
+
 						It("sees alice-owned files as owned by alice", func() {
 							stdout := gbytes.NewBuffer()
 							process, err := container.Run(garden.ProcessSpec{
