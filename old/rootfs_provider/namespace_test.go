@@ -24,6 +24,37 @@ var _ = Describe("Namespacer", func() {
 		ioutil.WriteFile(filepath.Join(rootfs, "foo", "beans"), []byte("jam"), 0755)
 	})
 
+	It("translate the root directory", func() {
+		var translated []translation
+		namespacer := &rootfs_provider.UidNamespacer{
+			Logger: lager.NewLogger("test"),
+			Translator: func(path string, info os.FileInfo, err error) error {
+				translated = append(translated, translation{
+					path:    path,
+					size:    info.Size(),
+					mode:    info.Mode(),
+					modTime: info.ModTime(),
+					err:     err,
+				})
+
+				return nil
+			},
+		}
+
+		err := namespacer.Namespace(rootfs)
+
+		info, err := os.Stat(rootfs)
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(translated).To(ContainElement(translation{
+			path:    rootfs,
+			size:    info.Size(),
+			mode:    info.Mode(),
+			modTime: info.ModTime(),
+			err:     nil,
+		}))
+	})
+
 	It("translates all of the uids", func() {
 		var translated []translation
 		namespacer := &rootfs_provider.UidNamespacer{
