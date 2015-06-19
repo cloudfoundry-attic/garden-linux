@@ -12,7 +12,7 @@ import (
 	"flag"
 
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
-	"github.com/syndtr/gocapability/capability"
+	"github.com/cloudfoundry-incubator/garden-linux/system"
 )
 
 // proc_starter starts a user process with the correct rlimits and after
@@ -29,64 +29,38 @@ func main() {
 	closeFds()
 
 	mgr := &container_daemon.RlimitsManager{}
-	mgr.Apply(mgr.DecodeLimits(*rlimits))
+	must(mgr.Apply(mgr.DecodeLimits(*rlimits)))
 
 	args := flag.Args()
 
-	programPath, err := exec.LookPath(args[0])
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: Program '%s' was not found in $PATH: %s\n", args[0], err)
-		os.Exit(255)
-	}
-
 	if *dropCapabilities {
-		limitCapabilities()
+		caps := &system.ProcessCapabilities{Pid: os.Getpid()}
+		must(caps.Limit())
 	}
 
-	runAsUser(*uid, *gid, programPath, args)
+	runAsUser(*uid, *gid, args[0], args)
 }
 
-func runAsUser(uid, gid int, programPath string, args []string) {
-	_, _, errNo := syscall.RawSyscall(syscall.SYS_SETGID, uintptr(gid), 0, 0)
-	if errNo != 0 {
+func runAsUser(uid, gid int, programName string, args []string) {
+	if _, _, errNo := syscall.RawSyscall(syscall.SYS_SETGID, uintptr(gid), 0, 0); errNo != 0 {
 		fmt.Fprintf(os.Stderr, "setgid: %s", errNo.Error())
 		os.Exit(255)
 	}
-	_, _, errNo = syscall.RawSyscall(syscall.SYS_SETUID, uintptr(uid), 0, 0)
-	if errNo != 0 {
+	if _, _, errNo := syscall.RawSyscall(syscall.SYS_SETUID, uintptr(uid), 0, 0); errNo != 0 {
 		fmt.Fprintf(os.Stderr, "setuid: %s", errNo.Error())
 		os.Exit(255)
 	}
 
-	err := syscall.Exec(programPath, args, os.Environ())
+	programPath, err := exec.LookPath(programName)
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: Program '%s' was not found in $PATH: %s\n", programName, err)
+		os.Exit(255)
+	}
+
+	if err := syscall.Exec(programPath, args, os.Environ()); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: exec: %s\n", err)
 		os.Exit(255)
 	}
-}
-
-func limitCapabilities() {
-	caps, err := capability.NewPid(os.Getpid())
-	mustNot(err)
-
-	caps.Clear(capability.BOUNDING)
-	caps.Set(capability.BOUNDING,
-		capability.CAP_DAC_OVERRIDE,
-		capability.CAP_FSETID,
-		capability.CAP_FOWNER,
-		capability.CAP_MKNOD,
-		capability.CAP_NET_RAW,
-		capability.CAP_SETGID,
-		capability.CAP_SETUID,
-		capability.CAP_SETFCAP,
-		capability.CAP_SETPCAP,
-		capability.CAP_NET_BIND_SERVICE,
-		capability.CAP_SYS_CHROOT,
-		capability.CAP_KILL,
-		capability.CAP_AUDIT_WRITE,
-	)
-
-	must(caps.Apply(capability.BOUNDING))
 }
 
 func closeFds() {
