@@ -102,7 +102,7 @@ var _ = Describe("Process", func() {
 		}
 	}
 
-	It("should not allow process outcomes to interfere with eachother", func() {
+	It("should not allow process outcomes to interfere with each other", func() {
 		p1, e1 := startAndWait()
 		p2, e2 := startAndWait()
 		p3, e3 := startAndWait()
