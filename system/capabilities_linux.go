@@ -2,6 +2,7 @@ package system
 
 import (
 	"fmt"
+	"runtime"
 
 	"github.com/syndtr/gocapability/capability"
 )
@@ -11,6 +12,7 @@ type ProcessCapabilities struct {
 }
 
 func (c ProcessCapabilities) Limit() error {
+	runtime.LockOSThread()
 	caps, err := capability.NewPid(c.Pid)
 	if err != nil {
 		return fmt.Errorf("system: getting capabilities: %s", err)
