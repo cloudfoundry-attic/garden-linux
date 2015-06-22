@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/old/logging"
+	"github.com/cloudfoundry-incubator/garden-linux/logging"
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/pivotal-golang/lager"
 )

@@ -24,7 +24,7 @@ import (
 
 var RootFSPath = os.Getenv("GARDEN_TEST_ROOTFS")
 var GraphRoot = os.Getenv("GARDEN_TEST_GRAPHPATH")
-var BinPath = "../../old/linux_backend/bin"
+var BinPath = "../../linux_backend/bin"
 var GardenBin = "../../out/garden-linux"
 
 type RunningGarden struct {

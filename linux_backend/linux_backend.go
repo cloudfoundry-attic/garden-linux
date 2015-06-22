@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/old/system_info"
+	"github.com/cloudfoundry-incubator/garden-linux/system_info"
 	"github.com/pivotal-golang/lager"
 )
 

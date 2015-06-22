@@ -15,11 +15,9 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
+	"github.com/cloudfoundry-incubator/garden-linux/logging"
 	"github.com/cloudfoundry-incubator/garden-linux/network"
 	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
-	"github.com/cloudfoundry-incubator/garden-linux/old/bandwidth_manager"
-	"github.com/cloudfoundry-incubator/garden-linux/old/cgroups_manager"
-	"github.com/cloudfoundry-incubator/garden-linux/old/logging"
 	"github.com/cloudfoundry-incubator/garden-linux/process_tracker"
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/pivotal-golang/lager"
@@ -49,6 +47,17 @@ type NetworkStatisticser interface {
 	Statistics() (stats garden.ContainerNetworkStat, err error)
 }
 
+type BandwidthManager interface {
+	SetLimits(lager.Logger, garden.BandwidthLimits) error
+	GetLimits(lager.Logger) (garden.ContainerBandwidthStat, error)
+}
+
+type CgroupsManager interface {
+	Set(subsystem, name, value string) error
+	Get(subsystem, name string) (string, error)
+	SubsystemPath(subsystem string) (string, error)
+}
+
 type LinuxContainer struct {
 	propertiesMutex sync.RWMutex
 	stateMutex      sync.RWMutex
@@ -63,9 +72,9 @@ type LinuxContainer struct {
 
 	portPool         PortPool
 	runner           command_runner.CommandRunner
-	cgroupsManager   cgroups_manager.CgroupsManager
+	cgroupsManager   CgroupsManager
 	quotaManager     QuotaManager
-	bandwidthManager bandwidth_manager.BandwidthManager
+	bandwidthManager BandwidthManager
 	processTracker   process_tracker.ProcessTracker
 	filter           network.Filter
 	processIDPool    *ProcessIDPool
@@ -112,9 +121,9 @@ func NewLinuxContainer(
 	spec linux_backend.LinuxContainerSpec,
 	portPool PortPool,
 	runner command_runner.CommandRunner,
-	cgroupsManager cgroups_manager.CgroupsManager,
+	cgroupsManager CgroupsManager,
 	quotaManager QuotaManager,
-	bandwidthManager bandwidth_manager.BandwidthManager,
+	bandwidthManager BandwidthManager,
 	processTracker process_tracker.ProcessTracker,
 	filter network.Filter,
 	netStats NetworkStatisticser,

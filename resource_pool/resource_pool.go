@@ -21,14 +21,14 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
+	"github.com/cloudfoundry-incubator/garden-linux/logging"
 	"github.com/cloudfoundry-incubator/garden-linux/network"
 	"github.com/cloudfoundry-incubator/garden-linux/network/bridgemgr"
 	"github.com/cloudfoundry-incubator/garden-linux/network/iptables"
 	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
-	"github.com/cloudfoundry-incubator/garden-linux/old/logging"
-	"github.com/cloudfoundry-incubator/garden-linux/old/rootfs_provider"
-	"github.com/cloudfoundry-incubator/garden-linux/old/sysconfig"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
+	"github.com/cloudfoundry-incubator/garden-linux/rootfs_provider"
+	"github.com/cloudfoundry-incubator/garden-linux/sysconfig"
 )
 
 var ErrUnknownRootFSProvider = errors.New("unknown rootfs provider")

@@ -78,7 +78,7 @@ The rest of these instructions assume you are running inside an Ubuntu environme
         cd $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux # assuming your $GOPATH has only one entry
         sudo ./out/garden-linux \
                -depot=/opt/garden/containers \
-               -bin=$PWD/old/linux_backend/bin \
+               -bin=$PWD/linux_backend/bin \
                -rootfs=/opt/garden/rootfs \
                -graph=/opt/garden/graph \
                -snapshots=/opt/garden/snapshots \
