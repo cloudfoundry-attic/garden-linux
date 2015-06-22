@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"runtime"
 	"strconv"
 	"syscall"
@@ -38,27 +37,9 @@ func main() {
 		must(caps.Limit())
 	}
 
-	runAsUser(*uid, *gid, args[0], args)
-}
-
-func runAsUser(uid, gid int, programName string, args []string) {
-	if _, _, errNo := syscall.RawSyscall(syscall.SYS_SETGID, uintptr(gid), 0, 0); errNo != 0 {
-		fmt.Fprintf(os.Stderr, "setgid: %s", errNo.Error())
-		os.Exit(255)
-	}
-	if _, _, errNo := syscall.RawSyscall(syscall.SYS_SETUID, uintptr(uid), 0, 0); errNo != 0 {
-		fmt.Fprintf(os.Stderr, "setuid: %s", errNo.Error())
-		os.Exit(255)
-	}
-
-	programPath, err := exec.LookPath(programName)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: Program '%s' was not found in $PATH: %s\n", programName, err)
-		os.Exit(255)
-	}
-
-	if err := syscall.Exec(programPath, args, os.Environ()); err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: exec: %s\n", err)
+	execer := system.UserExecer{}
+	if err := execer.ExecAsUser(*uid, *gid, args[0], args[1:]...); err != nil {
+		fmt.Fprintf(os.Stderr, "proc_starter: ExecAsUser: %s\n", err)
 		os.Exit(255)
 	}
 }
