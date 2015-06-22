@@ -21,21 +21,12 @@ rootfs-tars:
 	./rootfs/empty/scripts/compile_binary
 	find rootfs -name '*.json' -exec packer build {} \;
 
-GARDEN_PACKER_DOCKER_REPO ?= cloudfoundry/garden-ci-ubuntu
-docker_repo = $(GARDEN_PACKER_DOCKER_REPO)
-docker_image_version = $$(cat garden-ci/DOCKER_IMAGE_VERSION)
 release-docker:
-	echo "About to push $(docker_repo):$(docker_image_version) to docker hub"
-	packer build -var "docker_repository=$(docker_repo)" \
-	             -var "image_version=$(docker_image_version)" \
+	echo "About to push to Dockerhub"
+	packer build -var-file garden-ci/version.json \
 		           garden-ci/release_docker.json
 
-GARDEN_PACKER_VAGRANT_BOX_TAG ?= cloudfoundry/garden-ci-ubuntu
-vagrant_box_tag = $(GARDEN_PACKER_VAGRANT_BOX_TAG)
-vagrant_box_version = $$(cat garden-ci/VAGRANT_VIRTUALBOX_VERSION)
 release-vagrant:
-	echo "About to push $(vagrant_box_tag) v$(vagrant_box_version) to Atlas"
-	packer build -var "box_tag=$(vagrant_box_tag)" \
-	             -var "box_version=$(vagrant_box_version)" \
-		           garden-ci/release_vagrant.json
-
+	echo "About to push to Atlas"
+	packer build -var-file garden-ci/version.json \
+							 garden-ci/release_vagrant.json

@@ -1,4 +1,4 @@
-# Garden-Linux Packer #
+# Garden-Linux Packer
 
 Garden-Linux Packer is currently used to build Docker images / Vagrant boxes
 suitable for Garden-Linux development & testing.
@@ -7,10 +7,8 @@ suitable for Garden-Linux development & testing.
 
 * Boot2docker version
   [1.3.3](https://github.com/boot2docker/osx-installer/releases/tag/v1.3.3) (1.4
-  and above does not work because of [this
-  issue](https://github.com/mitchellh/packer/issues/1752))
-* Packer built from [source](https://github.com/mitchellh/packer) (latest
-  master)
+  and above does not work because of [#1752](https://github.com/mitchellh/packer/issues/1752))
+* Packer version v0.7.5 from homebrew (`brew install packer`)
 
 ## Building
 
@@ -24,27 +22,29 @@ export TMPDIR=~/.packer_tmp
 mkdir -p $TMPDIR
 ```
 
-###Build everything
+### Build everything
 
 Run `make ubuntu`. This will output a virtual-box `.ovf` and vagrant `.box` to
 `garden-ci/output` and commit a docker image to your Docker server named
 `garden-ci-ubuntu:packer`.
 
 ### Build Individual Images
+
   * Docker: `make ubuntu-docker`
   * Vagrant: `make ubuntu-vagrant`
   * Amazon: `make ubuntu-ami`
 
 ## Releasing
 
+Update `garden-ci/version.json` with the desired version number.
+
 ### [Atlas](https://atlas.hashicorp.com/)
 
-Update `garden-ci/VAGRANT_VIRTUAL_BOX_VERSION` with the desired version number.
+**NOTE:** Because of the issue [#2090](https://github.com/mitchellh/packer/issues/2090), we cannot use the version number from `garden-ci/version.json`. The issue is fixed but no new stable version of Packer has been released since then. Until further notice (Packer upgrade), you need to update `garden-ci/release_vagrant.json` metadata section with the desired version number as well.
 
 Ensure that you have the correct environment varibles set.
 
 ```bash
-export GARDEN_PACKER_VAGRANT_BOX_TAG=<Box tag goes here> # optional, defaults to cloudfoundry/garden-ci-ubuntu
 export GARDEN_PACKER_ATLAS_TOKEN=<Token goes here>
 ```
 
@@ -52,7 +52,14 @@ Then run `make release-vagrant`. This will build & upload vagrant box upto Atlas
 
 ### [DockerHub](https://hub.docker.com/)
 
-Update `garden-ci/DOCKER_IMAGE_VERSION` with the desired version number.
+**NOTE:** Before running `release-docker` you need to retag the old `garden-ci-ubuntu` Docker image and remove the `latest` tag.
+
+```bash
+docker tag cloudfoundry/garden-ci-ubuntu:latest cloudfoundry/garden-ci-ubuntu:0.4.0 # last version
+docker rmi cloudfoundry/garden-ci-ubuntu:latest
+```
+
+This is temporary. According to the resolution of the issue [#1923](https://github.com/mitchellh/packer/issues/1923) Packer has now a `forced` flag that can be used to force `docker-tag` post-processing tasks regardless of the machine's current tags. This will become available to us once Packer releases the next stable version.
 
 Ensure that you have the correct environment varibles set.
 
@@ -60,7 +67,6 @@ Ensure that you have the correct environment varibles set.
 export GARDEN_PACKER_DOCKER_USERNAME=<Docker user name>
 export GARDEN_PACKER_DOCKER_EMAIL=<Docker email>
 export GARDEN_PACKER_DOCKER_PASSWORD=<Docker password>
-export GARDEN_PACKER_DOCKER_REPO=<Docker repo to target> # optional, defaults to cloudfoundry/garden-ci-ubuntu
 ```
 
 Then run `make release-docker`. This will tag and upload the image to Docker Hub.
@@ -73,10 +79,8 @@ record its Image Id so that builds will use it and make the ami public.
 Store the Image id of the ami in the file `garden-ci/AMI_IMAGE_ID` and commit
 and push.
 
-Make the ami public (see [Making an AMI Public](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/sharingamis-intro.html):
+Make the ami public (see [Making an AMI Public](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/sharingamis-intro.html)):
+
 ```bash
 aws ec2 describe-image-attribute --image-id <Image Id> --attribute launchPermission
 ```
-
-TODO
-

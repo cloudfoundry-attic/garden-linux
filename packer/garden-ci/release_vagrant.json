@@ -1,19 +1,18 @@
 {
   "variables": {
-    "vm_name": "garden-ci.ubuntu.virtualbox",
-    "box_tag": "",
-    "box_version": "",
+    "version": "",
     "access_token": "{{env `GARDEN_PACKER_ATLAS_TOKEN`}}"
   },
   "builders": [
     {
-      "name": "{{user `vm_name`}}",
+      "name": "garden-ci.ubuntu.virtualbox",
       "type": "virtualbox-ovf",
       "headless": true,
-      "source_path": "garden-ci/output/{{user `vm_name`}}.ovf",
+      "source_path": "garden-ci/output/garden-ci.ubuntu.virtualbox.ovf",
       "output_directory": "garden-ci/release_output",
       "ssh_username": "vagrant",
-      "ssh_password": "vagrant"
+      "ssh_password": "vagrant",
+      "shutdown_command": "sudo -S shutdown -P now"
     }
   ],
   "post-processors": [
@@ -24,10 +23,14 @@
         "output": "garden-ci/output/{{.BuildName}}.box"
       },
       {
-        "type": "vagrant-cloud",
-        "box_tag": "{{user `box_tag`}}",
-        "version": "{{user `box_version`}}",
-        "access_token": "{{user `access_token`}}"
+        "type": "atlas",
+        "token": "{{user `access_token`}}",
+        "artifact": "cloudfoundry/garden-ci-ubuntu",
+        "artifact_type": "vagrant.box",
+        "metadata": {
+            "provider": "virtualbox",
+            "version": "0.4.0"
+        }
       }
     ]
   ]
