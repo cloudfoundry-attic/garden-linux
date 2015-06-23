@@ -29,6 +29,7 @@ type ProcessSpecPreparer struct {
 func (p *ProcessSpecPreparer) PrepareCmd(spec garden.ProcessSpec) (*exec.Cmd, error) {
 	rlimitsEnv := p.Rlimits.EncodeLimits(spec.Limits)
 	dropCapsArg := fmt.Sprintf("-dropCapabilities=%t", p.AlwaysDropCapabilities || spec.User != "root")
+	extendedWhitelistArg := fmt.Sprintf("-extendedWhitelist=%t", !p.AlwaysDropCapabilities)
 	rlimitArg := fmt.Sprintf("-rlimits=%s", rlimitsEnv)
 
 	usr, err := p.parseUser(spec.User)
@@ -48,6 +49,7 @@ func (p *ProcessSpecPreparer) PrepareCmd(spec garden.ProcessSpec) (*exec.Cmd, er
 
 	args := append([]string{
 		dropCapsArg,
+		extendedWhitelistArg,
 		rlimitArg,
 		fmt.Sprintf("-uid=%d", usr.uid),
 		fmt.Sprintf("-gid=%d", usr.gid),

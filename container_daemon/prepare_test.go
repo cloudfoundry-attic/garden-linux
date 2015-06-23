@@ -99,6 +99,10 @@ var _ = Describe("Preparing a command to run", func() {
 				It("passes the -dropCapabilities flag as true", func() {
 					Expect(thePreparedCmd.Args).To(ContainElement("-dropCapabilities=true"))
 				})
+
+				It("passes the -extendedWhitelist flag as false", func() {
+					Expect(thePreparedCmd.Args).To(ContainElement("-extendedWhitelist=false"))
+				})
 			})
 
 			Context("when configured not to always drop capabilities", func() {
@@ -119,6 +123,10 @@ var _ = Describe("Preparing a command to run", func() {
 				Context("when user is not root", func() {
 					It("passes the -dropCapabilities flag as true", func() {
 						Expect(thePreparedCmd.Args).To(ContainElement("-dropCapabilities=true"))
+					})
+
+					It("passes the -extendedWhitelist flag as true", func() {
+						Expect(thePreparedCmd.Args).To(ContainElement("-extendedWhitelist=true"))
 					})
 				})
 			})

@@ -20,9 +20,10 @@ func main() {
 	runtime.LockOSThread()
 
 	rlimits := flag.String("rlimits", "", "encoded rlimits")
-	dropCapabilities := flag.Bool("dropCapabilities", true, "drop capabilties before starting process")
+	dropCapabilities := flag.Bool("dropCapabilities", true, "drop capabilities before starting process")
 	uid := flag.Int("uid", -1, "user id to run the process as")
 	gid := flag.Int("gid", -1, "group id to run the process as")
+	extendedWhitelist := flag.Bool("extendedWhitelist", false, "whitelist CAP_SYS_ADMIN in addition to the default set. Use only with -dropCapabilities=true")
 	flag.Parse()
 
 	closeFds()
@@ -34,7 +35,7 @@ func main() {
 
 	if *dropCapabilities {
 		caps := &system.ProcessCapabilities{Pid: os.Getpid()}
-		must(caps.Limit())
+		must(caps.Limit(*extendedWhitelist))
 	}
 
 	execer := system.UserExecer{}

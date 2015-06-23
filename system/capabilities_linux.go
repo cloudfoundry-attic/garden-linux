@@ -11,7 +11,7 @@ type ProcessCapabilities struct {
 	Pid int
 }
 
-func (c ProcessCapabilities) Limit() error {
+func (c ProcessCapabilities) Limit(extendedWhitelist bool) error {
 	runtime.LockOSThread()
 	caps, err := capability.NewPid(c.Pid)
 	if err != nil {
@@ -34,6 +34,10 @@ func (c ProcessCapabilities) Limit() error {
 		capability.CAP_KILL,
 		capability.CAP_AUDIT_WRITE,
 	)
+
+	if extendedWhitelist {
+		caps.Set(capability.BOUNDING, capability.CAP_SYS_ADMIN)
+	}
 
 	err = caps.Apply(capability.BOUNDING)
 	if err != nil {

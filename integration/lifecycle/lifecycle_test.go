@@ -720,7 +720,7 @@ var _ = Describe("Creating a container", func() {
 							process, err = container.Run(garden.ProcessSpec{
 								User: "vcap",
 								Path: "sudo",
-								Args: []string{"mount", "-t", "tmpfs", "tmpfs", "/tmp"},
+								Args: []string{"chown", "-R", "vcap", "/tmp"},
 							}, garden.ProcessIO{
 								Stdout: GinkgoWriter,
 								Stderr: GinkgoWriter,
