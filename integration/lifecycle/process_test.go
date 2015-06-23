@@ -1,6 +1,7 @@
 package lifecycle_test
 
 import (
+	"os"
 	"runtime/debug"
 	"time"
 
@@ -17,7 +18,9 @@ var _ = Describe("Process", func() {
 	BeforeEach(func() {
 		client = startGarden()
 		var err error
-		container, err = client.Create(garden.ContainerSpec{})
+		container, err = client.Create(garden.ContainerSpec{
+			RootFSPath: os.Getenv("GARDEN_NESTABLE_TEST_ROOTFS"),
+		})
 		Expect(err).ToNot(HaveOccurred())
 	})
 
@@ -46,29 +49,26 @@ var _ = Describe("Process", func() {
 		})
 	})
 
-	startAndWait := func() (garden.Process, <-chan int) {
-		buf := gbytes.NewBuffer()
-		procIo := garden.ProcessIO{
-			Stdout: buf,
-			Stderr: buf,
-		}
+	It("wait returns when all children of the process have exited", func() {
 		process, err := container.Run(garden.ProcessSpec{
 			User: "vcap",
-			Path: "sh",
+			Path: "/bin/bash",
 			Args: []string{"-c", `
-				  trap 'echo termed; exit 42' SIGTERM
 
-					while true; do
-					  echo waiting
-					  sleep 1
-					done
+				  cleanup ()
+				  {
+				  	kill $child_pid
+				  	exit 42
+				  }
+
+				  trap cleanup TERM
+
+				  sleep 1000 &
+				  child_pid=$!
+				  wait
 				`},
-		}, procIo)
+		}, garden.ProcessIO{})
 		Expect(err).NotTo(HaveOccurred())
-
-		attachedProcess, err := container.Attach(process.ID(), procIo)
-		Expect(err).NotTo(HaveOccurred())
-		Eventually(buf).Should(gbytes.Say("waiting"))
 
 		exitChan := make(chan int)
 		go func(p garden.Process, exited chan<- int) {
@@ -76,41 +76,50 @@ var _ = Describe("Process", func() {
 			status, waitErr := p.Wait()
 			Expect(waitErr).NotTo(HaveOccurred())
 			exited <- status
-		}(attachedProcess, exitChan)
+		}(process, exitChan)
 
-		return attachedProcess, exitChan
-	}
-
-	waitForExit := func(p garden.Process, e <-chan int) {
-		buf := gbytes.NewBuffer()
-		procIo := garden.ProcessIO{
-			Stdout: buf,
-			Stderr: buf,
-		}
-		attachedProcess, err := container.Attach(p.ID(), procIo)
-		Expect(err).NotTo(HaveOccurred())
-		Eventually(buf).Should(gbytes.Say("waiting"))
-
-		Expect(attachedProcess.Signal(garden.SignalTerminate)).To(Succeed())
+		Expect(process.Signal(garden.SignalTerminate)).To(Succeed())
 		select {
-		case status := <-e:
+		case status := <-exitChan:
 			Expect(status).To(Equal(42))
-			Eventually(buf).Should(gbytes.Say("termed"))
 		case <-time.After(time.Second * 10):
 			debug.PrintStack()
 			Fail("timed out!")
 		}
-	}
-
-	It("should not allow process outcomes to interfere with each other", func() {
-		p1, e1 := startAndWait()
-		p2, e2 := startAndWait()
-		p3, e3 := startAndWait()
-		p4, e4 := startAndWait()
-
-		waitForExit(p1, e1)
-		waitForExit(p2, e2)
-		waitForExit(p4, e4)
-		waitForExit(p3, e3)
 	})
+
+	It("wait blocks when a child of the process has not exited", func() {
+		process, err := container.Run(garden.ProcessSpec{
+			User: "vcap",
+			Path: "/bin/bash",
+			Args: []string{"-c", `
+					cleanup ()
+					{
+					  exit 42
+					}
+
+					trap cleanup TERM
+
+					sleep 1000 &
+					wait
+				`},
+		}, garden.ProcessIO{})
+		Expect(err).NotTo(HaveOccurred())
+
+		exitChan := make(chan int)
+		go func(p garden.Process, exited chan<- int) {
+			GinkgoRecover()
+			status, waitErr := p.Wait()
+			Expect(waitErr).NotTo(HaveOccurred())
+			exited <- status
+		}(process, exitChan)
+
+		Expect(process.Signal(garden.SignalTerminate)).To(Succeed())
+		select {
+		case <-exitChan:
+			Fail("Wait should block as a child has not exited")
+		case <-time.After(time.Second * 10):
+		}
+	})
+
 })
