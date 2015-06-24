@@ -62,11 +62,11 @@ func (p *Process) Start() error {
 
 	if p.Spec.TTY != nil {
 		p.setupPty(fds[0])
-		fwdOverPty(fds[0], p.IO, p.streaming)
-		p.exitCode = waitForExit(fds[1], p.streaming)
+		p.fwdOverPty(fds[0])
+		p.exitCode = p.exitWaitChannel(fds[1])
 	} else {
-		fwdNoninteractive(fds[0], fds[1], fds[2], p.IO, p.streaming)
-		p.exitCode = waitForExit(fds[3], p.streaming)
+		p.fwdNoninteractive(fds[0], fds[1], fds[2])
+		p.exitCode = p.exitWaitChannel(fds[3])
 	}
 
 	return nil
@@ -91,42 +91,42 @@ func (p *Process) syncWindowSize(ptyFd unix_socket.Fd) error {
 	return p.Term.SetWinsize(ptyFd.Fd(), winsize)
 }
 
-func fwdOverPty(ptyFd io.ReadWriteCloser, processIO *garden.ProcessIO, streaming *sync.WaitGroup) {
-	if processIO == nil {
+func (p *Process) fwdOverPty(ptyFd io.ReadWriteCloser) {
+	if p.IO == nil {
 		return
 	}
 
-	if processIO.Stdout != nil {
-		streaming.Add(1)
+	if p.IO.Stdout != nil {
+		p.streaming.Add(1)
 		go func() {
-			defer streaming.Done()
-			io.Copy(processIO.Stdout, ptyFd)
+			defer p.streaming.Done()
+			io.Copy(p.IO.Stdout, ptyFd)
 		}()
 	}
 
-	if processIO.Stdin != nil {
-		go io.Copy(ptyFd, processIO.Stdin)
+	if p.IO.Stdin != nil {
+		go io.Copy(ptyFd, p.IO.Stdin)
 	}
 }
 
-func fwdNoninteractive(stdinFd, stdoutFd, stderrFd io.ReadWriteCloser, processIO *garden.ProcessIO, streaming *sync.WaitGroup) {
-	if processIO != nil && processIO.Stdin != nil {
-		go copyAndClose(stdinFd, processIO.Stdin) // Ignore error
+func (p *Process) fwdNoninteractive(stdinFd, stdoutFd, stderrFd io.ReadWriteCloser) {
+	if p.IO != nil && p.IO.Stdin != nil {
+		go copyAndClose(stdinFd, p.IO.Stdin) // Ignore error
 	}
 
-	if processIO != nil && processIO.Stdout != nil {
-		streaming.Add(1)
+	if p.IO != nil && p.IO.Stdout != nil {
+		p.streaming.Add(1)
 		go func() {
-			defer streaming.Done()
-			copyWithClose(processIO.Stdout, stdoutFd) // Ignore error
+			defer p.streaming.Done()
+			copyWithClose(p.IO.Stdout, stdoutFd) // Ignore error
 		}()
 	}
 
-	if processIO != nil && processIO.Stderr != nil {
-		streaming.Add(1)
+	if p.IO != nil && p.IO.Stderr != nil {
+		p.streaming.Add(1)
 		go func() {
-			defer streaming.Done()
-			copyWithClose(processIO.Stderr, stderrFd) // Ignore error
+			defer p.streaming.Done()
+			copyWithClose(p.IO.Stderr, stderrFd) // Ignore error
 		}()
 	}
 }
@@ -160,7 +160,7 @@ func (p *Process) Wait() (int, error) {
 	return <-p.exitCode, nil
 }
 
-func waitForExit(exitFd io.ReadWriteCloser, streaming *sync.WaitGroup) chan int {
+func (p *Process) exitWaitChannel(exitFd io.ReadWriteCloser) chan int {
 	exitChan := make(chan int)
 	go func(exitFd io.Reader, exitChan chan<- int, streaming *sync.WaitGroup) {
 		b := make([]byte, 1)
@@ -172,7 +172,7 @@ func waitForExit(exitFd io.ReadWriteCloser, streaming *sync.WaitGroup) chan int 
 		streaming.Wait()
 
 		exitChan <- int(b[0])
-	}(exitFd, exitChan, streaming)
+	}(exitFd, exitChan, p.streaming)
 
 	return exitChan
 }
