@@ -3,6 +3,8 @@ package repository_fetcher
 import (
 	"fmt"
 	"strings"
+        "github.com/docker/docker/registry"
+        "github.com/docker/docker/utils"
 )
 
 //go:generate counterfeiter . RegistryProvider
@@ -53,7 +55,7 @@ func (rp registryProvider) ProvideRegistry(hostname string) (Registry, error) {
 		return nil, err
 	}
 
-	return RegistryNewSession(nil, nil, endpoint, true)
+	return RegistryNewSession(&registry.AuthConfig{}, &utils.HTTPRequestFactory{}, endpoint, true)
 }
 
 func NewRepositoryProvider(defaultHostname string, insecureRegistries []string) RegistryProvider {
