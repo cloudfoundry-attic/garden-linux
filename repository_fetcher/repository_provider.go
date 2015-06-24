@@ -3,8 +3,9 @@ package repository_fetcher
 import (
 	"fmt"
 	"strings"
-        "github.com/docker/docker/registry"
-        "github.com/docker/docker/utils"
+
+	"github.com/docker/docker/registry"
+	"github.com/docker/docker/utils"
 )
 
 //go:generate counterfeiter . RegistryProvider
