@@ -13,25 +13,11 @@ import (
 )
 
 var _ = Describe("Capabilities", func() {
-	var (
-		testPath string
-	)
-
-	BeforeEach(func() {
-		var err error
-		testPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/system/test_capabilities")
-		Expect(err).NotTo(HaveOccurred())
-	})
-
-	AfterEach(func() {
-		gexec.CleanupBuildArtifacts()
-	})
-
 	Context("when extended whitelist is not requested", func() {
 		It("limits capabilities to docker whitelist", func() {
 			testOut := gbytes.NewBuffer()
 			runningTest, err := gexec.Start(
-				exec.Command(testPath, "-extendedWhitelist=false"),
+				exec.Command(testCapabilitiesPath, "-extendedWhitelist=false"),
 				io.MultiWriter(GinkgoWriter, testOut),
 				GinkgoWriter,
 			)
@@ -55,7 +41,7 @@ var _ = Describe("Capabilities", func() {
 		It("limits capabilities to docker whitelist + CAP_SYS_ADMIN", func() {
 			testOut := gbytes.NewBuffer()
 			runningTest, err := gexec.Start(
-				exec.Command(testPath, "-extendedWhitelist=true"),
+				exec.Command(testCapabilitiesPath, "-extendedWhitelist=true"),
 				io.MultiWriter(GinkgoWriter, testOut),
 				GinkgoWriter,
 			)
