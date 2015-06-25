@@ -8,8 +8,8 @@ import (
 	"path"
 	"sync"
 
+	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_connection_handler"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket/fake_connection_handler"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 

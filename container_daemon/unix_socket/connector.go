@@ -4,22 +4,18 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net"
 	"os"
 	"syscall"
+
+	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
 )
 
 type Connector struct {
 	SocketPath string
 }
 
-type Fd interface {
-	io.ReadWriteCloser
-	Fd() uintptr
-}
-
-func (c *Connector) Connect(msg interface{}) ([]Fd, int, error) {
+func (c *Connector) Connect(msg interface{}) ([]container_daemon.StreamingFile, int, error) {
 	conn, err := net.Dial("unix", c.SocketPath)
 	if err != nil {
 		return nil, 0, fmt.Errorf("unix_socket: connect to server socket: %s", err)
@@ -39,7 +35,7 @@ func (c *Connector) Connect(msg interface{}) ([]Fd, int, error) {
 	return readData(conn)
 }
 
-func readData(conn net.Conn) ([]Fd, int, error) {
+func readData(conn net.Conn) ([]container_daemon.StreamingFile, int, error) {
 	var b [2048]byte
 	var oob [2048]byte
 	var response Response
@@ -77,7 +73,7 @@ func readData(conn net.Conn) ([]Fd, int, error) {
 		return nil, 0, fmt.Errorf("unix_socket: failed to parse unix rights: %s", err)
 	}
 
-	files := make([]Fd, len(fds))
+	files := make([]container_daemon.StreamingFile, len(fds))
 	for i, fd := range fds {
 		files[i] = os.NewFile(uintptr(fd), fmt.Sprintf("/dev/fake-fd-%d", i))
 	}

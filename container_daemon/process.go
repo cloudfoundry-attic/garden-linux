@@ -7,8 +7,9 @@ import (
 	"sync"
 
 	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
+	"github.com/cloudfoundry-incubator/garden-linux/system"
 	"github.com/docker/docker/pkg/term"
+	"github.com/pivotal-golang/lager"
 )
 
 const UnknownExitStatus = 255
@@ -26,6 +27,9 @@ type Process struct {
 	termState *term.State
 	exitCode  <-chan int
 	streaming *sync.WaitGroup
+	streamers []*Streamer
+
+	logger lager.Logger
 }
 
 type PidfileWriter interface {
@@ -35,7 +39,7 @@ type PidfileWriter interface {
 
 //go:generate counterfeiter -o fake_connector/FakeConnector.go . Connector
 type Connector interface {
-	Connect(msg interface{}) ([]unix_socket.Fd, int, error)
+	Connect(msg interface{}) ([]StreamingFile, int, error)
 }
 
 // wraps docker/docker/pkg/term for mockability
@@ -49,6 +53,9 @@ type Term interface {
 }
 
 func (p *Process) Start() error {
+	p.logger = lager.NewLogger("container_daemon.Process")
+	p.streamers = []*Streamer{}
+
 	fds, pid, err := p.Connector.Connect(p.Spec)
 	if err != nil {
 		return fmt.Errorf("container_daemon: connect to socket: %s", err)
@@ -72,36 +79,32 @@ func (p *Process) Start() error {
 	return nil
 }
 
-func (p *Process) setupPty(ptyFd unix_socket.Fd) error {
+func (p *Process) setupPty(ptyFd StreamingFile) error {
 	p.termState, _ = p.Term.SetRawTerminal(os.Stdin.Fd())
 
 	go p.sigwinchLoop(ptyFd)
 	return p.syncWindowSize(ptyFd)
 }
 
-func (p *Process) sigwinchLoop(ptyFd unix_socket.Fd) {
+func (p *Process) sigwinchLoop(ptyFd StreamingFile) {
 	for {
 		<-p.SigwinchCh
 		p.syncWindowSize(ptyFd)
 	}
 }
 
-func (p *Process) syncWindowSize(ptyFd unix_socket.Fd) error {
+func (p *Process) syncWindowSize(ptyFd StreamingFile) error {
 	winsize, _ := p.Term.GetWinsize(os.Stdin.Fd())
 	return p.Term.SetWinsize(ptyFd.Fd(), winsize)
 }
 
-func (p *Process) fwdOverPty(ptyFd io.ReadWriteCloser) {
+func (p *Process) fwdOverPty(ptyFd StreamingFile) {
 	if p.IO == nil {
 		return
 	}
 
 	if p.IO.Stdout != nil {
-		p.streaming.Add(1)
-		go func() {
-			defer p.streaming.Done()
-			io.Copy(p.IO.Stdout, ptyFd)
-		}()
+		p.streamButDontClose(p.IO.Stdout, ptyFd)
 	}
 
 	if p.IO.Stdin != nil {
@@ -109,42 +112,39 @@ func (p *Process) fwdOverPty(ptyFd io.ReadWriteCloser) {
 	}
 }
 
-func (p *Process) fwdNoninteractive(stdinFd, stdoutFd, stderrFd io.ReadWriteCloser) {
+func (p *Process) fwdNoninteractive(stdinFd, stdoutFd, stderrFd StreamingFile) {
 	if p.IO != nil && p.IO.Stdin != nil {
 		go copyAndClose(stdinFd, p.IO.Stdin) // Ignore error
 	}
 
 	if p.IO != nil && p.IO.Stdout != nil {
-		p.streaming.Add(1)
-		go func() {
-			defer p.streaming.Done()
-			copyWithClose(p.IO.Stdout, stdoutFd) // Ignore error
-		}()
+		p.stream(p.IO.Stdout, stdoutFd)
 	}
 
 	if p.IO != nil && p.IO.Stderr != nil {
-		p.streaming.Add(1)
-		go func() {
-			defer p.streaming.Done()
-			copyWithClose(p.IO.Stderr, stderrFd) // Ignore error
-		}()
+		p.stream(p.IO.Stderr, stderrFd)
 	}
+}
+
+func (p *Process) stream(dst io.Writer, src StreamingFile) {
+	streamer := NewStreamerWithPoller(src, dst, p.logger, system.NewPoller([]uintptr{src.Fd()}))
+	if err := streamer.Start(true); err != nil {
+		panic(err)
+	}
+	p.streamers = append(p.streamers, streamer)
+}
+
+func (p *Process) streamButDontClose(dst io.Writer, src StreamingFile) {
+	streamer := NewStreamerWithPoller(src, dst, p.logger, system.NewPoller([]uintptr{src.Fd()}))
+	if err := streamer.Start(false); err != nil {
+		panic(err)
+	}
+	p.streamers = append(p.streamers, streamer)
 }
 
 func copyAndClose(dst io.WriteCloser, src io.Reader) error {
 	_, err := io.Copy(dst, src)
 	dst.Close() // Ignore error
-	return err
-}
-
-func copyWithClose(dst io.Writer, src io.Reader) error {
-	_, err := io.Copy(dst, src)
-	if rc, ok := src.(io.ReadCloser); ok {
-		return rc.Close()
-	}
-	if wc, ok := dst.(io.WriteCloser); ok {
-		return wc.Close()
-	}
 	return err
 }
 
@@ -167,6 +167,12 @@ func (p *Process) exitWaitChannel(exitFd io.ReadWriteCloser) chan int {
 		n, err := exitFd.Read(b)
 		if n == 0 && err != nil {
 			b[0] = UnknownExitStatus
+		}
+
+		for _, streamer := range p.streamers {
+			if err := streamer.Stop(); err != nil {
+				panic(err)
+			}
 		}
 
 		streaming.Wait()

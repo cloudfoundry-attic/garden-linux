@@ -12,7 +12,6 @@ import (
 	. "github.com/cloudfoundry-incubator/garden-linux/container_daemon"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_connector"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_term"
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
 	"github.com/docker/docker/pkg/term"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -30,7 +29,7 @@ var _ = Describe("Process", func() {
 	BeforeEach(func() {
 		fakeTerm = new(fake_term.FakeTerm)
 		socketConnector = new(fake_connector.FakeConnector)
-		socketConnector.ConnectReturns([]unix_socket.Fd{nil, nil, nil, FakeFd(0)}, 0, nil)
+		socketConnector.ConnectReturns([]StreamingFile{nil, nil, nil, FakeFd(0)}, 0, nil)
 
 		sigwinchCh = make(chan os.Signal)
 
@@ -70,14 +69,14 @@ var _ = Describe("Process", func() {
 		})
 
 		It("makes stdin a raw terminal (because the remote terminal will handle echoing etc.)", func() {
-			socketConnector.ConnectReturns([]unix_socket.Fd{FakeFd(0), FakeFd(0)}, 0, nil)
+			socketConnector.ConnectReturns([]StreamingFile{FakeFd(0), FakeFd(0)}, 0, nil)
 
 			Expect(process.Start()).To(Succeed())
 			Expect(fakeTerm.SetRawTerminalCallCount()).To(Equal(1))
 		})
 
 		It("restores the terminal state when the process is cleaned up", func() {
-			socketConnector.ConnectReturns([]unix_socket.Fd{FakeFd(0), FakeFd(0)}, 0, nil)
+			socketConnector.ConnectReturns([]StreamingFile{FakeFd(0), FakeFd(0)}, 0, nil)
 
 			state := &term.State{}
 			fakeTerm.SetRawTerminalReturns(state, nil)
@@ -94,7 +93,7 @@ var _ = Describe("Process", func() {
 
 		It("sets the window size of the process based on the window size of standard input", func() {
 			remotePty := FakeFd(123)
-			socketConnector.ConnectReturns([]unix_socket.Fd{remotePty, FakeFd(999)}, 0, nil)
+			socketConnector.ConnectReturns([]StreamingFile{remotePty, FakeFd(999)}, 0, nil)
 			fakeTerm.GetWinsizeReturns(&term.Winsize{
 				Width: 1, Height: 2,
 			}, nil)
@@ -115,7 +114,7 @@ var _ = Describe("Process", func() {
 		Context("when SIGWINCH is received", func() {
 			It("resizes the pty to match the window size of stdin", func() {
 				remotePty := FakeFd(123)
-				socketConnector.ConnectReturns([]unix_socket.Fd{remotePty, FakeFd(999)}, 0, nil)
+				socketConnector.ConnectReturns([]StreamingFile{remotePty, FakeFd(999)}, 0, nil)
 
 				fakeTerm.GetWinsizeReturns(&term.Winsize{
 					Width: 3, Height: 4,
@@ -138,7 +137,7 @@ var _ = Describe("Process", func() {
 
 		It("copies the returned PTYs output to standard output", func() {
 			remotePty := FakeFd(0)
-			socketConnector.ConnectReturns([]unix_socket.Fd{remotePty, FakeFd(0)}, 0, nil)
+			socketConnector.ConnectReturns([]StreamingFile{remotePty, FakeFd(0)}, 0, nil)
 
 			recvStdout := FakeFd(0)
 			process.IO = &garden.ProcessIO{
@@ -154,7 +153,7 @@ var _ = Describe("Process", func() {
 
 		It("copies standard input to the PTY", func() {
 			remotePty := FakeFd(0)
-			socketConnector.ConnectReturns([]unix_socket.Fd{remotePty, FakeFd(0)}, 0, nil)
+			socketConnector.ConnectReturns([]StreamingFile{remotePty, FakeFd(0)}, 0, nil)
 
 			sentStdin := FakeFd(0)
 			process.IO = &garden.ProcessIO{
@@ -171,7 +170,7 @@ var _ = Describe("Process", func() {
 
 	Context("when a pidfile parameter is supplied", func() {
 		It("writes the PID of the spawned process to the pidfile", func() {
-			socketConnector.ConnectReturns([]unix_socket.Fd{nil, nil, nil, FakeFd(0)}, 123, nil)
+			socketConnector.ConnectReturns([]StreamingFile{nil, nil, nil, FakeFd(0)}, 123, nil)
 
 			err := process.Start()
 			Expect(err).ToNot(HaveOccurred())
@@ -191,7 +190,7 @@ var _ = Describe("Process", func() {
 
 	It("streams stdout back", func() {
 		remoteStdout := FakeFd(0)
-		socketConnector.ConnectReturns([]unix_socket.Fd{nil, remoteStdout, nil, FakeFd(0)}, 0, nil)
+		socketConnector.ConnectReturns([]StreamingFile{nil, remoteStdout, nil, FakeFd(0)}, 0, nil)
 
 		recvStdout := FakeFd(0)
 		process.IO = &garden.ProcessIO{
@@ -207,7 +206,7 @@ var _ = Describe("Process", func() {
 
 	It("streams stderr back", func() {
 		remoteStderr := FakeFd(0)
-		socketConnector.ConnectReturns([]unix_socket.Fd{nil, nil, remoteStderr, FakeFd(0)}, 0, nil)
+		socketConnector.ConnectReturns([]StreamingFile{nil, nil, remoteStderr, FakeFd(0)}, 0, nil)
 
 		recvStderr := FakeFd(0)
 		process.IO = &garden.ProcessIO{
@@ -223,7 +222,7 @@ var _ = Describe("Process", func() {
 
 	It("streams stdin over", func() {
 		remoteStdin := FakeFd(0)
-		socketConnector.ConnectReturns([]unix_socket.Fd{remoteStdin, nil, nil, FakeFd(0)}, 0, nil)
+		socketConnector.ConnectReturns([]StreamingFile{remoteStdin, nil, nil, FakeFd(0)}, 0, nil)
 
 		sentStdin := FakeFd(0)
 		process.IO = &garden.ProcessIO{
@@ -239,7 +238,7 @@ var _ = Describe("Process", func() {
 
 	It("waits for and reports the correct exit status", func() {
 		remoteExitFd := FakeFd(0)
-		socketConnector.ConnectReturns([]unix_socket.Fd{nil, nil, nil, remoteExitFd}, 0, nil)
+		socketConnector.ConnectReturns([]StreamingFile{nil, nil, nil, remoteExitFd}, 0, nil)
 
 		err := process.Start()
 		Expect(err).ToNot(HaveOccurred())
@@ -251,7 +250,7 @@ var _ = Describe("Process", func() {
 	Context("when the exit status is returned", func() {
 		It("removes the pidfile", func() {
 			remoteExitFd := FakeFd(0)
-			socketConnector.ConnectReturns([]unix_socket.Fd{nil, nil, nil, remoteExitFd}, 0, nil)
+			socketConnector.ConnectReturns([]StreamingFile{nil, nil, nil, remoteExitFd}, 0, nil)
 
 			err := process.Start()
 			Expect(err).ToNot(HaveOccurred())

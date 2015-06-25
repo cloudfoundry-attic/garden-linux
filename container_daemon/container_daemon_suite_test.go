@@ -49,5 +49,5 @@ func TestContainerDeamon(t *testing.T) {
 	})
 
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "ContainerDeamon Suite")
+	RunSpecs(t, "ContainerDaemon Suite")
 }

@@ -7,15 +7,19 @@ import (
 	"os/exec"
 
 	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
 )
 
 const DefaultRootPATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 const DefaultUserPath = "/usr/local/bin:/usr/bin:/bin"
 
+//go:generate counterfeiter -o fake_connection_handler/FakeConnectionHandler.go . ConnectionHandler
+type ConnectionHandler interface {
+	Handle(decoder *json.Decoder) ([]*os.File, int, error)
+}
+
 //go:generate counterfeiter -o fake_listener/FakeListener.go . Listener
 type Listener interface {
-	Listen(ch unix_socket.ConnectionHandler) error
+	Listen(ch ConnectionHandler) error
 	Close() error
 }
 

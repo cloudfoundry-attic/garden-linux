@@ -6,7 +6,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
+	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
 )
 
 type FakeConnectionHandler struct {
@@ -56,4 +56,4 @@ func (fake *FakeConnectionHandler) HandleReturns(result1 []*os.File, result2 int
 	}{result1, result2, result3}
 }
 
-var _ unix_socket.ConnectionHandler = new(FakeConnectionHandler)
+var _ container_daemon.ConnectionHandler = new(FakeConnectionHandler)

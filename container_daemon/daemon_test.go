@@ -13,7 +13,6 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_cmdpreparer"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_listener"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_spawner"
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -71,7 +70,7 @@ var _ = Describe("Daemon", func() {
 			})
 
 			JustBeforeEach(func() {
-				listener.ListenStub = func(cb unix_socket.ConnectionHandler) error {
+				listener.ListenStub = func(cb container_daemon.ConnectionHandler) error {
 					b, err := json.Marshal(spec)
 					Expect(err).ToNot(HaveOccurred())
 

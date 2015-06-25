@@ -88,7 +88,7 @@ var _ = Describe("Process", func() {
 		}
 	})
 
-	It("wait blocks when a child of the process has not exited", func() {
+	It("wait does not block when a child of the process has not exited", func() {
 		process, err := container.Run(garden.ProcessSpec{
 			User: "vcap",
 			Path: "/bin/bash",
@@ -116,9 +116,10 @@ var _ = Describe("Process", func() {
 
 		Expect(process.Signal(garden.SignalTerminate)).To(Succeed())
 		select {
-		case <-exitChan:
-			Fail("Wait should block as a child has not exited")
+		case status := <-exitChan:
+			Expect(status).To(Equal(42))
 		case <-time.After(time.Second * 10):
+			Fail("Wait should not block when a child has not exited")
 		}
 	})
 
