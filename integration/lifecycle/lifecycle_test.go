@@ -496,19 +496,6 @@ var _ = Describe("Creating a container", func() {
 						Expect(process.Wait()).ToNot(Equal(0))
 					})
 
-					It("drops capabilities, including CAP_SYS_ADMIN, and therefore cannot mount", func() {
-						process, err := container.Run(garden.ProcessSpec{
-							User: "root",
-							Path: "mount",
-							Args: []string{"-t", "tmpfs", "/tmp"},
-						}, garden.ProcessIO{
-							Stdout: GinkgoWriter,
-							Stderr: GinkgoWriter,
-						})
-						Expect(err).ToNot(HaveOccurred())
-						Expect(process.Wait()).ToNot(Equal(0))
-					})
-
 					It("can write to files in the /root directory", func() {
 						process, err := container.Run(garden.ProcessSpec{
 							User: "root",

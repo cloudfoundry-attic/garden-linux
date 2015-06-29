@@ -1,8 +1,11 @@
 package lifecycle_test
 
 import (
+	"fmt"
 	"log"
 	"os"
+	"path"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,9 +17,11 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/integration/runner"
 )
 
-var shmTestBin string
-
-var client *runner.RunningGarden
+var (
+	shmTestBin        string
+	capabilityTestBin string
+	client            *runner.RunningGarden
+)
 
 func startGarden(argv ...string) *runner.RunningGarden {
 	return runner.Start(argv...)
@@ -39,10 +44,27 @@ func TestLifecycle(t *testing.T) {
 	SynchronizedBeforeSuite(func() []byte {
 		shmPath, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/integration/lifecycle/shm_test")
 		Expect(err).ToNot(HaveOccurred())
-		return []byte(shmPath)
+
+		os.Setenv("CGO_ENABLED", "0")
+		capabilityPath, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/integration/helpers/capability", "-a", "-installsuffix", "static")
+		Expect(err).ToNot(HaveOccurred())
+		os.Unsetenv("CGO_ENABLED")
+
+		os.Chmod(capabilityPath, 777)
+		os.Chown(capabilityPath, 0, 0)
+
+		capabilityDir := path.Dir(capabilityPath)
+		os.Chmod(capabilityDir, 777)
+		os.Chown(capabilityDir, 0, 0)
+
+		data := fmt.Sprintf("%s|%s", shmPath, capabilityPath)
+		return []byte(data)
 	}, func(path []byte) {
-		Expect(string(path)).NotTo(BeEmpty())
-		shmTestBin = string(path)
+		data := string(path)
+		Expect(data).NotTo(BeEmpty())
+		args := strings.Split(data, "|")
+		shmTestBin = args[0]
+		capabilityTestBin = args[1]
 	})
 
 	AfterEach(func() {
