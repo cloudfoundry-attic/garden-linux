@@ -15,7 +15,12 @@ func main() {
 	listCommand := commands.NewListCommand()
 	inspectCommand := commands.NewInspectCommand()
 
-	switch os.Args[1] {
+	args := os.Args
+	if len(args) == 1 {
+		args = append(args, HELP_SUBCOMMAND)
+	}
+
+	switch args[1] {
 	case HELP_SUBCOMMAND:
 		fmt.Println("Capability Help")
 		fmt.Println("  Usage: capability [SUBCOMMAND] [ARGUMENTS]\n")
@@ -24,8 +29,8 @@ func main() {
 		fmt.Println()
 		inspectCommand.PrintDefaults()
 	case commands.LIST_SUBCOMMAND:
-		listCommand.Execute(os.Args[2:])
+		listCommand.Execute(args[2:])
 	case commands.INSPECT_SUBCOMMAND:
-		inspectCommand.Execute(os.Args[2:])
+		inspectCommand.Execute(args[2:])
 	}
 }
