@@ -48,6 +48,29 @@ var _ = FDescribe("Capabilities", func() {
 			Expect(process.Wait()).ToNot(Equal(0))
 		})
 
+		PContext("when capability tool is executed", func() {
+			JustBeforeEach(func() {
+				file, err := os.Open(capabilityTestBin)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(container.StreamIn("/root", file)).To(Succeed())
+				Expect(file.Close()).To(Succeed())
+			})
+
+			It("should not be able to chown a file", func() {
+				process, err := container.Run(garden.ProcessSpec{
+					User: "root",
+					Path: "/root/capability",
+					Args: []string{"inspect", "CAP_CHOWN"},
+				}, garden.ProcessIO{
+					Stdout: GinkgoWriter,
+					Stderr: GinkgoWriter,
+				})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(process.Wait()).ToNot(Equal(0))
+			})
+		})
+
 		Context("when the process is run as non-root user", func() {
 			BeforeEach(func() {
 				rootfs = os.Getenv("GARDEN_NESTABLE_TEST_ROOTFS")

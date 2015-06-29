@@ -1,8 +1,10 @@
 package lifecycle_test
 
 import (
+	"fmt"
 	"log"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -14,9 +16,11 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/integration/runner"
 )
 
-var shmTestBin string
-
-var client *runner.RunningGarden
+var (
+	shmTestBin        string
+	capabilityTestBin string
+	client            *runner.RunningGarden
+)
 
 func startGarden(argv ...string) *runner.RunningGarden {
 	return runner.Start(argv...)
@@ -39,10 +43,18 @@ func TestLifecycle(t *testing.T) {
 	SynchronizedBeforeSuite(func() []byte {
 		shmPath, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/integration/lifecycle/shm_test")
 		Expect(err).ToNot(HaveOccurred())
-		return []byte(shmPath)
+
+		capabilityPath, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/integration/helpers/capability")
+		Expect(err).ToNot(HaveOccurred())
+
+		data := fmt.Sprintf("%s|%s", shmPath, capabilityPath)
+		return []byte(data)
 	}, func(path []byte) {
-		Expect(string(path)).NotTo(BeEmpty())
-		shmTestBin = string(path)
+		data := string(path)
+		Expect(data).NotTo(BeEmpty())
+		args := strings.Split(data, "|")
+		shmTestBin = args[0]
+		capabilityTestBin = args[1]
 	})
 
 	AfterEach(func() {
