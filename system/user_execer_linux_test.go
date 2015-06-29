@@ -15,15 +15,10 @@ import (
 var _ = Describe("UserExecer", func() {
 
 	var (
-		testPath string
-		id       int
+		id int
 	)
 
 	BeforeEach(func() {
-		var err error
-		testPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/system/test_user_execer")
-		Expect(err).NotTo(HaveOccurred())
-
 		id = 100000 + GinkgoParallelNode()
 		Expect(exec.Command("groupadd", "-g", fmt.Sprintf("%d", id), "banana").Run()).To(Succeed())
 		Expect(exec.Command(
@@ -35,14 +30,13 @@ var _ = Describe("UserExecer", func() {
 	})
 
 	AfterEach(func() {
-		gexec.CleanupBuildArtifacts()
 		Expect(exec.Command("userdel", "banana").Run()).To(Succeed())
 	})
 
 	It("execs a process as specified user", func() {
 		out := gbytes.NewBuffer()
 		runningTest, err := gexec.Start(
-			exec.Command(testPath, fmt.Sprintf("-uid=%d", id), fmt.Sprintf("-gid=%d", id)),
+			exec.Command(testUserExecerPath, fmt.Sprintf("-uid=%d", id), fmt.Sprintf("-gid=%d", id)),
 			io.MultiWriter(GinkgoWriter, out),
 			io.MultiWriter(GinkgoWriter, out),
 		)

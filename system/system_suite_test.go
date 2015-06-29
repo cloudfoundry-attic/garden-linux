@@ -12,16 +12,21 @@ import (
 
 var (
 	testCapabilitiesPath string
+	testUserExecerPath   string
 )
 
 type CompiledAssets struct {
 	TestCapabilitiesPath string
+	TestUserExecerPath   string
 }
 
 var _ = SynchronizedBeforeSuite(func() []byte {
 	var err error
 	assets := CompiledAssets{}
 	assets.TestCapabilitiesPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/system/test_capabilities")
+	Expect(err).ToNot(HaveOccurred())
+
+	assets.TestUserExecerPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/system/test_user_execer")
 	Expect(err).ToNot(HaveOccurred())
 
 	marshalledAssets, err := json.Marshal(assets)
@@ -32,6 +37,7 @@ var _ = SynchronizedBeforeSuite(func() []byte {
 	err := json.Unmarshal(marshalledAssets, &assets)
 	Expect(err).ToNot(HaveOccurred())
 	testCapabilitiesPath = assets.TestCapabilitiesPath
+	testUserExecerPath = assets.TestUserExecerPath
 })
 
 var _ = SynchronizedAfterSuite(func() {
