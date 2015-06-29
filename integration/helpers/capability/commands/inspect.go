@@ -14,23 +14,18 @@ const INSPECT_SUBCOMMAND = "inspect"
 
 type InspectCommand struct {
 	flagSet *flag.FlagSet
-	filter  *string
 }
 
 func NewInspectCommand() *InspectCommand {
 	command := &InspectCommand{}
-
 	flagSet := flag.NewFlagSet(INSPECT_SUBCOMMAND, flag.ContinueOnError)
-	filter := flagSet.String("filter", "all", "List (all/whitelist/blacklist) capabilities in linux")
-
 	command.flagSet = flagSet
-	command.filter = filter
 	return command
 }
 
 func (cmd *InspectCommand) PrintDefaults() {
 	fmt.Println("Inspect Command")
-	fmt.Println("  Usage: capability inspect [ARGUMENTS]")
+	fmt.Println("  Usage: capability inspect [CAP_FLAGS]")
 	cmd.flagSet.PrintDefaults()
 }
 
@@ -54,18 +49,34 @@ func (cmd *InspectCommand) Execute(args []string) {
 		return nil
 	}
 
-	for _, capabilityFlag := range cmd.flagSet.Args() {
-		probe := parseCapability(capabilityFlag)
-		if probe == nil {
-			fmt.Printf("Flag %q is not valid capability flag.\n", capabilityFlag)
-			continue
+	convert := func(flags []string) []capability.Cap {
+		list := []capability.Cap{}
+		for _, capabilityFlag := range flags {
+			probe := parseCapability(capabilityFlag)
+			if probe == nil {
+				fmt.Printf("Flag %q is not valid capability flag.\n", capabilityFlag)
+				continue
+			}
+			list = append(list, *probe)
 		}
+		return list
+	}
 
-		fmt.Printf("Inspecting %v\n", capabilityFlag)
-		switch *probe {
+	capabilityList := convert(cmd.flagSet.Args())
+
+	if len(capabilityList) == 0 {
+		capabilityList = capabilities
+	}
+
+	for _, probe := range capabilityList {
+		fmt.Printf("Inspecting CAP_%v\n", probe.String())
+		switch probe {
 		case capability.CAP_SETUID:
 			inspector.ProbeSETUID()
-			break
+		case capability.CAP_SETGID:
+			inspector.ProbeSETGID()
+		case capability.CAP_CHOWN:
+			inspector.ProbeCHOWN()
 		default:
 			fmt.Printf("WARNING: Inspecting %q is not started. No implementation.\n", strings.ToUpper(probe.String()))
 		}

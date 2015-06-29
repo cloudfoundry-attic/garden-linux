@@ -13,23 +13,19 @@ const LIST_SUBCOMMAND = "list"
 
 type ListCommand struct {
 	flagSet *flag.FlagSet
-	filter  *string
 }
 
 func NewListCommand() *ListCommand {
 	command := &ListCommand{}
 
 	flagSet := flag.NewFlagSet(LIST_SUBCOMMAND, flag.ContinueOnError)
-	filter := flagSet.String("filter", "all", "List (all/whitelist/blacklist) capabilities in linux")
-
 	command.flagSet = flagSet
-	command.filter = filter
 	return command
 }
 
 func (cmd *ListCommand) PrintDefaults() {
 	fmt.Println("List Command")
-	fmt.Println("  Usage: capability list [ARGUMENTS]")
+	fmt.Println("  Usage: capability list")
 	cmd.flagSet.PrintDefaults()
 }
 
@@ -40,30 +36,10 @@ func (cmd *ListCommand) Execute(args []string) {
 		}
 	}
 
-	switch *cmd.filter {
-	case "all":
-		cmd.PrintAll()
-		break
-	case "whitelist":
-		cmd.PrintWhitelist()
-		break
-	case "blacklist":
-		cmd.PrintBlacklist()
-		break
-	default:
-		log.Fatal(fmt.Sprintf("Wrong argument for LIST subcommand: %s", *cmd.filter))
-	}
+	cmd.PrintAll()
 }
 
 func (cmd *ListCommand) PrintAll() {
-	cmd.PrintBlacklist()
-	fmt.Println()
-	cmd.PrintWhitelist()
-}
-
-func (cmd *ListCommand) PrintBlacklist() {
-	fmt.Println("Blacklist capabilities\n")
-
 	PrintCapability(capability.CAP_AUDIT_CONTROL)
 	PrintCapability(capability.CAP_BLOCK_SUSPEND)
 	PrintCapability(capability.CAP_CHOWN)
@@ -87,11 +63,8 @@ func (cmd *ListCommand) PrintBlacklist() {
 	PrintCapability(capability.CAP_SYS_TTY_CONFIG)
 	PrintCapability(capability.CAP_SYSLOG)
 	PrintCapability(capability.CAP_WAKE_ALARM)
-}
 
-func (cmd *ListCommand) PrintWhitelist() {
-	fmt.Println("Whitelist capabilities\n")
-
+	// Whitelist
 	PrintCapability(capability.CAP_DAC_OVERRIDE)
 	PrintCapability(capability.CAP_FSETID)
 	PrintCapability(capability.CAP_FOWNER)
