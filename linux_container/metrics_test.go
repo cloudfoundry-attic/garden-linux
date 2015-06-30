@@ -269,9 +269,11 @@ system 2
 					fakeNetStats.StatisticsReturns(garden.ContainerNetworkStat{}, errors.New("link does not exist"))
 				})
 
-				It("it fails with error", func() {
-					_, err := container.Metrics()
-					Expect(err).To(HaveOccurred())
+				It("returns zero-ed out network stats", func() {
+					metrics, err := container.Metrics()
+					Expect(err).ToNot(HaveOccurred())
+					Expect(metrics.NetworkStat.RxBytes).To(Equal(uint64(0)))
+					Expect(metrics.NetworkStat.TxBytes).To(Equal(uint64(0)))
 				})
 			})
 		})

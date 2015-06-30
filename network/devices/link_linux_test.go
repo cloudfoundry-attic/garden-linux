@@ -171,7 +171,7 @@ var _ = Describe("Link Management", func() {
 		})
 	})
 
-	Describe("GetStatistics", func() {
+	Describe("Statistics", func() {
 
 		Context("When the interface exist", func() {
 			BeforeEach(func() {

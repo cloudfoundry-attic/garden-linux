@@ -33,7 +33,7 @@ func (c *LinuxContainer) Metrics() (garden.Metrics, error) {
 
 	hostNetworkStat, err := c.netStats.Statistics()
 	if err != nil {
-		return garden.Metrics{}, err
+		c.logger.Error("linux_container: metrics: getting network stats", err)
 	}
 
 	// tx for host_intf is rx for cont_intf and vice-versa
