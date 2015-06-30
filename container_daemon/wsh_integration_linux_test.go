@@ -15,6 +15,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
+	"github.com/onsi/gomega/gexec"
 )
 
 type FakeCommandRunner struct {
@@ -32,9 +33,16 @@ var _ = Describe("wsh and daemon integration", func() {
 	var daemon *container_daemon.ContainerDaemon
 	var tempDir string
 	var socketPath string
+	var wsh string
 
 	BeforeEach(func() {
 		var err error
+		wsh, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/container_daemon/wsh")
+		Expect(err).ToNot(HaveOccurred())
+
+		proc_starter, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/container_daemon/proc_starter")
+		Expect(err).ToNot(HaveOccurred())
+
 		tempDir, err = ioutil.TempDir("", "")
 		Expect(err).ToNot(HaveOccurred())
 		socketPath = path.Join(tempDir, "test.sock")
@@ -43,8 +51,8 @@ var _ = Describe("wsh and daemon integration", func() {
 
 		daemon = &container_daemon.ContainerDaemon{
 			CmdPreparer: &container_daemon.ProcessSpecPreparer{
-				Users:           container_daemon.LibContainerUser{},
-				ProcStarterPath: procStarterBin,
+				Users:           system.LibContainerUser{},
+				ProcStarterPath: proc_starter,
 				Rlimits:         &container_daemon.RlimitsManager{},
 			},
 			Spawner: &container_daemon.Spawn{
@@ -59,7 +67,7 @@ var _ = Describe("wsh and daemon integration", func() {
 	})
 
 	It("should run a program when no pidfile is specified", func() {
-		wshCmd := exec.Command(wshBin,
+		wshCmd := exec.Command(wsh,
 			"--socket", socketPath,
 			"--user", "root",
 			"echo", "hello")
@@ -72,7 +80,7 @@ var _ = Describe("wsh and daemon integration", func() {
 	It("should avoid a race condition when sending a kill signal", func(done Done) {
 		for i := 0; i < 20; i++ {
 			pidfilePath := path.Join(tempDir, "cmd.pid")
-			wshCmd := exec.Command(wshBin,
+			wshCmd := exec.Command(wsh,
 				"--socket", socketPath,
 				"--pidfile", pidfilePath,
 				"--user", "root",
@@ -93,7 +101,7 @@ var _ = Describe("wsh and daemon integration", func() {
 		stdout := gbytes.NewBuffer()
 
 		pidfilePath := path.Join(tempDir, "cmd.pid")
-		wshCmd := exec.Command(wshBin,
+		wshCmd := exec.Command(wsh,
 			"--socket", socketPath,
 			"--pidfile", pidfilePath,
 			"--user", "root",
@@ -125,7 +133,7 @@ var _ = Describe("wsh and daemon integration", func() {
 		for i := 0; i < 200; i++ {
 			stdout := gbytes.NewBuffer()
 
-			wshCmd := exec.Command(wshBin,
+			wshCmd := exec.Command(wsh,
 				"--socket", socketPath,
 				"--user", "root",
 				"sh", "-c", `
@@ -149,7 +157,7 @@ var _ = Describe("wsh and daemon integration", func() {
 	}, 320.0)
 
 	It("applies the provided rlimits", func() {
-		wshCmd := exec.Command(wshBin,
+		wshCmd := exec.Command(wsh,
 			"--socket", socketPath,
 			"--user", "root",
 			"sh", "-c",
