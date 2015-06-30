@@ -8,35 +8,30 @@ import (
 	"syscall"
 )
 
-const (
-	NOBODY_UID = 65534
-	NOBODY_GID = 65534
-)
-
 // CAP_SETUID
 // Make arbitrary manipulations of process UIDs
 // (setuid(2), setreuid(2), setresuid(2), setfsuid(2));
 // make forged UID when passing socket credentials via UNIX domain sockets.
-func ProbeSETUID() {
+func ProbeSETUID(uid, gid int) {
 	trace := func(msg string) {
 		fmt.Printf("CAP_SETUID: %s.\n", msg)
 	}
 
-	ProbeSETGID()
+	ProbeSETGID(uid, gid)
 
-	if err := syscall.Setreuid(NOBODY_UID, NOBODY_UID); err != nil {
+	if err := syscall.Setreuid(uid, uid); err != nil {
 		trace(fmt.Sprintf("syscall.Setreuid failed with error: %s", err))
 	} else {
 		trace("syscall.Setreuid succeeded")
 	}
 
-	if err := syscall.Setresuid(NOBODY_UID, NOBODY_UID, NOBODY_UID); err != nil {
+	if err := syscall.Setresuid(uid, uid, uid); err != nil {
 		trace(fmt.Sprintf("syscall.Setresuid failed with error: %s", err))
 	} else {
 		trace("syscall.Setresuid succeeded")
 	}
 
-	if err := syscall.Setfsuid(NOBODY_UID); err != nil {
+	if err := syscall.Setfsuid(uid); err != nil {
 		trace(fmt.Sprintf("syscall.Setfsuid failed with error: %s", err))
 	} else {
 		trace("syscall.Setfsuid succeeded")
@@ -46,7 +41,7 @@ func ProbeSETUID() {
 // CAP_SETGID
 // Make arbitrary manipulations of process GIDs and supplementary GID list;
 // forge GID when passing socket credentials via UNIX domain sockets.
-func ProbeSETGID() {
+func ProbeSETGID(uid, gid int) {
 	trace := func(msg string) {
 		fmt.Printf("CAP_SETGID | CAP_SETUID: %s.\n", msg)
 	}
@@ -54,21 +49,21 @@ func ProbeSETGID() {
 	cmd := exec.Command("ls")
 	cmd.SysProcAttr = &syscall.SysProcAttr{}
 	cmd.SysProcAttr.Credential = &syscall.Credential{
-		Uid: NOBODY_UID,
-		Gid: NOBODY_GID,
+		Uid: uint32(uid),
+		Gid: uint32(gid),
 	}
 
 	// Setuid is not allowed in GO, we should spawn a process with UID and GID
-	// if err := syscall.Setuid(NOBODY_UID); err != nil {
+	// if err := syscall.Setuid(uid); err != nil {
 	// if err := syscall.Setgid(NOBODY_GID); err != nil {
 	if err := cmd.Run(); err != nil {
-		trace(fmt.Sprintf("Failed to exec binary as %d:%d error: %s", NOBODY_UID, NOBODY_GID, err))
+		trace(fmt.Sprintf("Failed to exec binary as %d:%d error: %s", uid, gid, err))
 	} else {
-		trace(fmt.Sprintf("Exec binary as %d:%d succeeded", NOBODY_UID, NOBODY_GID))
+		trace(fmt.Sprintf("Exec binary as %d:%d succeeded", uid, gid))
 	}
 }
 
-func ProbeCHOWN() {
+func ProbeCHOWN(uid, gid int) {
 	const CAP_CHOWN = "CAP_CHOWN"
 	// create temp file. If it fails, break put and print an error message.. No fallback right now.
 	file, err := ioutil.TempFile("", "")
@@ -80,10 +75,10 @@ func ProbeCHOWN() {
 
 	// chown to nobody (do we need the uid of nobody?)
 	// print success or failure message
-	if err := os.Chown(file.Name(), NOBODY_UID, NOBODY_GID); err != nil {
+	if err := os.Chown(file.Name(), uid, gid); err != nil {
 		trace(CAP_CHOWN, fmt.Sprintf("Failed to exec chown: %s", err))
 	} else {
-		trace(CAP_CHOWN, fmt.Sprintf("Chown to %d:%d succeeded", NOBODY_UID, NOBODY_GID))
+		trace(CAP_CHOWN, fmt.Sprintf("Chown to %d:%d succeeded", uid, gid))
 	}
 }
 

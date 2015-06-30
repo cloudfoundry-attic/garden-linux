@@ -4,9 +4,11 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os/user"
 	"strings"
 
 	"github.com/cloudfoundry-incubator/garden-linux/integration/helpers/capability/inspector"
+	"github.com/golang/go/src/pkg/strconv"
 	"github.com/syndtr/gocapability/capability"
 )
 
@@ -18,8 +20,7 @@ type InspectCommand struct {
 
 func NewInspectCommand() *InspectCommand {
 	command := &InspectCommand{}
-	flagSet := flag.NewFlagSet(INSPECT_SUBCOMMAND, flag.ContinueOnError)
-	command.flagSet = flagSet
+	command.flagSet = flag.NewFlagSet(INSPECT_SUBCOMMAND, flag.ContinueOnError)
 	return command
 }
 
@@ -34,6 +35,21 @@ func (cmd *InspectCommand) Execute(args []string) {
 		if err := cmd.flagSet.Parse(args); err != nil {
 			log.Fatal(fmt.Printf("Wrong command: %v", err))
 		}
+	}
+
+	nobody, err := user.Lookup("nobody")
+	if err != nil {
+		log.Fatal("The nobody user is missing from the root file system.")
+	}
+
+	uid, err := strconv.Atoi(nobody.Uid)
+	if err != nil {
+		log.Fatal("The nobody user id is not integer.")
+	}
+
+	gid, err := strconv.Atoi(nobody.Gid)
+	if err != nil {
+		log.Fatal("The nobody group id is not integer.")
 	}
 
 	capabilities := capability.List()
@@ -72,11 +88,11 @@ func (cmd *InspectCommand) Execute(args []string) {
 		fmt.Printf("Inspecting CAP_%v\n", probe.String())
 		switch probe {
 		case capability.CAP_SETUID:
-			inspector.ProbeSETUID()
+			inspector.ProbeSETUID(uid, gid)
 		case capability.CAP_SETGID:
-			inspector.ProbeSETGID()
+			inspector.ProbeSETGID(uid, gid)
 		case capability.CAP_CHOWN:
-			inspector.ProbeCHOWN()
+			inspector.ProbeCHOWN(uid, gid)
 		default:
 			fmt.Printf("WARNING: Inspecting %q is not started. No implementation.\n", strings.ToUpper(probe.String()))
 		}
