@@ -21,6 +21,7 @@ var _ = Describe("Process", func() {
 	var socketConnector *fake_connector.FakeConnector
 	var fakeTerm *fake_term.FakeTerm
 	var sigwinchCh chan os.Signal
+	var sigtermCh chan os.Signal
 	var response *container_daemon.ResponseMessage
 
 	var process *container_daemon.Process
@@ -37,11 +38,13 @@ var _ = Describe("Process", func() {
 		socketConnector.ConnectReturns(response, nil)
 
 		sigwinchCh = make(chan os.Signal)
+		sigtermCh = make(chan os.Signal)
 
 		process = &container_daemon.Process{
 			Connector:  socketConnector,
 			Term:       fakeTerm,
 			SigwinchCh: sigwinchCh,
+			SigtermCh:  sigtermCh,
 			Spec: &garden.ProcessSpec{
 				Path: "/bin/echo",
 				Args: []string{"Hello world"},
@@ -118,6 +121,24 @@ var _ = Describe("Process", func() {
 			Expect(size).To(Equal(&term.Winsize{
 				Width: 1, Height: 2,
 			}))
+		})
+
+		Context("when a TERM signal is received", func() {
+			It("sends a signal message to the daemon", func() {
+				remotePty := FakeFd(123)
+				response.Files = []container_daemon.StreamingFile{remotePty, FakeFd(999)}
+				response.Pid = 12
+
+				socketConnector.ConnectReturns(response, nil)
+				Expect(process.Start()).To(Succeed())
+
+				Eventually(socketConnector.ConnectCallCount).Should(Equal(1)) // first is SIGWINCH
+
+				sigtermCh <- os.Interrupt
+				Eventually(socketConnector.ConnectCallCount).Should(Equal(2))
+				Expect(socketConnector.ConnectArgsForCall(1).Type).To(Equal(container_daemon.SignalRequest))
+				Expect(string(socketConnector.ConnectArgsForCall(1).Data)).To(MatchJSON(`{"Pid": 12, "Signal": 15}`))
+			})
 		})
 
 		Context("when SIGWINCH is received", func() {
@@ -253,6 +274,84 @@ var _ = Describe("Process", func() {
 
 		remoteExitFd.Write([]byte{42})
 		Expect(process.Wait()).To(Equal(42))
+	})
+
+	Context("when stdout/err are closed", func() {
+		It("immediately reports the process status", func() {
+			remoteExitFd := FakeFd(0)
+			response.Files = []container_daemon.StreamingFile{nil, FakeFd(0), FakeFd(0), remoteExitFd}
+			response.Pid = 0
+			socketConnector.ConnectReturns(response, nil)
+
+			err := process.Start()
+			Expect(err).ToNot(HaveOccurred())
+
+			remoteExitFd.Write([]byte{42})
+
+			exitCode := make(chan int)
+			go func(exitCode chan int) {
+				c, _ := process.Wait()
+				exitCode <- c
+			}(exitCode)
+
+			select {
+			case code := <-exitCode:
+				Expect(code).To(Equal(42))
+			case <-time.After(25 * time.Millisecond):
+				Fail("should receive exit immediately if no output to stream back")
+			}
+		})
+	})
+
+	Context("when stdout is never closed (for example, because a child process is still writing)", func() {
+		It("waits for and reports the correct exit status", func(done Done) {
+			remoteStdout, _, _ := os.Pipe()
+			remoteExitFd := FakeFd(0)
+			response.Files = []container_daemon.StreamingFile{nil, remoteStdout, nil, remoteExitFd}
+			response.Pid = 0
+			socketConnector.ConnectReturns(response, nil)
+
+			recvStdout := FakeFd(0)
+			process.IO = &garden.ProcessIO{
+				Stdout: recvStdout,
+			}
+
+			err := process.Start()
+			Expect(err).ToNot(HaveOccurred())
+
+			remoteExitFd.Write([]byte{42})
+			Expect(process.Wait()).To(Equal(42))
+			close(done)
+		})
+
+		It("waits a short time to ensure all output is streamed", func(done Done) {
+			remoteStdout, remoteStdoutW, _ := os.Pipe()
+			remoteExitFd, remoteExitFdW, _ := os.Pipe()
+			response.Files = []container_daemon.StreamingFile{nil, remoteStdout, nil, remoteExitFd}
+			response.Pid = 0
+			socketConnector.ConnectReturns(response, nil)
+
+			recvStdout := FakeFd(0)
+			process.IO = &garden.ProcessIO{
+				Stdout: recvStdout,
+			}
+
+			err := process.Start()
+			Expect(err).ToNot(HaveOccurred())
+
+			go func() {
+				defer GinkgoRecover()
+
+				Expect(process.Wait()).To(Equal(42))
+				Expect(recvStdout).To(gbytes.Say("hi"))
+
+				close(done)
+			}()
+
+			remoteExitFdW.Write([]byte{42})
+			time.Sleep(40 * time.Millisecond)
+			remoteStdoutW.Write([]byte("hi"))
+		})
 	})
 
 	Context("when it fails to connect", func() {

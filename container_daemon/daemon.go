@@ -3,6 +3,7 @@ package container_daemon
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"syscall"
@@ -30,6 +31,11 @@ type ResponseMessage struct {
 	Files      []StreamingFile `json:"-"`
 	Pid        int
 	ErrMessage string
+}
+
+type StreamingFile interface {
+	io.ReadWriteCloser
+	Fd() uintptr
 }
 
 //go:generate counterfeiter -o fake_connection_handler/FakeConnectionHandler.go . ConnectionHandler

@@ -7,9 +7,9 @@ import (
 	"os"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/system"
 	"github.com/docker/docker/pkg/term"
 	"github.com/pivotal-golang/lager"
 )
@@ -29,7 +29,6 @@ type Process struct {
 	termState *term.State
 	exitCode  <-chan int
 	streaming *sync.WaitGroup
-	streamers []*Streamer
 
 	logger lager.Logger
 }
@@ -74,7 +73,6 @@ func (p *Process) Signal() error {
 
 func (p *Process) Start() error {
 	p.logger = lager.NewLogger("container_daemon.Process")
-	p.streamers = []*Streamer{}
 
 	data, err := json.Marshal(p.Spec)
 	if err != nil {
@@ -94,7 +92,6 @@ func (p *Process) Start() error {
 	p.pid = response.Pid
 
 	go p.sigtermLoop()
-
 	p.streaming = &sync.WaitGroup{}
 
 	if p.Spec.TTY != nil {
@@ -136,22 +133,21 @@ func (p *Process) syncWindowSize(ptyFd StreamingFile) error {
 }
 
 func (p *Process) fwdOverPty(ptyFd StreamingFile) {
-	if p.IO == nil {
-		return
+	if p.IO != nil && p.IO.Stdout != nil {
+		p.stream(p.IO.Stdout, ptyFd)
 	}
 
-	if p.IO.Stdout != nil {
-		p.streamButDontClose(p.IO.Stdout, ptyFd)
-	}
-
-	if p.IO.Stdin != nil {
+	if p.IO != nil && p.IO.Stdin != nil {
 		go io.Copy(ptyFd, p.IO.Stdin)
 	}
 }
 
 func (p *Process) fwdNoninteractive(stdinFd, stdoutFd, stderrFd StreamingFile) {
 	if p.IO != nil && p.IO.Stdin != nil {
-		go copyAndClose(stdinFd, p.IO.Stdin) // Ignore error
+		go func() {
+			io.Copy(stdinFd, p.IO.Stdin)
+			stdinFd.Close()
+		}()
 	}
 
 	if p.IO != nil && p.IO.Stdout != nil {
@@ -164,37 +160,17 @@ func (p *Process) fwdNoninteractive(stdinFd, stdoutFd, stderrFd StreamingFile) {
 }
 
 func (p *Process) stream(dst io.Writer, src StreamingFile) {
-	streamer := NewStreamerWithPoller(src, dst, p.logger, system.NewPoller([]uintptr{src.Fd()}))
-	if err := streamer.Start(true); err != nil {
-		p.logger.Error("stream", err)
-		return
-	}
-	p.streamers = append(p.streamers, streamer)
-}
-
-func (p *Process) streamButDontClose(dst io.Writer, src StreamingFile) {
-	streamer := NewStreamerWithPoller(src, dst, p.logger, system.NewPoller([]uintptr{src.Fd()}))
-	if err := streamer.Start(false); err != nil {
-		p.logger.Error("streamButDontClose", err)
-		return
-	}
-	p.streamers = append(p.streamers, streamer)
-}
-
-func copyAndClose(dst io.WriteCloser, src io.Reader) error {
-	_, err := io.Copy(dst, src)
-	dst.Close() // Ignore error
-	return err
+	p.streaming.Add(1)
+	go func() {
+		io.Copy(dst, src)
+		p.streaming.Done()
+	}()
 }
 
 func (p *Process) Cleanup() {
 	if p.termState != nil {
 		p.Term.RestoreTerminal(os.Stdin.Fd(), p.termState)
 	}
-}
-
-func (p *Process) Wait() (int, error) {
-	return <-p.exitCode, nil
 }
 
 func (p *Process) exitWaitChannel(exitFd io.ReadWriteCloser) chan int {
@@ -206,16 +182,28 @@ func (p *Process) exitWaitChannel(exitFd io.ReadWriteCloser) chan int {
 			b[0] = UnknownExitStatus
 		}
 
-		for _, streamer := range p.streamers {
-			if err := streamer.Stop(); err != nil {
-				p.logger.Error("exitWaitChannel", err)
-			}
-		}
-
-		streaming.Wait()
-
 		exitChan <- int(b[0])
 	}(exitFd, exitChan, p.streaming)
 
 	return exitChan
+}
+
+func (p *Process) Wait() (int, error) {
+	exit := <-p.exitCode
+	p.waitForStreamingToComplete()
+	return exit, nil
+}
+
+func (p *Process) waitForStreamingToComplete() {
+	doneStreaming := make(chan bool)
+	go func() {
+		p.streaming.Wait()
+		doneStreaming <- true
+	}()
+
+	select {
+	case <-doneStreaming:
+	case <-time.After(200 * time.Millisecond):
+		// allow a little time in case we're not quite done returning copied data
+	}
 }
