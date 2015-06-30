@@ -184,6 +184,21 @@ var _ = Describe("btrfs quota manager", func() {
 					InodesUsed: uint64(0),
 				}))
 			})
+
+			Context("when there is no quota", func() {
+				BeforeEach(func() {
+					qgroupShowResponse = []byte(
+						`qgroupid         rfer         excl     max_rfer
+--------         ----         ----     --------
+0/257           10485760        16384     none
+`)
+				})
+
+				It("does not error", func() {
+					_, err := quotaManager.GetUsage(logger, subvolumePath)
+					Expect(err).NotTo(HaveOccurred())
+				})
+			})
 		})
 	})
 })

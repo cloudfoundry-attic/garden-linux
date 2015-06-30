@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	"github.com/cloudfoundry-incubator/garden"
@@ -87,6 +88,7 @@ func (m *BtrfsQuotaManager) quotaInfo(logger lager.Logger, path string) (*QuotaI
 		cmdOut bytes.Buffer
 		skip   int
 		info   QuotaInfo
+		limit  string
 	)
 
 	runner := logging.Runner{
@@ -103,9 +105,17 @@ func (m *BtrfsQuotaManager) quotaInfo(logger lager.Logger, path string) (*QuotaI
 
 	lines := strings.Split(strings.TrimSpace(cmdOut.String()), "\n")
 
-	_, err := fmt.Sscanf(lines[len(lines)-1], "%s %d %d %d", &info.Id, &info.Usage, &skip, &info.Limit)
+	_, err := fmt.Sscanf(lines[len(lines)-1], "%s %d %d %s", &info.Id, &info.Usage, &skip, &limit)
 	if err != nil {
 		return nil, fmt.Errorf("quota_manager: parse quota info: %v", err)
+	}
+
+	if limit != "none" {
+		limitBytes, err := strconv.ParseUint(limit, 10, 64)
+		if err != nil {
+			return nil, fmt.Errorf("quota_manager: parse quota limit: %v", err)
+		}
+		info.Limit = limitBytes
 	}
 
 	return &info, nil
