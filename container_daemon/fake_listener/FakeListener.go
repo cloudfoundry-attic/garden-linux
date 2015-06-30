@@ -5,13 +5,14 @@ import (
 	"sync"
 
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
+	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
 )
 
 type FakeListener struct {
-	ListenStub        func(ch container_daemon.ConnectionHandler) error
+	ListenStub        func(ch unix_socket.ConnectionHandler) error
 	listenMutex       sync.RWMutex
 	listenArgsForCall []struct {
-		ch container_daemon.ConnectionHandler
+		ch unix_socket.ConnectionHandler
 	}
 	listenReturns struct {
 		result1 error
@@ -24,10 +25,10 @@ type FakeListener struct {
 	}
 }
 
-func (fake *FakeListener) Listen(ch container_daemon.ConnectionHandler) error {
+func (fake *FakeListener) Listen(ch unix_socket.ConnectionHandler) error {
 	fake.listenMutex.Lock()
 	fake.listenArgsForCall = append(fake.listenArgsForCall, struct {
-		ch container_daemon.ConnectionHandler
+		ch unix_socket.ConnectionHandler
 	}{ch})
 	fake.listenMutex.Unlock()
 	if fake.ListenStub != nil {
@@ -43,7 +44,7 @@ func (fake *FakeListener) ListenCallCount() int {
 	return len(fake.listenArgsForCall)
 }
 
-func (fake *FakeListener) ListenArgsForCall(i int) container_daemon.ConnectionHandler {
+func (fake *FakeListener) ListenArgsForCall(i int) unix_socket.ConnectionHandler {
 	fake.listenMutex.RLock()
 	defer fake.listenMutex.RUnlock()
 	return fake.listenArgsForCall[i].ch

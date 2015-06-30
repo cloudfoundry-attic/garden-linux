@@ -5,22 +5,23 @@ import (
 	"sync"
 
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
+	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
 )
 
 type FakeConnector struct {
-	ConnectStub        func(msg interface{}) ([]container_daemon.StreamingFile, int, error)
+	ConnectStub        func(msg interface{}) ([]unix_socket.Fd, int, error)
 	connectMutex       sync.RWMutex
 	connectArgsForCall []struct {
 		msg interface{}
 	}
 	connectReturns struct {
-		result1 []container_daemon.StreamingFile
+		result1 []unix_socket.Fd
 		result2 int
 		result3 error
 	}
 }
 
-func (fake *FakeConnector) Connect(msg interface{}) ([]container_daemon.StreamingFile, int, error) {
+func (fake *FakeConnector) Connect(msg interface{}) ([]unix_socket.Fd, int, error) {
 	fake.connectMutex.Lock()
 	fake.connectArgsForCall = append(fake.connectArgsForCall, struct {
 		msg interface{}
@@ -45,10 +46,10 @@ func (fake *FakeConnector) ConnectArgsForCall(i int) interface{} {
 	return fake.connectArgsForCall[i].msg
 }
 
-func (fake *FakeConnector) ConnectReturns(result1 []container_daemon.StreamingFile, result2 int, result3 error) {
+func (fake *FakeConnector) ConnectReturns(result1 []unix_socket.Fd, result2 int, result3 error) {
 	fake.ConnectStub = nil
 	fake.connectReturns = struct {
-		result1 []container_daemon.StreamingFile
+		result1 []unix_socket.Fd
 		result2 int
 		result3 error
 	}{result1, result2, result3}

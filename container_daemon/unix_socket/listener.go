@@ -7,9 +7,12 @@ import (
 	"net"
 	"os"
 	"syscall"
-
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
 )
+
+//go:generate counterfeiter -o fake_connection_handler/FakeConnectionHandler.go . ConnectionHandler
+type ConnectionHandler interface {
+	Handle(decoder *json.Decoder) ([]*os.File, int, error)
+}
 
 type Listener struct {
 	listener   net.Listener
@@ -46,7 +49,7 @@ func NewListenerFromFile(socketFile *os.File) (*Listener, error) {
 	return l, nil
 }
 
-func (l *Listener) Listen(ch container_daemon.ConnectionHandler) error {
+func (l *Listener) Listen(ch ConnectionHandler) error {
 	if l.listener == nil {
 		return errors.New("unix_socket: listener is not initialized")
 	}
@@ -59,7 +62,7 @@ func (l *Listener) Listen(ch container_daemon.ConnectionHandler) error {
 			return fmt.Errorf("container_daemon: Failure while accepting: %v", err)
 		}
 
-		go func(conn *net.UnixConn, ch container_daemon.ConnectionHandler) {
+		go func(conn *net.UnixConn, ch ConnectionHandler) {
 			defer conn.Close() // Ignore error
 
 			decoder := json.NewDecoder(conn)
