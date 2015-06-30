@@ -129,7 +129,8 @@ func (p *Process) fwdNoninteractive(stdinFd, stdoutFd, stderrFd StreamingFile) {
 func (p *Process) stream(dst io.Writer, src StreamingFile) {
 	streamer := NewStreamerWithPoller(src, dst, p.logger, system.NewPoller([]uintptr{src.Fd()}))
 	if err := streamer.Start(true); err != nil {
-		panic(err)
+		p.logger.Error("stream", err)
+		return
 	}
 	p.streamers = append(p.streamers, streamer)
 }
@@ -137,7 +138,8 @@ func (p *Process) stream(dst io.Writer, src StreamingFile) {
 func (p *Process) streamButDontClose(dst io.Writer, src StreamingFile) {
 	streamer := NewStreamerWithPoller(src, dst, p.logger, system.NewPoller([]uintptr{src.Fd()}))
 	if err := streamer.Start(false); err != nil {
-		panic(err)
+		p.logger.Error("streamButDontClose", err)
+		return
 	}
 	p.streamers = append(p.streamers, streamer)
 }
@@ -171,7 +173,7 @@ func (p *Process) exitWaitChannel(exitFd io.ReadWriteCloser) chan int {
 
 		for _, streamer := range p.streamers {
 			if err := streamer.Stop(); err != nil {
-				panic(err)
+				p.logger.Error("exitWaitChannel", err)
 			}
 		}
 
