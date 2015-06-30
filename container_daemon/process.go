@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
@@ -157,6 +158,18 @@ func (p *Process) Cleanup() {
 func (p *Process) Wait() (int, error) {
 	defer p.Pidfile.Remove()
 
+	doneStreaming := make(chan bool)
+	go func() {
+		p.streaming.Wait()
+		doneStreaming <- true
+	}()
+
+	select {
+	case <-doneStreaming:
+	case <-time.After(100 * time.Millisecond):
+		// allow a little time in case we're not quite done returning copied data
+	}
+
 	return <-p.exitCode, nil
 }
 
@@ -168,8 +181,6 @@ func waitForExit(exitFd io.ReadWriteCloser, streaming *sync.WaitGroup) chan int 
 		if n == 0 && err != nil {
 			b[0] = UnknownExitStatus
 		}
-
-		streaming.Wait()
 
 		exitChan <- int(b[0])
 	}(exitFd, exitChan, streaming)

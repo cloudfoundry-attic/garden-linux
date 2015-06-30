@@ -248,6 +248,78 @@ var _ = Describe("Process", func() {
 		Expect(process.Wait()).To(Equal(42))
 	})
 
+	Context("when stdout/err are closed", func() {
+		It("immediately reports the process status", func() {
+			remoteExitFd := FakeFd(0)
+			socketConnector.ConnectReturns([]unix_socket.Fd{nil, FakeFd(0), FakeFd(0), remoteExitFd}, 0, nil)
+
+			err := process.Start()
+			Expect(err).ToNot(HaveOccurred())
+
+			remoteExitFd.Write([]byte{42})
+
+			exitCode := make(chan int)
+			go func(exitCode chan int) {
+				c, _ := process.Wait()
+				exitCode <- c
+			}(exitCode)
+
+			select {
+			case code := <-exitCode:
+				Expect(code).To(Equal(42))
+			case <-time.After(25 * time.Millisecond):
+				Fail("should receive exit immediately if no output to stream back")
+			}
+		})
+	})
+
+	Context("when stdout is never closed (for example, because a child process is still writing)", func() {
+		It("waits for and reports the correct exit status", func(done Done) {
+			remoteStdout, _, _ := os.Pipe()
+			remoteExitFd := FakeFd(0)
+			socketConnector.ConnectReturns([]unix_socket.Fd{nil, remoteStdout, nil, remoteExitFd}, 0, nil)
+
+			recvStdout := FakeFd(0)
+			process.IO = &garden.ProcessIO{
+				Stdout: recvStdout,
+			}
+
+			err := process.Start()
+			Expect(err).ToNot(HaveOccurred())
+
+			remoteExitFd.Write([]byte{42})
+			Expect(process.Wait()).To(Equal(42))
+			close(done)
+		})
+
+		It("waits a short time to ensure all output is streamed", func(done Done) {
+			remoteStdout, remoteStdoutW, _ := os.Pipe()
+			remoteExitFd, remoteExitFdW, _ := os.Pipe()
+			socketConnector.ConnectReturns([]unix_socket.Fd{nil, remoteStdout, nil, remoteExitFd}, 0, nil)
+
+			recvStdout := FakeFd(0)
+			process.IO = &garden.ProcessIO{
+				Stdout: recvStdout,
+			}
+
+			err := process.Start()
+			Expect(err).ToNot(HaveOccurred())
+
+			go func() {
+				defer GinkgoRecover()
+
+				Expect(process.Wait()).To(Equal(42))
+				Expect(recvStdout).To(gbytes.Say("hi"))
+
+				close(done)
+			}()
+
+			remoteExitFdW.Write([]byte{42})
+			time.Sleep(40 * time.Millisecond)
+			remoteStdoutW.Write([]byte("hi"))
+		})
+	})
+
 	Context("when the exit status is returned", func() {
 		It("removes the pidfile", func() {
 			remoteExitFd := FakeFd(0)
