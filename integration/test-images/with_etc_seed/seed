@@ -1,0 +1,10 @@
+#!/bin/bash
+
+set -e -x
+
+DIR=/tmp/testmount
+
+
+mkdir -p $DIR
+
+mount -t tmpfs tmpfs $DIR

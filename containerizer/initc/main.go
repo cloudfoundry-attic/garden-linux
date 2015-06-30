@@ -14,6 +14,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
 	"github.com/cloudfoundry-incubator/garden-linux/network"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
+	sys "github.com/cloudfoundry-incubator/garden-linux/system"
 	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
 )
 
@@ -57,6 +58,8 @@ func main() {
 		os.Exit(3)
 	}
 
+	dropCapabilities := env["root_uid"] != "0"
+
 	initializer := &system.ContainerInitializer{
 		Steps: []system.Initializer{
 			&step{system.Mount{
@@ -80,6 +83,18 @@ func main() {
 			&step{func() error {
 				return setupNetwork(env)
 			}},
+			&step{func() error {
+				if !dropCapabilities {
+					return nil
+				}
+
+				caps := &sys.ProcessCapabilities{Pid: os.Getpid()}
+				if err := caps.Limit(false); err != nil {
+					fail(fmt.Sprintf("initc: limit_capabilities: %s\n", err), 9)
+				}
+
+				return nil
+			}},
 			&containerizer.ShellRunnerStep{
 				Runner: linux_command_runner.New(),
 				Path:   "/etc/seed",
@@ -101,7 +116,7 @@ func main() {
 	syscall.RawSyscall(syscall.SYS_FCNTL, uintptr(4), syscall.F_SETFD, 0)
 	syscall.RawSyscall(syscall.SYS_FCNTL, uintptr(5), syscall.F_SETFD, 0)
 
-	syscall.Exec("/sbin/initd", []string{*title, fmt.Sprintf("-dropCapabilities=%t", env["root_uid"] != "0")}, os.Environ())
+	syscall.Exec("/sbin/initd", []string{*title, fmt.Sprintf("-dropCapabilities=%t", dropCapabilities)}, os.Environ())
 }
 
 func fail(err string, code int) {
