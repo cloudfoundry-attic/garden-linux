@@ -76,7 +76,7 @@ func ProbeSETGID(uid, gid int) ProbeResult {
 
 	if err := cmd.Run(); err != nil {
 		trace("CAP_SETGID", "Failed to exec binary as %d:%d error: %s", uid, gid, err)
-		return ProbeResult{STATUS_CODE_CAP_SETGID, err}
+		return ProbeResult{1, err}
 	} else {
 		trace("CAP_SETGID", "Exec binary as %d:%d succeeded", uid, gid)
 	}

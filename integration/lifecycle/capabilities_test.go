@@ -109,7 +109,7 @@ var _ = FDescribe("Capabilities", func() {
 				})
 
 				Expect(err).ToNot(HaveOccurred())
-				Expect(process.Wait()).To(Equal(202))
+				Expect(process.Wait()).To(Equal(1))
 			})
 
 			It("should not be able to set system clock, because CAP_SYS_TIME is dropped", func() {
