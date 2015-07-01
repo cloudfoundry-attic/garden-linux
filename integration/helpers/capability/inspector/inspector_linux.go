@@ -14,7 +14,7 @@ import (
 // (setuid(2), setreuid(2), setresuid(2), setfsuid(2));
 // make forged UID when passing socket credentials via UNIX domain sockets.
 func ProbeSETUID(uid, gid int) error {
-	cmd := exec.Command("ls")
+	cmd := exec.Command("ls", "/")
 	cmd.SysProcAttr = &syscall.SysProcAttr{}
 	cmd.SysProcAttr.Credential = &syscall.Credential{
 		Uid: uint32(uid),
@@ -56,7 +56,7 @@ func ProbeSETUID(uid, gid int) error {
 // Make arbitrary manipulations of process GIDs and supplementary GID list;
 // forge GID when passing socket credentials via UNIX domain sockets.
 func ProbeSETGID(uid, gid int) error {
-	cmd := exec.Command("ls")
+	cmd := exec.Command("ls", "/")
 	cmd.SysProcAttr = &syscall.SysProcAttr{}
 	cmd.SysProcAttr.Credential = &syscall.Credential{
 		Uid: uint32(uid),
@@ -108,11 +108,11 @@ func ProbeSYSTIME() error {
 }
 
 func printInfo(tag, msg string, args ...interface{}) {
-	printMsg(os.Stdout, tag, msg, args)
+	printMsg(os.Stdout, tag, msg, args...)
 }
 
 func printErr(tag, msg string, args ...interface{}) {
-	printMsg(os.Stderr, tag, msg, args)
+	printMsg(os.Stderr, tag, msg, args...)
 }
 
 func printMsg(std io.Writer, tag, msg string, args ...interface{}) {
