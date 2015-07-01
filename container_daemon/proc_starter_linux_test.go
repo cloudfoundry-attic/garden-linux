@@ -56,7 +56,7 @@ var _ = Describe("proc_starter", func() {
 		cmd.Stdout = io.MultiWriter(GinkgoWriter, out)
 		cmd.Stderr = io.MultiWriter(GinkgoWriter, out)
 		Expect(cmd.Run()).To(Succeed())
-		Expect(out).To(gbytes.Say("CapBnd:	00000000a80425fa"))
+		Expect(out).To(gbytes.Say("CapBnd:	00000000a80425fb"))
 	})
 
 	Context("when the dropCapabilities flag is set to false", func() {

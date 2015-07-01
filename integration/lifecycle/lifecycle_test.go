@@ -704,30 +704,49 @@ var _ = Describe("Creating a container", func() {
 							rootfs = os.Getenv("GARDEN_NESTABLE_TEST_ROOTFS")
 						})
 
-						It("does not have certain capabilities, even when user changes to root", func() {
-							process, err := container.Run(garden.ProcessSpec{
-								User: "root",
-								Path: "sh",
-								Args: []string{"-c", `echo "ALL            ALL = (ALL) NOPASSWD: ALL" >> /etc/sudoers`},
-							}, garden.ProcessIO{
-								Stdout: GinkgoWriter,
-								Stderr: GinkgoWriter,
+						Context("and the user changes to root", func() {
+							JustBeforeEach(func() {
+								process, err := container.Run(garden.ProcessSpec{
+									User: "root",
+									Path: "sh",
+									Args: []string{"-c", `echo "ALL            ALL = (ALL) NOPASSWD: ALL" >> /etc/sudoers`},
+								}, garden.ProcessIO{
+									Stdout: GinkgoWriter,
+									Stderr: GinkgoWriter,
+								})
+
+								Expect(err).ToNot(HaveOccurred())
+								Expect(process.Wait()).To(Equal(0))
 							})
 
-							Expect(err).ToNot(HaveOccurred())
-							Expect(process.Wait()).To(Equal(0))
+							It("can chown files", func() {
+								process, err := container.Run(garden.ProcessSpec{
+									User: "vcap",
+									Path: "sudo",
+									Args: []string{"chown", "-R", "vcap", "/tmp"},
+								}, garden.ProcessIO{
+									Stdout: GinkgoWriter,
+									Stderr: GinkgoWriter,
+								})
 
-							process, err = container.Run(garden.ProcessSpec{
-								User: "vcap",
-								Path: "sudo",
-								Args: []string{"chown", "-R", "vcap", "/tmp"},
-							}, garden.ProcessIO{
-								Stdout: GinkgoWriter,
-								Stderr: GinkgoWriter,
+								Expect(err).ToNot(HaveOccurred())
+								Expect(process.Wait()).To(Equal(0))
 							})
 
-							Expect(err).ToNot(HaveOccurred())
-							Expect(process.Wait()).ToNot(Equal(0))
+							It("does not have certain capabilities", func() {
+								// This attempts to set system time which requires the CAP_SYS_TIME permission.
+								process, err := container.Run(garden.ProcessSpec{
+									User: "vcap",
+									Path: "sudo",
+									Args: []string{"date", "--set", "+2 minutes"},
+								}, garden.ProcessIO{
+									Stdout: GinkgoWriter,
+									Stderr: GinkgoWriter,
+								})
+
+								Expect(err).ToNot(HaveOccurred())
+								Expect(process.Wait()).ToNot(Equal(0))
+							})
 						})
 					})
 				})

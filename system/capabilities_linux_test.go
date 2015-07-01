@@ -33,7 +33,7 @@ var _ = Describe("Capabilities", func() {
 			cmd.Stdout = io.MultiWriter(GinkgoWriter, catOut)
 			cmd.Stderr = io.MultiWriter(GinkgoWriter, catOut)
 			Expect(cmd.Run()).To(Succeed())
-			Expect(catOut).To(gbytes.Say("CapBnd:	00000000a80425fa"))
+			Expect(catOut).To(gbytes.Say("CapBnd:	00000000a80425fb"))
 		})
 	})
 
@@ -57,7 +57,7 @@ var _ = Describe("Capabilities", func() {
 			cmd.Stdout = io.MultiWriter(GinkgoWriter, catOut)
 			cmd.Stderr = io.MultiWriter(GinkgoWriter, catOut)
 			Expect(cmd.Run()).To(Succeed())
-			Expect(catOut).To(gbytes.Say("CapBnd:	00000000a82425fa"))
+			Expect(catOut).To(gbytes.Say("CapBnd:	00000000a82425fb"))
 		})
 	})
 
