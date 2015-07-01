@@ -93,6 +93,20 @@ var _ = FDescribe("Capabilities", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(process.Wait()).To(Equal(202))
 			})
+
+			It("should not be able to set group id, because CAP_SETUID is dropped", func() {
+				process, err := container.Run(garden.ProcessSpec{
+					User: "root",
+					Path: "/tools/capability",
+					Args: []string{"inspect", "CAP_SETUID"},
+				}, garden.ProcessIO{
+					Stdout: GinkgoWriter,
+					Stderr: GinkgoWriter,
+				})
+
+				Expect(err).ToNot(HaveOccurred())
+				Expect(process.Wait()).To(Equal(201))
+			})
 		})
 
 		Context("when the process is run as non-root user", func() {

@@ -23,26 +23,43 @@ type ProbeResult struct {
 // Make arbitrary manipulations of process UIDs
 // (setuid(2), setreuid(2), setresuid(2), setfsuid(2));
 // make forged UID when passing socket credentials via UNIX domain sockets.
-func ProbeSETUID(uid, gid int) {
-	ProbeSETGID(uid, gid)
+func ProbeSETUID(uid, gid int) ProbeResult {
+	cmd := exec.Command("ls")
+	cmd.SysProcAttr = &syscall.SysProcAttr{}
+	cmd.SysProcAttr.Credential = &syscall.Credential{
+		Uid: uint32(uid),
+		Gid: uint32(gid),
+	}
+
+	if err := cmd.Run(); err != nil {
+		trace("CAP_SETUID", "Failed to exec binary as %d:%d error: %s", uid, gid, err)
+		return ProbeResult{STATUS_CODE_CAP_SETUID, err}
+	} else {
+		trace("CAP_SETUID", "Exec binary as %d:%d succeeded", uid, gid)
+	}
 
 	if err := syscall.Setreuid(uid, uid); err != nil {
 		trace("CAP_SETUID", "syscall.Setreuid for %d:%d failed with error: %s", uid, gid, err)
+		return ProbeResult{STATUS_CODE_CAP_SETUID, err}
 	} else {
 		trace("CAP_SETUID", "syscall.Setreuid for %d:%d succeeded", uid, gid)
 	}
 
 	if err := syscall.Setresuid(uid, uid, uid); err != nil {
 		trace("CAP_SETUID", "syscall.Setresuid for %d:%d failed with error: %s", uid, gid, err)
+		return ProbeResult{STATUS_CODE_CAP_SETUID, err}
 	} else {
 		trace("CAP_SETUID", "syscall.Setresuid for %d succeeded", uid)
 	}
 
 	if err := syscall.Setfsuid(uid); err != nil {
 		trace("CAP_SETUID", "syscall.Setfsuid for %d failed with error: %s", uid, err)
+		return ProbeResult{STATUS_CODE_CAP_SETUID, err}
 	} else {
 		trace("CAP_SETUID", "syscall.Setfsuid for %d succeeded", uid)
 	}
+
+	return ProbeResult{0, nil}
 }
 
 // CAP_SETGID
