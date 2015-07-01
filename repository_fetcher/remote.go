@@ -33,10 +33,10 @@ var RegistryNewSession = registry.NewSession
 //go:generate counterfeiter . Registry
 type Registry interface {
 	GetRepositoryData(repoName string) (*registry.RepositoryData, error)
-	GetRemoteTags(registries []string, repository string, token []string) (map[string]string, error)
-	GetRemoteHistory(imageID string, registry string, token []string) ([]string, error)
-	GetRemoteImageJSON(imageID string, registry string, token []string) ([]byte, int, error)
-	GetRemoteImageLayer(imageID string, registry string, token []string, size int64) (io.ReadCloser, error)
+	GetRemoteTags(registries []string, repository string) (map[string]string, error)
+	GetRemoteHistory(imageID string, registry string) ([]string, error)
+	GetRemoteImageJSON(imageID string, registry string) ([]byte, int, error)
+	GetRemoteImageLayer(imageID string, registry string, size int64) (io.ReadCloser, error)
 }
 
 // apes docker's *graph.Graph
@@ -124,7 +124,7 @@ func (fetcher *DockerRepositoryFetcher) Fetch(
 		return "", nil, nil, fetchError("GetRepositoryData", hostname, path, err)
 	}
 
-	tagsList, err := registry.GetRemoteTags(repoData.Endpoints, path, repoData.Tokens)
+	tagsList, err := registry.GetRemoteTags(repoData.Endpoints, path)
 	if err != nil {
 		return "", nil, nil, fetchError("GetRemoteTags", hostname, path, err)
 	}
@@ -134,8 +134,6 @@ func (fetcher *DockerRepositoryFetcher) Fetch(
 		return "", nil, nil, fetchError("looking up tag", hostname, path, fmt.Errorf("unknown tag: %v", tag))
 	}
 
-	token := repoData.Tokens
-
 	for _, endpoint := range repoData.Endpoints {
 		fLog.Debug("trying", lager.Data{
 			"endpoint": endpoint,
@@ -143,7 +141,7 @@ func (fetcher *DockerRepositoryFetcher) Fetch(
 		})
 
 		var image *dockerImage
-		image, err = fetcher.fetchFromEndpoint(fLog, registry, endpoint, imgID, token)
+		image, err = fetcher.fetchFromEndpoint(fLog, registry, endpoint, imgID)
 		if err == nil {
 			fLog.Debug("fetched", lager.Data{
 				"endpoint": endpoint,
@@ -159,15 +157,15 @@ func (fetcher *DockerRepositoryFetcher) Fetch(
 	return "", nil, nil, fetchError("fetchFromEndPoint", hostname, path, fmt.Errorf("all endpoints failed: %v", err))
 }
 
-func (fetcher *DockerRepositoryFetcher) fetchFromEndpoint(logger lager.Logger, registry Registry, endpoint string, imgID string, token []string) (*dockerImage, error) {
-	history, err := registry.GetRemoteHistory(imgID, endpoint, token)
+func (fetcher *DockerRepositoryFetcher) fetchFromEndpoint(logger lager.Logger, registry Registry, endpoint string, imgID string) (*dockerImage, error) {
+	history, err := registry.GetRemoteHistory(imgID, endpoint)
 	if err != nil {
 		return nil, err
 	}
 
 	var allLayers []*dockerLayer
 	for i := len(history) - 1; i >= 0; i-- {
-		layer, err := fetcher.fetchLayer(logger, registry, endpoint, history[i], token)
+		layer, err := fetcher.fetchLayer(logger, registry, endpoint, history[i])
 		if err != nil {
 			return nil, err
 		}
@@ -178,7 +176,7 @@ func (fetcher *DockerRepositoryFetcher) fetchFromEndpoint(logger lager.Logger, r
 	return &dockerImage{allLayers}, nil
 }
 
-func (fetcher *DockerRepositoryFetcher) fetchLayer(logger lager.Logger, registry Registry, endpoint string, layerID string, token []string) (*dockerLayer, error) {
+func (fetcher *DockerRepositoryFetcher) fetchLayer(logger lager.Logger, registry Registry, endpoint string, layerID string) (*dockerLayer, error) {
 	for acquired := false; !acquired; acquired = fetcher.fetching(layerID) {
 	}
 
@@ -193,7 +191,7 @@ func (fetcher *DockerRepositoryFetcher) fetchLayer(logger lager.Logger, registry
 		return &dockerLayer{imgEnv(img, logger), imgVolumes(img)}, nil
 	}
 
-	imgJSON, imgSize, err := registry.GetRemoteImageJSON(layerID, endpoint, token)
+	imgJSON, imgSize, err := registry.GetRemoteImageJSON(layerID, endpoint)
 	if err != nil {
 		return nil, fmt.Errorf("get remote image JSON: %v", err)
 	}
@@ -203,7 +201,7 @@ func (fetcher *DockerRepositoryFetcher) fetchLayer(logger lager.Logger, registry
 		return nil, fmt.Errorf("new image JSON: %v", err)
 	}
 
-	layer, err := registry.GetRemoteImageLayer(img.ID, endpoint, token, int64(imgSize))
+	layer, err := registry.GetRemoteImageLayer(img.ID, endpoint, int64(imgSize))
 	if err != nil {
 		return nil, fmt.Errorf("get remote image layer: %v", err)
 	}

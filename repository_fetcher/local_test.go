@@ -18,10 +18,15 @@ import (
 	"github.com/pivotal-golang/lager/lagertest"
 )
 
-var _ = Describe("MD5ID", func() {
-	It("returns the MD5 sum of the path", func() {
-		ider := repository_fetcher.MD5ID{}
-		Expect(ider.ID("something")).To(Equal("437b930db84b8079c2dd804a71936b5f"))
+var _ = Describe("SHA256", func() {
+	It("returns the hex-converted SHA256 sum of the path", func() {
+		ider := repository_fetcher.SHA256{}
+		Expect(ider.ID("something")).To(Equal("3fc9b689459d738f8c88a3a48aa9e33542016b7a4052e001aaa536fca74813cb"))
+	})
+
+	It("returns a string of length 64", func() { // docker verifies this
+		ider := repository_fetcher.SHA256{}
+		Expect(ider.ID("something")).To(HaveLen(64))
 	})
 })
 

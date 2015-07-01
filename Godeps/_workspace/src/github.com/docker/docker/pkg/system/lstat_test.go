@@ -1,11 +1,14 @@
 package system
 
 import (
+	"os"
 	"testing"
 )
 
+// TestLstat tests Lstat for existing and non existing files
 func TestLstat(t *testing.T) {
-	file, invalid, _ := prepareFiles(t)
+	file, invalid, _, dir := prepareFiles(t)
+	defer os.RemoveAll(dir)
 
 	statFile, err := Lstat(file)
 	if err != nil {

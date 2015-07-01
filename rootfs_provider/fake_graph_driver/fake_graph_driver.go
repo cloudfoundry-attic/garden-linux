@@ -42,10 +42,13 @@ type FakeGraphDriver struct {
 		result1 string
 		result2 error
 	}
-	PutStub        func(id string)
+	PutStub        func(id string) error
 	putMutex       sync.RWMutex
 	putArgsForCall []struct {
 		id string
+	}
+	putReturns struct {
+		result1 error
 	}
 	ExistsStub        func(id string) bool
 	existsMutex       sync.RWMutex
@@ -87,7 +90,7 @@ type FakeGraphDriver struct {
 		result1 []archive.Change
 		result2 error
 	}
-	ApplyDiffStub        func(id, parent string, diff archive.ArchiveReader) (bytes int64, err error)
+	ApplyDiffStub        func(id, parent string, diff archive.ArchiveReader) (size int64, err error)
 	applyDiffMutex       sync.RWMutex
 	applyDiffArgsForCall []struct {
 		id     string
@@ -98,7 +101,7 @@ type FakeGraphDriver struct {
 		result1 int64
 		result2 error
 	}
-	DiffSizeStub        func(id, parent string) (bytes int64, err error)
+	DiffSizeStub        func(id, parent string) (size int64, err error)
 	diffSizeMutex       sync.RWMutex
 	diffSizeArgsForCall []struct {
 		id     string
@@ -233,14 +236,16 @@ func (fake *FakeGraphDriver) GetReturns(result1 string, result2 error) {
 	}{result1, result2}
 }
 
-func (fake *FakeGraphDriver) Put(id string) {
+func (fake *FakeGraphDriver) Put(id string) error {
 	fake.putMutex.Lock()
 	fake.putArgsForCall = append(fake.putArgsForCall, struct {
 		id string
 	}{id})
 	fake.putMutex.Unlock()
 	if fake.PutStub != nil {
-		fake.PutStub(id)
+		return fake.PutStub(id)
+	} else {
+		return fake.putReturns.result1
 	}
 }
 
@@ -254,6 +259,13 @@ func (fake *FakeGraphDriver) PutArgsForCall(i int) string {
 	fake.putMutex.RLock()
 	defer fake.putMutex.RUnlock()
 	return fake.putArgsForCall[i].id
+}
+
+func (fake *FakeGraphDriver) PutReturns(result1 error) {
+	fake.PutStub = nil
+	fake.putReturns = struct {
+		result1 error
+	}{result1}
 }
 
 func (fake *FakeGraphDriver) Exists(id string) bool {
@@ -404,7 +416,7 @@ func (fake *FakeGraphDriver) ChangesReturns(result1 []archive.Change, result2 er
 	}{result1, result2}
 }
 
-func (fake *FakeGraphDriver) ApplyDiff(id string, parent string, diff archive.ArchiveReader) (bytes int64, err error) {
+func (fake *FakeGraphDriver) ApplyDiff(id string, parent string, diff archive.ArchiveReader) (size int64, err error) {
 	fake.applyDiffMutex.Lock()
 	fake.applyDiffArgsForCall = append(fake.applyDiffArgsForCall, struct {
 		id     string
@@ -439,7 +451,7 @@ func (fake *FakeGraphDriver) ApplyDiffReturns(result1 int64, result2 error) {
 	}{result1, result2}
 }
 
-func (fake *FakeGraphDriver) DiffSize(id string, parent string) (bytes int64, err error) {
+func (fake *FakeGraphDriver) DiffSize(id string, parent string) (size int64, err error) {
 	fake.diffSizeMutex.Lock()
 	fake.diffSizeArgsForCall = append(fake.diffSizeArgsForCall, struct {
 		id     string

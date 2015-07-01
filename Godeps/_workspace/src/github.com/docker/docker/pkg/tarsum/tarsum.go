@@ -1,17 +1,17 @@
 package tarsum
 
 import (
+	"archive/tar"
 	"bytes"
 	"compress/gzip"
+	"crypto"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
+	"fmt"
 	"hash"
 	"io"
 	"strings"
-
-	"github.com/docker/docker/vendor/src/code.google.com/p/go/src/pkg/archive/tar"
-
-	log "github.com/Sirupsen/logrus"
 )
 
 const (
@@ -27,11 +27,7 @@ const (
 // including the byte payload of the image's json metadata as well, and for
 // calculating the checksums for buildcache.
 func NewTarSum(r io.Reader, dc bool, v Version) (TarSum, error) {
-	headerSelector, err := getTarHeaderSelector(v)
-	if err != nil {
-		return nil, err
-	}
-	return &tarSum{Reader: r, DisableCompression: dc, tarSumVersion: v, headerSelector: headerSelector}, nil
+	return NewTarSumHash(r, dc, v, DefaultTHash)
 }
 
 // Create a new TarSum, providing a THash to use rather than the DefaultTHash
@@ -40,7 +36,33 @@ func NewTarSumHash(r io.Reader, dc bool, v Version, tHash THash) (TarSum, error)
 	if err != nil {
 		return nil, err
 	}
-	return &tarSum{Reader: r, DisableCompression: dc, tarSumVersion: v, headerSelector: headerSelector, tHash: tHash}, nil
+	ts := &tarSum{Reader: r, DisableCompression: dc, tarSumVersion: v, headerSelector: headerSelector, tHash: tHash}
+	err = ts.initTarSum()
+	return ts, err
+}
+
+// Create a new TarSum using the provided TarSum version+hash label.
+func NewTarSumForLabel(r io.Reader, disableCompression bool, label string) (TarSum, error) {
+	parts := strings.SplitN(label, "+", 2)
+	if len(parts) != 2 {
+		return nil, errors.New("tarsum label string should be of the form: {tarsum_version}+{hash_name}")
+	}
+
+	versionName, hashName := parts[0], parts[1]
+
+	version, ok := tarSumVersionsByName[versionName]
+	if !ok {
+		return nil, fmt.Errorf("unknown TarSum version name: %q", versionName)
+	}
+
+	hashConfig, ok := standardHashConfigs[hashName]
+	if !ok {
+		return nil, fmt.Errorf("unknown TarSum hash name: %q", hashName)
+	}
+
+	tHash := NewTHash(hashConfig.name, hashConfig.hash.New)
+
+	return NewTarSumHash(r, disableCompression, version, tHash)
 }
 
 // TarSum is the generic interface for calculating fixed time
@@ -93,6 +115,19 @@ func NewTHash(name string, h func() hash.Hash) THash {
 	return simpleTHash{n: name, h: h}
 }
 
+type tHashConfig struct {
+	name string
+	hash crypto.Hash
+}
+
+var (
+	// NOTE: DO NOT include MD5 or SHA1, which are considered insecure.
+	standardHashConfigs = map[string]tHashConfig{
+		"sha256": {name: "sha256", hash: crypto.SHA256},
+		"sha512": {name: "sha512", hash: crypto.SHA512},
+	}
+)
+
 // TarSum default is "sha256"
 var DefaultTHash = NewTHash("sha256", sha256.New)
 
@@ -134,12 +169,6 @@ func (ts *tarSum) initTarSum() error {
 }
 
 func (ts *tarSum) Read(buf []byte) (int, error) {
-	if ts.writer == nil {
-		if err := ts.initTarSum(); err != nil {
-			return 0, err
-		}
-	}
-
 	if ts.finished {
 		return ts.bufWriter.Read(buf)
 	}
@@ -236,11 +265,9 @@ func (ts *tarSum) Sum(extra []byte) string {
 		h.Write(extra)
 	}
 	for _, fis := range ts.sums {
-		log.Debugf("-->%s<--", fis.Sum())
 		h.Write([]byte(fis.Sum()))
 	}
 	checksum := ts.Version().String() + "+" + ts.tHash.Name() + ":" + hex.EncodeToString(h.Sum(nil))
-	log.Debugf("checksum processed: %s", checksum)
 	return checksum
 }
 

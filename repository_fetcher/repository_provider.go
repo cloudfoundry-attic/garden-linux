@@ -4,8 +4,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/docker/docker/cliconfig"
+	"github.com/docker/docker/pkg/transport"
 	"github.com/docker/docker/registry"
-	"github.com/docker/docker/utils"
 )
 
 //go:generate counterfeiter . RegistryProvider
@@ -41,11 +42,13 @@ func (rp registryProvider) ApplyDefaultHostname(hostname string) string {
 }
 
 func (rp registryProvider) ProvideRegistry(hostname string) (Registry, error) {
-	var err error
-
 	hostname = rp.ApplyDefaultHostname(hostname)
 
-	endpoint, err := RegistryNewEndpoint(hostname, rp.InsecureRegistries)
+	endpoint, err := RegistryNewEndpoint(&registry.IndexInfo{
+		Name:   hostname,
+		Secure: !contains(rp.InsecureRegistries, hostname),
+	}, nil)
+
 	if err != nil && strings.Contains(err.Error(), "--insecure-registry") {
 		return nil, &InsecureRegistryError{
 			Cause:              err,
@@ -56,9 +59,26 @@ func (rp registryProvider) ProvideRegistry(hostname string) (Registry, error) {
 		return nil, err
 	}
 
-	return RegistryNewSession(&registry.AuthConfig{}, &utils.HTTPRequestFactory{}, endpoint, true)
+	tr := transport.NewTransport(
+		registry.NewTransport(registry.ReceiveTimeout, endpoint.IsSecure),
+	)
+
+	//	r, err := registry.NewSession(client, imagePullConfig.AuthConfig, endpoint)
+
+	//NewSession(client *http.Client, authConfig *cliconfig.AuthConfig, endpoint *Endpoint) (r *Session, err error) {
+	return RegistryNewSession(registry.HTTPClient(tr), &cliconfig.AuthConfig{}, endpoint)
 }
 
 func NewRepositoryProvider(defaultHostname string, insecureRegistries []string) RegistryProvider {
 	return &registryProvider{DefaultHostname: defaultHostname, InsecureRegistries: insecureRegistries}
+}
+
+// #DRY
+func contains(list []string, element string) bool {
+	for _, e := range list {
+		if e == element {
+			return true
+		}
+	}
+	return false
 }

@@ -7,8 +7,10 @@ import (
 	"net/http"
 	"net/url"
 
+	"github.com/docker/docker/cliconfig"
 	"github.com/docker/docker/image"
 	"github.com/docker/docker/pkg/archive"
+	"github.com/docker/docker/pkg/transport"
 	"github.com/docker/docker/registry"
 	"github.com/pivotal-golang/lager/lagertest"
 
@@ -42,6 +44,7 @@ var _ = Describe("RepositoryFetcher", func() {
 		endpoint2 = ghttp.NewServer()
 
 		server.AppendHandlers(
+			ghttp.VerifyRequest("GET", "/v2/"),
 			ghttp.CombineHandlers(
 				ghttp.VerifyRequest("GET", "/v1/_ping"),
 				http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -52,13 +55,17 @@ var _ = Describe("RepositoryFetcher", func() {
 			),
 		)
 
-		endpoint, err := registry.NewEndpoint(
-			server.HTTPTestServer.Listener.Addr().String(),
-			[]string{server.HTTPTestServer.Listener.Addr().String()},
-		)
+		endpoint, err := registry.NewEndpoint(&registry.IndexInfo{
+			Name:   server.HTTPTestServer.Listener.Addr().String(),
+			Secure: false,
+		}, nil)
 		Expect(err).ToNot(HaveOccurred())
 
-		registry, err := registry.NewSession(nil, nil, endpoint, true)
+		tr := transport.NewTransport(
+			registry.NewTransport(registry.ReceiveTimeout, endpoint.IsSecure),
+		)
+
+		registry, err := registry.NewSession(registry.HTTPClient(tr), &cliconfig.AuthConfig{}, endpoint)
 		Expect(err).ToNot(HaveOccurred())
 
 		fakeRegistryProvider = new(fakes.FakeRegistryProvider)
@@ -330,7 +337,7 @@ var _ = Describe("RepositoryFetcher", func() {
 
 		Context("when fetching repository data fails", func() {
 			BeforeEach(func() {
-				server.SetHandler(1, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) { // first request after ping
+				server.SetHandler(2, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) { // first request after ping
 					w.WriteHeader(500)
 				}))
 			})

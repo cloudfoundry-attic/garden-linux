@@ -1,7 +1,10 @@
 package utils
 
 import (
+	"fmt"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -23,98 +26,75 @@ func TestReplaceAndAppendEnvVars(t *testing.T) {
 	}
 }
 
-// Reading a symlink to a directory must return the directory
-func TestReadSymlinkedDirectoryExistingDirectory(t *testing.T) {
-	var err error
-	if err = os.Mkdir("/tmp/testReadSymlinkToExistingDirectory", 0777); err != nil {
-		t.Errorf("failed to create directory: %s", err)
+func TestImageReference(t *testing.T) {
+	tests := []struct {
+		repo     string
+		ref      string
+		expected string
+	}{
+		{"repo", "tag", "repo:tag"},
+		{"repo", "sha256:c100b11b25d0cacd52c14e0e7bf525e1a4c0e6aec8827ae007055545909d1a64", "repo@sha256:c100b11b25d0cacd52c14e0e7bf525e1a4c0e6aec8827ae007055545909d1a64"},
 	}
 
-	if err = os.Symlink("/tmp/testReadSymlinkToExistingDirectory", "/tmp/dirLinkTest"); err != nil {
-		t.Errorf("failed to create symlink: %s", err)
-	}
-
-	var path string
-	if path, err = ReadSymlinkedDirectory("/tmp/dirLinkTest"); err != nil {
-		t.Fatalf("failed to read symlink to directory: %s", err)
-	}
-
-	if path != "/tmp/testReadSymlinkToExistingDirectory" {
-		t.Fatalf("symlink returned unexpected directory: %s", path)
-	}
-
-	if err = os.Remove("/tmp/testReadSymlinkToExistingDirectory"); err != nil {
-		t.Errorf("failed to remove temporary directory: %s", err)
-	}
-
-	if err = os.Remove("/tmp/dirLinkTest"); err != nil {
-		t.Errorf("failed to remove symlink: %s", err)
-	}
-}
-
-// Reading a non-existing symlink must fail
-func TestReadSymlinkedDirectoryNonExistingSymlink(t *testing.T) {
-	var path string
-	var err error
-	if path, err = ReadSymlinkedDirectory("/tmp/test/foo/Non/ExistingPath"); err == nil {
-		t.Fatalf("error expected for non-existing symlink")
-	}
-
-	if path != "" {
-		t.Fatalf("expected empty path, but '%s' was returned", path)
-	}
-}
-
-// Reading a symlink to a file must fail
-func TestReadSymlinkedDirectoryToFile(t *testing.T) {
-	var err error
-	var file *os.File
-
-	if file, err = os.Create("/tmp/testReadSymlinkToFile"); err != nil {
-		t.Fatalf("failed to create file: %s", err)
-	}
-
-	file.Close()
-
-	if err = os.Symlink("/tmp/testReadSymlinkToFile", "/tmp/fileLinkTest"); err != nil {
-		t.Errorf("failed to create symlink: %s", err)
-	}
-
-	var path string
-	if path, err = ReadSymlinkedDirectory("/tmp/fileLinkTest"); err == nil {
-		t.Fatalf("ReadSymlinkedDirectory on a symlink to a file should've failed")
-	}
-
-	if path != "" {
-		t.Fatalf("path should've been empty: %s", path)
-	}
-
-	if err = os.Remove("/tmp/testReadSymlinkToFile"); err != nil {
-		t.Errorf("failed to remove file: %s", err)
-	}
-
-	if err = os.Remove("/tmp/fileLinkTest"); err != nil {
-		t.Errorf("failed to remove symlink: %s", err)
-	}
-}
-
-func TestValidGitTransport(t *testing.T) {
-	for _, url := range []string{
-		"git://github.com/docker/docker",
-		"git@github.com:docker/docker.git",
-		"https://github.com/docker/docker.git",
-		"http://github.com/docker/docker.git",
-	} {
-		if ValidGitTransport(url) == false {
-			t.Fatalf("%q should be detected as valid Git prefix", url)
+	for i, test := range tests {
+		actual := ImageReference(test.repo, test.ref)
+		if test.expected != actual {
+			t.Errorf("%d: expected %q, got %q", i, test.expected, actual)
 		}
 	}
+}
 
-	for _, url := range []string{
-		"github.com/docker/docker",
-	} {
-		if ValidGitTransport(url) == true {
-			t.Fatalf("%q should not be detected as valid Git prefix", url)
-		}
+func TestDigestReference(t *testing.T) {
+	input := "sha256:c100b11b25d0cacd52c14e0e7bf525e1a4c0e6aec8827ae007055545909d1a64"
+	if !DigestReference(input) {
+		t.Errorf("Expected DigestReference=true for input %q", input)
+	}
+
+	input = "latest"
+	if DigestReference(input) {
+		t.Errorf("Unexpected DigestReference=true for input %q", input)
+	}
+}
+
+func TestReadDockerIgnore(t *testing.T) {
+	tmpDir, err := ioutil.TempDir("", "dockerignore-test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	diName := filepath.Join(tmpDir, ".dockerignore")
+
+	di, err := ReadDockerIgnore(diName)
+	if err != nil {
+		t.Fatalf("Expected not to have error, got %s", err)
+	}
+
+	if diLen := len(di); diLen != 0 {
+		t.Fatalf("Expected to have zero dockerignore entry, got %d", diLen)
+	}
+
+	content := fmt.Sprintf("test1\n/test2\n/a/file/here\n\nlastfile")
+	err = ioutil.WriteFile(diName, []byte(content), 0777)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	di, err = ReadDockerIgnore(diName)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if di[0] != "test1" {
+		t.Fatalf("First element is not test1")
+	}
+	if di[1] != "/test2" {
+		t.Fatalf("Second element is not /test2")
+	}
+	if di[2] != "/a/file/here" {
+		t.Fatalf("Third element is not /a/file/here")
+	}
+	if di[3] != "lastfile" {
+		t.Fatalf("Fourth element is not lastfile")
 	}
 }

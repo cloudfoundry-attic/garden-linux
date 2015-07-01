@@ -3,22 +3,13 @@ package runconfig
 import (
 	"strings"
 
-	log "github.com/Sirupsen/logrus"
+	"github.com/Sirupsen/logrus"
 	"github.com/docker/docker/nat"
 )
 
 func Merge(userConf, imageConf *Config) error {
 	if userConf.User == "" {
 		userConf.User = imageConf.User
-	}
-	if userConf.Memory == 0 {
-		userConf.Memory = imageConf.Memory
-	}
-	if userConf.MemorySwap == 0 {
-		userConf.MemorySwap = imageConf.MemorySwap
-	}
-	if userConf.CpuShares == 0 {
-		userConf.CpuShares = imageConf.CpuShares
 	}
 	if len(userConf.ExposedPorts) == 0 {
 		userConf.ExposedPorts = imageConf.ExposedPorts
@@ -50,7 +41,7 @@ func Merge(userConf, imageConf *Config) error {
 	}
 	if len(imageConf.PortSpecs) > 0 {
 		// FIXME: I think we can safely remove this. Leaving it for now for the sake of reverse-compat paranoia.
-		log.Debugf("Migrating image port specs to containter: %s", strings.Join(imageConf.PortSpecs, ", "))
+		logrus.Debugf("Migrating image port specs to container: %s", strings.Join(imageConf.PortSpecs, ", "))
 		if userConf.ExposedPorts == nil {
 			userConf.ExposedPorts = make(nat.PortSet)
 		}
@@ -84,8 +75,18 @@ func Merge(userConf, imageConf *Config) error {
 		}
 	}
 
-	if len(userConf.Entrypoint) == 0 {
-		if len(userConf.Cmd) == 0 {
+	if userConf.Labels == nil {
+		userConf.Labels = map[string]string{}
+	}
+	if imageConf.Labels != nil {
+		for l := range userConf.Labels {
+			imageConf.Labels[l] = userConf.Labels[l]
+		}
+		userConf.Labels = imageConf.Labels
+	}
+
+	if userConf.Entrypoint.Len() == 0 {
+		if userConf.Cmd.Len() == 0 {
 			userConf.Cmd = imageConf.Cmd
 		}
 

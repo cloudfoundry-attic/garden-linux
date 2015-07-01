@@ -19,46 +19,42 @@ type FakeRegistry struct {
 		result1 *registry.RepositoryData
 		result2 error
 	}
-	GetRemoteTagsStub        func(registries []string, repository string, token []string) (map[string]string, error)
+	GetRemoteTagsStub        func(registries []string, repository string) (map[string]string, error)
 	getRemoteTagsMutex       sync.RWMutex
 	getRemoteTagsArgsForCall []struct {
 		registries []string
 		repository string
-		token      []string
 	}
 	getRemoteTagsReturns struct {
 		result1 map[string]string
 		result2 error
 	}
-	GetRemoteHistoryStub        func(imageID string, registry string, token []string) ([]string, error)
+	GetRemoteHistoryStub        func(imageID string, registry string) ([]string, error)
 	getRemoteHistoryMutex       sync.RWMutex
 	getRemoteHistoryArgsForCall []struct {
 		imageID  string
 		registry string
-		token    []string
 	}
 	getRemoteHistoryReturns struct {
 		result1 []string
 		result2 error
 	}
-	GetRemoteImageJSONStub        func(imageID string, registry string, token []string) ([]byte, int, error)
+	GetRemoteImageJSONStub        func(imageID string, registry string) ([]byte, int, error)
 	getRemoteImageJSONMutex       sync.RWMutex
 	getRemoteImageJSONArgsForCall []struct {
 		imageID  string
 		registry string
-		token    []string
 	}
 	getRemoteImageJSONReturns struct {
 		result1 []byte
 		result2 int
 		result3 error
 	}
-	GetRemoteImageLayerStub        func(imageID string, registry string, token []string, size int64) (io.ReadCloser, error)
+	GetRemoteImageLayerStub        func(imageID string, registry string, size int64) (io.ReadCloser, error)
 	getRemoteImageLayerMutex       sync.RWMutex
 	getRemoteImageLayerArgsForCall []struct {
 		imageID  string
 		registry string
-		token    []string
 		size     int64
 	}
 	getRemoteImageLayerReturns struct {
@@ -100,16 +96,15 @@ func (fake *FakeRegistry) GetRepositoryDataReturns(result1 *registry.RepositoryD
 	}{result1, result2}
 }
 
-func (fake *FakeRegistry) GetRemoteTags(registries []string, repository string, token []string) (map[string]string, error) {
+func (fake *FakeRegistry) GetRemoteTags(registries []string, repository string) (map[string]string, error) {
 	fake.getRemoteTagsMutex.Lock()
 	fake.getRemoteTagsArgsForCall = append(fake.getRemoteTagsArgsForCall, struct {
 		registries []string
 		repository string
-		token      []string
-	}{registries, repository, token})
+	}{registries, repository})
 	fake.getRemoteTagsMutex.Unlock()
 	if fake.GetRemoteTagsStub != nil {
-		return fake.GetRemoteTagsStub(registries, repository, token)
+		return fake.GetRemoteTagsStub(registries, repository)
 	} else {
 		return fake.getRemoteTagsReturns.result1, fake.getRemoteTagsReturns.result2
 	}
@@ -121,10 +116,10 @@ func (fake *FakeRegistry) GetRemoteTagsCallCount() int {
 	return len(fake.getRemoteTagsArgsForCall)
 }
 
-func (fake *FakeRegistry) GetRemoteTagsArgsForCall(i int) ([]string, string, []string) {
+func (fake *FakeRegistry) GetRemoteTagsArgsForCall(i int) ([]string, string) {
 	fake.getRemoteTagsMutex.RLock()
 	defer fake.getRemoteTagsMutex.RUnlock()
-	return fake.getRemoteTagsArgsForCall[i].registries, fake.getRemoteTagsArgsForCall[i].repository, fake.getRemoteTagsArgsForCall[i].token
+	return fake.getRemoteTagsArgsForCall[i].registries, fake.getRemoteTagsArgsForCall[i].repository
 }
 
 func (fake *FakeRegistry) GetRemoteTagsReturns(result1 map[string]string, result2 error) {
@@ -135,16 +130,15 @@ func (fake *FakeRegistry) GetRemoteTagsReturns(result1 map[string]string, result
 	}{result1, result2}
 }
 
-func (fake *FakeRegistry) GetRemoteHistory(imageID string, registry string, token []string) ([]string, error) {
+func (fake *FakeRegistry) GetRemoteHistory(imageID string, registry string) ([]string, error) {
 	fake.getRemoteHistoryMutex.Lock()
 	fake.getRemoteHistoryArgsForCall = append(fake.getRemoteHistoryArgsForCall, struct {
 		imageID  string
 		registry string
-		token    []string
-	}{imageID, registry, token})
+	}{imageID, registry})
 	fake.getRemoteHistoryMutex.Unlock()
 	if fake.GetRemoteHistoryStub != nil {
-		return fake.GetRemoteHistoryStub(imageID, registry, token)
+		return fake.GetRemoteHistoryStub(imageID, registry)
 	} else {
 		return fake.getRemoteHistoryReturns.result1, fake.getRemoteHistoryReturns.result2
 	}
@@ -156,10 +150,10 @@ func (fake *FakeRegistry) GetRemoteHistoryCallCount() int {
 	return len(fake.getRemoteHistoryArgsForCall)
 }
 
-func (fake *FakeRegistry) GetRemoteHistoryArgsForCall(i int) (string, string, []string) {
+func (fake *FakeRegistry) GetRemoteHistoryArgsForCall(i int) (string, string) {
 	fake.getRemoteHistoryMutex.RLock()
 	defer fake.getRemoteHistoryMutex.RUnlock()
-	return fake.getRemoteHistoryArgsForCall[i].imageID, fake.getRemoteHistoryArgsForCall[i].registry, fake.getRemoteHistoryArgsForCall[i].token
+	return fake.getRemoteHistoryArgsForCall[i].imageID, fake.getRemoteHistoryArgsForCall[i].registry
 }
 
 func (fake *FakeRegistry) GetRemoteHistoryReturns(result1 []string, result2 error) {
@@ -170,16 +164,15 @@ func (fake *FakeRegistry) GetRemoteHistoryReturns(result1 []string, result2 erro
 	}{result1, result2}
 }
 
-func (fake *FakeRegistry) GetRemoteImageJSON(imageID string, registry string, token []string) ([]byte, int, error) {
+func (fake *FakeRegistry) GetRemoteImageJSON(imageID string, registry string) ([]byte, int, error) {
 	fake.getRemoteImageJSONMutex.Lock()
 	fake.getRemoteImageJSONArgsForCall = append(fake.getRemoteImageJSONArgsForCall, struct {
 		imageID  string
 		registry string
-		token    []string
-	}{imageID, registry, token})
+	}{imageID, registry})
 	fake.getRemoteImageJSONMutex.Unlock()
 	if fake.GetRemoteImageJSONStub != nil {
-		return fake.GetRemoteImageJSONStub(imageID, registry, token)
+		return fake.GetRemoteImageJSONStub(imageID, registry)
 	} else {
 		return fake.getRemoteImageJSONReturns.result1, fake.getRemoteImageJSONReturns.result2, fake.getRemoteImageJSONReturns.result3
 	}
@@ -191,10 +184,10 @@ func (fake *FakeRegistry) GetRemoteImageJSONCallCount() int {
 	return len(fake.getRemoteImageJSONArgsForCall)
 }
 
-func (fake *FakeRegistry) GetRemoteImageJSONArgsForCall(i int) (string, string, []string) {
+func (fake *FakeRegistry) GetRemoteImageJSONArgsForCall(i int) (string, string) {
 	fake.getRemoteImageJSONMutex.RLock()
 	defer fake.getRemoteImageJSONMutex.RUnlock()
-	return fake.getRemoteImageJSONArgsForCall[i].imageID, fake.getRemoteImageJSONArgsForCall[i].registry, fake.getRemoteImageJSONArgsForCall[i].token
+	return fake.getRemoteImageJSONArgsForCall[i].imageID, fake.getRemoteImageJSONArgsForCall[i].registry
 }
 
 func (fake *FakeRegistry) GetRemoteImageJSONReturns(result1 []byte, result2 int, result3 error) {
@@ -206,17 +199,16 @@ func (fake *FakeRegistry) GetRemoteImageJSONReturns(result1 []byte, result2 int,
 	}{result1, result2, result3}
 }
 
-func (fake *FakeRegistry) GetRemoteImageLayer(imageID string, registry string, token []string, size int64) (io.ReadCloser, error) {
+func (fake *FakeRegistry) GetRemoteImageLayer(imageID string, registry string, size int64) (io.ReadCloser, error) {
 	fake.getRemoteImageLayerMutex.Lock()
 	fake.getRemoteImageLayerArgsForCall = append(fake.getRemoteImageLayerArgsForCall, struct {
 		imageID  string
 		registry string
-		token    []string
 		size     int64
-	}{imageID, registry, token, size})
+	}{imageID, registry, size})
 	fake.getRemoteImageLayerMutex.Unlock()
 	if fake.GetRemoteImageLayerStub != nil {
-		return fake.GetRemoteImageLayerStub(imageID, registry, token, size)
+		return fake.GetRemoteImageLayerStub(imageID, registry, size)
 	} else {
 		return fake.getRemoteImageLayerReturns.result1, fake.getRemoteImageLayerReturns.result2
 	}
@@ -228,10 +220,10 @@ func (fake *FakeRegistry) GetRemoteImageLayerCallCount() int {
 	return len(fake.getRemoteImageLayerArgsForCall)
 }
 
-func (fake *FakeRegistry) GetRemoteImageLayerArgsForCall(i int) (string, string, []string, int64) {
+func (fake *FakeRegistry) GetRemoteImageLayerArgsForCall(i int) (string, string, int64) {
 	fake.getRemoteImageLayerMutex.RLock()
 	defer fake.getRemoteImageLayerMutex.RUnlock()
-	return fake.getRemoteImageLayerArgsForCall[i].imageID, fake.getRemoteImageLayerArgsForCall[i].registry, fake.getRemoteImageLayerArgsForCall[i].token, fake.getRemoteImageLayerArgsForCall[i].size
+	return fake.getRemoteImageLayerArgsForCall[i].imageID, fake.getRemoteImageLayerArgsForCall[i].registry, fake.getRemoteImageLayerArgsForCall[i].size
 }
 
 func (fake *FakeRegistry) GetRemoteImageLayerReturns(result1 io.ReadCloser, result2 error) {

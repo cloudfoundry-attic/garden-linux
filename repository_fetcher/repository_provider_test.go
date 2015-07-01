@@ -2,9 +2,10 @@ package repository_fetcher_test
 
 import (
 	"errors"
+	"net/http"
 
+	"github.com/docker/docker/cliconfig"
 	"github.com/docker/docker/registry"
-	"github.com/docker/docker/utils"
 
 	. "github.com/cloudfoundry-incubator/garden-linux/repository_fetcher"
 	. "github.com/onsi/ginkgo"
@@ -12,11 +13,11 @@ import (
 )
 
 var _ = Describe("RepositoryProvider", func() {
-	var receivedHost string
-	var receivedInsecureRegistries []string
+	var receivedIndexName string
+	var receivedIndexSecure bool
+
 	var receivedEndpoint *registry.Endpoint
-	var receivedAuthConfig *registry.AuthConfig
-	var receivedHTTPRequestFactory *utils.HTTPRequestFactory
+	var receivedAuthConfig *cliconfig.AuthConfig
 	var endpointReturnsError error
 	var sessionReturnsError error
 
@@ -24,27 +25,25 @@ var _ = Describe("RepositoryProvider", func() {
 	var returnedSession *registry.Session
 
 	BeforeEach(func() {
-		receivedHost = ""
-		receivedInsecureRegistries = nil
+		receivedIndexName = ""
+		receivedIndexSecure = false
 		receivedEndpoint = nil
 		receivedAuthConfig = nil
-		receivedHTTPRequestFactory = nil
 
 		endpointReturnsError = nil
 		sessionReturnsError = nil
 
 		returnedEndpoint = &registry.Endpoint{}
-		RegistryNewEndpoint = func(host string, insecure []string) (*registry.Endpoint, error) {
-			receivedHost = host
-			receivedInsecureRegistries = insecure
+		RegistryNewEndpoint = func(indexInfo *registry.IndexInfo, header http.Header) (*registry.Endpoint, error) {
+			receivedIndexName = indexInfo.Name
+			receivedIndexSecure = indexInfo.Secure
 			return returnedEndpoint, endpointReturnsError
 		}
 
 		returnedSession = &registry.Session{}
-		RegistryNewSession = func(authConfig *registry.AuthConfig, httpRequestFactory *utils.HTTPRequestFactory, endpoint *registry.Endpoint, _ bool) (*registry.Session, error) {
+		RegistryNewSession = func(client *http.Client, authConfig *cliconfig.AuthConfig, endpoint *registry.Endpoint) (*registry.Session, error) {
 			receivedEndpoint = endpoint
 			receivedAuthConfig = authConfig
-			receivedHTTPRequestFactory = httpRequestFactory
 			return returnedSession, sessionReturnsError
 		}
 	})
@@ -61,7 +60,8 @@ var _ = Describe("RepositoryProvider", func() {
 			provider := NewRepositoryProvider("the-default-host:11", nil)
 			provider.ProvideRegistry("")
 
-			Expect(receivedHost).To(Equal("the-default-host:11"))
+			Expect(receivedIndexName).To(Equal("the-default-host:11"))
+			Expect(receivedIndexSecure).To(Equal(true))
 		})
 	})
 
@@ -77,16 +77,27 @@ var _ = Describe("RepositoryProvider", func() {
 			provider := NewRepositoryProvider("", nil)
 			provider.ProvideRegistry("the-registry-host:44")
 
-			Expect(receivedHost).To(Equal("the-registry-host:44"))
+			Expect(receivedIndexName).To(Equal("the-registry-host:44"))
 		})
 	})
 
 	Context("when a list of secure repositories is provided", func() {
-		It("creates a new endpoint passing the list of secure repositories", func() {
-			provider := NewRepositoryProvider("", []string{"insecure1", "insecure2"})
-			provider.ProvideRegistry("the-registry-host:44")
+		Context("and the requested endpoint is in the list", func() {
+			It("returns that the registry is insecure", func() {
+				provider := NewRepositoryProvider("", []string{"insecure1", "insecure2"})
+				provider.ProvideRegistry("insecure1")
 
-			Expect(receivedInsecureRegistries).To(Equal([]string{"insecure1", "insecure2"}))
+				Expect(receivedIndexSecure).To(Equal(false))
+			})
+		})
+
+		Context("and the requested endpoint is not in the list", func() {
+			It("assumes the registry is secure", func() {
+				provider := NewRepositoryProvider("", []string{"insecure1", "insecure2"})
+				provider.ProvideRegistry("the-registry-host:44")
+
+				Expect(receivedIndexSecure).To(Equal(true))
+			})
 		})
 	})
 
@@ -126,7 +137,6 @@ var _ = Describe("RepositoryProvider", func() {
 
 		Expect(receivedEndpoint).To(Equal(returnedEndpoint))
 		Expect(receivedAuthConfig).ToNot(BeNil())
-		Expect(receivedHTTPRequestFactory).ToNot(BeNil())
 	})
 
 	Context("when NewSession returns an error", func() {

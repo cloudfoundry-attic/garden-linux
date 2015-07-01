@@ -1,16 +1,18 @@
 package repository_fetcher
 
 import (
-	"crypto/md5"
 	"errors"
 	"fmt"
 	"net/url"
 	"os"
 	"sync"
 
+	"encoding/hex"
+
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/docker/docker/image"
 	"github.com/docker/docker/pkg/archive"
+	"github.com/jlhawn/go-crypto/sha256"
 	"github.com/pivotal-golang/lager"
 )
 
@@ -82,8 +84,9 @@ func (l *Local) fetch(path string) (string, error) {
 	return id, nil
 }
 
-type MD5ID struct{}
+type SHA256 struct{}
 
-func (MD5ID) ID(path string) string {
-	return fmt.Sprintf("%x", md5.Sum([]byte(path)))
+func (SHA256) ID(path string) string {
+	digest := sha256.Sum256([]byte(path))
+	return hex.EncodeToString(digest[:])
 }

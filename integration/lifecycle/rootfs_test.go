@@ -90,7 +90,7 @@ var _ = Describe("Rootfs container create parameter", func() {
 					var err error
 
 					container, err = client.Create(garden.ContainerSpec{RootFSPath: "docker://xindex.docker.io/busybox"})
-					Expect(err.Error()).To(MatchRegexp("could not resolve"))
+					Expect(err).To(HaveOccurred())
 				})
 			})
 

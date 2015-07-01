@@ -17,6 +17,7 @@ import (
 	_ "github.com/docker/docker/daemon/graphdriver/btrfs"
 	_ "github.com/docker/docker/daemon/graphdriver/vfs"
 	"github.com/docker/docker/graph"
+	_ "github.com/docker/docker/pkg/chrootarchive" // allow reexec of docker-applyLayer
 	"github.com/docker/docker/registry"
 	"github.com/pivotal-golang/clock"
 	"github.com/pivotal-golang/lager"
@@ -46,6 +47,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden/server"
 	"github.com/cloudfoundry/dropsonde"
 	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
+	"github.com/docker/docker/pkg/reexec"
 )
 
 const (
@@ -199,6 +201,9 @@ var maxContainers = flag.Uint(
 	"Maximum number of containers that can be created")
 
 func main() {
+	if reexec.Init() {
+		return
+	}
 
 	cf_debug_server.AddFlags(flag.CommandLine)
 	cf_lager.AddFlags(flag.CommandLine)
@@ -322,7 +327,7 @@ func main() {
 		&repository_fetcher.Local{
 			Graph:             graph,
 			DefaultRootFSPath: *rootFSPath,
-			IDer:              repository_fetcher.MD5ID{},
+			IDer:              repository_fetcher.SHA256{},
 		}, graphDriver, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock())
 	if err != nil {
 		logger.Fatal("failed-to-construct-warden-rootfs-provider", err)
