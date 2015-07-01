@@ -68,7 +68,7 @@ func (cmd *InspectCommand) Execute(args []string) {
 		case capability.CAP_SETUID:
 			inspector.ProbeSETUID(uid, gid)
 		case capability.CAP_SETGID:
-			inspector.ProbeSETGID(uid, gid)
+			probeResult = inspector.ProbeSETGID(uid, gid)
 		case capability.CAP_CHOWN:
 			probeResult = inspector.ProbeCHOWN(uid, gid)
 		default:

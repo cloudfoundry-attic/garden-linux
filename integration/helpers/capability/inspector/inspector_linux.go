@@ -48,7 +48,7 @@ func ProbeSETUID(uid, gid int) {
 // CAP_SETGID
 // Make arbitrary manipulations of process GIDs and supplementary GID list;
 // forge GID when passing socket credentials via UNIX domain sockets.
-func ProbeSETGID(uid, gid int) {
+func ProbeSETGID(uid, gid int) ProbeResult {
 	cmd := exec.Command("ls")
 	cmd.SysProcAttr = &syscall.SysProcAttr{}
 	cmd.SysProcAttr.Credential = &syscall.Credential{
@@ -58,9 +58,12 @@ func ProbeSETGID(uid, gid int) {
 
 	if err := cmd.Run(); err != nil {
 		trace("CAP_SETGID", "Failed to exec binary as %d:%d error: %s", uid, gid, err)
+		return ProbeResult{STATUS_CODE_CAP_SETGID, err}
 	} else {
 		trace("CAP_SETGID", "Exec binary as %d:%d succeeded", uid, gid)
 	}
+
+	return ProbeResult{0, nil}
 }
 
 func ProbeCHOWN(uid, gid int) ProbeResult {
