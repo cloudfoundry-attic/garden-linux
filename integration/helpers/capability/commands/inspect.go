@@ -55,41 +55,31 @@ func (cmd *InspectCommand) Execute(args []string) {
 
 	capabilities := convert(cmd.flagSet.Args())
 
-	var (
-		probeResult inspector.ProbeResult
-		resultSet   []inspector.ProbeResult
-		statusCode  int
-	)
+	var errors []error
 
 	for _, probe := range capabilities {
+		var probeError error
 		fmt.Printf("Inspecting CAP_%v\n", strings.ToUpper(probe.String()))
 
 		switch probe {
 		case capability.CAP_SETUID:
-			probeResult = inspector.ProbeSETUID(uid, gid)
+			probeError = inspector.ProbeSETUID(uid, gid)
 		case capability.CAP_SETGID:
-			probeResult = inspector.ProbeSETGID(uid, gid)
+			probeError = inspector.ProbeSETGID(uid, gid)
 		case capability.CAP_CHOWN:
-			probeResult = inspector.ProbeCHOWN(uid, gid)
+			probeError = inspector.ProbeCHOWN(uid, gid)
 		case capability.CAP_SYS_TIME:
-			probeResult = inspector.ProbeSYSTIME()
+			probeError = inspector.ProbeSYSTIME()
 		default:
 			fmt.Printf("WARNING: Inspecting %q is not started. No implementation.\n", strings.ToUpper(probe.String()))
 		}
 
-		if probeResult.Error != nil {
-			resultSet = append(resultSet, probeResult)
+		if probeError != nil {
+			errors = append(errors, probeError)
 		}
 	}
 
-	if len(resultSet) == 1 {
-		statusCode = resultSet[0].StatusCode
-		fmt.Fprint(os.Stderr, resultSet[0].Error.Error())
-	} else {
-		statusCode = len(resultSet)
-	}
-
-	os.Exit(statusCode)
+	os.Exit(len(errors))
 }
 
 func fetchUserAttribute(user, attr string) (int, error) {
