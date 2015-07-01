@@ -2,6 +2,7 @@ package lifecycle_test
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/cloudfoundry-incubator/garden"
 
@@ -10,16 +11,21 @@ import (
 )
 
 var _ = FDescribe("Capabilities", func() {
-	var container garden.Container
-
-	var privilegedContainer bool
-	var rootfs string
+	var (
+		container  garden.Container
+		bindMounts []garden.BindMount
+		privileged bool
+		rootfs     string
+	)
 
 	JustBeforeEach(func() {
 		client = startGarden()
 
 		var err error
-		container, err = client.Create(garden.ContainerSpec{Privileged: privilegedContainer, RootFSPath: rootfs})
+		container, err = client.Create(garden.ContainerSpec{
+			BindMounts: bindMounts,
+			Privileged: privileged,
+			RootFSPath: rootfs})
 		Expect(err).ToNot(HaveOccurred())
 	})
 
@@ -30,11 +36,11 @@ var _ = FDescribe("Capabilities", func() {
 	})
 
 	BeforeEach(func() {
-		privilegedContainer = false
+		privileged = false
 		rootfs = ""
 	})
 
-	Context("by default (unprivileged)", func() {
+	FContext("by default (unprivileged)", func() {
 		It("drops capabilities, including CAP_SYS_ADMIN, and therefore cannot mount", func() {
 			process, err := container.Run(garden.ProcessSpec{
 				User: "root",
@@ -48,26 +54,30 @@ var _ = FDescribe("Capabilities", func() {
 			Expect(process.Wait()).ToNot(Equal(0))
 		})
 
-		PContext("when capability tool is executed", func() {
-			JustBeforeEach(func() {
-				file, err := os.Open(capabilityTestBin)
-				Expect(err).ToNot(HaveOccurred())
+		Context("when capability tool is executed", func() {
+			BeforeEach(func() {
+				bindMount := garden.BindMount{
+					SrcPath: filepath.Dir(capabilityTestBin),
+					DstPath: "/tools",
+					Mode:    garden.BindMountModeRO,
+					Origin:  garden.BindMountOriginHost,
+				}
 
-				Expect(container.StreamIn("/root", file)).To(Succeed())
-				Expect(file.Close()).To(Succeed())
+				bindMounts = append(bindMounts, bindMount)
 			})
 
-			It("should not be able to chown a file", func() {
+			It("should not be able to chown a file, because CAP_CHOWN is dropped", func() {
 				process, err := container.Run(garden.ProcessSpec{
 					User: "root",
-					Path: "/root/capability",
+					Path: "/tools/capability",
 					Args: []string{"inspect", "CAP_CHOWN"},
 				}, garden.ProcessIO{
 					Stdout: GinkgoWriter,
 					Stderr: GinkgoWriter,
 				})
+
 				Expect(err).ToNot(HaveOccurred())
-				Expect(process.Wait()).ToNot(Equal(0))
+				Expect(process.Wait()).To(Equal(200))
 			})
 		})
 

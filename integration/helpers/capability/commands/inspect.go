@@ -53,51 +53,40 @@ func (cmd *InspectCommand) Execute(args []string) {
 		fail("Getting gid for %s failed with error: %s", group, err)
 	}
 
-	capabilities := capability.List()
+	capabilities := convert(cmd.flagSet.Args())
 
-	parseCapability := func(name string) *capability.Cap {
-		for _, availableCap := range capabilities {
-			prefixed := fmt.Sprintf("CAP_%s", strings.ToUpper(availableCap.String()))
-			if strings.EqualFold(prefixed, name) {
-				return &availableCap
-			}
-		}
+	var (
+		probeResult inspector.ProbeResult
+		resultSet   []inspector.ProbeResult
+		statusCode  int
+	)
 
-		return nil
-	}
+	for _, probe := range capabilities {
+		fmt.Printf("Inspecting CAP_%v\n", strings.ToUpper(probe.String()))
 
-	convert := func(flags []string) []capability.Cap {
-		list := []capability.Cap{}
-		for _, capabilityFlag := range flags {
-			probe := parseCapability(capabilityFlag)
-			if probe == nil {
-				fmt.Printf("Flag %q is not valid capability flag.\n", capabilityFlag)
-				continue
-			}
-			list = append(list, *probe)
-		}
-		return list
-	}
-
-	capabilityList := convert(cmd.flagSet.Args())
-
-	if len(capabilityList) == 0 {
-		capabilityList = capabilities
-	}
-
-	for _, probe := range capabilityList {
-		fmt.Printf("Inspecting CAP_%v\n", probe.String())
 		switch probe {
 		case capability.CAP_SETUID:
 			inspector.ProbeSETUID(uid, gid)
 		case capability.CAP_SETGID:
 			inspector.ProbeSETGID(uid, gid)
 		case capability.CAP_CHOWN:
-			inspector.ProbeCHOWN(uid, gid)
+			probeResult = inspector.ProbeCHOWN(uid, gid)
 		default:
 			fmt.Printf("WARNING: Inspecting %q is not started. No implementation.\n", strings.ToUpper(probe.String()))
 		}
+
+		if probeResult.Error != nil {
+			resultSet = append(resultSet, probeResult)
+		}
 	}
+
+	if len(resultSet) == 1 {
+		statusCode = resultSet[0].StatusCode
+	} else {
+		statusCode = len(resultSet)
+	}
+
+	os.Exit(statusCode)
 }
 
 func fetchUserAttribute(user, attr string) (int, error) {
@@ -114,4 +103,34 @@ func fetchUserAttribute(user, attr string) (int, error) {
 func fail(text string, args ...interface{}) {
 	fmt.Printf(text, args)
 	os.Exit(1)
+}
+
+func convert(flags []string) []capability.Cap {
+	capabilities := capability.List()
+	list := []capability.Cap{}
+
+	for _, capabilityFlag := range flags {
+		probe := parseCapability(capabilityFlag, capabilities)
+		if probe == nil {
+			fmt.Printf("Flag %q is not valid capability flag.\n", capabilityFlag)
+			continue
+		}
+		list = append(list, *probe)
+	}
+
+	if len(list) == 0 {
+		list = capabilities
+	}
+	return list
+}
+
+func parseCapability(name string, capabilities []capability.Cap) *capability.Cap {
+	for _, availableCap := range capabilities {
+		prefixed := fmt.Sprintf("CAP_%s", strings.ToUpper(availableCap.String()))
+		if strings.EqualFold(prefixed, name) {
+			return &availableCap
+		}
+	}
+
+	return nil
 }
