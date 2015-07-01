@@ -20,6 +20,7 @@ func (c ProcessCapabilities) Limit(extendedWhitelist bool) error {
 
 	caps.Clear(capability.BOUNDING)
 	caps.Set(capability.BOUNDING,
+		capability.CAP_CHOWN,
 		capability.CAP_DAC_OVERRIDE,
 		capability.CAP_FSETID,
 		capability.CAP_FOWNER,
