@@ -34,28 +34,28 @@ func ProbeSETUID(uid, gid int) ProbeResult {
 
 	if err := cmd.Run(); err != nil {
 		trace("CAP_SETUID", "Failed to exec binary as %d:%d error: %s", uid, gid, err)
-		return ProbeResult{STATUS_CODE_CAP_SETUID, err}
+		return ProbeResult{1, err}
 	} else {
 		trace("CAP_SETUID", "Exec binary as %d:%d succeeded", uid, gid)
 	}
 
 	if err := syscall.Setreuid(uid, uid); err != nil {
 		trace("CAP_SETUID", "syscall.Setreuid for %d:%d failed with error: %s", uid, gid, err)
-		return ProbeResult{STATUS_CODE_CAP_SETUID, err}
+		return ProbeResult{1, err}
 	} else {
 		trace("CAP_SETUID", "syscall.Setreuid for %d:%d succeeded", uid, gid)
 	}
 
 	if err := syscall.Setresuid(uid, uid, uid); err != nil {
 		trace("CAP_SETUID", "syscall.Setresuid for %d:%d failed with error: %s", uid, gid, err)
-		return ProbeResult{STATUS_CODE_CAP_SETUID, err}
+		return ProbeResult{1, err}
 	} else {
 		trace("CAP_SETUID", "syscall.Setresuid for %d succeeded", uid)
 	}
 
 	if err := syscall.Setfsuid(uid); err != nil {
 		trace("CAP_SETUID", "syscall.Setfsuid for %d failed with error: %s", uid, err)
-		return ProbeResult{STATUS_CODE_CAP_SETUID, err}
+		return ProbeResult{1, err}
 	} else {
 		trace("CAP_SETUID", "syscall.Setfsuid for %d succeeded", uid)
 	}

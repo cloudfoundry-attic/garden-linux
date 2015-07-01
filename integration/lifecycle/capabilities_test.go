@@ -83,18 +83,19 @@ var _ = FDescribe("Capabilities", func() {
 				Eventually(string(stderr.Contents())).Should(ContainSubstring("operation not permitted"))
 			})
 
-			It("should not be able to set group id, because CAP_SETUID is dropped", func() {
+			It("should not be able to set user id, because CAP_SETUID is dropped", func() {
+				stderr := gbytes.NewBuffer()
 				process, err := container.Run(garden.ProcessSpec{
 					User: "root",
 					Path: "/tools/capability",
 					Args: []string{"inspect", "CAP_SETUID"},
 				}, garden.ProcessIO{
 					Stdout: GinkgoWriter,
-					Stderr: GinkgoWriter,
+					Stderr: stderr,
 				})
 
 				Expect(err).ToNot(HaveOccurred())
-				Expect(process.Wait()).To(Equal(201))
+				Expect(process.Wait()).To(Equal(1))
 			})
 
 			It("should not be able to set group id, because CAP_SETGID is dropped", func() {
