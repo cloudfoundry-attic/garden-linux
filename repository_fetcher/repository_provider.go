@@ -63,9 +63,6 @@ func (rp registryProvider) ProvideRegistry(hostname string) (Registry, error) {
 		registry.NewTransport(registry.ReceiveTimeout, endpoint.IsSecure),
 	)
 
-	//	r, err := registry.NewSession(client, imagePullConfig.AuthConfig, endpoint)
-
-	//NewSession(client *http.Client, authConfig *cliconfig.AuthConfig, endpoint *Endpoint) (r *Session, err error) {
 	return RegistryNewSession(registry.HTTPClient(tr), &cliconfig.AuthConfig{}, endpoint)
 }
 
