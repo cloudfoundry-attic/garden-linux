@@ -92,8 +92,6 @@ func ProbeCHOWN(uid, gid int) ProbeResult {
 		return ProbeResult{1, err}
 	}
 
-	// chown to nobody (do we need the uid of nobody?)
-	// print success or failure message
 	if err := os.Chown(file.Name(), uid, gid); err != nil {
 		trace("CAP_CHOWN", "Failed to exec chown: %s", err)
 		return ProbeResult{1, err}
@@ -112,7 +110,7 @@ func ProbeSYSTIME() ProbeResult {
 
 	if err := syscall.Settimeofday(time); err != nil {
 		trace("CAP_SYSTIME", "syscall.Settimeofday failed with error: %s", err)
-		return ProbeResult{STATUS_CODE_CAP_SYS_TIME, err}
+		return ProbeResult{1, err}
 	} else {
 		trace("CAP_SYSTIME", "syscall.Settimeofday succeeded.")
 	}

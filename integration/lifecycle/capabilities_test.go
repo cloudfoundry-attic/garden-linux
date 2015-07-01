@@ -113,17 +113,20 @@ var _ = FDescribe("Capabilities", func() {
 			})
 
 			It("should not be able to set system clock, because CAP_SYS_TIME is dropped", func() {
+				stderr := gbytes.NewBuffer()
+
 				process, err := container.Run(garden.ProcessSpec{
 					User: "root",
 					Path: "/tools/capability",
 					Args: []string{"inspect", "CAP_SYS_TIME"},
 				}, garden.ProcessIO{
 					Stdout: GinkgoWriter,
-					Stderr: GinkgoWriter,
+					Stderr: stderr,
 				})
 
 				Expect(err).ToNot(HaveOccurred())
-				Expect(process.Wait()).To(Equal(203))
+				Expect(process.Wait()).To(Equal(1))
+				Eventually(string(stderr.Contents())).Should(ContainSubstring("operation not permitted"))
 			})
 		})
 
