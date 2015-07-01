@@ -86,18 +86,10 @@ func main() {
 			&step{func() error {
 				return setupNetwork(env)
 			}},
-			&step{func() error {
-				if !dropCapabilities {
-					return nil
-				}
-
-				caps := &sys.ProcessCapabilities{Pid: os.Getpid()}
-				if err := caps.Limit(false); err != nil {
-					fail(fmt.Sprintf("initc: limit_capabilities: %s\n", err), 9)
-				}
-
-				return nil
-			}},
+			&containerizer.CapabilitiesStep{
+				Drop:         dropCapabilities,
+				Capabilities: &sys.ProcessCapabilities{Pid: os.Getpid()},
+			},
 			&containerizer.ShellRunnerStep{
 				Runner: linux_command_runner.New(),
 				Path:   "/etc/seed",
