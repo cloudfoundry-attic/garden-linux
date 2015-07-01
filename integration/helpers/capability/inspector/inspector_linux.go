@@ -96,7 +96,7 @@ func ProbeCHOWN(uid, gid int) ProbeResult {
 	// print success or failure message
 	if err := os.Chown(file.Name(), uid, gid); err != nil {
 		trace("CAP_CHOWN", "Failed to exec chown: %s", err)
-		return ProbeResult{STATUS_CODE_CAP_CHOWN, err}
+		return ProbeResult{1, err}
 	} else {
 		trace("CAP_CHOWN", "Chown to %d:%d succeeded", uid, gid)
 	}

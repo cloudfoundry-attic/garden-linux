@@ -8,6 +8,7 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gbytes"
 )
 
 var _ = FDescribe("Capabilities", func() {
@@ -67,17 +68,19 @@ var _ = FDescribe("Capabilities", func() {
 			})
 
 			It("should not be able to chown a file, because CAP_CHOWN is dropped", func() {
+				stderr := gbytes.NewBuffer()
 				process, err := container.Run(garden.ProcessSpec{
 					User: "root",
 					Path: "/tools/capability",
 					Args: []string{"inspect", "CAP_CHOWN"},
 				}, garden.ProcessIO{
 					Stdout: GinkgoWriter,
-					Stderr: GinkgoWriter,
+					Stderr: stderr,
 				})
 
 				Expect(err).ToNot(HaveOccurred())
-				Expect(process.Wait()).To(Equal(200))
+				Expect(process.Wait()).To(Equal(1))
+				Eventually(string(stderr.Contents())).Should(ContainSubstring("operation not permitted"))
 			})
 
 			It("should not be able to set group id, because CAP_SETUID is dropped", func() {

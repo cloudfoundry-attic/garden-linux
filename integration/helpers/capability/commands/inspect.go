@@ -84,6 +84,7 @@ func (cmd *InspectCommand) Execute(args []string) {
 
 	if len(resultSet) == 1 {
 		statusCode = resultSet[0].StatusCode
+		fmt.Fprint(os.Stderr, resultSet[0].Error.Error())
 	} else {
 		statusCode = len(resultSet)
 	}
