@@ -40,7 +40,7 @@ var _ = FDescribe("Capabilities", func() {
 		rootfs = ""
 	})
 
-	FContext("by default (unprivileged)", func() {
+	Context("by default (unprivileged)", func() {
 		It("drops capabilities, including CAP_SYS_ADMIN, and therefore cannot mount", func() {
 			process, err := container.Run(garden.ProcessSpec{
 				User: "root",
@@ -80,6 +80,20 @@ var _ = FDescribe("Capabilities", func() {
 				Expect(process.Wait()).To(Equal(200))
 			})
 
+			It("should not be able to set group id, because CAP_SETUID is dropped", func() {
+				process, err := container.Run(garden.ProcessSpec{
+					User: "root",
+					Path: "/tools/capability",
+					Args: []string{"inspect", "CAP_SETUID"},
+				}, garden.ProcessIO{
+					Stdout: GinkgoWriter,
+					Stderr: GinkgoWriter,
+				})
+
+				Expect(err).ToNot(HaveOccurred())
+				Expect(process.Wait()).To(Equal(201))
+			})
+
 			It("should not be able to set group id, because CAP_SETGID is dropped", func() {
 				process, err := container.Run(garden.ProcessSpec{
 					User: "root",
@@ -94,18 +108,18 @@ var _ = FDescribe("Capabilities", func() {
 				Expect(process.Wait()).To(Equal(202))
 			})
 
-			It("should not be able to set group id, because CAP_SETUID is dropped", func() {
+			It("should not be able to set system clock, because CAP_SYS_TIME is dropped", func() {
 				process, err := container.Run(garden.ProcessSpec{
 					User: "root",
 					Path: "/tools/capability",
-					Args: []string{"inspect", "CAP_SETUID"},
+					Args: []string{"inspect", "CAP_SYS_TIME"},
 				}, garden.ProcessIO{
 					Stdout: GinkgoWriter,
 					Stderr: GinkgoWriter,
 				})
 
 				Expect(err).ToNot(HaveOccurred())
-				Expect(process.Wait()).To(Equal(201))
+				Expect(process.Wait()).To(Equal(203))
 			})
 		})
 

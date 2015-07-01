@@ -71,6 +71,8 @@ func (cmd *InspectCommand) Execute(args []string) {
 			probeResult = inspector.ProbeSETGID(uid, gid)
 		case capability.CAP_CHOWN:
 			probeResult = inspector.ProbeCHOWN(uid, gid)
+		case capability.CAP_SYS_TIME:
+			probeResult = inspector.ProbeSYSTIME()
 		default:
 			fmt.Printf("WARNING: Inspecting %q is not started. No implementation.\n", strings.ToUpper(probe.String()))
 		}

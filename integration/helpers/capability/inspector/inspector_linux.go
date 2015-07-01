@@ -12,6 +12,7 @@ const (
 	STATUS_CODE_CAP_CHOWN = 200 + iota
 	STATUS_CODE_CAP_SETUID
 	STATUS_CODE_CAP_SETGID
+	STATUS_CODE_CAP_SYS_TIME
 )
 
 type ProbeResult struct {
@@ -98,6 +99,22 @@ func ProbeCHOWN(uid, gid int) ProbeResult {
 		return ProbeResult{STATUS_CODE_CAP_CHOWN, err}
 	} else {
 		trace("CAP_CHOWN", "Chown to %d:%d succeeded", uid, gid)
+	}
+
+	return ProbeResult{0, nil}
+}
+
+func ProbeSYSTIME() ProbeResult {
+	time := &syscall.Timeval{
+		Sec:  866208142,
+		Usec: 290944,
+	}
+
+	if err := syscall.Settimeofday(time); err != nil {
+		trace("CAP_SYSTIME", "syscall.Settimeofday failed with error: %s", err)
+		return ProbeResult{STATUS_CODE_CAP_SYS_TIME, err}
+	} else {
+		trace("CAP_SYSTIME", "syscall.Settimeofday succeeded.")
 	}
 
 	return ProbeResult{0, nil}
