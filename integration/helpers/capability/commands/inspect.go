@@ -3,12 +3,12 @@ package commands
 import (
 	"flag"
 	"fmt"
-	"log"
-	"os/user"
+	"os"
+	"os/exec"
+	"strconv"
 	"strings"
 
 	"github.com/cloudfoundry-incubator/garden-linux/integration/helpers/capability/inspector"
-	"github.com/golang/go/src/pkg/strconv"
 	"github.com/syndtr/gocapability/capability"
 )
 
@@ -33,23 +33,24 @@ func (cmd *InspectCommand) PrintDefaults() {
 func (cmd *InspectCommand) Execute(args []string) {
 	if !cmd.flagSet.Parsed() {
 		if err := cmd.flagSet.Parse(args); err != nil {
-			log.Fatal(fmt.Printf("Wrong command: %v", err))
+			fail("Wrong command: %v", err)
 		}
 	}
 
-	nobody, err := user.Lookup("nobody")
+	const (
+		user  = "vcap"
+		group = "vcap"
+	)
+
+	uid, err := fetchUserAttribute(user, "u")
+
 	if err != nil {
-		log.Fatal("The nobody user is missing from the root file system.")
+		fail("Getting uid for %s failed with error: %s", user, err)
 	}
 
-	uid, err := strconv.Atoi(nobody.Uid)
+	gid, err := fetchUserAttribute(group, "g")
 	if err != nil {
-		log.Fatal("The nobody user id is not integer.")
-	}
-
-	gid, err := strconv.Atoi(nobody.Gid)
-	if err != nil {
-		log.Fatal("The nobody group id is not integer.")
+		fail("Getting gid for %s failed with error: %s", group, err)
 	}
 
 	capabilities := capability.List()
@@ -97,4 +98,20 @@ func (cmd *InspectCommand) Execute(args []string) {
 			fmt.Printf("WARNING: Inspecting %q is not started. No implementation.\n", strings.ToUpper(probe.String()))
 		}
 	}
+}
+
+func fetchUserAttribute(user, attr string) (int, error) {
+	output, err := exec.Command("id", fmt.Sprintf("-%s", attr), user).Output()
+	if err != nil {
+		return -1, err
+	}
+
+	text := string(output)
+	text = strings.Trim(text, "\n")
+	return strconv.Atoi(text)
+}
+
+func fail(text string, args ...interface{}) {
+	fmt.Printf(text, args)
+	os.Exit(1)
 }

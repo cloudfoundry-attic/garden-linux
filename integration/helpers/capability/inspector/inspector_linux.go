@@ -64,21 +64,21 @@ func ProbeSETGID(uid, gid int) {
 }
 
 func ProbeCHOWN(uid, gid int) {
-	const CAP_CHOWN = "CAP_CHOWN"
-	// create temp file. If it fails, break put and print an error message.. No fallback right now.
+	// create temp file. If it fails, break put and print an error message..
+	// No fallback right now.
 	file, err := ioutil.TempFile("", "")
 
 	if err != nil {
-		trace(CAP_CHOWN, fmt.Sprintf("Failed to create test file: %s", err))
+		trace("CAP_CHOWN", fmt.Sprintf("Failed to create test file: %s", err))
 		return
 	}
 
 	// chown to nobody (do we need the uid of nobody?)
 	// print success or failure message
 	if err := os.Chown(file.Name(), uid, gid); err != nil {
-		trace(CAP_CHOWN, fmt.Sprintf("Failed to exec chown: %s", err))
+		trace("CAP_CHOWN", fmt.Sprintf("Failed to exec chown: %s", err))
 	} else {
-		trace(CAP_CHOWN, fmt.Sprintf("Chown to %d:%d succeeded", uid, gid))
+		trace("CAP_CHOWN", fmt.Sprintf("Chown to %d:%d succeeded", uid, gid))
 	}
 }
 
