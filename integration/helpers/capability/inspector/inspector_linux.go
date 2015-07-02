@@ -24,7 +24,7 @@ import (
 //
 //   if (timer_create(CLOCK_BOOTTIME_ALARM, NULL, &timerid) == -1) {
 // 	   int errv = errno;
-//	   perror("CAP_WAKE_ALARM: creatring CLOCK_BOOTTIME_ALARM failed");
+//	   perror("CAP_WAKE_ALARM: creating CLOCK_BOOTTIME_ALARM failed");
 //     return errv;
 //   }
 //
