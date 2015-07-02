@@ -11,7 +11,7 @@ import (
 	"github.com/onsi/gomega/gbytes"
 )
 
-var _ = FDescribe("Capabilities", func() {
+var _ = Describe("Capabilities", func() {
 	var (
 		container  garden.Container
 		bindMounts []garden.BindMount
@@ -37,7 +37,7 @@ var _ = FDescribe("Capabilities", func() {
 	})
 
 	BeforeEach(func() {
-		privileged = true
+		privileged = false
 		rootfs = "docker:///ubuntu"
 	})
 
@@ -129,7 +129,7 @@ var _ = FDescribe("Capabilities", func() {
 				Eventually(string(stderr.Contents())).Should(ContainSubstring("operation not permitted"))
 			})
 
-			FIt("should not be able to set boot time alarm, because CAP_WAKE_ALARM is dropped", func() {
+			It("should not be able to set boot time alarm, because CAP_WAKE_ALARM is dropped", func() {
 				stderr := gbytes.NewBuffer()
 
 				process, err := container.Run(garden.ProcessSpec{
@@ -143,7 +143,7 @@ var _ = FDescribe("Capabilities", func() {
 
 				Expect(err).ToNot(HaveOccurred())
 				Expect(process.Wait()).To(Equal(1))
-				Eventually(string(stderr.Contents())).Should(ContainSubstring("xxx"))
+				Eventually(string(stderr.Contents())).Should(ContainSubstring("Operation not permitted"))
 			})
 
 			PContext("when ubuntu image is used", func() {

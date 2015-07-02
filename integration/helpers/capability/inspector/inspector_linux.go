@@ -15,6 +15,7 @@ import (
 // #include <unistd.h>
 // #include <stdio.h>
 // #include <signal.h>
+// #include <errno.h>
 // #include <time.h>
 //
 // int probeWakeAlarm() {
@@ -22,7 +23,9 @@ import (
 //   struct itimerspec its;
 //
 //   if (timer_create(CLOCK_BOOTTIME_ALARM, NULL, &timerid) == -1) {
-//     return -1;
+// 	   int errv = errno;
+//	   perror("CAP_WAKE_ALARM: creatring CLOCK_BOOTTIME_ALARM failed");
+//     return errv;
 //   }
 //
 //   its.it_value.tv_sec = 866208142;
@@ -31,8 +34,11 @@ import (
 //   its.it_interval.tv_nsec = its.it_value.tv_nsec;
 //
 //   if (timer_settime(timerid, 0, &its, NULL) == -1) {
-//     return -2;
+// 	   int errv = errno;
+//	   perror("CAP_WAKE_ALARM: Failed to set CLOCK_BOOTTIME_ALARM");
+//     return errv;
 //   }
+//
 //   return 0;
 // }
 import "C"
@@ -138,7 +144,6 @@ func ProbeSYSTIME() error {
 func ProbeWAKEALARM() error {
 	if rc := C.probeWakeAlarm(); rc != 0 {
 		err := fmt.Errorf("Setting wake alarm: %d", rc)
-		printErr("CAP_WAKE_ALARM", "Failed to set wake alarm: %s", err)
 		return err
 	} else {
 		printInfo("CAP_WAKE_ALARM", "Setting wake alarm succeeded")
@@ -171,5 +176,5 @@ func printErr(tag, msg string, args ...interface{}) {
 
 func printMsg(std io.Writer, tag, msg string, args ...interface{}) {
 	text := fmt.Sprintf(msg, args...)
-	fmt.Fprintf(std, "%s: %s.\n", tag, text)
+	fmt.Fprintf(std, "%s: %s\n", tag, text)
 }
