@@ -42,16 +42,16 @@ func (cmd *InspectCommand) Execute(args []string) {
 		group = "vcap"
 	)
 
-	uid, err := fetchUserAttribute(user, "u")
-
-	if err != nil {
-		fail("Getting uid for %s failed with error: %s", user, err)
-	}
-
-	gid, err := fetchUserAttribute(group, "g")
-	if err != nil {
-		fail("Getting gid for %s failed with error: %s", group, err)
-	}
+	//	uid, err := fetchUserAttribute(user, "u")
+	//
+	//	if err != nil {
+	//		fail("Getting uid for %s failed with error: %s", user, err)
+	//	}
+	//
+	//	gid, err := fetchUserAttribute(group, "g")
+	//	if err != nil {
+	//		fail("Getting gid for %s failed with error: %s", group, err)
+	//	}
 
 	capabilities := convert(cmd.flagSet.Args())
 
@@ -62,16 +62,18 @@ func (cmd *InspectCommand) Execute(args []string) {
 		fmt.Printf("Inspecting CAP_%v\n", strings.ToUpper(probe.String()))
 
 		switch probe {
-		case capability.CAP_SETUID:
-			probeError = inspector.ProbeSETUID(uid, gid)
-		case capability.CAP_SETGID:
-			probeError = inspector.ProbeSETGID(uid, gid)
-		case capability.CAP_CHOWN:
-			probeError = inspector.ProbeCHOWN(uid, gid)
+		//		case capability.CAP_SETUID:
+		//			probeError = inspector.ProbeSETUID(uid, gid)
+		//		case capability.CAP_SETGID:
+		//			probeError = inspector.ProbeSETGID(uid, gid)
+		//		case capability.CAP_CHOWN:
+		//			probeError = inspector.ProbeCHOWN(uid, gid)
 		case capability.CAP_SYS_TIME:
 			probeError = inspector.ProbeSYSTIME()
 		case capability.CAP_SYSLOG:
 			probeError = inspector.ProbeSYSLOG()
+		case capability.CAP_WAKE_ALARM:
+			probeError = inspector.ProbeWAKEALARM()
 		default:
 			fmt.Printf("WARNING: Inspecting %q is not started. No implementation.\n", strings.ToUpper(probe.String()))
 			probeError = nil

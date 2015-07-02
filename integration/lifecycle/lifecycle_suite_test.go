@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path"
 	"strings"
 	"testing"
 	"time"
@@ -14,7 +15,6 @@ import (
 	"github.com/onsi/gomega/gexec"
 
 	"github.com/cloudfoundry-incubator/garden-linux/integration/runner"
-	"github.com/golang/go/src/pkg/path"
 )
 
 var (
@@ -45,7 +45,7 @@ func TestLifecycle(t *testing.T) {
 		shmPath, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/integration/lifecycle/shm_test")
 		Expect(err).ToNot(HaveOccurred())
 
-		os.Setenv("CGO_ENABLED", "0")
+		os.Setenv("CGO_ENABLED", "1")
 		capabilityPath, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/integration/helpers/capability", "-a", "-installsuffix", "static")
 		Expect(err).ToNot(HaveOccurred())
 		os.Unsetenv("CGO_ENABLED")

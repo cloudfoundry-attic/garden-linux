@@ -10,6 +10,33 @@ import (
 	"syscall"
 )
 
+// #cgo LDFLAGS: -lrt
+// #include <stdlib.h>
+// #include <unistd.h>
+// #include <stdio.h>
+// #include <signal.h>
+// #include <time.h>
+//
+// int probeWakeAlarm() {
+//   timer_t timerid;
+//   struct itimerspec its;
+//
+//   if (timer_create(CLOCK_BOOTTIME_ALARM, NULL, &timerid) == -1) {
+//     return -1;
+//   }
+//
+//   its.it_value.tv_sec = 866208142;
+//   its.it_value.tv_nsec = 42;
+//   its.it_interval.tv_sec = its.it_value.tv_sec;
+//   its.it_interval.tv_nsec = its.it_value.tv_nsec;
+//
+//   if (timer_settime(timerid, 0, &its, NULL) == -1) {
+//     return -2;
+//   }
+//   return 0;
+// }
+import "C"
+
 // CAP_SETUID
 // Make arbitrary manipulations of process UIDs
 // (setuid(2), setreuid(2), setresuid(2), setfsuid(2));
@@ -108,6 +135,17 @@ func ProbeSYSTIME() error {
 	return nil
 }
 
+func ProbeWAKEALARM() error {
+	if rc := C.probeWakeAlarm(); rc != 0 {
+		err := fmt.Errorf("Setting wake alarm: %d", rc)
+		printErr("CAP_WAKE_ALARM", "Failed to set wake alarm: %s", err)
+		return err
+	} else {
+		printInfo("CAP_WAKE_ALARM", "Setting wake alarm succeeded")
+	}
+	return nil
+}
+
 func ProbeSYSLOG() error {
 	logger, err := syslog.New(syslog.LOG_INFO, "capability")
 	if err != nil {
@@ -118,7 +156,7 @@ func ProbeSYSLOG() error {
 	if _, err := logger.Write([]byte("Capability tools is running")); err != nil {
 		printErr("CAP_SYSLOG", "Writing to syslog failed with error: %s", err)
 	} else {
-		printInfo("CAP_SYSLOG", "Writing to syslog succeeded.")
+		printInfo("CAP_SYSLOG", "Writing to syslog succeeded")
 	}
 	return nil
 }

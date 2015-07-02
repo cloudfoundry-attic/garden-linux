@@ -37,8 +37,8 @@ var _ = FDescribe("Capabilities", func() {
 	})
 
 	BeforeEach(func() {
-		privileged = false
-		rootfs = ""
+		privileged = true
+		rootfs = "docker:///ubuntu"
 	})
 
 	Context("by default (unprivileged)", func() {
@@ -129,12 +129,29 @@ var _ = FDescribe("Capabilities", func() {
 				Eventually(string(stderr.Contents())).Should(ContainSubstring("operation not permitted"))
 			})
 
-			Context("when ubuntu image is used", func() {
+			FIt("should not be able to set boot time alarm, because CAP_WAKE_ALARM is dropped", func() {
+				stderr := gbytes.NewBuffer()
+
+				process, err := container.Run(garden.ProcessSpec{
+					User: "root",
+					Path: "/tools/capability",
+					Args: []string{"inspect", "CAP_WAKE_ALARM"},
+				}, garden.ProcessIO{
+					Stdout: GinkgoWriter,
+					Stderr: stderr,
+				})
+
+				Expect(err).ToNot(HaveOccurred())
+				Expect(process.Wait()).To(Equal(1))
+				Eventually(string(stderr.Contents())).Should(ContainSubstring("xxx"))
+			})
+
+			PContext("when ubuntu image is used", func() {
 				BeforeEach(func() {
 					rootfs = "docker:///cloudfoundry/large_layers"
 				})
 
-				FIt("should not be able to access syslog, because CAP_SYSLOG is dropped", func() {
+				It("should not be able to access syslog, because CAP_SYSLOG is dropped", func() {
 					stderr := gbytes.NewBuffer()
 
 					process, err := container.Run(garden.ProcessSpec{
