@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log/syslog"
 	"os"
 	"os/exec"
 	"syscall"
@@ -101,9 +102,24 @@ func ProbeSYSTIME() error {
 		printErr("CAP_SYSTIME", "syscall.Settimeofday failed with error: %s", err)
 		return err
 	} else {
-		printInfo("CAP_SYSTIME", "syscall.Settimeofday succeeded.")
+		printInfo("CAP_SYSTIME", "syscall.Settimeofday succeeded")
 	}
 
+	return nil
+}
+
+func ProbeSYSLOG() error {
+	logger, err := syslog.New(syslog.LOG_INFO, "capability")
+	if err != nil {
+		printErr("CAP_SYSLOG", "Failed to create syslogger: %s", err)
+		return err
+	}
+
+	if _, err := logger.Write([]byte("Capability tools is running")); err != nil {
+		printErr("CAP_SYSLOG", "Writing to syslog failed with error: %s", err)
+	} else {
+		printInfo("CAP_SYSLOG", "Writing to syslog succeeded.")
+	}
 	return nil
 }
 

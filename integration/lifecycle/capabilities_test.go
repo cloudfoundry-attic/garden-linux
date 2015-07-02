@@ -128,6 +128,29 @@ var _ = FDescribe("Capabilities", func() {
 				Expect(process.Wait()).To(Equal(1))
 				Eventually(string(stderr.Contents())).Should(ContainSubstring("operation not permitted"))
 			})
+
+			Context("when ubuntu image is used", func() {
+				BeforeEach(func() {
+					rootfs = "docker:///cloudfoundry/large_layers"
+				})
+
+				FIt("should not be able to access syslog, because CAP_SYSLOG is dropped", func() {
+					stderr := gbytes.NewBuffer()
+
+					process, err := container.Run(garden.ProcessSpec{
+						User: "root",
+						Path: "/tools/capability",
+						Args: []string{"inspect", "CAP_SYSLOG"},
+					}, garden.ProcessIO{
+						Stdout: GinkgoWriter,
+						Stderr: stderr,
+					})
+
+					Expect(err).ToNot(HaveOccurred())
+					Expect(process.Wait()).To(Equal(1))
+					Eventually(string(stderr.Contents())).Should(ContainSubstring("operation not permitted"))
+				})
+			})
 		})
 
 		Context("when the process is run as non-root user", func() {
