@@ -15,10 +15,10 @@ mount_point=/tmp/btrfs_mount
 
 if [ ! -d $mount_point ]
 then
-    dd if=/dev/zero of=$backing_store bs=1M count=3000
-    mknod $loopback_device b 7 200
-    losetup $loopback_device $backing_store
-    mkfs.btrfs $backing_store
+    touch $backing_store
+    truncate -s 3000M $backing_store
+    loopback_device=$(losetup -f --show $backing_store)
+    mkfs.btrfs --nodiscard $loopback_device
 fi
 
 if cat /proc/mounts | grep $mount_point
