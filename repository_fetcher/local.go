@@ -1,18 +1,17 @@
 package repository_fetcher
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/url"
 	"os"
 	"sync"
 
-	"encoding/hex"
-
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/docker/docker/image"
 	"github.com/docker/docker/pkg/archive"
-	"github.com/jlhawn/go-crypto/sha256"
 	"github.com/pivotal-golang/lager"
 )
 

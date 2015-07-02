@@ -1,6 +1,6 @@
 {
 	"ImportPath": "github.com/cloudfoundry-incubator/garden-linux",
-	"GoVersion": "go1.4.2",
+	"GoVersion": "go1.4",
 	"Packages": [
 		"./..."
 	],
@@ -341,10 +341,6 @@
 		{
 			"ImportPath": "github.com/gorilla/mux",
 			"Rev": "47e8f450ef38c857cdd922ec08862ca9d65a1c6d"
-		},
-		{
-			"ImportPath": "github.com/jlhawn/go-crypto",
-			"Rev": "cd738dde20f0b3782516181b0866c9bb9db47401"
 		},
 		{
 			"ImportPath": "github.com/kr/pty",
