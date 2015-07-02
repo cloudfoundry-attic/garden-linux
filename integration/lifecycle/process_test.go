@@ -92,7 +92,7 @@ var _ = Describe("Process", func() {
 		}
 	})
 
-	It("wait does not block when a child of the process has not exited", func() {
+	FIt("wait does not block when a child of the process has not exited", func() {
 		buffer := gbytes.NewBuffer()
 		process, err := container.Run(garden.ProcessSpec{
 			User: "vcap",
@@ -100,15 +100,16 @@ var _ = Describe("Process", func() {
 			Args: []string{"-c", `
 					cleanup ()
 					{
-					  exit 42
+						exit 42
 					}
 
 					trap cleanup TERM
-                    echo trapping
+					sleep 100000 &
+					disown
 
+					echo trapping
 
-					sleep 1000 &
-					wait
+					sleep 100000
 				`},
 		}, garden.ProcessIO{Stdout: buffer})
 		Expect(err).NotTo(HaveOccurred())
@@ -127,7 +128,7 @@ var _ = Describe("Process", func() {
 		select {
 		case status := <-exitChan:
 			Expect(status).To(Equal(42))
-		case <-time.After(time.Second * 10):
+		case <-time.After(time.Second * 3):
 			Fail("Wait should not block when a child has not exited")
 		}
 	})
