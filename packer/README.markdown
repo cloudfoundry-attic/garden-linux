@@ -8,7 +8,7 @@ suitable for Garden-Linux development & testing.
 * Boot2docker version
   [1.3.3](https://github.com/boot2docker/osx-installer/releases/tag/v1.3.3) (1.4
   and above does not work because of [#1752](https://github.com/mitchellh/packer/issues/1752))
-* Packer version v0.7.5 from homebrew (`brew install packer`)
+* Packer version v0.8.0 from homebrew (`brew install packer`) or [the site](https://www.packer.io/downloads.html)
 
 ## Building
 
@@ -40,8 +40,6 @@ Update `garden-ci/version.json` with the desired version number.
 
 ### [Atlas](https://atlas.hashicorp.com/)
 
-**NOTE:** Because of the issue [#2090](https://github.com/mitchellh/packer/issues/2090), we cannot use the version number from `garden-ci/version.json`. The issue is fixed but no new stable version of Packer has been released since then. Until further notice (Packer upgrade), you need to update `garden-ci/release_vagrant.json` metadata section with the desired version number as well.
-
 Ensure that you have the correct environment varibles set.
 
 ```bash
@@ -51,15 +49,6 @@ export GARDEN_PACKER_ATLAS_TOKEN=<Token goes here>
 Then run `make release-vagrant`. This will build & upload vagrant box upto Atlas.
 
 ### [DockerHub](https://hub.docker.com/)
-
-**NOTE:** Before running `release-docker` you need to retag the old `garden-ci-ubuntu` Docker image and remove the `latest` tag.
-
-```bash
-docker tag cloudfoundry/garden-ci-ubuntu:latest cloudfoundry/garden-ci-ubuntu:0.4.0 # last version
-docker rmi cloudfoundry/garden-ci-ubuntu:latest
-```
-
-This is temporary. According to the resolution of the issue [#1923](https://github.com/mitchellh/packer/issues/1923) Packer has now a `forced` flag that can be used to force `docker-tag` post-processing tasks regardless of the machine's current tags. This will become available to us once Packer releases the next stable version.
 
 Ensure that you have the correct environment varibles set.
 

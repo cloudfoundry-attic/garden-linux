@@ -17,7 +17,8 @@
     {
         "type": "docker-tag",
         "repository": "cloudfoundry/garden-ci-ubuntu",
-        "tag": "latest"
+        "tag": "latest",
+        "force": true
     },
     [
       {
