@@ -286,13 +286,13 @@ var _ = Describe("Linux containers", func() {
 	})
 
 	Describe("Streaming data in", func() {
-		It("streams the input to tar xf in the container", func() {
+		It("streams the input to tar xf in the container as the specified user", func() {
 			fakeRunner.WhenRunning(
 				fake_command_runner.CommandSpec{
 					Path: containerDir + "/bin/nstar",
 					Args: []string{
 						"12345",
-						"vcap",
+						"bob",
 						"/some/directory/dst",
 					},
 				},
@@ -306,7 +306,11 @@ var _ = Describe("Linux containers", func() {
 				},
 			)
 
-			err := container.StreamIn("/some/directory/dst", bytes.NewBufferString("the-tar-content"))
+			err := container.StreamIn(garden.StreamInSpec{
+				User:      "bob",
+				Path:      "/some/directory/dst",
+				TarStream: bytes.NewBufferString("the-tar-content"),
+			})
 			Expect(err).ToNot(HaveOccurred())
 		})
 
@@ -325,20 +329,23 @@ var _ = Describe("Linux containers", func() {
 			})
 
 			It("returns the error", func() {
-				err := container.StreamIn("/some/directory/dst", nil)
+				err := container.StreamIn(garden.StreamInSpec{
+					User: "alice",
+					Path: "/some/directory/dst",
+				})
 				Expect(err).To(Equal(disaster))
 			})
 		})
 	})
 
 	Describe("Streaming out", func() {
-		It("streams the output of tar cf to the destination", func() {
+		It("streams the output of tar cf to the destination as the specified user", func() {
 			fakeRunner.WhenRunning(
 				fake_command_runner.CommandSpec{
 					Path: containerDir + "/bin/nstar",
 					Args: []string{
 						"12345",
-						"vcap",
+						"alice",
 						"/some/directory",
 						"dst",
 					},
@@ -351,7 +358,10 @@ var _ = Describe("Linux containers", func() {
 				},
 			)
 
-			reader, err := container.StreamOut("/some/directory/dst")
+			reader, err := container.StreamOut(garden.StreamOutSpec{
+				User: "alice",
+				Path: "/some/directory/dst",
+			})
 			Expect(err).ToNot(HaveOccurred())
 
 			bytes, err := ioutil.ReadAll(reader)
@@ -367,7 +377,7 @@ var _ = Describe("Linux containers", func() {
 					Path: containerDir + "/bin/nstar",
 					Args: []string{
 						"12345",
-						"vcap",
+						"herbert",
 						"/some/directory",
 						"dst",
 					},
@@ -378,7 +388,10 @@ var _ = Describe("Linux containers", func() {
 				},
 			)
 
-			_, err := container.StreamOut("/some/directory/dst")
+			_, err := container.StreamOut(garden.StreamOutSpec{
+				User: "herbert",
+				Path: "/some/directory/dst",
+			})
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(outPipe).ToNot(BeNil())
@@ -389,7 +402,10 @@ var _ = Describe("Linux containers", func() {
 
 		Context("when there's a trailing slash", func() {
 			It("compresses the directory's contents", func() {
-				_, err := container.StreamOut("/some/directory/dst/")
+				_, err := container.StreamOut(garden.StreamOutSpec{
+					User: "vcap",
+					Path: "/some/directory/dst/",
+				})
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(fakeRunner).To(HaveBackgrounded(
@@ -420,7 +436,7 @@ var _ = Describe("Linux containers", func() {
 			})
 
 			It("returns the error", func() {
-				_, err := container.StreamOut("/some/dst")
+				_, err := container.StreamOut(garden.StreamOutSpec{User: "alice", Path: "/some/dst"})
 				Expect(err).To(Equal(disaster))
 			})
 		})

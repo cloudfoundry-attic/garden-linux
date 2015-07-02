@@ -491,7 +491,7 @@ func (c *LinuxContainer) Info() (garden.ContainerInfo, error) {
 	return info, nil
 }
 
-func (c *LinuxContainer) StreamIn(dstPath string, tarStream io.Reader) error {
+func (c *LinuxContainer) StreamIn(spec garden.StreamInSpec) error {
 	nsTarPath := path.Join(c.ContainerPath, "bin", "nstar")
 	pidPath := path.Join(c.ContainerPath, "run", "wshd.pid")
 
@@ -509,11 +509,11 @@ func (c *LinuxContainer) StreamIn(dstPath string, tarStream io.Reader) error {
 	tar := exec.Command(
 		nsTarPath,
 		strconv.Itoa(pid),
-		"vcap",
-		dstPath,
+		spec.User,
+		spec.Path,
 	)
 
-	tar.Stdin = tarStream
+	tar.Stdin = spec.TarStream
 
 	cLog := c.logger.Session("stream-in")
 
@@ -525,11 +525,11 @@ func (c *LinuxContainer) StreamIn(dstPath string, tarStream io.Reader) error {
 	return cRunner.Run(tar)
 }
 
-func (c *LinuxContainer) StreamOut(srcPath string) (io.ReadCloser, error) {
-	workingDir := filepath.Dir(srcPath)
-	compressArg := filepath.Base(srcPath)
-	if strings.HasSuffix(srcPath, "/") {
-		workingDir = srcPath
+func (c *LinuxContainer) StreamOut(spec garden.StreamOutSpec) (io.ReadCloser, error) {
+	workingDir := filepath.Dir(spec.Path)
+	compressArg := filepath.Base(spec.Path)
+	if strings.HasSuffix(spec.Path, "/") {
+		workingDir = spec.Path
 		compressArg = "."
 	}
 
@@ -550,7 +550,7 @@ func (c *LinuxContainer) StreamOut(srcPath string) (io.ReadCloser, error) {
 	tar := exec.Command(
 		nsTarPath,
 		strconv.Itoa(pid),
-		"vcap",
+		spec.User,
 		workingDir,
 		compressArg,
 	)

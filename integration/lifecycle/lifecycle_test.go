@@ -1305,8 +1305,12 @@ var _ = Describe("Creating a container", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			It("creates the files in the container, as the vcap user", func() {
-				err := container.StreamIn("/home/vcap", tarStream)
+			It("creates the files in the container, as the specified user", func() {
+				err := container.StreamIn(garden.StreamInSpec{
+					User:      "vcap",
+					Path:      "/home/vcap",
+					TarStream: tarStream,
+				})
 				Expect(err).ToNot(HaveOccurred())
 
 				process, err := container.Run(garden.ProcessSpec{
@@ -1341,7 +1345,11 @@ var _ = Describe("Creating a container", func() {
 				})
 
 				It("streams in relative to the default run directory", func() {
-					err := container.StreamIn(".", tarStream)
+					err := container.StreamIn(garden.StreamInSpec{
+						User:      "vcap",
+						Path:      ".",
+						TarStream: tarStream,
+					})
 					Expect(err).ToNot(HaveOccurred())
 
 					process, err := container.Run(garden.ProcessSpec{
@@ -1356,7 +1364,11 @@ var _ = Describe("Creating a container", func() {
 			})
 
 			It("streams in relative to the default run directory", func() {
-				err := container.StreamIn(".", tarStream)
+				err := container.StreamIn(garden.StreamInSpec{
+					User:      "vcap",
+					Path:      ".",
+					TarStream: tarStream,
+				})
 				Expect(err).ToNot(HaveOccurred())
 
 				process, err := container.Run(garden.ProcessSpec{
@@ -1370,9 +1382,13 @@ var _ = Describe("Creating a container", func() {
 			})
 
 			It("returns an error when the tar process dies", func() {
-				err := container.StreamIn("/tmp/some-container-dir", &io.LimitedReader{
-					R: tarStream,
-					N: 10,
+				err := container.StreamIn(garden.StreamInSpec{
+					User: "vcap",
+					Path: "/tmp/some-container-dir",
+					TarStream: &io.LimitedReader{
+						R: tarStream,
+						N: 10,
+					},
 				})
 				Expect(err).To(HaveOccurred())
 			})
@@ -1388,7 +1404,10 @@ var _ = Describe("Creating a container", func() {
 
 					Expect(process.Wait()).To(Equal(0))
 
-					tarOutput, err := container.StreamOut("some-outer-dir/some-inner-dir")
+					tarOutput, err := container.StreamOut(garden.StreamOutSpec{
+						User: "vcap",
+						Path: "some-outer-dir/some-inner-dir",
+					})
 					Expect(err).ToNot(HaveOccurred())
 
 					tarReader := tar.NewReader(tarOutput)
@@ -1413,7 +1432,10 @@ var _ = Describe("Creating a container", func() {
 
 						Expect(process.Wait()).To(Equal(0))
 
-						tarOutput, err := container.StreamOut("some-container-dir/")
+						tarOutput, err := container.StreamOut(garden.StreamOutSpec{
+							User: "vcap",
+							Path: "some-container-dir/",
+						})
 						Expect(err).ToNot(HaveOccurred())
 
 						tarReader := tar.NewReader(tarOutput)
