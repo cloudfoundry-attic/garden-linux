@@ -287,15 +287,16 @@ var _ = Describe("Linux containers", func() {
 
 	Describe("Streaming data in", func() {
 		It("streams the input to tar xf in the container as the specified user", func() {
-			fakeRunner.WhenRunning(
-				fake_command_runner.CommandSpec{
-					Path: containerDir + "/bin/nstar",
-					Args: []string{
-						"12345",
-						"bob",
-						"/some/directory/dst",
-					},
+			cmdSpec := fake_command_runner.CommandSpec{
+				Path: containerDir + "/bin/nstar",
+				Args: []string{
+					"12345",
+					"bob",
+					"/some/directory/dst",
 				},
+			}
+			fakeRunner.WhenRunning(
+				cmdSpec,
 				func(cmd *exec.Cmd) error {
 					bytes, err := ioutil.ReadAll(cmd.Stdin)
 					Expect(err).ToNot(HaveOccurred())
@@ -312,6 +313,40 @@ var _ = Describe("Linux containers", func() {
 				TarStream: bytes.NewBufferString("the-tar-content"),
 			})
 			Expect(err).ToNot(HaveOccurred())
+
+			Expect(fakeRunner).To(HaveExecutedSerially(cmdSpec))
+		})
+
+		Context("when no user specified", func() {
+			It("streams the input to tar as root", func() {
+				cmdSpec := fake_command_runner.CommandSpec{
+					Path: containerDir + "/bin/nstar",
+					Args: []string{
+						"12345",
+						"root",
+						"/some/directory/dst",
+					},
+				}
+				fakeRunner.WhenRunning(
+					cmdSpec,
+					func(cmd *exec.Cmd) error {
+						bytes, err := ioutil.ReadAll(cmd.Stdin)
+						Expect(err).ToNot(HaveOccurred())
+
+						Expect(string(bytes)).To(Equal("the-tar-content"))
+
+						return nil
+					},
+				)
+
+				err := container.StreamIn(garden.StreamInSpec{
+					Path:      "/some/directory/dst",
+					TarStream: bytes.NewBufferString("the-tar-content"),
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(fakeRunner).To(HaveExecutedSerially(cmdSpec))
+			})
 		})
 
 		Context("when tar fails", func() {
@@ -340,16 +375,17 @@ var _ = Describe("Linux containers", func() {
 
 	Describe("Streaming out", func() {
 		It("streams the output of tar cf to the destination as the specified user", func() {
-			fakeRunner.WhenRunning(
-				fake_command_runner.CommandSpec{
-					Path: containerDir + "/bin/nstar",
-					Args: []string{
-						"12345",
-						"alice",
-						"/some/directory",
-						"dst",
-					},
+			cmdSpec := fake_command_runner.CommandSpec{
+				Path: containerDir + "/bin/nstar",
+				Args: []string{
+					"12345",
+					"alice",
+					"/some/directory",
+					"dst",
 				},
+			}
+			fakeRunner.WhenRunning(
+				cmdSpec,
 				func(cmd *exec.Cmd) error {
 					_, err := cmd.Stdout.Write([]byte("the-compressed-content"))
 					Expect(err).ToNot(HaveOccurred())
@@ -367,6 +403,42 @@ var _ = Describe("Linux containers", func() {
 			bytes, err := ioutil.ReadAll(reader)
 			Expect(err).ToNot(HaveOccurred())
 			Expect(string(bytes)).To(Equal("the-compressed-content"))
+
+			Expect(fakeRunner).To(HaveBackgrounded(cmdSpec))
+		})
+
+		Context("when no user specified", func() {
+			It("streams the output of tar as root", func() {
+				cmdSpec := fake_command_runner.CommandSpec{
+					Path: containerDir + "/bin/nstar",
+					Args: []string{
+						"12345",
+						"root",
+						"/some/directory",
+						"dst",
+					},
+				}
+				fakeRunner.WhenRunning(
+					cmdSpec,
+					func(cmd *exec.Cmd) error {
+						_, err := cmd.Stdout.Write([]byte("the-compressed-content"))
+						Expect(err).ToNot(HaveOccurred())
+
+						return nil
+					},
+				)
+
+				reader, err := container.StreamOut(garden.StreamOutSpec{
+					Path: "/some/directory/dst",
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				bytes, err := ioutil.ReadAll(reader)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(string(bytes)).To(Equal("the-compressed-content"))
+
+				Expect(fakeRunner).To(HaveBackgrounded(cmdSpec))
+			})
 		})
 
 		It("closes the server-side dupe of of the pipe's write end", func() {

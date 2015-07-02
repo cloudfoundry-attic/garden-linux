@@ -506,10 +506,15 @@ func (c *LinuxContainer) StreamIn(spec garden.StreamInSpec) error {
 		return err
 	}
 
+	user := spec.User
+	if user == "" {
+		user = "root"
+	}
+
 	tar := exec.Command(
 		nsTarPath,
 		strconv.Itoa(pid),
-		spec.User,
+		user,
 		spec.Path,
 	)
 
@@ -547,10 +552,15 @@ func (c *LinuxContainer) StreamOut(spec garden.StreamOutSpec) (io.ReadCloser, er
 		return nil, err
 	}
 
+	user := spec.User
+	if user == "" {
+		user = "root"
+	}
+
 	tar := exec.Command(
 		nsTarPath,
 		strconv.Itoa(pid),
-		spec.User,
+		user,
 		workingDir,
 		compressArg,
 	)

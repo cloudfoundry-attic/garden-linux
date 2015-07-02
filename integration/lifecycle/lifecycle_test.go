@@ -1339,6 +1339,30 @@ var _ = Describe("Creating a container", func() {
 				Expect(output).To(gbytes.Say("vcap"))
 			})
 
+			Context("when no user specified", func() {
+				It("streams the files in as root", func() {
+					err := container.StreamIn(garden.StreamInSpec{
+						Path:      "/home/vcap",
+						TarStream: tarStream,
+					})
+					Expect(err).ToNot(HaveOccurred())
+
+					out := gbytes.NewBuffer()
+					process, err := container.Run(garden.ProcessSpec{
+						User: "root",
+						Path: "ls",
+						Args: []string{"-la", "/home/vcap/some-temp-dir/some-temp-file"},
+					}, garden.ProcessIO{
+						Stdout: out,
+						Stderr: out,
+					})
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(process.Wait()).To(Equal(0))
+					Expect(string(out.Contents())).To(ContainSubstring("root"))
+				})
+			})
+
 			Context("in a privileged container", func() {
 				BeforeEach(func() {
 					privilegedContainer = true
@@ -1394,31 +1418,41 @@ var _ = Describe("Creating a container", func() {
 			})
 
 			Context("and then copying them out", func() {
-				It("streams the directory", func() {
-					process, err := container.Run(garden.ProcessSpec{
-						User: "vcap",
-						Path: "sh",
-						Args: []string{"-c", `mkdir -p some-outer-dir/some-inner-dir && touch some-outer-dir/some-inner-dir/some-file`},
-					}, garden.ProcessIO{})
-					Expect(err).ToNot(HaveOccurred())
+				itStreamsTheDirectory := func(user string) {
+					It("streams the directory", func() {
+						process, err := container.Run(garden.ProcessSpec{
+							User: "vcap",
+							Path: "sh",
+							Args: []string{"-c", `mkdir -p some-outer-dir/some-inner-dir && touch some-outer-dir/some-inner-dir/some-file`},
+						}, garden.ProcessIO{})
+						Expect(err).ToNot(HaveOccurred())
 
-					Expect(process.Wait()).To(Equal(0))
+						Expect(process.Wait()).To(Equal(0))
 
-					tarOutput, err := container.StreamOut(garden.StreamOutSpec{
-						User: "vcap",
-						Path: "some-outer-dir/some-inner-dir",
+						tarOutput, err := container.StreamOut(garden.StreamOutSpec{
+							User: user,
+							Path: "/home/vcap/some-outer-dir/some-inner-dir",
+						})
+						Expect(err).ToNot(HaveOccurred())
+
+						tarReader := tar.NewReader(tarOutput)
+
+						header, err := tarReader.Next()
+						Expect(err).ToNot(HaveOccurred())
+						Expect(header.Name).To(Equal("some-inner-dir/"))
+
+						header, err = tarReader.Next()
+						Expect(err).ToNot(HaveOccurred())
+						Expect(header.Name).To(Equal("some-inner-dir/some-file"))
 					})
-					Expect(err).ToNot(HaveOccurred())
 
-					tarReader := tar.NewReader(tarOutput)
+				}
 
-					header, err := tarReader.Next()
-					Expect(err).ToNot(HaveOccurred())
-					Expect(header.Name).To(Equal("some-inner-dir/"))
+				itStreamsTheDirectory("vcap")
 
-					header, err = tarReader.Next()
-					Expect(err).ToNot(HaveOccurred())
-					Expect(header.Name).To(Equal("some-inner-dir/some-file"))
+				Context("when no user specified", func() {
+					// Any user's files can be streamed out as root
+					itStreamsTheDirectory("")
 				})
 
 				Context("with a trailing slash", func() {
