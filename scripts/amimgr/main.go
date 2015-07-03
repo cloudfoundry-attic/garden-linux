@@ -175,7 +175,47 @@ func (inst *EC2Instance) Start() error {
 		},
 	})
 
+	fmt.Println("Waiting for AWS EC2 instance initializing")
+
+	for {
+		instanceState, err := inst.ec2Client.DescribeInstanceStatus(&ec2.DescribeInstanceStatusInput{
+			InstanceIDs: []*string{instance.InstanceID},
+		})
+
+		if err != nil {
+			fmt.Printf("Error occurred: %s", err)
+			continue
+		}
+
+		if len(instanceState.InstanceStatuses) < 1 {
+			continue
+		}
+
+		instanceStatus := instanceState.InstanceStatuses[0]
+		if len(instanceStatus.InstanceStatus.Details) < 1 {
+			continue
+		}
+
+		fmt.Printf("Instance State: %s\n", *(instanceStatus.InstanceState.Name))
+
+		if *(instanceStatus.InstanceState.Name) == "running" &&
+			allEqual(instanceStatus.InstanceStatus.Details, "passed") {
+			break
+		}
+
+		time.Sleep(time.Second)
+	}
+
 	return err
+}
+
+func allEqual(list []*ec2.InstanceStatusDetails, eq string) bool {
+	for _, e := range list {
+		if *(e.Status) != eq {
+			return false
+		}
+	}
+	return true
 }
 
 func (inst *EC2Instance) PublicDNS() (string, error) {
