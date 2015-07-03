@@ -6,13 +6,19 @@ import (
 	"os"
 	"sync"
 
+	"time"
+
 	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/system"
 	"github.com/docker/docker/pkg/term"
 	"github.com/pivotal-golang/lager"
 )
 
 const UnknownExitStatus = 255
+
+type StreamingFile interface {
+	io.ReadWriteCloser
+	Fd() uintptr
+}
 
 type Process struct {
 	Connector  Connector
@@ -27,7 +33,6 @@ type Process struct {
 	termState *term.State
 	exitCode  <-chan int
 	streaming *sync.WaitGroup
-	streamers []*Streamer
 
 	logger lager.Logger
 }
@@ -54,7 +59,6 @@ type Term interface {
 
 func (p *Process) Start() error {
 	p.logger = lager.NewLogger("container_daemon.Process")
-	p.streamers = []*Streamer{}
 
 	fds, pid, err := p.Connector.Connect(p.Spec)
 	if err != nil {
@@ -127,21 +131,30 @@ func (p *Process) fwdNoninteractive(stdinFd, stdoutFd, stderrFd StreamingFile) {
 }
 
 func (p *Process) stream(dst io.Writer, src StreamingFile) {
-	streamer := NewStreamerWithPoller(src, dst, p.logger, system.NewPoller([]uintptr{src.Fd()}))
-	if err := streamer.Start(true); err != nil {
-		p.logger.Error("stream", err)
-		return
-	}
-	p.streamers = append(p.streamers, streamer)
+	p.streaming.Add(1)
+	go func() {
+		defer p.streaming.Done()
+		copyWithClose(dst, src)
+	}()
 }
 
 func (p *Process) streamButDontClose(dst io.Writer, src StreamingFile) {
-	streamer := NewStreamerWithPoller(src, dst, p.logger, system.NewPoller([]uintptr{src.Fd()}))
-	if err := streamer.Start(false); err != nil {
-		p.logger.Error("streamButDontClose", err)
-		return
+	p.streaming.Add(1)
+	go func() {
+		defer p.streaming.Done()
+		io.Copy(dst, src)
+	}()
+}
+
+func copyWithClose(dst io.Writer, src io.Reader) error {
+	_, err := io.Copy(dst, src)
+	if rc, ok := src.(io.ReadCloser); ok {
+		return rc.Close()
 	}
-	p.streamers = append(p.streamers, streamer)
+	if wc, ok := dst.(io.WriteCloser); ok {
+		return wc.Close()
+	}
+	return err
 }
 
 func copyAndClose(dst io.WriteCloser, src io.Reader) error {
@@ -171,13 +184,16 @@ func (p *Process) exitWaitChannel(exitFd io.ReadWriteCloser) chan int {
 			b[0] = UnknownExitStatus
 		}
 
-		for _, streamer := range p.streamers {
-			if err := streamer.Stop(); err != nil {
-				p.logger.Error("exitWaitChannel", err)
-			}
-		}
+		doneStreaming := make(chan struct{})
+		go func(ch chan<- struct{}) {
+			streaming.Wait()
+			ch <- struct{}{}
+		}(doneStreaming)
 
-		streaming.Wait()
+		select {
+		case <-doneStreaming:
+		case <-time.After(time.Millisecond * 100):
+		}
 
 		exitChan <- int(b[0])
 	}(exitFd, exitChan, p.streaming)
