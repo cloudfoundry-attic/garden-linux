@@ -196,8 +196,6 @@ func (inst *EC2Instance) Start() error {
 			continue
 		}
 
-		fmt.Printf("Instance State: %s\n", *(instanceStatus.InstanceState.Name))
-
 		if *(instanceStatus.InstanceState.Name) == "running" &&
 			allEqual(instanceStatus.InstanceStatus.Details, "passed") {
 			break
