@@ -101,7 +101,8 @@ func main() {
 	syscall.RawSyscall(syscall.SYS_FCNTL, uintptr(4), syscall.F_SETFD, 0)
 	syscall.RawSyscall(syscall.SYS_FCNTL, uintptr(5), syscall.F_SETFD, 0)
 
-	syscall.Exec("/sbin/initd", []string{*title, fmt.Sprintf("-dropCapabilities=%t", env["root_uid"] != "0")}, os.Environ())
+	unprivilegedContainer := env["root_uid"] != "0"
+	syscall.Exec("/sbin/initd", []string{*title, fmt.Sprintf("-dropCapabilities=%t", unprivilegedContainer)}, os.Environ())
 }
 
 func fail(err string, code int) {

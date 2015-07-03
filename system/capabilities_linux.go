@@ -24,6 +24,7 @@ func (c ProcessCapabilities) Limit(extendedWhitelist bool) error {
 		capability.CAP_FSETID,
 		capability.CAP_FOWNER,
 		capability.CAP_MKNOD,
+		capability.CAP_SYSLOG, // DEBUGGING ONLY
 		capability.CAP_NET_RAW,
 		capability.CAP_SETGID,
 		capability.CAP_SETUID,

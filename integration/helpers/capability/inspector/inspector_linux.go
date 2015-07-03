@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log/syslog"
 	"os"
 	"os/exec"
+	"runtime"
 	"syscall"
+
+	"github.com/syndtr/gocapability/capability"
 )
 
 // #cgo LDFLAGS: -lrt
@@ -41,7 +43,7 @@ import (
 //
 //   return 0;
 // }
-import "C"
+//import "C"
 
 // CAP_SETUID
 // Make arbitrary manipulations of process UIDs
@@ -126,43 +128,59 @@ func ProbeCHOWN(uid, gid int) error {
 }
 
 func ProbeSYSTIME() error {
-	time := &syscall.Timeval{
-		Sec:  866208142,
-		Usec: 290944,
+	// can we add CAP_SYS_TIME to the process's effective set?
+
+	runtime.LockOSThread()
+	caps, err := capability.NewPid(0)
+	if err != nil {
+		return fmt.Errorf("system: getting capabilities: %s", err)
 	}
 
-	if err := syscall.Settimeofday(time); err != nil {
-		printErr("CAP_SYSTIME", "syscall.Settimeofday failed with error: %s", err)
-		return err
-	} else {
-		printInfo("CAP_SYSTIME", "syscall.Settimeofday succeeded")
+	caps.Set(capability.EFFECTIVE,
+		capability.CAP_SYS_TIME,
+	)
+
+	err = caps.Apply(capability.EFFECTIVE)
+	if err != nil {
+		return fmt.Errorf("system: applying capabilities: %s", err)
 	}
+
+	//	time := &syscall.Timeval{
+	//		Sec:  866208142,
+	//		Usec: 290944,
+	//	}
+	//
+	//	if err := syscall.Settimeofday(time); err != nil {
+	//		printErr("CAP_SYSTIME", "syscall.Settimeofday failed with error: %s", err)
+	//		return err
+	//	} else {
+	//		printInfo("CAP_SYSTIME", "syscall.Settimeofday succeeded")
+	//	}
 
 	return nil
 }
 
 func ProbeWAKEALARM() error {
-	if rc := C.probeWakeAlarm(); rc != 0 {
-		err := fmt.Errorf("Setting wake alarm: %d", rc)
-		return err
-	} else {
-		printInfo("CAP_WAKE_ALARM", "Setting wake alarm succeeded")
-	}
-	return nil
+	panic("disabled - code commented out")
+	//	if rc := C.probeWakeAlarm(); rc != 0 {
+	//		err := fmt.Errorf("Setting wake alarm: %d", rc)
+	//		return err
+	//	} else {
+	//		printInfo("CAP_WAKE_ALARM", "Setting wake alarm succeeded")
+	//	}
+	//	return nil
 }
 
+const SYSLOG_ACTION_CLEAR = 5
+
 func ProbeSYSLOG() error {
-	logger, err := syslog.New(syslog.LOG_INFO, "capability")
-	if err != nil {
-		printErr("CAP_SYSLOG", "Failed to create syslogger: %s", err)
+	if _, err := syscall.Klogctl(SYSLOG_ACTION_CLEAR, nil); err != nil {
+		printErr("CAP_SYSLOG", "Failed to clear kernel ring buffer: %s", err)
 		return err
+	} else {
+		printInfo("CAP_SYSLOG", "Clearing kernel ring buffer succeeded")
 	}
 
-	if _, err := logger.Write([]byte("Capability tools is running")); err != nil {
-		printErr("CAP_SYSLOG", "Writing to syslog failed with error: %s", err)
-	} else {
-		printInfo("CAP_SYSLOG", "Writing to syslog succeeded")
-	}
 	return nil
 }
 
