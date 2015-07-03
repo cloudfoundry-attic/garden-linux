@@ -72,7 +72,7 @@ func start(network, addr string, argv ...string) *RunningGarden {
 		Command:           c,
 		AnsiColorCode:     "31m",
 		StartCheck:        "garden-linux.started",
-		StartCheckTimeout: 30 * time.Second,
+		StartCheckTimeout: 60 * time.Second,
 	})
 	r.Pid = c.Process.Pid
 
