@@ -39,7 +39,7 @@ var _ = Describe("A container with a grace time", func() {
 			Eventually(func() error {
 				_, err := client.Lookup(container.Handle())
 				return err
-			}, 10, 1).Should(HaveOccurred())
+			}, 20, 1).Should(HaveOccurred())
 		})
 	})
 })
