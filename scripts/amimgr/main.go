@@ -201,7 +201,7 @@ func (inst *EC2Instance) Start() error {
 			break
 		}
 
-		time.Sleep(time.Second)
+		time.Sleep(time.Second * 10)
 	}
 
 	return err
