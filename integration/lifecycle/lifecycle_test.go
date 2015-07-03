@@ -1363,6 +1363,41 @@ var _ = Describe("Creating a container", func() {
 				})
 			})
 
+			Context("when a non-existent user specified", func() {
+				It("returns error", func() {
+					err := container.StreamIn(garden.StreamInSpec{
+						User:      "batman",
+						Path:      "/home/vcap",
+						TarStream: tarStream,
+					})
+					Expect(err).To(MatchError(ContainSubstring("error streaming in")))
+				})
+			})
+
+			Context("when the specified user does not have permission to stream in", func() {
+				JustBeforeEach(func() {
+					process, err := container.Run(garden.ProcessSpec{
+						User: "root",
+						Path: "adduser",
+						Args: []string{"-D", "bob"},
+					}, garden.ProcessIO{
+						Stdout: GinkgoWriter,
+						Stderr: GinkgoWriter,
+					})
+					Expect(err).ToNot(HaveOccurred())
+					Expect(process.Wait()).To(Equal(0))
+				})
+
+				It("returns error", func() {
+					err := container.StreamIn(garden.StreamInSpec{
+						User:      "bob",
+						Path:      "/home/vcap",
+						TarStream: tarStream,
+					})
+					Expect(err).To(MatchError(ContainSubstring("Permission denied")))
+				})
+			})
+
 			Context("in a privileged container", func() {
 				BeforeEach(func() {
 					privilegedContainer = true

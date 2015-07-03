@@ -1,6 +1,7 @@
 package linux_container
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -511,12 +512,15 @@ func (c *LinuxContainer) StreamIn(spec garden.StreamInSpec) error {
 		user = "root"
 	}
 
+	buf := new(bytes.Buffer)
 	tar := exec.Command(
 		nsTarPath,
 		strconv.Itoa(pid),
 		user,
 		spec.Path,
 	)
+	tar.Stdout = buf
+	tar.Stderr = buf
 
 	tar.Stdin = spec.TarStream
 
@@ -527,7 +531,10 @@ func (c *LinuxContainer) StreamIn(spec garden.StreamInSpec) error {
 		Logger:        cLog,
 	}
 
-	return cRunner.Run(tar)
+	if err := cRunner.Run(tar); err != nil {
+		return fmt.Errorf("error streaming in: %v. Output: %s", err, buf.String())
+	}
+	return nil
 }
 
 func (c *LinuxContainer) StreamOut(spec garden.StreamOutSpec) (io.ReadCloser, error) {

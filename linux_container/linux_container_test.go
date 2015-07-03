@@ -368,7 +368,7 @@ var _ = Describe("Linux containers", func() {
 					User: "alice",
 					Path: "/some/directory/dst",
 				})
-				Expect(err).To(Equal(disaster))
+				Expect(err).To(MatchError(ContainSubstring("oh no!")))
 			})
 		})
 	})
