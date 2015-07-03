@@ -4,6 +4,9 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/http/httptest"
+	"net/http/httputil"
+	"net/url"
 	"os"
 
 	"github.com/cloudfoundry-incubator/garden"
@@ -73,6 +76,13 @@ var _ = Describe("Rootfs container create parameter", func() {
 				container, err = client.Create(garden.ContainerSpec{RootFSPath: "docker:///busybox"})
 				Expect(err).ToNot(HaveOccurred())
 			})
+
+			Context("when image does not exist", func() {
+				It("returns a helpful error message", func() {
+					_, err := client.Create(garden.ContainerSpec{RootFSPath: "docker:///cloudfoundry/doesnotexist"})
+					Expect(err.Error()).To(ContainSubstring("could not fetch image cloudfoundry/doesnotexist from registry https://index.docker.io/v1/"))
+				})
+			})
 		})
 
 		Context("containing a host", func() {
@@ -83,6 +93,13 @@ var _ = Describe("Rootfs container create parameter", func() {
 					container, err = client.Create(garden.ContainerSpec{RootFSPath: "docker://index.docker.io/busybox"})
 					Expect(err).ToNot(HaveOccurred())
 				})
+
+				Context("but not a Docker registry", func() {
+					It("returns a helpful error message", func() {
+						_, err := client.Create(garden.ContainerSpec{RootFSPath: "docker://example.com/cloudfoundry/doesnotexist"})
+						Expect(err.Error()).To(ContainSubstring("could not fetch image cloudfoundry/doesnotexist from registry example.com: HTTP code: 404"))
+					})
+				})
 			})
 
 			Context("which is invalid", func() {
@@ -92,13 +109,18 @@ var _ = Describe("Rootfs container create parameter", func() {
 					container, err = client.Create(garden.ContainerSpec{RootFSPath: "docker://xindex.docker.io/busybox"})
 					Expect(err).To(HaveOccurred())
 				})
+
+				It("returns a helpful error message", func() {
+					_, err := client.Create(garden.ContainerSpec{RootFSPath: "docker://does-not.exist/cloudfoundry/doesnotexist"})
+					Expect(err.Error()).To(ContainSubstring("could not fetch image cloudfoundry/doesnotexist from registry does-not.exist"))
+				})
 			})
 
 			Context("which is insecure", func() {
 				var dockerRegistry garden.Container
 
 				dockerRegistryIP := "10.0.0.1"
-				dockerRegistryPort := "5001"
+				dockerRegistryPort := "5000"
 
 				if dockerRegistryRootFSPath == "" {
 					log.Println("GARDEN_DOCKER_REGISTRY_TEST_ROOTFS undefined; skipping")
@@ -118,27 +140,71 @@ var _ = Describe("Rootfs container create parameter", func() {
 				Context("when the host is listed in -insecureDockerRegistryList", func() {
 					BeforeEach(func() {
 						args = []string{
-							"-insecureDockerRegistryList", dockerRegistryIP + ":" + dockerRegistryPort,
 							"-allowHostAccess=true",
 						}
 					})
 
-					It("creates the container successfully ", func() {
-						_, err := client.Create(garden.ContainerSpec{
-							RootFSPath: fmt.Sprintf("docker://%s:%s/busybox", dockerRegistryIP, dockerRegistryPort),
+					Context("when the registry is NOT using TLS", func() {
+						BeforeEach(func() {
+							args = append(
+								args,
+								"-insecureDockerRegistryList",
+								fmt.Sprintf("%s:%s", dockerRegistryIP, dockerRegistryPort),
+							)
 						})
-						Expect(err).ToNot(HaveOccurred())
+
+						It("creates the container successfully ", func() {
+							_, err := client.Create(garden.ContainerSpec{
+								RootFSPath: fmt.Sprintf("docker://%s:%s/busybox", dockerRegistryIP,
+									dockerRegistryPort),
+							})
+							Expect(err).ToNot(HaveOccurred())
+						})
+					})
+
+					Context("when the registry is using TLS", func() {
+						var server *httptest.Server
+						var serverURL *url.URL
+
+						BeforeEach(func() {
+							proxyTo, err := url.Parse(fmt.Sprintf("http://%s:%s", dockerRegistryIP,
+								dockerRegistryPort))
+							Expect(err).NotTo(HaveOccurred())
+
+							server = httptest.NewTLSServer(httputil.NewSingleHostReverseProxy(proxyTo))
+							serverURL, err = url.Parse(server.URL)
+							Expect(err).NotTo(HaveOccurred())
+
+							args = append(
+								args,
+								"-insecureDockerRegistryList",
+								serverURL.Host,
+							)
+						})
+
+						AfterEach(func() {
+							server.Close()
+						})
+
+						It("creates the container successfully ", func() {
+							_, err := client.Create(garden.ContainerSpec{
+								RootFSPath: fmt.Sprintf("docker://%s/busybox", serverURL.Host),
+							})
+							Expect(err).ToNot(HaveOccurred())
+						})
 					})
 				})
 
 				Context("when the host is NOT listed in -insecureDockerRegistryList", func() {
 					It("fails, and suggests the -insecureDockerRegistryList flag", func() {
 						_, err := client.Create(garden.ContainerSpec{
-							RootFSPath: fmt.Sprintf("docker://%s:%s/busybox", dockerRegistryIP, dockerRegistryPort),
+							RootFSPath: fmt.Sprintf("docker://%s:%s/busybox", dockerRegistryIP,
+								dockerRegistryPort),
 						})
 
 						Expect(err).To(MatchError(ContainSubstring(
-							"Registry %s:%s is missing from -insecureDockerRegistryList ([])", dockerRegistryIP, dockerRegistryPort,
+							"Registry %s:%s is missing from -insecureDockerRegistryList ([])",
+							dockerRegistryIP, dockerRegistryPort,
 						)))
 					})
 				})
