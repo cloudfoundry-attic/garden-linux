@@ -15,7 +15,7 @@ import (
 	"github.com/onsi/gomega/gexec"
 )
 
-var _ = Describe("A container", func() {
+var _ = FDescribe("A container", func() {
 	var (
 		container          garden.Container
 		containerCreateErr error
