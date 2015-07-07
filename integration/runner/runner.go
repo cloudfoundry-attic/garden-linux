@@ -81,6 +81,26 @@ func start(network, addr string, argv ...string) *RunningGarden {
 	psCmd.Stderr = GinkgoWriter
 	Expect(psCmd.Run()).To(Succeed())
 
+	lsofSock1 := exec.Command("lsof", "/tmp/garden_1.sock")
+	lsofSock1.Stdout = GinkgoWriter
+	lsofSock1.Stderr = GinkgoWriter
+	Expect(psCmd.Run()).To(Succeed())
+
+	lsofSock2 := exec.Command("lsof", "/tmp/garden_2.sock")
+	lsofSock2.Stdout = GinkgoWriter
+	lsofSock2.Stderr = GinkgoWriter
+	Expect(psCmd.Run()).To(Succeed())
+
+	lsofSock3 := exec.Command("lsof", "/tmp/garden_3.sock")
+	lsofSock3.Stdout = GinkgoWriter
+	lsofSock3.Stderr = GinkgoWriter
+	Expect(psCmd.Run()).To(Succeed())
+
+	lsofSock4 := exec.Command("lsof", "/tmp/garden_4.sock")
+	lsofSock4.Stdout = GinkgoWriter
+	lsofSock4.Stderr = GinkgoWriter
+	Expect(psCmd.Run()).To(Succeed())
+
 	catCmd := exec.Command("cat", fmt.Sprintf("/proc/%d/net/unix", r.Pid))
 	catCmd.Stdout = GinkgoWriter
 	catCmd.Stderr = GinkgoWriter
