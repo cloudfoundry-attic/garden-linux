@@ -75,7 +75,16 @@ func start(network, addr string, argv ...string) *RunningGarden {
 		StartCheckTimeout: 30 * time.Second,
 	})
 	r.Pid = c.Process.Pid
-	Expect(c.Process.Pid).ToNot(Equal(0))
+
+	psCmd := exec.Command("ps", "-p", strconv.Itoa(r.Pid))
+	psCmd.Stdout = GinkgoWriter
+	psCmd.Stderr = GinkgoWriter
+	Expect(psCmd.Run()).To(Succeed())
+
+	catCmd := exec.Command("cat", fmt.Sprintf("/proc/%d/net/unix", r.Pid))
+	catCmd.Stdout = GinkgoWriter
+	catCmd.Stderr = GinkgoWriter
+	Expect(catCmd.Run()).To(Succeed())
 
 	return r
 }
