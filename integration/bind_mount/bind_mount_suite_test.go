@@ -23,11 +23,11 @@ func TestBindMount(t *testing.T) {
 		return
 	}
 
-	AfterEach(func() {
-		err := client.DestroyAndStop()
-		client.Cleanup()
-		Expect(err).NotTo(HaveOccurred())
-	})
+	// AfterEach(func() {
+	// 	err := client.DestroyAndStop()
+	// 	client.Cleanup()
+	// 	Expect(err).NotTo(HaveOccurred())
+	// })
 
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "BindMount Suite")
