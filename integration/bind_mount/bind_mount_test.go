@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
@@ -292,6 +293,8 @@ func createTestHostDirAndTestFile() (string, string) {
 func createContainerTestFileIn(container garden.Container, dir string) string {
 	fileName := "bind-mount-test-file"
 	filePath := filepath.Join(dir, fileName)
+
+	Expect(container.(*linux_container.LinuxContainer)).ToNot(BeNil())
 
 	process, err := container.Run(garden.ProcessSpec{
 		Path: "touch",
