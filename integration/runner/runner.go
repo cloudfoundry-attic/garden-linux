@@ -74,6 +74,18 @@ func start(network, addr string, argv ...string) *RunningGarden {
 		StartCheck:        "garden-linux.started",
 		StartCheckTimeout: 30 * time.Second,
 	})
+
+	time.Sleep(2 * time.Minute)
+
+	// 	go func() {
+	// 		err := c.Run()
+	// 		if err != nil {
+	// 			fmt.Fprintf(GinkgoWriter, "Error on start: %s", err)
+	// 		} else {
+	// 			fmt.Fprintf(GinkgoWriter, "SUCCEED START")
+	// 		}
+	// 	}()
+
 	r.Pid = c.Process.Pid
 
 	psCmd := exec.Command("ps", "-p", strconv.Itoa(r.Pid))
