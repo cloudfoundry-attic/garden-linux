@@ -5,17 +5,19 @@ import (
 	"sync"
 
 	"github.com/cloudfoundry-incubator/garden-linux/repository_fetcher"
+	"github.com/docker/docker/registry"
 )
 
 type FakeRegistryProvider struct {
-	ProvideRegistryStub        func(hostname string) (repository_fetcher.Registry, error)
+	ProvideRegistryStub        func(hostname string) (repository_fetcher.Registry, *registry.Endpoint, error)
 	provideRegistryMutex       sync.RWMutex
 	provideRegistryArgsForCall []struct {
 		hostname string
 	}
 	provideRegistryReturns struct {
 		result1 repository_fetcher.Registry
-		result2 error
+		result2 *registry.Endpoint
+		result3 error
 	}
 	ApplyDefaultHostnameStub        func(hostname string) string
 	applyDefaultHostnameMutex       sync.RWMutex
@@ -27,7 +29,7 @@ type FakeRegistryProvider struct {
 	}
 }
 
-func (fake *FakeRegistryProvider) ProvideRegistry(hostname string) (repository_fetcher.Registry, error) {
+func (fake *FakeRegistryProvider) ProvideRegistry(hostname string) (repository_fetcher.Registry, *registry.Endpoint, error) {
 	fake.provideRegistryMutex.Lock()
 	fake.provideRegistryArgsForCall = append(fake.provideRegistryArgsForCall, struct {
 		hostname string
@@ -36,7 +38,7 @@ func (fake *FakeRegistryProvider) ProvideRegistry(hostname string) (repository_f
 	if fake.ProvideRegistryStub != nil {
 		return fake.ProvideRegistryStub(hostname)
 	} else {
-		return fake.provideRegistryReturns.result1, fake.provideRegistryReturns.result2
+		return fake.provideRegistryReturns.result1, fake.provideRegistryReturns.result2, fake.provideRegistryReturns.result3
 	}
 }
 
@@ -52,12 +54,13 @@ func (fake *FakeRegistryProvider) ProvideRegistryArgsForCall(i int) string {
 	return fake.provideRegistryArgsForCall[i].hostname
 }
 
-func (fake *FakeRegistryProvider) ProvideRegistryReturns(result1 repository_fetcher.Registry, result2 error) {
+func (fake *FakeRegistryProvider) ProvideRegistryReturns(result1 repository_fetcher.Registry, result2 *registry.Endpoint, result3 error) {
 	fake.ProvideRegistryStub = nil
 	fake.provideRegistryReturns = struct {
 		result1 repository_fetcher.Registry
-		result2 error
-	}{result1, result2}
+		result2 *registry.Endpoint
+		result3 error
+	}{result1, result2, result3}
 }
 
 func (fake *FakeRegistryProvider) ApplyDefaultHostname(hostname string) string {

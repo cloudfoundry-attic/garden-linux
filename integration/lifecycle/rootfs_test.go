@@ -117,7 +117,10 @@ var _ = Describe("Rootfs container create parameter", func() {
 			})
 
 			Context("which is insecure", func() {
-				var dockerRegistry garden.Container
+				var (
+					dockerRegistry garden.Container
+					v2             bool
+				)
 
 				dockerRegistryIP := "10.0.0.1"
 				dockerRegistryPort := "5000"
@@ -127,8 +130,16 @@ var _ = Describe("Rootfs container create parameter", func() {
 					return
 				}
 
+				BeforeEach(func() {
+					v2 = false
+				})
+
 				JustBeforeEach(func() {
-					dockerRegistry = startDockerRegistry(dockerRegistryIP, dockerRegistryPort)
+					if v2 {
+						dockerRegistry = startV2DockerRegistry(dockerRegistryIP, dockerRegistryPort)
+					} else {
+						dockerRegistry = startV1DockerRegistry(dockerRegistryIP, dockerRegistryPort)
+					}
 				})
 
 				AfterEach(func() {
@@ -159,6 +170,20 @@ var _ = Describe("Rootfs container create parameter", func() {
 									dockerRegistryPort),
 							})
 							Expect(err).ToNot(HaveOccurred())
+						})
+
+						Context("when the registry is v2", func() {
+							BeforeEach(func() {
+								v2 = true
+							})
+
+							It("creates the container successfully", func() {
+								_, err := client.Create(garden.ContainerSpec{
+									RootFSPath: fmt.Sprintf("docker://%s:%s/busybox", dockerRegistryIP,
+										dockerRegistryPort),
+								})
+								Expect(err).ToNot(HaveOccurred())
+							})
 						})
 					})
 
@@ -192,6 +217,20 @@ var _ = Describe("Rootfs container create parameter", func() {
 							})
 							Expect(err).ToNot(HaveOccurred())
 						})
+
+						Context("when the registry is v2", func() {
+							BeforeEach(func() {
+								v2 = true
+							})
+
+							PIt("creates the container successfully", func() {
+								_, err := client.Create(garden.ContainerSpec{
+									RootFSPath: fmt.Sprintf("docker://%s:%s/busybox", dockerRegistryIP,
+										dockerRegistryPort),
+								})
+								Expect(err).ToNot(HaveOccurred())
+							})
+						})
 					})
 				})
 
@@ -213,7 +252,7 @@ var _ = Describe("Rootfs container create parameter", func() {
 	})
 })
 
-func startDockerRegistry(dockerRegistryIP string, dockerRegistryPort string) garden.Container {
+func startV1DockerRegistry(dockerRegistryIP string, dockerRegistryPort string) garden.Container {
 	dockerRegistry, err := client.Create(
 		garden.ContainerSpec{
 			RootFSPath: dockerRegistryRootFSPath,
@@ -223,7 +262,7 @@ func startDockerRegistry(dockerRegistryIP string, dockerRegistryPort string) gar
 	Expect(err).ToNot(HaveOccurred())
 
 	_, err = dockerRegistry.Run(garden.ProcessSpec{
-		User: "vcap",
+		User: "root",
 		Env: []string{
 			"DOCKER_REGISTRY_CONFIG=/docker-registry/config/config_sample.yml",
 			fmt.Sprintf("REGISTRY_PORT=%s", dockerRegistryPort),
@@ -238,6 +277,33 @@ func startDockerRegistry(dockerRegistryIP string, dockerRegistryPort string) gar
 
 	Eventually(
 		fmt.Sprintf("http://%s:%s/_ping", dockerRegistryIP, dockerRegistryPort),
+		"60s",
+	).Should(RespondToGETWith(200))
+
+	return dockerRegistry
+}
+
+func startV2DockerRegistry(dockerRegistryIP string, dockerRegistryPort string) garden.Container {
+	dockerRegistry, err := client.Create(
+		garden.ContainerSpec{
+			RootFSPath: "/opt/warden/docker-registry-v2-rootfs",
+			Network:    dockerRegistryIP,
+		},
+	)
+	Expect(err).ToNot(HaveOccurred())
+
+	_, err = dockerRegistry.Run(garden.ProcessSpec{
+		User: "root",
+		Env: []string{
+			"REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY=/opt/docker-registry",
+		},
+		Path: "/go/bin/registry",
+		Args: []string{"/go/src/github.com/docker/distribution/cmd/registry/config.yml"},
+	}, garden.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
+	Expect(err).ToNot(HaveOccurred())
+
+	Eventually(
+		fmt.Sprintf("http://%s:%s/v2/", dockerRegistryIP, dockerRegistryPort),
 		"60s",
 	).Should(RespondToGETWith(200))
 

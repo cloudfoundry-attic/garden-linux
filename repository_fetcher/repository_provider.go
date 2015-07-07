@@ -11,7 +11,7 @@ import (
 
 //go:generate counterfeiter . RegistryProvider
 type RegistryProvider interface {
-	ProvideRegistry(hostname string) (Registry, error)
+	ProvideRegistry(hostname string) (Registry, *registry.Endpoint, error)
 	ApplyDefaultHostname(hostname string) string
 }
 
@@ -41,7 +41,8 @@ func (rp registryProvider) ApplyDefaultHostname(hostname string) string {
 	return hostname
 }
 
-func (rp registryProvider) ProvideRegistry(hostname string) (Registry, error) {
+// TODO test new signature!!
+func (rp registryProvider) ProvideRegistry(hostname string) (Registry, *registry.Endpoint, error) {
 	hostname = rp.ApplyDefaultHostname(hostname)
 
 	endpoint, err := RegistryNewEndpoint(&registry.IndexInfo{
@@ -50,20 +51,21 @@ func (rp registryProvider) ProvideRegistry(hostname string) (Registry, error) {
 	}, nil)
 
 	if err != nil && strings.Contains(err.Error(), "--insecure-registry") {
-		return nil, &InsecureRegistryError{
+		return nil, nil, &InsecureRegistryError{
 			Cause:              err,
 			Endpoint:           hostname,
 			InsecureRegistries: rp.InsecureRegistries,
 		}
 	} else if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	tr := transport.NewTransport(
 		registry.NewTransport(registry.ReceiveTimeout, endpoint.IsSecure),
 	)
 
-	return RegistryNewSession(registry.HTTPClient(tr), &cliconfig.AuthConfig{}, endpoint)
+	r, err := RegistryNewSession(registry.HTTPClient(tr), &cliconfig.AuthConfig{}, endpoint)
+	return r, endpoint, err
 }
 
 func NewRepositoryProvider(defaultHostname string, insecureRegistries []string) RegistryProvider {
