@@ -13,7 +13,7 @@ import (
 	"github.com/onsi/gomega/gexec"
 )
 
-var _ = Describe("Detach", func() {
+var _ = FDescribe("Detach", func() {
 	var lsof *gexec.Session
 	var hostDir string
 	var detachCmd *exec.Cmd
