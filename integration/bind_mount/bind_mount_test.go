@@ -150,10 +150,10 @@ var _ = Describe("A container", func() {
 				})
 
 				It("is successfully created with correct privileges for non-root in container", func() {
-					if containerCreateErr != nil {
-						fmt.Printf("Sleeping test because container create failed. Node: %d", GinkgoParallelNode())
-						time.Sleep(2 * time.Hour)
-					}
+					// if containerCreateErr != nil {
+					// 	fmt.Printf("Sleeping test because container create failed. Node: %d", GinkgoParallelNode())
+					// 	time.Sleep(2 * time.Hour)
+					// }
 					Expect(containerCreateErr).ToNot(HaveOccurred())
 					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, false)
 				})
