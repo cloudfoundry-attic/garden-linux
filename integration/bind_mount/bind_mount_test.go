@@ -9,17 +9,17 @@ import (
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
 	"github.com/onsi/gomega/gexec"
 )
 
+var containerCreateErr error
+
 var _ = Describe("A container", func() {
 	var (
-		container          garden.Container
-		containerCreateErr error
+		container garden.Container
 
 		// container create parms
 		privilegedContainer bool
@@ -294,7 +294,7 @@ func createContainerTestFileIn(container garden.Container, dir string) string {
 	fileName := "bind-mount-test-file"
 	filePath := filepath.Join(dir, fileName)
 
-	Expect(container.(*linux_container.LinuxContainer)).ToNot(BeNil())
+	Expect(containerCreateErr).ToNot(HaveOccurred())
 
 	process, err := container.Run(garden.ProcessSpec{
 		Path: "touch",

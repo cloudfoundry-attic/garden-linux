@@ -75,6 +75,7 @@ func start(network, addr string, argv ...string) *RunningGarden {
 		StartCheckTimeout: 30 * time.Second,
 	})
 	r.Pid = c.Process.Pid
+	Expect(c.Process.Pid).ToNot(Equal(0))
 
 	return r
 }
