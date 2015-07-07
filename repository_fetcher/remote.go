@@ -9,8 +9,12 @@ import (
 	"sync"
 	"time"
 
+	"encoding/json"
+
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
+	"github.com/docker/distribution/digest"
+	"github.com/docker/docker/cliconfig"
 	"github.com/docker/docker/image"
 	"github.com/docker/docker/pkg/archive"
 	"github.com/docker/docker/registry"
@@ -30,13 +34,17 @@ var RegistryNewEndpoint = registry.NewEndpoint
 var RegistryNewSession = registry.NewSession
 
 // apes docker's *registry.Registry
-//go:generate counterfeiter . Registry
 type Registry interface {
+	// v1 methods
 	GetRepositoryData(repoName string) (*registry.RepositoryData, error)
 	GetRemoteTags(registries []string, repository string) (map[string]string, error)
 	GetRemoteHistory(imageID string, registry string) ([]string, error)
 	GetRemoteImageJSON(imageID string, registry string) ([]byte, int, error)
 	GetRemoteImageLayer(imageID string, registry string, size int64) (io.ReadCloser, error)
+
+	// v2 methods
+	GetV2ImageManifest(ep *registry.Endpoint, imageName, tagName string, auth *registry.RequestAuthorization) (digest.Digest, []byte, error)
+	GetV2ImageBlobReader(ep *registry.Endpoint, imageName string, dgst digest.Digest, auth *registry.RequestAuthorization) (io.ReadCloser, int64, error)
 }
 
 // apes docker's *graph.Graph
@@ -99,6 +107,10 @@ func (fetcher *DockerRepositoryFetcher) Fetch(
 	repoURL *url.URL,
 	tag string,
 ) (string, process.Env, []string, error) {
+	errs := func(err error) (string, process.Env, []string, error) {
+		return "", nil, nil, err
+	}
+
 	fLog := logger.Session("fetch", lager.Data{
 		"repo": repoURL,
 		"tag":  tag,
@@ -107,54 +119,101 @@ func (fetcher *DockerRepositoryFetcher) Fetch(
 	fLog.Debug("fetching")
 
 	if len(repoURL.Path) == 0 {
-		return "", nil, nil, ErrInvalidDockerURL
+		return errs(ErrInvalidDockerURL)
 	}
 
 	path := repoURL.Path[1:]
 	hostname := fetcher.registryProvider.ApplyDefaultHostname(repoURL.Host)
 
-	registry, err := fetcher.registryProvider.ProvideRegistry(hostname)
+	r, endpoint, err := fetcher.registryProvider.ProvideRegistry(hostname)
 	if err != nil {
 		logger.Error("failed-to-construct-registry-endpoint", err)
-		return "", nil, nil, fetchError("ProvideRegistry", hostname, path, err)
+		return errs(fetchError("ProvideRegistry", hostname, path, err))
 	}
 
-	repoData, err := registry.GetRepositoryData(path)
-	if err != nil {
-		return "", nil, nil, fetchError("GetRepositoryData", hostname, path, err)
-	}
+	if endpoint.Version == registry.APIVersion2 {
+		auth := registry.NewRequestAuthorization(&cliconfig.AuthConfig{}, endpoint, "", "", []string{})
+		_, manifestBytes, err := r.GetV2ImageManifest(endpoint, path, tag, auth)
+		if err != nil {
+			return errs(fetchError("GetV2ImageManifest", hostname, path, err))
+		}
 
-	tagsList, err := registry.GetRemoteTags(repoData.Endpoints, path)
-	if err != nil {
-		return "", nil, nil, fetchError("GetRemoteTags", hostname, path, err)
-	}
+		var manifest registry.ManifestData
+		if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
+			return errs(fetchError("UnmarshalManifest", hostname, path, err))
+		}
 
-	imgID, ok := tagsList[tag]
-	if !ok {
-		return "", nil, nil, fetchError("looking up tag", hostname, path, fmt.Errorf("unknown tag: %v", tag))
-	}
+		var imageID string
 
-	for _, endpoint := range repoData.Endpoints {
-		fLog.Debug("trying", lager.Data{
-			"endpoint": endpoint,
-			"image":    imgID,
-		})
+		for i := len(manifest.FSLayers) - 1; i >= 0; i-- {
+			hash, err := digest.ParseDigest(manifest.FSLayers[i].BlobSum)
+			if err != nil {
+				return errs(fetchError("ParseDigest", hostname, path, err))
+			}
 
-		var image *dockerImage
-		image, err = fetcher.fetchFromEndpoint(fLog, registry, endpoint, imgID)
-		if err == nil {
-			fLog.Debug("fetched", lager.Data{
+			img, err := image.NewImgJSON([]byte(manifest.History[i].V1Compatibility))
+			if err != nil {
+				return errs(fetchError("NewImgJSON", hostname, path, err))
+			}
+			if i == 0 {
+				imageID = img.ID
+			}
+
+			if !fetcher.graph.Exists(img.ID) {
+				reader, _, err := r.GetV2ImageBlobReader(endpoint, path, hash, auth)
+				if err != nil {
+					return errs(fetchError("GetV2ImageBlobReader", hostname, path, err))
+				}
+				defer reader.Close()
+
+				err = fetcher.graph.Register(img, reader)
+				if err != nil {
+					return errs(fetchError("GraphRegister", hostname, path, err))
+				}
+			}
+		}
+
+		return imageID, process.Env{}, []string{}, nil
+	} else if endpoint.Version == registry.APIVersion1 {
+		repoData, err := r.GetRepositoryData(path)
+		if err != nil {
+			return errs(fetchError("GetRepositoryData", hostname, path, err))
+		}
+
+		tagsList, err := r.GetRemoteTags(repoData.Endpoints, path)
+		if err != nil {
+			return errs(fetchError("GetRemoteTags", hostname, path, err))
+		}
+
+		imgID, ok := tagsList[tag]
+		if !ok {
+			return errs(fetchError("looking up tag", hostname, path, fmt.Errorf("unknown tag: %v", tag)))
+		}
+
+		for _, endpoint := range repoData.Endpoints {
+			fLog.Debug("trying", lager.Data{
 				"endpoint": endpoint,
 				"image":    imgID,
-				"env":      image.Env(),
-				"volumes":  image.Vols(),
 			})
 
-			return imgID, image.Env(), image.Vols(), nil
+			var image *dockerImage
+			image, err = fetcher.fetchFromEndpoint(fLog, r, endpoint, imgID)
+			if err == nil {
+				fLog.Debug("fetched", lager.Data{
+					"endpoint": endpoint,
+					"image":    imgID,
+					"env":      image.Env(),
+					"volumes":  image.Vols(),
+				})
+
+				return imgID, image.Env(), image.Vols(), nil
+			}
 		}
+
+		return errs(fetchError("fetchFromEndPoint", hostname, path, fmt.Errorf("all endpoints failed: %v", err)))
 	}
 
-	return "", nil, nil, fetchError("fetchFromEndPoint", hostname, path, fmt.Errorf("all endpoints failed: %v", err))
+	return errs(errors.New("Unknown docker registry API version"))
 }
 
 func (fetcher *DockerRepositoryFetcher) fetchFromEndpoint(logger lager.Logger, registry Registry, endpoint string, imgID string) (*dockerImage, error) {

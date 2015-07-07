@@ -1,0 +1,17 @@
+{
+  "builders": [
+    {
+      "type": "docker",
+      "image": "registry:2.0.1",
+      "export_path": "rootfs/docker_registry_v2/docker_registry_v2.tar",
+      "run_command": ["-d", "-p", "5000:5000", "-i", "-t", "-e", "REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY=/opt/docker-registry", "{{.Image}}"]
+    }
+  ],
+  "provisioners": [
+    {
+      "type": "shell-local",
+      "command": "rootfs/docker_registry_v2/provision.sh"
+    }
+  ]
+}
+

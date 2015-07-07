@@ -107,7 +107,7 @@ var _ = Describe("RepositoryProvider", func() {
 				endpointReturnsError = errors.New("an error")
 				provider := NewRepositoryProvider("", nil)
 
-				_, err := provider.ProvideRegistry("the-registry-host:44")
+				_, _, err := provider.ProvideRegistry("the-registry-host:44")
 				Expect(err).To(MatchError("an error"))
 			})
 		})
@@ -117,7 +117,7 @@ var _ = Describe("RepositoryProvider", func() {
 				endpointReturnsError = errors.New("some text that has --insecure-registry in it")
 				provider := NewRepositoryProvider("", []string{"foo", "bar"})
 
-				_, err := provider.ProvideRegistry("the-registry-host:44")
+				_, _, err := provider.ProvideRegistry("the-registry-host:44")
 				Expect(err).To(MatchError(
 					&InsecureRegistryError{
 						Cause:              endpointReturnsError,
@@ -131,7 +131,7 @@ var _ = Describe("RepositoryProvider", func() {
 
 	It("creates a new session based on the endpoint", func() {
 		provider := NewRepositoryProvider("", nil)
-		session, err := provider.ProvideRegistry("the-registry-host:44")
+		session, _, err := provider.ProvideRegistry("the-registry-host:44")
 		Expect(err).ToNot(HaveOccurred())
 		Expect(session).To(Equal(returnedSession))
 
@@ -144,7 +144,7 @@ var _ = Describe("RepositoryProvider", func() {
 			sessionReturnsError = errors.New("an error")
 			provider := NewRepositoryProvider("", nil)
 
-			_, err := provider.ProvideRegistry("the-registry-host:44")
+			_, _, err := provider.ProvideRegistry("the-registry-host:44")
 			Expect(err).To(MatchError("an error"))
 		})
 	})

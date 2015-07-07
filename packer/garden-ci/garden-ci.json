@@ -120,6 +120,11 @@
     },
     {
       "type": "file",
+      "source": "rootfs/docker_registry_v2/docker_registry_v2.tar",
+      "destination": "/opt/warden/docker-registry-v2-rootfs.tar"
+    },
+    {
+      "type": "file",
       "source": "rootfs/preexisting_users/preexisting_users.tar",
       "destination": "/opt/warden/preexisting-users-rootfs.tar"
     },    
