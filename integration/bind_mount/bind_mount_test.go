@@ -15,7 +15,7 @@ import (
 	"github.com/onsi/gomega/gexec"
 )
 
-var _ = FDescribe("A container", func() {
+var _ = Describe("A container", func() {
 	var (
 		container          garden.Container
 		containerCreateErr error
@@ -150,6 +150,10 @@ var _ = FDescribe("A container", func() {
 				})
 
 				It("is successfully created with correct privileges for non-root in container", func() {
+					if containerCreateErr != nil {
+						fmt.Printf("Sleeping test because container create failed. Node: %d", GinkgoParallelNode())
+						time.Sleep(2 * time.Hour)
+					}
 					Expect(containerCreateErr).ToNot(HaveOccurred())
 					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, false)
 				})
