@@ -18,8 +18,9 @@ func (c ProcessCapabilities) Limit(extendedWhitelist bool) error {
 		return fmt.Errorf("system: getting capabilities: %s", err)
 	}
 
-	caps.Clear(capability.BOUNDING)
-	caps.Set(capability.BOUNDING,
+	sets := capability.BOUNDING | capability.CAPS
+	caps.Clear(sets)
+	caps.Set(sets,
 		capability.CAP_CHOWN,
 		capability.CAP_DAC_OVERRIDE,
 		capability.CAP_FSETID,
@@ -37,10 +38,10 @@ func (c ProcessCapabilities) Limit(extendedWhitelist bool) error {
 	)
 
 	if extendedWhitelist {
-		caps.Set(capability.BOUNDING, capability.CAP_SYS_ADMIN)
+		caps.Set(sets, capability.CAP_SYS_ADMIN)
 	}
 
-	err = caps.Apply(capability.BOUNDING)
+	err = caps.Apply(sets)
 	if err != nil {
 		return fmt.Errorf("system: applying capabilities: %s", err)
 	}
