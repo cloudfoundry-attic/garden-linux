@@ -2,7 +2,6 @@ package runner
 
 import (
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -73,14 +72,17 @@ func start(network, addr string, argv ...string) *RunningGarden {
 	// 	StartCheckTimeout: 30 * time.Second,
 	// })
 
-	go func(writer io.Writer) {
+	fmt.Println("\n\n ---> BEFORE START GO ROUTINE")
+	go func() {
+		fmt.Println("\n\n ---> BEFORE START GARDEN SERVER (IN GO ROUTINE)")
 		err := c.Run()
 		if err != nil {
-			fmt.Fprintf(writer, "\n\n ERROR GARDEN SERVER !!!!!!!!!! Error on start: %s\n\n", err)
+			fmt.Printf("\n\n ERROR GARDEN SERVER !!!!!!!!!! Error on start: %s\n\n", err)
 		} else {
-			fmt.Fprintf(writer, "\n\n---------> SUCCEED START\n\n")
+			fmt.Printf("\n\n---------> SUCCEED START\n\n")
 		}
-	}(os.Stdout)
+	}()
+	fmt.Println("\n\n ---> AFTER START GO ROUTINE")
 
 	fmt.Printf("\n\n -----------> Process State: %#v", c.ProcessState)
 	time.Sleep(30 * time.Second)
