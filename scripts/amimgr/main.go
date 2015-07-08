@@ -16,16 +16,17 @@ import (
 	"github.com/awslabs/aws-sdk-go/service/ec2"
 )
 
+// export BTRFS_SUPPORTED=true
 var script string = `
 sudo su --login root -c '
-export BTRFS_SUPPORTED=true
+ulimit -n 1000000 &&
 mkdir -p ~/go/src/github.com/cloudfoundry-incubator &&
 	cd ~/go/src/github.com/cloudfoundry-incubator &&
-	git clone git://github.com/cloudfoundry-incubator/garden-linux.git &&
+	git clone git://github.com/cloudfoundry-incubator/garden-linux.git 
 	cd garden-linux &&
-	git reset --hard %s &&
+	git checkout ci-98441480 &&
 	scripts/prepare_btrfs.sh &&
-	scripts/drone-test
+	scripts/drone-test -v 
 '
 `
 
@@ -98,7 +99,7 @@ func main() {
 		stderr:    os.Stderr,
 	}
 
-	exitStatus, err := runCommand(sshClient, instance, fmt.Sprintf(script, *commit))
+	exitStatus, err := runCommand(sshClient, instance, script)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -222,7 +223,7 @@ func (inst *EC2Instance) PublicDNS() (string, error) {
 	}
 
 	for attempt := 1; attempt <= 100; attempt++ {
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(5 * time.Second)
 
 		r, err := inst.ec2Client.DescribeInstances(&ec2.DescribeInstancesInput{
 			InstanceIDs: []*string{inst.instanceInfo.InstanceID},
