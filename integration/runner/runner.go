@@ -105,10 +105,15 @@ func start(network, addr string, argv ...string) *RunningGarden {
 	r.process = c.Process
 	r.Pid = c.Process.Pid
 
-	// psCmd := exec.Command("ps", "-p", strconv.Itoa(r.Pi))
-	// psCmd.Stdout = GinkgoWriter
-	// psCmd.Stderr = GinkgoWriter
-	// Expect(psCmd.Run()).To(Succeed())
+	psCmd := exec.Command("ps", "-p", strconv.Itoa(r.Pid))
+	psCmd.Stdout = GinkgoWriter
+	psCmd.Stderr = GinkgoWriter
+	Expect(psCmd.Run()).To(Succeed())
+
+	lsofSock1 := exec.Command("lsof", addr)
+	lsofSock1.Stdout = GinkgoWriter
+	lsofSock1.Stderr = GinkgoWriter
+	Expect(lsofSock1.Run()).To(Succeed())
 
 	// lsofSock1 := exec.Command("lsof", "/tmp/garden_1.sock")
 	// lsofSock1.Stdout = GinkgoWriter
