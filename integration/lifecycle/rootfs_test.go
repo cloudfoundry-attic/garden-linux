@@ -17,7 +17,7 @@ import (
 
 var dockerRegistryRootFSPath = os.Getenv("GARDEN_DOCKER_REGISTRY_TEST_ROOTFS")
 
-var _ = Describe("Rootfs container create parameter", func() {
+var _ = FDescribe("Rootfs container create parameter", func() {
 	var container garden.Container
 	var args []string
 

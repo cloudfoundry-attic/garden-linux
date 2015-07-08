@@ -9,12 +9,6 @@ import (
 	"github.com/docker/docker/registry"
 )
 
-//go:generate counterfeiter . RegistryProvider
-type RegistryProvider interface {
-	ProvideRegistry(hostname string) (Registry, *registry.Endpoint, error)
-	ApplyDefaultHostname(hostname string) string
-}
-
 type InsecureRegistryError struct {
 	Cause              error
 	Endpoint           string
@@ -42,7 +36,7 @@ func (rp registryProvider) ApplyDefaultHostname(hostname string) string {
 }
 
 // TODO test new signature!!
-func (rp registryProvider) ProvideRegistry(hostname string) (Registry, *registry.Endpoint, error) {
+func (rp registryProvider) ProvideRegistry(hostname string) (*registry.Session, *registry.Endpoint, error) {
 	hostname = rp.ApplyDefaultHostname(hostname)
 
 	endpoint, err := RegistryNewEndpoint(&registry.IndexInfo{

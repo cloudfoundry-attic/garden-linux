@@ -394,6 +394,62 @@ var _ = Describe("Security", func() {
 			Expect(exitStatus).To(Equal(0))
 			Expect(stdout).To(gbytes.Say(`drwxrwxrwt`))
 		})
+
+		Context("in an unprivileged container", func() {
+			var container garden.Container
+			var err error
+
+			JustBeforeEach(func() {
+				client = startGarden()
+				container, err = client.Create(garden.ContainerSpec{Privileged: false})
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("/proc IS mounted as Read-Only", func() {
+				stdout := gbytes.NewBuffer()
+
+				process, err := container.Run(garden.ProcessSpec{
+					User: "root",
+					Path: "cat",
+					Args: []string{"/proc/mounts"},
+				}, garden.ProcessIO{
+					Stdout: stdout,
+					Stderr: GinkgoWriter,
+				})
+
+				Expect(err).ToNot(HaveOccurred())
+				Expect(process.Wait()).To(Equal(0))
+				Expect(stdout).To(gbytes.Say("proc /proc proc ro"))
+			})
+		})
+
+		Context("in a privileged container", func() {
+			var container garden.Container
+			var err error
+
+			JustBeforeEach(func() {
+				client = startGarden()
+				container, err = client.Create(garden.ContainerSpec{Privileged: true})
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("/proc IS mounted as Read-Write", func() {
+				stdout := gbytes.NewBuffer()
+
+				process, err := container.Run(garden.ProcessSpec{
+					User: "root",
+					Path: "cat",
+					Args: []string{"/proc/mounts"},
+				}, garden.ProcessIO{
+					Stdout: stdout,
+					Stderr: GinkgoWriter,
+				})
+
+				Expect(err).ToNot(HaveOccurred())
+				Expect(process.Wait()).To(Equal(0))
+				Expect(stdout).To(gbytes.Say("proc /proc proc rw"))
+			})
+		})
 	})
 
 	Describe("Control groups", func() {

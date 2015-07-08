@@ -9,13 +9,13 @@ import (
 )
 
 type FakeRegistryProvider struct {
-	ProvideRegistryStub        func(hostname string) (repository_fetcher.Registry, *registry.Endpoint, error)
+	ProvideRegistryStub        func(hostname string) (*registry.Session, *registry.Endpoint, error)
 	provideRegistryMutex       sync.RWMutex
 	provideRegistryArgsForCall []struct {
 		hostname string
 	}
 	provideRegistryReturns struct {
-		result1 repository_fetcher.Registry
+		result1 *registry.Session
 		result2 *registry.Endpoint
 		result3 error
 	}
@@ -29,7 +29,7 @@ type FakeRegistryProvider struct {
 	}
 }
 
-func (fake *FakeRegistryProvider) ProvideRegistry(hostname string) (repository_fetcher.Registry, *registry.Endpoint, error) {
+func (fake *FakeRegistryProvider) ProvideRegistry(hostname string) (*registry.Session, *registry.Endpoint, error) {
 	fake.provideRegistryMutex.Lock()
 	fake.provideRegistryArgsForCall = append(fake.provideRegistryArgsForCall, struct {
 		hostname string
@@ -54,10 +54,10 @@ func (fake *FakeRegistryProvider) ProvideRegistryArgsForCall(i int) string {
 	return fake.provideRegistryArgsForCall[i].hostname
 }
 
-func (fake *FakeRegistryProvider) ProvideRegistryReturns(result1 repository_fetcher.Registry, result2 *registry.Endpoint, result3 error) {
+func (fake *FakeRegistryProvider) ProvideRegistryReturns(result1 *registry.Session, result2 *registry.Endpoint, result3 error) {
 	fake.ProvideRegistryStub = nil
 	fake.provideRegistryReturns = struct {
-		result1 repository_fetcher.Registry
+		result1 *registry.Session
 		result2 *registry.Endpoint
 		result3 error
 	}{result1, result2, result3}
