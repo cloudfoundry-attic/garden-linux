@@ -1,15 +1,13 @@
 package runner
 
 import (
-	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
-	"syscall"
-	"time"
 
 	"github.com/cloudfoundry-incubator/garden/client"
 	"github.com/cloudfoundry-incubator/garden/client/connection"
@@ -18,8 +16,6 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/pivotal-golang/lager"
 	"github.com/pivotal-golang/lager/lagertest"
-	"github.com/tedsuo/ifrit"
-	"github.com/tedsuo/ifrit/ginkgomon"
 )
 
 var RootFSPath = os.Getenv("GARDEN_TEST_ROOTFS")
@@ -29,7 +25,8 @@ var GardenBin = "../../out/garden-linux"
 
 type RunningGarden struct {
 	client.Client
-	process ifrit.Process
+	process *os.Process
+	// process ifrit.Process
 
 	Pid int
 
@@ -67,25 +64,25 @@ func start(network, addr string, argv ...string) *RunningGarden {
 	}
 
 	c := cmd(tmpDir, graphPath, network, addr, GardenBin, BinPath, RootFSPath, argv...)
-	r.process = ifrit.Invoke(&ginkgomon.Runner{
-		Name:              "garden-linux",
-		Command:           c,
-		AnsiColorCode:     "31m",
-		StartCheck:        "garden-linux.started",
-		StartCheckTimeout: 30 * time.Second,
-	})
+	// r.process = ifrit.Invoke(&ginkgomon.Runner{
+	// 	Name:              "garden-linux",
+	// 	Command:           c,
+	// 	AnsiColorCode:     "31m",
+	// 	StartCheck:        "garden-linux.started",
+	// 	StartCheckTimeout: 30 * time.Second,
+	// })
 
-	time.Sleep(2 * time.Minute)
+	go func(writer io.Writer) {
+		err := c.Run()
+		if err != nil {
+			fmt.Fprintf(writer, "\n\n ERROR GARDEN SERVER !!!!!!!!!! Error on start: %s\n\n", err)
+		} else {
+			fmt.Fprintf(writer, "\n\n---------> SUCCEED START\n\n")
+		}
+	}(os.Stdout)
 
-	// 	go func() {
-	// 		err := c.Run()
-	// 		if err != nil {
-	// 			fmt.Fprintf(GinkgoWriter, "Error on start: %s", err)
-	// 		} else {
-	// 			fmt.Fprintf(GinkgoWriter, "SUCCEED START")
-	// 		}
-	// 	}()
-
+	Expect(c.Process).ToNot(BeNil())
+	r.process = c.Process
 	r.Pid = c.Process.Pid
 
 	psCmd := exec.Command("ps", "-p", strconv.Itoa(r.Pid))
@@ -122,14 +119,15 @@ func start(network, addr string, argv ...string) *RunningGarden {
 }
 
 func (r *RunningGarden) Kill() error {
-	r.process.Signal(syscall.SIGKILL)
-	select {
-	case err := <-r.process.Wait():
-		return err
-	case <-time.After(time.Second * 10):
-		r.process.Signal(syscall.SIGKILL)
-		return errors.New("timed out waiting for garden to shutdown after 10 seconds")
-	}
+	// r.process.Signal(syscall.SIGKILL)
+	// select {
+	// case err := <-r.process.Wait():
+	// 	return err
+	// case <-time.After(time.Second * 10):
+	// 	r.process.Signal(syscall.SIGKILL)
+	// 	return errors.New("timed out waiting for garden to shutdown after 10 seconds")
+	// }
+	return r.process.Kill()
 }
 
 func (r *RunningGarden) DestroyAndStop() error {
@@ -145,14 +143,15 @@ func (r *RunningGarden) DestroyAndStop() error {
 }
 
 func (r *RunningGarden) Stop() error {
-	r.process.Signal(syscall.SIGTERM)
-	select {
-	case err := <-r.process.Wait():
-		return err
-	case <-time.After(time.Second * 10):
-		r.process.Signal(syscall.SIGKILL)
-		return errors.New("timed out waiting for garden to shutdown after 10 seconds")
-	}
+	// r.process.Signal(syscall.SIGTERM)
+	// select {
+	// case err := <-r.process.Wait():
+	// 	return err
+	// case <-time.After(time.Second * 10):
+	// 	r.process.Signal(syscall.SIGKILL)
+	// 	return errors.New("timed out waiting for garden to shutdown after 10 seconds")
+	// }
+	return r.process.Kill()
 }
 
 func cmd(tmpdir, graphPath, network, addr, bin, binPath, RootFSPath string, argv ...string) *exec.Cmd {
