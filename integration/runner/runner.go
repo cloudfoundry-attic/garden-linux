@@ -73,15 +73,16 @@ func start(network, addr string, argv ...string) *RunningGarden {
 	// })
 
 	fmt.Println("\n\n ---> BEFORE START GO ROUTINE")
-	go func() {
-		fmt.Println("\n\n ---> BEFORE START GARDEN SERVER (IN GO ROUTINE)")
-		err := c.Run()
-		if err != nil {
-			fmt.Printf("\n\n ERROR GARDEN SERVER !!!!!!!!!! Error on start: %s\n\n", err)
-		} else {
-			fmt.Printf("\n\n---------> SUCCEED START\n\n")
-		}
-	}()
+	Expect(c.Start()).To(Succeed())
+	// go func() {
+	// 	fmt.Println("\n\n ---> BEFORE START GARDEN SERVER (IN GO ROUTINE)")
+	// 	err := c.Run()
+	// 	if err != nil {
+	// 		fmt.Printf("\n\n ERROR GARDEN SERVER !!!!!!!!!! Error on start: %s\n\n", err)
+	// 	} else {
+	// 		fmt.Printf("\n\n---------> SUCCEED START\n\n")
+	// 	}
+	// }()
 	fmt.Println("\n\n ---> AFTER START GO ROUTINE")
 
 	fmt.Printf("\n\n -----------> Process State: %#v", c.ProcessState)
