@@ -49,7 +49,7 @@ var _ = Describe("Detach", func() {
 
 		defer session.Kill()
 
-		lsof, err = gexec.Start(exec.Command("lsof", "-p", fmt.Sprintf("%d", detachCmd.Process.Pid)), GinkgoWriter, GinkgoWriter)
+		lsof, err = gexec.Start(exec.Command("lsof", "-n", "-p", fmt.Sprintf("%d", detachCmd.Process.Pid)), GinkgoWriter, GinkgoWriter)
 		Expect(err).NotTo(HaveOccurred())
 		Eventually(lsof).Should(gexec.Exit(0))
 	})
