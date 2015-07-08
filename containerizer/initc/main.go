@@ -19,11 +19,13 @@ import (
 	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
 )
 
+func init() {
+	runtime.LockOSThread()
+}
+
 // initc initializes a newly created container and then execs to become
 // the init process
 func main() {
-	runtime.LockOSThread()
-
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Fprintf(os.Stderr, "initc: panicked: %s\n", r)

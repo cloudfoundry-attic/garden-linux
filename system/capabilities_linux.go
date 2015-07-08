@@ -7,12 +7,15 @@ import (
 	"github.com/syndtr/gocapability/capability"
 )
 
+func init() {
+	runtime.LockOSThread()
+}
+
 type ProcessCapabilities struct {
 	Pid int
 }
 
 func (c ProcessCapabilities) Limit(extendedWhitelist bool) error {
-	runtime.LockOSThread()
 	caps, err := capability.NewPid(c.Pid)
 	if err != nil {
 		return fmt.Errorf("system: getting capabilities: %s", err)

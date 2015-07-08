@@ -17,6 +17,10 @@ import (
 	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
 )
 
+func init() {
+	runtime.LockOSThread()
+}
+
 func main() {
 	libPath := flag.String("lib", "./lib", "Directory containing hooks")
 	rootFsPath := flag.String("root", "", "Directory that will become root in the new mount namespace")
@@ -58,8 +62,6 @@ func main() {
 		Reader: hostReader,
 		Writer: hostWriter,
 	}
-
-	runtime.LockOSThread()
 
 	env, err := process.EnvFromFile(path.Join(*libPath, "../etc/config"))
 	if err != nil {

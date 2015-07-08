@@ -14,11 +14,13 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/system"
 )
 
+func init() {
+	runtime.LockOSThread()
+}
+
 // proc_starter starts a user process with the correct rlimits and after
 // closing any open FDs.
 func main() {
-	runtime.LockOSThread()
-
 	rlimits := flag.String("rlimits", "", "encoded rlimits")
 	dropCapabilities := flag.Bool("dropCapabilities", true, "drop capabilities before starting process")
 	uid := flag.Int("uid", -1, "user id to run the process as")

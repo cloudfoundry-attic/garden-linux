@@ -8,11 +8,13 @@ import (
 	"syscall"
 )
 
+func init() {
+	runtime.LockOSThread()
+}
+
 type UserExecer struct{}
 
 func (UserExecer) ExecAsUser(uid, gid int, programName string, args ...string) error {
-	runtime.LockOSThread()
-
 	if _, _, errNo := syscall.RawSyscall(syscall.SYS_SETGID, uintptr(gid), 0, 0); errNo != 0 {
 		return fmt.Errorf("system: setgid: %s", errNo.Error())
 	}
