@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/cloudfoundry-incubator/garden/client"
 	"github.com/cloudfoundry-incubator/garden/client/connection"
@@ -80,6 +81,10 @@ func start(network, addr string, argv ...string) *RunningGarden {
 			fmt.Fprintf(writer, "\n\n---------> SUCCEED START\n\n")
 		}
 	}(os.Stdout)
+
+	fmt.Printf("\n\n -----------> Process State: %#v", c.ProcessState)
+	time.Sleep(30 * time.Second)
+	fmt.Printf("\n\n -----------> Process State: %#v", c.ProcessState)
 
 	Expect(c.Process).ToNot(BeNil())
 	r.process = c.Process
