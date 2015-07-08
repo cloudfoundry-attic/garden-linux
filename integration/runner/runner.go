@@ -57,14 +57,14 @@ func Start(argv ...string) *RunningGarden {
 func start(network, addr string, argv ...string) *RunningGarden {
 	tmpDir := filepath.Join(
 		os.TempDir(),
-		fmt.Sprintf("test-garden-%d", ginkgo.GinkgoParallelNode()),
+		fmt.Sprintf("test-garden-%d-%s", ginkgo.GinkgoParallelNode(), randSeq(5)),
 	)
 
 	if GraphRoot == "" {
 		GraphRoot = filepath.Join(tmpDir, "graph")
 	}
 
-	graphPath := filepath.Join(GraphRoot, fmt.Sprintf("node-%d", ginkgo.GinkgoParallelNode()))
+	graphPath := filepath.Join(GraphRoot, fmt.Sprintf("node-%d-%s", ginkgo.GinkgoParallelNode(), randSeq(5)))
 
 	r := &RunningGarden{
 		GraphRoot: GraphRoot,
