@@ -14,6 +14,8 @@ import (
 )
 
 var _ = Describe("Limits", func() {
+	const BTRFS_WAIT_TIME = 90
+
 	var container garden.Container
 	var startGardenArgs []string
 
@@ -112,9 +114,6 @@ var _ = Describe("Limits", func() {
 			BeforeEach(func() {
 				privilegedContainer = false
 				rootfs = runner.RootFSPath
-			})
-
-			BeforeEach(func() {
 				quotaLimit = garden.DiskLimits{
 					ByteSoft: 180 * 1024 * 1024,
 					ByteHard: 180 * 1024 * 1024,
@@ -163,7 +162,7 @@ var _ = Describe("Limits", func() {
 					}
 
 					expectedBytes := (diskUsage * 1024) + uint64(10*1024*1024)
-					Eventually(metrics, 90, 30).Should(BeNumerically("~", expectedBytes, 1269760))
+					Eventually(metrics, BTRFS_WAIT_TIME, 30).Should(BeNumerically("~", expectedBytes, 1269760))
 
 					process, err = container.Run(garden.ProcessSpec{
 						User: "vcap",
@@ -174,7 +173,7 @@ var _ = Describe("Limits", func() {
 					Expect(process.Wait()).To(Equal(0))
 
 					expectedBytes = (diskUsage * 1024) + uint64(20*1024*1024)
-					Eventually(metrics, 90, 30).Should(BeNumerically("~", expectedBytes, 1269760))
+					Eventually(metrics, BTRFS_WAIT_TIME, 30).Should(BeNumerically("~", expectedBytes, 1269760))
 				})
 
 				Context("on a rootfs with pre-existing users", func() {
@@ -196,7 +195,7 @@ var _ = Describe("Limits", func() {
 							dd, err := container.Run(garden.ProcessSpec{
 								User: "bob",
 								Path: "dd",
-								Args: []string{"if=/dev/zero", "of=/home/bob/test", "count=22528"},
+								Args: []string{"if=/dev/zero", "of=/home/bob/test", "bs=1M", "count=11"},
 							}, garden.ProcessIO{})
 							Expect(err).ToNot(HaveOccurred())
 							Expect(dd.Wait()).ToNot(Equal(0))
@@ -248,18 +247,21 @@ var _ = Describe("Limits", func() {
 				Context("on a rootfs with pre-existing users", func() {
 					BeforeEach(func() {
 						rootfs = "docker:///cloudfoundry/preexisting_users"
-						quotaLimit = garden.DiskLimits{
-							ByteSoft: 10 * 1024 * 1024,
-							ByteHard: 10 * 1024 * 1024,
-						}
 					})
 
 					Context("and run a process that exceeds the quota as bob", func() {
+						BeforeEach(func() {
+							quotaLimit = garden.DiskLimits{
+								ByteSoft: 10 * 1024 * 1024,
+								ByteHard: 10 * 1024 * 1024,
+							}
+						})
+
 						It("kills the process", func() {
 							dd, err := container.Run(garden.ProcessSpec{
 								User: "bob",
 								Path: "dd",
-								Args: []string{"if=/dev/zero", "of=/home/bob/test", "count=22528"},
+								Args: []string{"if=/dev/zero", "of=/home/bob/test", "bs=1M", "count=11"},
 							}, garden.ProcessIO{})
 							Expect(err).ToNot(HaveOccurred())
 							Expect(dd.Wait()).ToNot(Equal(0))
@@ -267,12 +269,66 @@ var _ = Describe("Limits", func() {
 					})
 
 					Context("and run a process that exceeds the quota as alice", func() {
+						BeforeEach(func() {
+							quotaLimit = garden.DiskLimits{
+								ByteSoft: 10 * 1024 * 1024,
+								ByteHard: 10 * 1024 * 1024,
+							}
+						})
+
 						It("kills the process", func() {
 							dd, err := container.Run(garden.ProcessSpec{
 								User: "alice",
 								Path: "dd",
 								Args: []string{"if=/dev/zero", "of=/home/alice/test", "bs=1M", "count=11"},
 							}, garden.ProcessIO{})
+							Expect(err).ToNot(HaveOccurred())
+							Expect(dd.Wait()).ToNot(Equal(0))
+						})
+					})
+
+					Context("user alice is getting near the set limit", func() {
+						JustBeforeEach(func() {
+							metrics := func() uint64 {
+								metricsAfter, err := container.Metrics()
+								Expect(err).ToNot(HaveOccurred())
+
+								return metricsAfter.DiskStat.BytesUsed
+							}
+
+							Eventually(metrics, BTRFS_WAIT_TIME, 30).Should(BeNumerically("~", uint64(10*1024*1024), 1024*1024))
+
+							bytesUsed := metrics()
+
+							quotaLimit = garden.DiskLimits{
+								ByteSoft: 10*1024*1024 + bytesUsed,
+								ByteHard: 10*1024*1024 + bytesUsed,
+							}
+
+							err := container.LimitDisk(quotaLimit)
+							Expect(err).ToNot(HaveOccurred())
+
+							dd, err := container.Run(garden.ProcessSpec{
+								User: "alice",
+								Path: "dd",
+								Args: []string{"if=/dev/zero", "of=/home/alice/test", "bs=1M", "count=8"},
+							}, garden.ProcessIO{
+								Stderr: GinkgoWriter,
+								Stdout: GinkgoWriter,
+							})
+							Expect(err).ToNot(HaveOccurred())
+							Expect(dd.Wait()).To(Equal(0))
+						})
+
+						It("kills the process if user bob tries to exceed the shared limit", func() {
+							dd, err := container.Run(garden.ProcessSpec{
+								User: "bob",
+								Path: "dd",
+								Args: []string{"if=/dev/zero", "of=/home/bob/test", "bs=1M", "count=3"},
+							}, garden.ProcessIO{
+								Stderr: GinkgoWriter,
+								Stdout: GinkgoWriter,
+							})
 							Expect(err).ToNot(HaveOccurred())
 							Expect(dd.Wait()).ToNot(Equal(0))
 						})

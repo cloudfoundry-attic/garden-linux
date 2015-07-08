@@ -223,10 +223,9 @@ var _ = Describe("Rootfs container create parameter", func() {
 								v2 = true
 							})
 
-							PIt("creates the container successfully", func() {
+							It("creates the container successfully", func() {
 								_, err := client.Create(garden.ContainerSpec{
-									RootFSPath: fmt.Sprintf("docker://%s:%s/busybox", dockerRegistryIP,
-										dockerRegistryPort),
+									RootFSPath: fmt.Sprintf("docker://%s/busybox", serverURL.Host),
 								})
 								Expect(err).ToNot(HaveOccurred())
 							})
