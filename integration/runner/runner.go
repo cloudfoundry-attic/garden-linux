@@ -2,6 +2,7 @@ package runner
 
 import (
 	"fmt"
+	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -37,8 +38,19 @@ type RunningGarden struct {
 	logger lager.Logger
 }
 
+var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+
+func randSeq(n int) string {
+	rand.Seed(time.Now().Unix())
+	b := make([]rune, n)
+	for i := range b {
+		b[i] = letters[rand.Intn(len(letters))]
+	}
+	return string(b)
+}
+
 func Start(argv ...string) *RunningGarden {
-	gardenAddr := fmt.Sprintf("/tmp/garden_%d.sock", GinkgoParallelNode())
+	gardenAddr := fmt.Sprintf("/tmp/garden_%d_%s.sock", GinkgoParallelNode(), randSeq(5))
 	return start("unix", gardenAddr, argv...)
 }
 
