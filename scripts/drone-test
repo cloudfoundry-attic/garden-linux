@@ -21,7 +21,7 @@ make
 
 go install github.com/onsi/ginkgo/ginkgo
 
-ginkgo -r -p -race -cover -nodes=4 -seed=1436262803 "$@"
+ginkgo -r -p -race -cover -keepGoing -nodes=4 -seed=1436262803 "$@"
 
 # don't leak coveralls token
 set +x
