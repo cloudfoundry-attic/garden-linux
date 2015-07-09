@@ -3,6 +3,7 @@ package runner
 import (
 	"errors"
 	"fmt"
+	"math/rand"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -41,21 +42,20 @@ type RunningGarden struct {
 }
 
 func Start(argv ...string) *RunningGarden {
-	gardenAddr := fmt.Sprintf("/tmp/garden_%d.sock", GinkgoParallelNode())
-	return start("unix", gardenAddr, argv...)
-}
+	network := "unix"
+	instanceName := randomString(10)
+	addr := fmt.Sprintf("/tmp/garden_%d_%s.sock", GinkgoParallelNode(), instanceName)
 
-func start(network, addr string, argv ...string) *RunningGarden {
 	tmpDir := filepath.Join(
 		os.TempDir(),
-		fmt.Sprintf("test-garden-%d", ginkgo.GinkgoParallelNode()),
+		fmt.Sprintf("test-garden-%d-%s", ginkgo.GinkgoParallelNode(), instanceName),
 	)
 
 	if GraphRoot == "" {
 		GraphRoot = filepath.Join(tmpDir, "graph")
 	}
 
-	graphPath := filepath.Join(GraphRoot, fmt.Sprintf("node-%d", ginkgo.GinkgoParallelNode()))
+	graphPath := filepath.Join(GraphRoot, fmt.Sprintf("node-%d-%s", ginkgo.GinkgoParallelNode(), instanceName))
 
 	r := &RunningGarden{
 		GraphRoot: GraphRoot,
@@ -71,7 +71,7 @@ func start(network, addr string, argv ...string) *RunningGarden {
 		Name:              "garden-linux",
 		Command:           c,
 		AnsiColorCode:     "31m",
-		StartCheck:        "garden-linux.started",
+		StartCheck:        "garden-linux.connection.open",
 		StartCheckTimeout: 30 * time.Second,
 	})
 	r.Pid = c.Process.Pid
@@ -237,4 +237,14 @@ func (r *RunningGarden) DestroyContainers() error {
 	}
 
 	return nil
+}
+
+func randomString(n int) string {
+	var letters = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ")
+	rand.Seed(time.Now().Unix())
+	buffer := make([]rune, n)
+	for i := range buffer {
+		buffer[i] = letters[rand.Intn(len(letters))]
+	}
+	return string(buffer)
 }
