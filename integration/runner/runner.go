@@ -74,7 +74,19 @@ func Start(argv ...string) *RunningGarden {
 		StartCheck:        "garden-linux.started",
 		StartCheckTimeout: 30 * time.Second,
 	})
+
 	r.Pid = c.Process.Pid
+	startTime := time.Now()
+	for {
+		time.Sleep(1 * time.Second)
+		if err := r.Client.Ping(); err == nil {
+			break
+		}
+
+		if time.Now().Sub(startTime) > 5*time.Minute {
+			panic("Starting garden-server timeout")
+		}
+	}
 
 	return r
 }
