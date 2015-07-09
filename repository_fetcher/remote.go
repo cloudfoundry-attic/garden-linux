@@ -51,7 +51,7 @@ type dockerLayer struct {
 }
 
 func NewRemote(registry RegistryProvider, graph Graph) RepositoryFetcher {
-	lock := &GraphLock{}
+	lock := NewGraphLock()
 
 	return &DockerRepositoryFetcher{
 		v1:               &RemoteV1Fetcher{Graph: graph, GraphLock: lock},
@@ -123,25 +123,3 @@ func (fetcher *DockerRepositoryFetcher) Fetch(
 
 	return response.ImageID, response.Env, response.Volumes, nil
 }
-
-//func (fetcher *DockerRepositoryFetcher) fetching(layerID string) bool {
-//	fetcher.fetchingMutex.Lock()
-//
-//	fetching, found := fetcher.fetchingLayers[layerID]
-//	if !found {
-//		fetcher.fetchingLayers[layerID] = make(chan struct{})
-//		fetcher.fetchingMutex.Unlock()
-//		return true
-//	} else {
-//		fetcher.fetchingMutex.Unlock()
-//		<-fetching
-//		return false
-//	}
-//}
-//
-//func (fetcher *DockerRepositoryFetcher) doneFetching(layerID string) {
-//	fetcher.fetchingMutex.Lock()
-//	close(fetcher.fetchingLayers[layerID])
-//	delete(fetcher.fetchingLayers, layerID)
-//	fetcher.fetchingMutex.Unlock()
-//}

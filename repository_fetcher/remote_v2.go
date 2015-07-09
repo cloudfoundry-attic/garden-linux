@@ -42,20 +42,30 @@ func (fetcher *RemoteV2Fetcher) Fetch(request *FetchRequest) (*FetchResponse, er
 			lastImg = img
 		}
 
-		// TODO: Concurrent pulling?
-		if !fetcher.Graph.Exists(img.ID) {
-			reader, _, err := request.Session.GetV2ImageBlobReader(request.Endpoint, request.Path, hash, auth)
-			if err != nil {
-				return nil, FetchError("GetV2ImageBlobReader", request.Hostname, request.Path, err)
-			}
-			defer reader.Close()
-
-			err = fetcher.Graph.Register(img, reader)
-			if err != nil {
-				return nil, FetchError("GraphRegister", request.Hostname, request.Path, err)
-			}
+		if err := fetcher.fetchLayer(request, img, hash, auth); err != nil {
+			return nil, err
 		}
 	}
 
 	return &FetchResponse{ImageID: lastImg.ID}, nil
+}
+
+func (fetcher *RemoteV2Fetcher) fetchLayer(request *FetchRequest, img *image.Image, hash digest.Digest, auth *registry.RequestAuthorization) error {
+	fetcher.GraphLock.Acquire(img.ID)
+	defer fetcher.GraphLock.Release(img.ID)
+
+	if !fetcher.Graph.Exists(img.ID) {
+		reader, _, err := request.Session.GetV2ImageBlobReader(request.Endpoint, request.Path, hash, auth)
+		if err != nil {
+			return FetchError("GetV2ImageBlobReader", request.Hostname, request.Path, err)
+		}
+		defer reader.Close()
+
+		err = fetcher.Graph.Register(img, reader)
+		if err != nil {
+			return FetchError("GraphRegister", request.Hostname, request.Path, err)
+		}
+	}
+
+	return nil
 }

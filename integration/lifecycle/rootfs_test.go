@@ -17,7 +17,7 @@ import (
 
 var dockerRegistryRootFSPath = os.Getenv("GARDEN_DOCKER_REGISTRY_TEST_ROOTFS")
 
-var _ = FDescribe("Rootfs container create parameter", func() {
+var _ = Describe("Rootfs container create parameter", func() {
 	var container garden.Container
 	var args []string
 
@@ -223,10 +223,9 @@ var _ = FDescribe("Rootfs container create parameter", func() {
 								v2 = true
 							})
 
-							PIt("creates the container successfully", func() {
+							It("creates the container successfully", func() {
 								_, err := client.Create(garden.ContainerSpec{
-									RootFSPath: fmt.Sprintf("docker://%s:%s/busybox", dockerRegistryIP,
-										dockerRegistryPort),
+									RootFSPath: fmt.Sprintf("docker://%s/busybox", serverURL.Host),
 								})
 								Expect(err).ToNot(HaveOccurred())
 							})

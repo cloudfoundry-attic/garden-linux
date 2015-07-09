@@ -78,10 +78,8 @@ func (fetcher *RemoteV1Fetcher) fetchFromEndpoint(request *FetchRequest, endpoin
 }
 
 func (fetcher *RemoteV1Fetcher) fetchLayer(request *FetchRequest, endpointURL string, layerID string) (*dockerLayer, error) {
-
-	//	for acquired := false; !acquired; acquired = fetcher.fetching(layerID) {
-	//	}
-	//	defer fetcher.doneFetching(layerID)
+	fetcher.GraphLock.Acquire(layerID)
+	defer fetcher.GraphLock.Release(layerID)
 
 	img, err := fetcher.Graph.Get(layerID)
 	if err == nil {
