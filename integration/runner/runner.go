@@ -179,9 +179,9 @@ func cmd(tmpdir, graphPath, network, addr, bin, binPath, RootFSPath string, argv
 }
 
 func (r *RunningGarden) Cleanup() {
-	//	if err := os.RemoveAll(r.graphPath); err != nil {
-	//		r.logger.Error("remove graph", err)
-	//	}
+	if err := os.RemoveAll(r.graphPath); err != nil {
+		r.logger.Error("remove graph", err)
+	}
 
 	if os.Getenv("BTRFS_SUPPORTED") != "" {
 		r.cleanupSubvolumes()
