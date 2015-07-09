@@ -23,9 +23,9 @@ mkdir -p ~/go/src/github.com/cloudfoundry-incubator &&
 	cd ~/go/src/github.com/cloudfoundry-incubator &&
 	git clone git://github.com/cloudfoundry-incubator/garden-linux.git &&
 	cd garden-linux &&
-	git reset --hard %s &&
+	git checkout ci-flakes-bind-mount-98441480-ifrit &&
 	scripts/prepare_btrfs.sh &&
-	scripts/drone-test
+	scripts/drone-test integration/bind_mount -seed=1436262803 -v
 '
 `
 
@@ -98,7 +98,7 @@ func main() {
 		stderr:    os.Stderr,
 	}
 
-	exitStatus, err := runCommand(sshClient, instance, fmt.Sprintf(script, *commit))
+	exitStatus, err := runCommand(sshClient, instance, script)
 	if err != nil {
 		log.Fatal(err)
 	}
