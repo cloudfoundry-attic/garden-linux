@@ -74,6 +74,7 @@ func Start(argv ...string) *RunningGarden {
 		if err := r.Client.Ping(); err != nil {
 			fmt.Printf("Ping error: %s\n", err)
 		} else {
+			fmt.Println("[DEBUG] Ping OK!")
 			break
 		}
 
@@ -84,25 +85,25 @@ func Start(argv ...string) *RunningGarden {
 
 		fmt.Println("IN [PING] LOOP INFO")
 		psCmd := exec.Command("ps", "-p", strconv.Itoa(c.Process.Pid))
-		psCmd.Stdout = GinkgoWriter
-		psCmd.Stderr = GinkgoWriter
+		psCmd.Stdout = os.Stdout
+		psCmd.Stderr = os.Stdout
 		psCmd.Run()
 
 		lsofSock1 := exec.Command("lsof", addr)
-		lsofSock1.Stdout = GinkgoWriter
-		lsofSock1.Stderr = GinkgoWriter
+		lsofSock1.Stdout = os.Stdout
+		lsofSock1.Stderr = os.Stdout
 		lsofSock1.Run()
 	}
 
 	fmt.Println("After [PING] LOOP INFO")
 	psCmd := exec.Command("ps", "-p", strconv.Itoa(c.Process.Pid))
-	psCmd.Stdout = GinkgoWriter
-	psCmd.Stderr = GinkgoWriter
+	psCmd.Stdout = os.Stdout
+	psCmd.Stderr = os.Stdout
 	psCmd.Run()
 
 	lsofSock1 := exec.Command("lsof", addr)
-	lsofSock1.Stdout = GinkgoWriter
-	lsofSock1.Stderr = GinkgoWriter
+	lsofSock1.Stdout = os.Stdout
+	lsofSock1.Stderr = os.Stdout
 	lsofSock1.Run()
 
 	r.process = c.Process
