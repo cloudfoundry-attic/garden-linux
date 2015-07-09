@@ -63,8 +63,48 @@ func Start(argv ...string) *RunningGarden {
 	}
 
 	c := cmd(tmpDir, graphPath, network, addr, GardenBin, BinPath, RootFSPath, argv...)
+	c.Stdout = GinkgoWriter
+	c.Stderr = GinkgoWriter
 	Expect(c.Start()).To(Succeed())
-	time.Sleep(2 * time.Minute)
+
+	startTime := time.Now()
+	for {
+		fmt.Println("[DEBUG] Ping server")
+		time.Sleep(1 * time.Second)
+		if err := r.Client.Ping(); err != nil {
+			fmt.Printf("Ping error: %s\n", err)
+		} else {
+			break
+		}
+
+		if time.Now().Sub(startTime) > 10*time.Minute {
+			fmt.Println("[DEBUG] Ping TIMEOUT")
+			break
+		}
+
+		fmt.Println("IN [PING] LOOP INFO")
+		psCmd := exec.Command("ps", "-p", strconv.Itoa(c.Process.Pid))
+		psCmd.Stdout = GinkgoWriter
+		psCmd.Stderr = GinkgoWriter
+		psCmd.Run()
+
+		lsofSock1 := exec.Command("lsof", addr)
+		lsofSock1.Stdout = GinkgoWriter
+		lsofSock1.Stderr = GinkgoWriter
+		lsofSock1.Run()
+	}
+
+	fmt.Println("After [PING] LOOP INFO")
+	psCmd := exec.Command("ps", "-p", strconv.Itoa(c.Process.Pid))
+	psCmd.Stdout = GinkgoWriter
+	psCmd.Stderr = GinkgoWriter
+	psCmd.Run()
+
+	lsofSock1 := exec.Command("lsof", addr)
+	lsofSock1.Stdout = GinkgoWriter
+	lsofSock1.Stderr = GinkgoWriter
+	lsofSock1.Run()
+
 	r.process = c.Process
 	r.Pid = c.Process.Pid
 
