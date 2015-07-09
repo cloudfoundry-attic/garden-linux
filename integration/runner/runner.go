@@ -1,6 +1,7 @@
 package runner
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"os"
@@ -8,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden/client"
@@ -17,6 +19,8 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/pivotal-golang/lager"
 	"github.com/pivotal-golang/lager/lagertest"
+	"github.com/tedsuo/ifrit"
+	"github.com/tedsuo/ifrit/ginkgomon"
 )
 
 var RootFSPath = os.Getenv("GARDEN_TEST_ROOTFS")
@@ -26,7 +30,7 @@ var GardenBin = "../../out/garden-linux"
 
 type RunningGarden struct {
 	client.Client
-	process *os.Process
+	process ifrit.Process
 
 	Pid int
 
@@ -63,9 +67,13 @@ func Start(argv ...string) *RunningGarden {
 	}
 
 	c := cmd(tmpDir, graphPath, network, addr, GardenBin, BinPath, RootFSPath, argv...)
-	c.Stdout = GinkgoWriter
-	c.Stderr = GinkgoWriter
-	Expect(c.Start()).To(Succeed())
+	r.process = ifrit.Invoke(&ginkgomon.Runner{
+		Name:              "garden-linux",
+		Command:           c,
+		AnsiColorCode:     "31m",
+		StartCheck:        "garden-linux.connection.open",
+		StartCheckTimeout: 30 * time.Second,
+	})
 
 	startTime := time.Now()
 	for {
@@ -106,14 +114,20 @@ func Start(argv ...string) *RunningGarden {
 	lsofSock1.Stderr = os.Stdout
 	lsofSock1.Run()
 
-	r.process = c.Process
 	r.Pid = c.Process.Pid
 
 	return r
 }
 
 func (r *RunningGarden) Kill() error {
-	return r.process.Kill()
+	r.process.Signal(syscall.SIGKILL)
+	select {
+	case err := <-r.process.Wait():
+		return err
+	case <-time.After(time.Second * 10):
+		r.process.Signal(syscall.SIGKILL)
+		return errors.New("timed out waiting for garden to shutdown after 10 seconds")
+	}
 }
 
 func (r *RunningGarden) DestroyAndStop() error {
@@ -129,7 +143,14 @@ func (r *RunningGarden) DestroyAndStop() error {
 }
 
 func (r *RunningGarden) Stop() error {
-	return r.process.Kill()
+	r.process.Signal(syscall.SIGTERM)
+	select {
+	case err := <-r.process.Wait():
+		return err
+	case <-time.After(time.Second * 10):
+		r.process.Signal(syscall.SIGKILL)
+		return errors.New("timed out waiting for garden to shutdown after 10 seconds")
+	}
 }
 
 func cmd(tmpdir, graphPath, network, addr, bin, binPath, RootFSPath string, argv ...string) *exec.Cmd {
