@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
+	"time"
 
 	"net/http"
 	_ "net/http/pprof"
@@ -240,6 +241,14 @@ func main() {
 	go func() {
 		log.Println(http.ListenAndServe("0.0.0.0:608"+*tag, nil))
 	}()
+
+	fmt.Println("Garden server PPROF enabled on port :608" + *tag)
+	for sleepCount := 1; sleepCount <= 30; sleepCount++ {
+		time.Sleep(time.Second)
+		fmt.Printf("Sleeping for %d s\n", sleepCount)
+	}
+
+	fmt.Println("Continue...")
 
 	_, dynamicRange, err := net.ParseCIDR(*networkPool)
 	if err != nil {
