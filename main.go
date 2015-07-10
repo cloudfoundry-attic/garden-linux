@@ -242,7 +242,7 @@ func main() {
 		log.Println(http.ListenAndServe("0.0.0.0:608"+*tag, nil))
 	}()
 
-	file, _ := os.OpenFile("/tmp/garden-linux.log", os.O_APPEND|os.O_CREATE|os.O_SYNC, 0777)
+	file, _ := os.OpenFile("/tmp/garden-linux.log", os.O_APPEND|os.O_RDWR, 0777)
 
 	fmt.Fprintln(file, "Garden server PPROF enabled on port :608"+*tag)
 	for sleepCount := 1; sleepCount <= 30; sleepCount++ {
