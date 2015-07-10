@@ -243,11 +243,11 @@ func main() {
 	}()
 
 	file, _ := os.OpenFile("/tmp/garden-linux.log", os.O_APPEND|os.O_RDWR, 0777)
-
-	fmt.Fprintln(file, "Garden server PPROF enabled on port :608"+*tag)
+	pprofPort := ":608" + *tag
+	fmt.Fprintln(file, "Garden server PPROF enabled on port "+pprofPort)
 	for sleepCount := 1; sleepCount <= 30; sleepCount++ {
 		time.Sleep(time.Second)
-		fmt.Fprintf(file, "Sleeping for %d s\n", sleepCount)
+		fmt.Fprintf(file, pprofPort+" Sleeping for %d s\n", sleepCount)
 	}
 
 	fmt.Fprintln(file, "Continue...")
