@@ -250,7 +250,7 @@ func main() {
 		fmt.Fprintf(file, pprofPort+" Sleeping for %d s\n", sleepCount)
 	}
 
-	fmt.Fprintln(file, "Continue...")
+	fmt.Fprintln(file, pprofPort+" Continue...")
 	file.Close()
 
 	_, dynamicRange, err := net.ParseCIDR(*networkPool)
