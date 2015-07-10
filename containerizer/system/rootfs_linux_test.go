@@ -41,23 +41,41 @@ var _ = Describe("RootfsLinux", func() {
 		Expect(stdout).To(gbytes.Say("potato"))
 	})
 
-	It("pivots in to a given rootfs containing bind mounts", func() {
-		rootfsDir, err := ioutil.TempDir("", "rootfs")
-		Expect(err).ToNot(HaveOccurred())
-		defer os.RemoveAll(rootfsDir)
-		Expect(os.Mkdir(filepath.Join(rootfsDir, "a-bind-mount"), 0755)).To(Succeed())
+	Context("when the rootfs contains bind mounts", func() {
+		var (
+			rootfsDir          string
+			targetBindMountDir string
+			sourceBindMountDir string
+		)
 
-		bindMount, err := ioutil.TempDir("", "bnds")
-		Expect(err).ToNot(HaveOccurred())
-		defer os.RemoveAll(bindMount)
+		BeforeEach(func() {
+			var err error
+			rootfsDir, err = ioutil.TempDir("", "rootfs")
+			Expect(err).ToNot(HaveOccurred())
 
-		Expect(syscall.Mount(bindMount, path.Join(rootfsDir, "a-bind-mount"), "", uintptr(syscall.MS_BIND), "")).To(Succeed())
+			targetBindMountDir = filepath.Join(rootfsDir, "a-bind-mount")
+			Expect(os.Mkdir(targetBindMountDir, 0755)).To(Succeed())
 
-		stdout := gbytes.NewBuffer()
-		out := io.MultiWriter(stdout, GinkgoWriter)
-		Expect(runInContainer(out, out, false, "fake_container", rootfsDir)).To(Succeed())
-		Expect(stdout).ToNot(gbytes.Say("home"))
-		Expect(stdout).To(gbytes.Say("a-bind-mount"))
+			sourceBindMountDir, err = ioutil.TempDir("", "bnds")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(syscall.Mount(sourceBindMountDir, targetBindMountDir, "", uintptr(syscall.MS_BIND), "")).To(Succeed())
+		})
+
+		AfterEach(func() {
+			Expect(syscall.Unmount(targetBindMountDir, 0)).To(Succeed())
+			os.RemoveAll(sourceBindMountDir)
+			os.RemoveAll(targetBindMountDir)
+			os.RemoveAll(rootfsDir)
+		})
+
+		It("pivots in to the given rootfs", func() {
+			stdout := gbytes.NewBuffer()
+			out := io.MultiWriter(stdout, GinkgoWriter)
+			Expect(runInContainer(out, out, false, "fake_container", rootfsDir)).To(Succeed())
+			Expect(stdout).ToNot(gbytes.Say("home"))
+			Expect(stdout).To(gbytes.Say("a-bind-mount"))
+		})
 	})
 
 	It("unmounts the old rootfs", func() {
