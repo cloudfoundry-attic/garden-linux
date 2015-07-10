@@ -3,6 +3,7 @@ package runner
 import (
 	"errors"
 	"fmt"
+	"log"
 	"math/rand"
 	"os"
 	"os/exec"
@@ -11,6 +12,9 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"net/http"
+	_ "net/http/pprof"
 
 	"github.com/cloudfoundry-incubator/garden/client"
 	"github.com/cloudfoundry-incubator/garden/client/connection"
@@ -27,6 +31,12 @@ var RootFSPath = os.Getenv("GARDEN_TEST_ROOTFS")
 var GraphRoot = os.Getenv("GARDEN_TEST_GRAPHPATH")
 var BinPath = "../../linux_backend/bin"
 var GardenBin = "../../out/garden-linux"
+
+func init() {
+	go func() {
+		log.Println(http.ListenAndServe("0.0.0.0:6060", nil))
+	}()
+}
 
 type RunningGarden struct {
 	client.Client
