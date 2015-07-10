@@ -73,8 +73,8 @@ func Start(argv ...string) *RunningGarden {
 	}
 
 	c := cmd(tmpDir, graphPath, network, addr, GardenBin, BinPath, RootFSPath, argv...)
-	c.Stdout = os.Stderr
-	c.Stderr = os.Stderr
+	c.Stdout = os.Stdout
+	c.Stderr = os.Stdout
 	Expect(c.Start()).To(Succeed())
 	//	r.process = ifrit.Invoke(&ginkgomon.Runner{
 	//		Name:              "garden-linux",
