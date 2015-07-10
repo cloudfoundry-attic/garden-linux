@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"flag"
 	"fmt"
+	"log"
 	"net"
 	"os"
 	"os/exec"
@@ -11,6 +12,9 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
+
+	"net/http"
+	_ "net/http/pprof"
 
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/docker/docker/daemon/graphdriver"
@@ -232,6 +236,10 @@ func main() {
 		flag.Usage()
 		return
 	}
+
+	go func() {
+		log.Println(http.ListenAndServe("0.0.0.0:608"+*tag, nil))
+	}()
 
 	_, dynamicRange, err := net.ParseCIDR(*networkPool)
 	if err != nil {
