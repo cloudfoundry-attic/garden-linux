@@ -28,6 +28,8 @@ import (
 	"github.com/pivotal-golang/lager"
 	"github.com/pivotal-golang/localip"
 
+	"io/ioutil"
+
 	"github.com/cloudfoundry-incubator/cf-debug-server"
 	"github.com/cloudfoundry-incubator/cf-lager"
 	"github.com/cloudfoundry-incubator/garden-linux/container_repository"
@@ -242,13 +244,15 @@ func main() {
 		log.Println(http.ListenAndServe("0.0.0.0:608"+*tag, nil))
 	}()
 
-	fmt.Println("Garden server PPROF enabled on port :608" + *tag)
+	file, _ := ioutil.TempFile("", "garden-linux-608"+*tag+".log")
+
+	fmt.Fprintln(file, "Garden server PPROF enabled on port :608"+*tag)
 	for sleepCount := 1; sleepCount <= 30; sleepCount++ {
 		time.Sleep(time.Second)
-		fmt.Printf("Sleeping for %d s\n", sleepCount)
+		fmt.Fprintf(file, "Sleeping for %d s\n", sleepCount)
 	}
 
-	fmt.Println("Continue...")
+	fmt.Fprintln(file, "Continue...")
 
 	_, dynamicRange, err := net.ParseCIDR(*networkPool)
 	if err != nil {
