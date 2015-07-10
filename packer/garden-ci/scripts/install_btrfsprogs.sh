@@ -9,6 +9,7 @@ mkdir -p $HOME/btrfs
 cd $HOME/btrfs
 git clone git://git.kernel.org/pub/scm/linux/kernel/git/kdave/btrfs-progs.git
 cd btrfs-progs
+git checkout 0111bb7b2afe2c0ce8e6534b5e14c33a86e7f0b8
 ./autogen.sh
 ./configure
 make
