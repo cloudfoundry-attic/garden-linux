@@ -83,7 +83,7 @@ func Start(argv ...string) *RunningGarden {
 			break
 		}
 
-		if time.Now().Sub(startTime) > 5*time.Minute {
+		if time.Now().Sub(startTime) > 15*time.Minute {
 			panic("Starting garden-server timeout")
 		}
 	}
