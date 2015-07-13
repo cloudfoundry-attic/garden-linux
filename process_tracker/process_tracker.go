@@ -9,10 +9,11 @@ import (
 	"github.com/cloudfoundry/gunk/command_runner"
 )
 
+//go:generate counterfeiter -o fake_process_tracker/fake_process_tracker.go . ProcessTracker
 type ProcessTracker interface {
-	Run(processID uint32, cmd *exec.Cmd, io garden.ProcessIO, tty *garden.TTYSpec, signaller Signaller) (garden.Process, error)
+	Run(processID uint32, cmd *exec.Cmd, io garden.ProcessIO, tty *garden.TTYSpec) (garden.Process, error)
 	Attach(processID uint32, io garden.ProcessIO) (garden.Process, error)
-	Restore(processID uint32, signaller Signaller)
+	Restore(processID uint32)
 	ActiveProcesses() []garden.Process
 }
 
@@ -42,9 +43,9 @@ func New(containerPath string, runner command_runner.CommandRunner) ProcessTrack
 	}
 }
 
-func (t *processTracker) Run(processID uint32, cmd *exec.Cmd, processIO garden.ProcessIO, tty *garden.TTYSpec, signaller Signaller) (garden.Process, error) {
+func (t *processTracker) Run(processID uint32, cmd *exec.Cmd, processIO garden.ProcessIO, tty *garden.TTYSpec) (garden.Process, error) {
 	t.processesMutex.Lock()
-	process := NewProcess(processID, t.containerPath, t.runner, signaller)
+	process := NewProcess(processID, t.containerPath, t.runner)
 	t.processes[processID] = process
 	t.processesMutex.Unlock()
 
@@ -83,10 +84,10 @@ func (t *processTracker) Attach(processID uint32, processIO garden.ProcessIO) (g
 	return process, nil
 }
 
-func (t *processTracker) Restore(processID uint32, signaller Signaller) {
+func (t *processTracker) Restore(processID uint32) {
 	t.processesMutex.Lock()
 
-	process := NewProcess(processID, t.containerPath, t.runner, signaller)
+	process := NewProcess(processID, t.containerPath, t.runner)
 
 	t.processes[processID] = process
 

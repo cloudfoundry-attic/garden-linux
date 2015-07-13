@@ -3,12 +3,14 @@ package link
 import (
 	"encoding/gob"
 	"net"
+	"syscall"
 )
 
 type Input struct {
 	Data       []byte
 	EOF        bool
 	WindowSize *WindowSize
+	Signal     syscall.Signal
 }
 
 type WindowSize struct {
@@ -48,5 +50,11 @@ func (w *Writer) SetWindowSize(cols, rows int) error {
 			Columns: cols,
 			Rows:    rows,
 		},
+	})
+}
+
+func (w *Writer) Signal(signal syscall.Signal) error {
+	return w.enc.Encode(Input{
+		Signal: signal,
 	})
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"syscall"
 	"time"
 
 	"io/ioutil"
@@ -14,6 +15,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
+	"github.com/onsi/gomega/gexec"
 )
 
 type wc struct {
@@ -24,7 +26,7 @@ func (b wc) Close() error {
 	return nil
 }
 
-var _ = Describe("Iodaemon", func() {
+var _ = FDescribe("Iodaemon", func() {
 	var (
 		socketPath       string
 		tmpdir           string
@@ -132,6 +134,42 @@ var _ = Describe("Iodaemon", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			l.Close() //bash will normally terminate when it receives EOF on stdin
+		})
+
+		It("returns the exit code of the process", func(done Done) {
+			// spawnProcess("bash", "-c", "echo ok")
+			spawnProcess("echo", "hello")
+
+			l, linkStdout, _, err := createLink(socketPath)
+			Expect(err).ToNot(HaveOccurred())
+			Eventually(linkStdout).Should(gbytes.Say("hello"))
+
+			status, err := l.Wait()
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(status).To(Equal(0))
+
+			close(done)
+		}, 2.0)
+
+		It("signals the process", func() {
+			ps, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/iodaemon/test_print_signals")
+			Expect(err).ToNot(HaveOccurred())
+
+			spawnProcess(ps)
+
+			l, linkStdout, _, err := createLink(socketPath)
+			Expect(err).ToNot(HaveOccurred())
+
+			Eventually(linkStdout).Should(gbytes.Say("pid"))
+
+			Expect(l.Signal(syscall.SIGTERM)).To(Succeed())
+			Eventually(linkStdout).Should(gbytes.Say("Received signal 15"))
+
+			Expect(l.Signal(syscall.SIGINT)).To(Succeed())
+			Eventually(linkStdout).Should(gbytes.Say("Received signal 2"))
+
+			Expect(l.Signal(syscall.SIGKILL)).To(Succeed())
 		})
 
 		Context("when there is an existing socket file", func() {

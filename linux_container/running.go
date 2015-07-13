@@ -7,7 +7,6 @@ import (
 	"path"
 
 	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/pivotal-golang/lager"
 )
@@ -54,20 +53,13 @@ func (c *LinuxContainer) Run(spec garden.ProcessSpec, processIO garden.ProcessIO
 	pidfile := path.Join(c.ContainerPath, "processes", fmt.Sprintf("%d.pid", processID))
 	args = append(args, "--pidfile", pidfile)
 
-	signaller := &linux_backend.NamespacedSignaller{
-		Runner:        c.runner,
-		ContainerPath: c.ContainerPath,
-		PidFilePath:   pidfile,
-		Logger:        c.logger,
-	}
-
 	args = append(args, spec.Path)
 
 	wsh := exec.Command(wshPath, append(args, spec.Args...)...)
 
 	setRLimitsEnv(wsh, spec.Limits)
 
-	return c.processTracker.Run(processID, wsh, processIO, spec.TTY, signaller)
+	return c.processTracker.Run(processID, wsh, processIO, spec.TTY)
 }
 
 func (c *LinuxContainer) Attach(processID uint32, processIO garden.ProcessIO) (garden.Process, error) {

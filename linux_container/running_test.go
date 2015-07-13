@@ -23,7 +23,6 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_quota_manager"
 	networkFakes "github.com/cloudfoundry-incubator/garden-linux/network/fakes"
 	"github.com/cloudfoundry-incubator/garden-linux/port_pool/fake_port_pool"
-	"github.com/cloudfoundry-incubator/garden-linux/process_tracker"
 	"github.com/cloudfoundry-incubator/garden-linux/process_tracker/fake_process_tracker"
 	wfakes "github.com/cloudfoundry-incubator/garden/fakes"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
@@ -109,7 +108,7 @@ var _ = Describe("Linux containers", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(fakeProcessTracker.RunCallCount()).To(Equal(1))
-			_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
+			_, ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
 			Expect(ranCmd.Path).To(Equal(containerDir + "/bin/wsh"))
 
 			Expect(ranCmd.Args).To(Equal([]string{
@@ -150,7 +149,7 @@ var _ = Describe("Linux containers", func() {
 			}, garden.ProcessIO{})
 			Expect(err).ToNot(HaveOccurred())
 
-			_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
+			_, ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
 			Expect(ranCmd.Args).To(Equal([]string{
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
@@ -160,18 +159,6 @@ var _ = Describe("Linux containers", func() {
 				"--pidfile", containerDir + "/processes/1.pid",
 				"/some/script",
 			}))
-		})
-
-		It("configures a signaller with the same pid as the pidfile parameter", func() {
-			_, err := container.Run(garden.ProcessSpec{
-				User: "vcap",
-				Path: "/some/script",
-			}, garden.ProcessIO{})
-			Expect(err).ToNot(HaveOccurred())
-
-			_, _, _, _, signaller := fakeProcessTracker.RunArgsForCall(0)
-			Expect(signaller.(*linux_backend.NamespacedSignaller).ContainerPath).To(Equal(containerDir))
-			Expect(signaller.(*linux_backend.NamespacedSignaller).PidFilePath).To(Equal(containerDir + "/processes/1.pid"))
 		})
 
 		It("uses unique process IDs for each process", func() {
@@ -187,8 +174,8 @@ var _ = Describe("Linux containers", func() {
 			}, garden.ProcessIO{})
 			Expect(err).ToNot(HaveOccurred())
 
-			id1, _, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
-			id2, _, _, _, _ := fakeProcessTracker.RunArgsForCall(1)
+			id1, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
+			id2, _, _, _ := fakeProcessTracker.RunArgsForCall(1)
 
 			Expect(id1).ToNot(Equal(id2))
 		})
@@ -211,7 +198,7 @@ var _ = Describe("Linux containers", func() {
 
 			Expect(err).ToNot(HaveOccurred())
 
-			_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
+			_, ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
 			Expect(ranCmd.Args).To(Equal([]string{
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
@@ -236,7 +223,7 @@ var _ = Describe("Linux containers", func() {
 
 			Expect(err).ToNot(HaveOccurred())
 
-			_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
+			_, ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
 			Expect(ranCmd.Args).To(Equal([]string{
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
@@ -257,7 +244,7 @@ var _ = Describe("Linux containers", func() {
 
 			Expect(err).ToNot(HaveOccurred())
 
-			_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
+			_, ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
 			Expect(ranCmd.Args).To(Equal([]string{
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
@@ -286,13 +273,13 @@ var _ = Describe("Linux containers", func() {
 
 			Expect(err).ToNot(HaveOccurred())
 
-			_, _, _, tty, _ := fakeProcessTracker.RunArgsForCall(0)
+			_, _, _, tty := fakeProcessTracker.RunArgsForCall(0)
 			Expect(tty).To(Equal(ttySpec))
 		})
 
 		Describe("streaming", func() {
 			JustBeforeEach(func() {
-				fakeProcessTracker.RunStub = func(processID uint32, cmd *exec.Cmd, io garden.ProcessIO, tty *garden.TTYSpec, _ process_tracker.Signaller) (garden.Process, error) {
+				fakeProcessTracker.RunStub = func(processID uint32, cmd *exec.Cmd, io garden.ProcessIO, tty *garden.TTYSpec) (garden.Process, error) {
 					writing := new(sync.WaitGroup)
 					writing.Add(1)
 
@@ -360,7 +347,7 @@ var _ = Describe("Linux containers", func() {
 
 			Expect(err).ToNot(HaveOccurred())
 
-			_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
+			_, ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
 			Expect(ranCmd.Path).To(Equal(containerDir + "/bin/wsh"))
 
 			Expect(ranCmd.Args).To(Equal([]string{

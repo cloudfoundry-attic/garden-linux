@@ -10,34 +10,32 @@ import (
 )
 
 type FakeProcessTracker struct {
-	RunStub        func(uint32, *exec.Cmd, garden.ProcessIO, *garden.TTYSpec, process_tracker.Signaller) (garden.Process, error)
+	RunStub        func(processID uint32, cmd *exec.Cmd, io garden.ProcessIO, tty *garden.TTYSpec) (garden.Process, error)
 	runMutex       sync.RWMutex
 	runArgsForCall []struct {
-		arg1 uint32
-		arg2 *exec.Cmd
-		arg3 garden.ProcessIO
-		arg4 *garden.TTYSpec
-		arg5 process_tracker.Signaller
+		processID uint32
+		cmd       *exec.Cmd
+		io        garden.ProcessIO
+		tty       *garden.TTYSpec
 	}
 	runReturns struct {
 		result1 garden.Process
 		result2 error
 	}
-	AttachStub        func(uint32, garden.ProcessIO) (garden.Process, error)
+	AttachStub        func(processID uint32, io garden.ProcessIO) (garden.Process, error)
 	attachMutex       sync.RWMutex
 	attachArgsForCall []struct {
-		arg1 uint32
-		arg2 garden.ProcessIO
+		processID uint32
+		io        garden.ProcessIO
 	}
 	attachReturns struct {
 		result1 garden.Process
 		result2 error
 	}
-	RestoreStub        func(processID uint32, signaller process_tracker.Signaller)
+	RestoreStub        func(processID uint32)
 	restoreMutex       sync.RWMutex
 	restoreArgsForCall []struct {
 		processID uint32
-		signaller process_tracker.Signaller
 	}
 	ActiveProcessesStub        func() []garden.Process
 	activeProcessesMutex       sync.RWMutex
@@ -47,18 +45,17 @@ type FakeProcessTracker struct {
 	}
 }
 
-func (fake *FakeProcessTracker) Run(arg1 uint32, arg2 *exec.Cmd, arg3 garden.ProcessIO, arg4 *garden.TTYSpec, arg5 process_tracker.Signaller) (garden.Process, error) {
+func (fake *FakeProcessTracker) Run(processID uint32, cmd *exec.Cmd, io garden.ProcessIO, tty *garden.TTYSpec) (garden.Process, error) {
 	fake.runMutex.Lock()
 	fake.runArgsForCall = append(fake.runArgsForCall, struct {
-		arg1 uint32
-		arg2 *exec.Cmd
-		arg3 garden.ProcessIO
-		arg4 *garden.TTYSpec
-		arg5 process_tracker.Signaller
-	}{arg1, arg2, arg3, arg4, arg5})
+		processID uint32
+		cmd       *exec.Cmd
+		io        garden.ProcessIO
+		tty       *garden.TTYSpec
+	}{processID, cmd, io, tty})
 	fake.runMutex.Unlock()
 	if fake.RunStub != nil {
-		return fake.RunStub(arg1, arg2, arg3, arg4, arg5)
+		return fake.RunStub(processID, cmd, io, tty)
 	} else {
 		return fake.runReturns.result1, fake.runReturns.result2
 	}
@@ -70,10 +67,10 @@ func (fake *FakeProcessTracker) RunCallCount() int {
 	return len(fake.runArgsForCall)
 }
 
-func (fake *FakeProcessTracker) RunArgsForCall(i int) (uint32, *exec.Cmd, garden.ProcessIO, *garden.TTYSpec, process_tracker.Signaller) {
+func (fake *FakeProcessTracker) RunArgsForCall(i int) (uint32, *exec.Cmd, garden.ProcessIO, *garden.TTYSpec) {
 	fake.runMutex.RLock()
 	defer fake.runMutex.RUnlock()
-	return fake.runArgsForCall[i].arg1, fake.runArgsForCall[i].arg2, fake.runArgsForCall[i].arg3, fake.runArgsForCall[i].arg4, fake.runArgsForCall[i].arg5
+	return fake.runArgsForCall[i].processID, fake.runArgsForCall[i].cmd, fake.runArgsForCall[i].io, fake.runArgsForCall[i].tty
 }
 
 func (fake *FakeProcessTracker) RunReturns(result1 garden.Process, result2 error) {
@@ -84,15 +81,15 @@ func (fake *FakeProcessTracker) RunReturns(result1 garden.Process, result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeProcessTracker) Attach(arg1 uint32, arg2 garden.ProcessIO) (garden.Process, error) {
+func (fake *FakeProcessTracker) Attach(processID uint32, io garden.ProcessIO) (garden.Process, error) {
 	fake.attachMutex.Lock()
 	fake.attachArgsForCall = append(fake.attachArgsForCall, struct {
-		arg1 uint32
-		arg2 garden.ProcessIO
-	}{arg1, arg2})
+		processID uint32
+		io        garden.ProcessIO
+	}{processID, io})
 	fake.attachMutex.Unlock()
 	if fake.AttachStub != nil {
-		return fake.AttachStub(arg1, arg2)
+		return fake.AttachStub(processID, io)
 	} else {
 		return fake.attachReturns.result1, fake.attachReturns.result2
 	}
@@ -107,7 +104,7 @@ func (fake *FakeProcessTracker) AttachCallCount() int {
 func (fake *FakeProcessTracker) AttachArgsForCall(i int) (uint32, garden.ProcessIO) {
 	fake.attachMutex.RLock()
 	defer fake.attachMutex.RUnlock()
-	return fake.attachArgsForCall[i].arg1, fake.attachArgsForCall[i].arg2
+	return fake.attachArgsForCall[i].processID, fake.attachArgsForCall[i].io
 }
 
 func (fake *FakeProcessTracker) AttachReturns(result1 garden.Process, result2 error) {
@@ -118,15 +115,14 @@ func (fake *FakeProcessTracker) AttachReturns(result1 garden.Process, result2 er
 	}{result1, result2}
 }
 
-func (fake *FakeProcessTracker) Restore(processID uint32, signaller process_tracker.Signaller) {
+func (fake *FakeProcessTracker) Restore(processID uint32) {
 	fake.restoreMutex.Lock()
 	fake.restoreArgsForCall = append(fake.restoreArgsForCall, struct {
 		processID uint32
-		signaller process_tracker.Signaller
-	}{processID, signaller})
+	}{processID})
 	fake.restoreMutex.Unlock()
 	if fake.RestoreStub != nil {
-		fake.RestoreStub(processID, signaller)
+		fake.RestoreStub(processID)
 	}
 }
 
@@ -136,10 +132,10 @@ func (fake *FakeProcessTracker) RestoreCallCount() int {
 	return len(fake.restoreArgsForCall)
 }
 
-func (fake *FakeProcessTracker) RestoreArgsForCall(i int) (uint32, process_tracker.Signaller) {
+func (fake *FakeProcessTracker) RestoreArgsForCall(i int) uint32 {
 	fake.restoreMutex.RLock()
 	defer fake.restoreMutex.RUnlock()
-	return fake.restoreArgsForCall[i].processID, fake.restoreArgsForCall[i].signaller
+	return fake.restoreArgsForCall[i].processID
 }
 
 func (fake *FakeProcessTracker) ActiveProcesses() []garden.Process {

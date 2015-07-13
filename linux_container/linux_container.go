@@ -298,17 +298,7 @@ func (c *LinuxContainer) Restore(snapshot linux_backend.LinuxContainerSpec) erro
 		})
 
 		c.processIDPool.Restore(process.ID)
-
-		pidfile := path.Join(c.ContainerPath, "processes", fmt.Sprintf("%d.pid", process.ID))
-
-		signaller := &linux_backend.NamespacedSignaller{
-			Runner:        c.runner,
-			ContainerPath: c.ContainerPath,
-			PidFilePath:   pidfile,
-			Logger:        c.logger,
-		}
-
-		c.processTracker.Restore(process.ID, signaller)
+		c.processTracker.Restore(process.ID)
 	}
 
 	net := exec.Command(path.Join(c.ContainerPath, "net.sh"), "setup")

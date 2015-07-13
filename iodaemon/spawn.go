@@ -116,9 +116,18 @@ func spawn(
 	}
 
 	waitForChild := func() {
-		cmd.Wait()
-		if cmd.ProcessState != nil {
-			fmt.Fprintf(statusW, "%d\n", cmd.ProcessState.Sys().(syscall.WaitStatus).ExitStatus())
+		err := cmd.Wait()
+		if err == nil {
+			fmt.Fprintf(statusW, "0\n")
+			return
+		}
+
+		ws := err.(*exec.ExitError).ProcessState.Sys().(syscall.WaitStatus)
+
+		if ws.Signaled() && ws.Signal() == syscall.SIGKILL {
+			fmt.Fprintf(statusW, "255\n")
+		} else {
+			fmt.Fprintf(statusW, "%d\n", ws.ExitStatus())
 		}
 	}
 
@@ -259,6 +268,8 @@ func processLinkRequests(conn net.Conn, stdinW *os.File, cmd *exec.Cmd, withTty 
 				conn.Close()
 				break
 			}
+		} else if input.Signal != 0 {
+			cmd.Process.Signal(input.Signal)
 		} else {
 			_, err := stdinW.Write(input.Data)
 			if err != nil {

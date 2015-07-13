@@ -346,10 +346,10 @@ var _ = Describe("Linux containers", func() {
 			})
 			Expect(err).ToNot(HaveOccurred())
 
-			pid, _ := fakeProcessTracker.RestoreArgsForCall(0)
+			pid := fakeProcessTracker.RestoreArgsForCall(0)
 			Expect(pid).To(Equal(uint32(0)))
 
-			pid, _ = fakeProcessTracker.RestoreArgsForCall(1)
+			pid = fakeProcessTracker.RestoreArgsForCall(1)
 			Expect(pid).To(Equal(uint32(1)))
 		})
 
@@ -377,27 +377,9 @@ var _ = Describe("Linux containers", func() {
 			}, garden.ProcessIO{})
 			Expect(err).ToNot(HaveOccurred())
 
-			nextId, _, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
+			nextId, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
 
 			Expect(nextId).To(BeNumerically(">", 5))
-		})
-
-		It("configures a signaller with the correct pidfile for the process", func() {
-			Expect(container.Restore(linux_backend.LinuxContainerSpec{
-				State:  "active",
-				Events: []string{},
-
-				Processes: []linux_backend.ActiveProcess{
-					{
-						ID:  456,
-						TTY: true,
-					},
-				},
-			})).To(Succeed())
-
-			_, signaller := fakeProcessTracker.RestoreArgsForCall(0)
-			Expect(signaller.(*linux_backend.NamespacedSignaller).ContainerPath).To(Equal(containerDir))
-			Expect(signaller.(*linux_backend.NamespacedSignaller).PidFilePath).To(Equal(containerDir + "/processes/456.pid"))
 		})
 
 		It("restores environment variables", func() {

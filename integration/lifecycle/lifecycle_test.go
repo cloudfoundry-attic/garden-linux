@@ -1,7 +1,9 @@
 package lifecycle_test
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -318,6 +320,487 @@ var _ = Describe("Creating a container", func() {
 		})
 
 		Context("and running a process", func() {
+			Context("when root is requested", func() {
+				It("runs as root inside the container", func() {
+					stdout := gbytes.NewBuffer()
+
+					_, err := container.Run(garden.ProcessSpec{
+						Path: "whoami",
+						User: "root",
+					}, garden.ProcessIO{
+						Stdout: stdout,
+						Stderr: GinkgoWriter,
+					})
+
+					Expect(err).ToNot(HaveOccurred())
+					Eventually(stdout).Should(gbytes.Say("root\n"))
+				})
+
+				Context("and there is no /root directory in the image", func() {
+					BeforeEach(func() {
+						rootfs = "docker:///onsi/grace-busybox"
+					})
+
+					It("still allows running as root", func() {
+						_, err := container.Run(garden.ProcessSpec{
+							Path: "ls",
+							User: "root",
+						}, garden.ProcessIO{})
+
+						Expect(err).ToNot(HaveOccurred())
+					})
+				})
+
+				Context("by default (unprivileged)", func() {
+					It("does not get root privileges on host resources", func() {
+						process, err := container.Run(garden.ProcessSpec{
+							Path: "sh",
+							User: "root",
+							Args: []string{"-c", "echo h > /proc/sysrq-trigger"},
+						}, garden.ProcessIO{})
+						Expect(err).ToNot(HaveOccurred())
+
+						Expect(process.Wait()).ToNot(Equal(0))
+					})
+
+					It("can write to files in the /root directory", func() {
+						process, err := container.Run(garden.ProcessSpec{
+							User: "root",
+							Path: "sh",
+							Args: []string{"-c", `touch /root/potato`},
+						}, garden.ProcessIO{})
+						Expect(err).ToNot(HaveOccurred())
+
+						Expect(process.Wait()).To(Equal(0))
+					})
+
+					Context("with a docker image", func() {
+						BeforeEach(func() {
+							rootfs = "docker:///cloudfoundry/preexisting_users"
+						})
+
+						It("sees root-owned files in the rootfs as owned by the container's root user", func() {
+							stdout := gbytes.NewBuffer()
+							process, err := container.Run(garden.ProcessSpec{
+								User: "root",
+								Path: "sh",
+								Args: []string{"-c", `ls -l /sbin | grep -v wsh | grep -v hook`},
+							}, garden.ProcessIO{Stdout: stdout})
+							Expect(err).ToNot(HaveOccurred())
+
+							Expect(process.Wait()).To(Equal(0))
+							Expect(stdout).NotTo(gbytes.Say("nobody"))
+							Expect(stdout).NotTo(gbytes.Say("65534"))
+							Expect(stdout).To(gbytes.Say(" root "))
+						})
+
+						It("sees the /dev/pts and /dev/ptmx as owned by the container's root user", func() {
+							stdout := gbytes.NewBuffer()
+							process, err := container.Run(garden.ProcessSpec{
+								User: "root",
+								Path: "sh",
+								Args: []string{"-c", "ls -l /dev/pts /dev/ptmx"},
+							}, garden.ProcessIO{Stdout: stdout, Stderr: GinkgoWriter})
+							Expect(err).ToNot(HaveOccurred())
+
+							Expect(process.Wait()).To(Equal(0))
+							Expect(stdout).NotTo(gbytes.Say("nobody"))
+							Expect(stdout).NotTo(gbytes.Say("65534"))
+							Expect(stdout).To(gbytes.Say(" root "))
+						})
+
+						if os.Getenv("BTRFS_SUPPORTED") != "" { // VFS driver does not support this feature`
+							It("sees the root directory as owned by the container's root user", func() {
+								stdout := gbytes.NewBuffer()
+								process, err := container.Run(garden.ProcessSpec{
+									User: "root",
+									Path: "sh",
+									Args: []string{"-c", "ls -al / | head -n 2"},
+								}, garden.ProcessIO{Stdout: stdout, Stderr: GinkgoWriter})
+								Expect(err).ToNot(HaveOccurred())
+
+								Expect(process.Wait()).To(Equal(0))
+								Expect(stdout).NotTo(gbytes.Say("nobody"))
+								Expect(stdout).NotTo(gbytes.Say("65534"))
+								Expect(stdout).To(gbytes.Say(" root "))
+							})
+						}
+
+						It("sees alice-owned files as owned by alice", func() {
+							stdout := gbytes.NewBuffer()
+							process, err := container.Run(garden.ProcessSpec{
+								User: "alice",
+								Path: "sh",
+								Args: []string{"-c", `ls -l /home/alice`},
+							}, garden.ProcessIO{Stdout: stdout})
+							Expect(err).ToNot(HaveOccurred())
+
+							Expect(process.Wait()).To(Equal(0))
+							Expect(stdout).To(gbytes.Say(" alice "))
+							Expect(stdout).To(gbytes.Say(" alicesfile"))
+						})
+
+						It("sees devices as owned by root", func() {
+							out := gbytes.NewBuffer()
+							process, err := container.Run(garden.ProcessSpec{
+								User: "root",
+								Path: "ls",
+								Args: []string{"-la", "/dev/tty"},
+							}, garden.ProcessIO{
+								Stdout: out,
+								Stderr: out,
+							})
+							Expect(err).ToNot(HaveOccurred())
+							Expect(process.Wait()).To(Equal(0))
+							Expect(string(out.Contents())).To(ContainSubstring(" root "))
+							Expect(string(out.Contents())).ToNot(ContainSubstring("nobody"))
+							Expect(string(out.Contents())).ToNot(ContainSubstring("65534"))
+						})
+
+						It("lets alice write in /home/alice", func() {
+							process, err := container.Run(garden.ProcessSpec{
+								User: "alice",
+								Path: "touch",
+								Args: []string{"/home/alice/newfile"},
+							}, garden.ProcessIO{})
+							Expect(err).ToNot(HaveOccurred())
+							Expect(process.Wait()).To(Equal(0))
+						})
+
+						It("lets root write to files in the /root directory", func() {
+							process, err := container.Run(garden.ProcessSpec{
+								User: "root",
+								Path: "sh",
+								Args: []string{"-c", `touch /root/potato`},
+							}, garden.ProcessIO{})
+							Expect(err).ToNot(HaveOccurred())
+							Expect(process.Wait()).To(Equal(0))
+						})
+
+						It("preserves pre-existing dotfiles from base image", func() {
+							out := gbytes.NewBuffer()
+							process, err := container.Run(garden.ProcessSpec{
+								User: "root",
+								Path: "cat",
+								Args: []string{"/.foo"},
+							}, garden.ProcessIO{
+								Stdout: out,
+							})
+							Expect(err).ToNot(HaveOccurred())
+							Expect(process.Wait()).To(Equal(0))
+							Expect(out).To(gbytes.Say("this is a pre-existing dotfile"))
+						})
+					})
+				})
+
+				Context("when the 'privileged' flag is set on the create call", func() {
+					BeforeEach(func() {
+						privilegedContainer = true
+					})
+
+					It("gets real root privileges", func() {
+						process, err := container.Run(garden.ProcessSpec{
+							Path: "sh",
+							User: "root",
+							Args: []string{"-c", "echo h > /proc/sysrq-trigger"},
+						}, garden.ProcessIO{})
+						Expect(err).ToNot(HaveOccurred())
+
+						Expect(process.Wait()).To(Equal(0))
+					})
+
+					It("can write to files in the /root directory", func() {
+						process, err := container.Run(garden.ProcessSpec{
+							User: "root",
+							Path: "sh",
+							Args: []string{"-c", `touch /root/potato`},
+						}, garden.ProcessIO{})
+						Expect(err).ToNot(HaveOccurred())
+
+						Expect(process.Wait()).To(Equal(0))
+					})
+
+					It("sees root-owned files in the rootfs as owned by the container's root user", func() {
+						stdout := gbytes.NewBuffer()
+						process, err := container.Run(garden.ProcessSpec{
+							User: "root",
+							Path: "sh",
+							Args: []string{"-c", `ls -l /sbin | grep -v wsh | grep -v hook`},
+						}, garden.ProcessIO{Stdout: io.MultiWriter(GinkgoWriter, stdout)})
+						Expect(err).ToNot(HaveOccurred())
+
+						Expect(process.Wait()).To(Equal(0))
+						Expect(stdout).NotTo(gbytes.Say("nobody"))
+						Expect(stdout).NotTo(gbytes.Say("65534"))
+						Expect(stdout).To(gbytes.Say(" root "))
+					})
+
+					Context("when the process is run as non-root user", func() {
+						BeforeEach(func() {
+							rootfs = os.Getenv("GARDEN_NESTABLE_TEST_ROOTFS")
+						})
+
+						Context("and the user changes to root", func() {
+							JustBeforeEach(func() {
+								process, err := container.Run(garden.ProcessSpec{
+									User: "root",
+									Path: "sh",
+									Args: []string{"-c", `echo "ALL            ALL = (ALL) NOPASSWD: ALL" >> /etc/sudoers`},
+								}, garden.ProcessIO{
+									Stdout: GinkgoWriter,
+									Stderr: GinkgoWriter,
+								})
+
+								Expect(err).ToNot(HaveOccurred())
+								Expect(process.Wait()).To(Equal(0))
+							})
+
+							It("can chown files", func() {
+								process, err := container.Run(garden.ProcessSpec{
+									User: "vcap",
+									Path: "sudo",
+									Args: []string{"chown", "-R", "vcap", "/tmp"},
+								}, garden.ProcessIO{
+									Stdout: GinkgoWriter,
+									Stderr: GinkgoWriter,
+								})
+
+								Expect(err).ToNot(HaveOccurred())
+								Expect(process.Wait()).To(Equal(0))
+							})
+
+							It("does not have certain capabilities", func() {
+								// This attempts to set system time which requires the CAP_SYS_TIME permission.
+								process, err := container.Run(garden.ProcessSpec{
+									User: "vcap",
+									Path: "sudo",
+									Args: []string{"date", "--set", "+2 minutes"},
+								}, garden.ProcessIO{
+									Stdout: GinkgoWriter,
+									Stderr: GinkgoWriter,
+								})
+
+								Expect(err).ToNot(HaveOccurred())
+								Expect(process.Wait()).ToNot(Equal(0))
+							})
+						})
+					})
+				})
+			})
+
+			Measure("it should stream stdout and stderr efficiently", func(b Benchmarker) {
+				b.Time("(baseline) streaming 50M of stdout to /dev/null", func() {
+					stdout := gbytes.NewBuffer()
+					stderr := gbytes.NewBuffer()
+
+					_, err := container.Run(garden.ProcessSpec{
+						User: "vcap",
+						Path: "sh",
+						Args: []string{"-c", "tr '\\0' 'a' < /dev/zero | dd count=50 bs=1M of=/dev/null; echo done"},
+					}, garden.ProcessIO{
+						Stdout: stdout,
+						Stderr: stderr,
+					})
+					Expect(err).ToNot(HaveOccurred())
+
+					Eventually(stdout, "2s").Should(gbytes.Say("done\n"))
+				})
+
+				time := b.Time("streaming 50M of data via garden", func() {
+					stdout := gbytes.NewBuffer()
+					stderr := gbytes.NewBuffer()
+
+					_, err := container.Run(garden.ProcessSpec{
+						User: "vcap",
+						Path: "sh",
+						Args: []string{"-c", "tr '\\0' 'a' < /dev/zero | dd count=50 bs=1M; echo done"},
+					}, garden.ProcessIO{
+						Stdout: stdout,
+						Stderr: stderr,
+					})
+					Expect(err).ToNot(HaveOccurred())
+
+					Eventually(stdout, "10s").Should(gbytes.Say("done\n"))
+				})
+
+				Expect(time.Seconds()).To(BeNumerically("<", 3))
+			}, 10)
+
+			It("streams output back and reports the exit status", func() {
+				stdout := gbytes.NewBuffer()
+				stderr := gbytes.NewBuffer()
+
+				process, err := container.Run(garden.ProcessSpec{
+					User: "vcap",
+					Path: "sh",
+					Args: []string{"-c", "sleep 0.5; echo $FIRST; sleep 0.5; echo $SECOND >&2; sleep 0.5; exit 42"},
+					Env:  []string{"FIRST=hello", "SECOND=goodbye"},
+				}, garden.ProcessIO{
+					Stdout: stdout,
+					Stderr: stderr,
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				Eventually(stdout).Should(gbytes.Say("hello\n"))
+				Eventually(stderr).Should(gbytes.Say("goodbye\n"))
+				Expect(process.Wait()).To(Equal(42))
+			})
+
+			It("sends a TERM signal to the process if requested", func() {
+
+				stdout := gbytes.NewBuffer()
+
+				process, err := container.Run(garden.ProcessSpec{
+					User: "vcap",
+					Path: "sh",
+					Args: []string{"-c", `
+				  trap 'echo termed; exit 42' SIGTERM
+
+					while true; do
+					  echo waiting
+					  sleep 1
+					done
+				`},
+				}, garden.ProcessIO{
+					Stdout: io.MultiWriter(GinkgoWriter, stdout),
+					Stderr: GinkgoWriter,
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				Eventually(stdout).Should(gbytes.Say("waiting"))
+				Expect(process.Signal(garden.SignalTerminate)).To(Succeed())
+				Eventually(stdout, "2s").Should(gbytes.Say("termed"))
+				Expect(process.Wait()).To(Equal(42))
+			})
+
+			It("sends a TERM signal to the process run by root if requested", func() {
+				stdout := gbytes.NewBuffer()
+
+				process, err := container.Run(garden.ProcessSpec{
+					User: "root",
+					Path: "sh",
+					Args: []string{"-c", `
+				  trap 'echo termed; exit 42' SIGTERM
+
+					while true; do
+					  echo waiting
+					  sleep 1
+					done
+				`},
+				}, garden.ProcessIO{
+					Stdout: io.MultiWriter(GinkgoWriter, stdout),
+					Stderr: GinkgoWriter,
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				Eventually(stdout).Should(gbytes.Say("waiting"))
+				Expect(process.Signal(garden.SignalTerminate)).To(Succeed())
+				Eventually(stdout, "2s").Should(gbytes.Say("termed"))
+				Expect(process.Wait()).To(Equal(42))
+			})
+
+			PContext("even when /bin/kill does not exist", func() {
+				JustBeforeEach(func() {
+					fmt.Fprintf(GinkgoWriter, "%#v\n", container)
+
+					_, err := container.Run(garden.ProcessSpec{
+						User: "vcap",
+						Path: "sh",
+						Args: []string{"rm", "/bin/kill"},
+					}, garden.ProcessIO{
+						Stdout: GinkgoWriter,
+						Stderr: GinkgoWriter,
+					})
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				It("sends a KILL signal to the process if requested", func(done Done) {
+					stdout := gbytes.NewBuffer()
+
+					process, err := container.Run(garden.ProcessSpec{
+						User: "vcap",
+						Path: "sh",
+						Args: []string{"-c", `
+							while true; do
+							  echo waiting
+								sleep 1
+							done
+						`},
+					}, garden.ProcessIO{
+						Stdout: io.MultiWriter(GinkgoWriter, stdout),
+						Stderr: GinkgoWriter,
+					})
+					Expect(err).ToNot(HaveOccurred())
+
+					Eventually(stdout).Should(gbytes.Say("waiting"))
+					Expect(process.Signal(garden.SignalKill)).To(Succeed())
+					Expect(process.Wait()).ToNot(Equal(0))
+
+					close(done)
+				}, 2.0)
+			})
+
+			It("avoids a race condition when sending a kill signal", func(done Done) {
+				for i := 0; i < 100; i++ {
+					process, err := container.Run(garden.ProcessSpec{
+						User: "vcap",
+						Path: "sh",
+						Args: []string{"-c", `while true; do echo -n "x"; sleep 1; done`},
+					}, garden.ProcessIO{
+						Stdout: GinkgoWriter,
+						Stderr: GinkgoWriter,
+					})
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(process.Signal(garden.SignalKill)).To(Succeed())
+					Expect(process.Wait()).To(Equal(255))
+				}
+
+				close(done)
+			}, 480.0)
+
+			It("collects the process's full output, even if it exits quickly after", func() {
+				for i := 0; i < 100; i++ {
+					stdout := gbytes.NewBuffer()
+
+					process, err := container.Run(garden.ProcessSpec{
+						User: "vcap",
+						Path: "sh",
+						Args: []string{"-c", "cat <&0"},
+					}, garden.ProcessIO{
+						Stdin:  bytes.NewBuffer([]byte("hi stdout")),
+						Stderr: os.Stderr,
+						Stdout: stdout,
+					})
+
+					if err != nil {
+						println("ERROR: " + err.Error())
+						select {}
+					}
+
+					Expect(err).ToNot(HaveOccurred())
+					Expect(process.Wait()).To(Equal(0))
+
+					Expect(stdout).To(gbytes.Say("hi stdout"))
+				}
+			})
+
+			It("streams input to the process's stdin", func() {
+				stdout := gbytes.NewBuffer()
+
+				process, err := container.Run(garden.ProcessSpec{
+					User: "vcap",
+					Path: "sh",
+					Args: []string{"-c", "cat <&0"},
+				}, garden.ProcessIO{
+					Stdin:  bytes.NewBufferString("hello\nworld"),
+					Stdout: stdout,
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				Eventually(stdout).Should(gbytes.Say("hello\nworld"))
+				Expect(process.Wait()).To(Equal(0))
+			})
 
 			It("does not leak open files", func() {
 				openFileCount := func() int {

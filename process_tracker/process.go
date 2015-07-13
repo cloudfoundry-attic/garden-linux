@@ -3,7 +3,6 @@ package process_tracker
 import (
 	"bufio"
 	"fmt"
-	"os"
 	"os/exec"
 	"path"
 	"sync"
@@ -33,19 +32,12 @@ type Process struct {
 	stdin  writer.FanIn
 	stdout writer.FanOut
 	stderr writer.FanOut
-
-	signaller Signaller
-}
-
-type Signaller interface {
-	Signal(os.Signal) error
 }
 
 func NewProcess(
 	id uint32,
 	containerPath string,
 	runner command_runner.CommandRunner,
-	signaller Signaller,
 ) *Process {
 	return &Process{
 		id: id,
@@ -62,8 +54,6 @@ func NewProcess(
 		stdin:  writer.NewFanIn(),
 		stdout: writer.NewFanOut(),
 		stderr: writer.NewFanOut(),
-
-		signaller: signaller,
 	}
 }
 
@@ -89,9 +79,9 @@ func (p *Process) SetTTY(tty garden.TTYSpec) error {
 func (p *Process) Signal(s garden.Signal) error {
 	switch s {
 	case garden.SignalKill:
-		return p.signaller.Signal(os.Kill)
+		return p.link.Signal(syscall.SIGKILL)
 	case garden.SignalTerminate:
-		return p.signaller.Signal(syscall.SIGTERM)
+		return p.link.Signal(syscall.SIGTERM)
 	default:
 		return fmt.Errorf("process_tracker: failed to send signal: unknown signal: %d", s)
 	}
