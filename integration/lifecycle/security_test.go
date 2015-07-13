@@ -21,7 +21,7 @@ import (
 	"github.com/onsi/gomega/gexec"
 )
 
-var _ = FDescribe("Security", func() {
+var _ = Describe("Security", func() {
 	Describe("Capabilities", func() {
 		It("drops capabilities for the initc/initd process in a non-privileged container", func() {
 			client = startGarden()

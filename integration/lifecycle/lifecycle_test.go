@@ -24,7 +24,7 @@ import (
 	archiver "github.com/pivotal-golang/archiver/extractor/test_helper"
 )
 
-var _ = FDescribe("Creating a container", func() {
+var _ = Describe("Creating a container", func() {
 	Describe("Overlapping networks", func() {
 		Context("when the requested Network overlaps the dynamic allocation range", func() {
 			It("returns an error message naming the overlapped range", func() {
