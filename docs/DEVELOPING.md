@@ -19,8 +19,23 @@ Extend `$GOPATH` and `$PATH`:
 ## Get garden-linux and its dependencies
 
 ```
-# go get github.com/cloudfoundry-incubator/garden-linux
-# cd ~/go/src/github.com/cloudfoundry-incubator/garden-linux
+# Clone the repo
+git clone https://github.com/cloudfoundry-incubator/garden-linux $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux
+
+# Fetch dependency tool
+go get github.com/tools/godep
+
+# Change into the newly created clone
+cd $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux
+
+# THIS LINE WILL ERROR! just carry on..
+godep restore 
+
+# Work around the above error: docker is not go-gettable without running this..
+cd ../../docker/docker; source ./hack/make/.go-autogen 
+
+# This time it should work
+godep restore 
 ```
 
 ## Install Concourse and Fly
