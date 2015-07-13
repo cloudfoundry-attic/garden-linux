@@ -32,7 +32,6 @@ Run `make ubuntu`. This will output a virtual-box `.ovf` and vagrant `.box` to
 
   * Docker: `make ubuntu-docker`
   * Vagrant: `make ubuntu-vagrant`
-  * Amazon: `make ubuntu-ami`
 
 ## Releasing
 
@@ -59,17 +58,3 @@ export GARDEN_PACKER_DOCKER_PASSWORD=<Docker password>
 ```
 
 Then run `make release-docker`. This will tag and upload the image to Docker Hub.
-
-### [Amazon EC2](http://aws.amazon.com/ec2/)
-
-Since the ami exists on Amazon, there is no need to release it. We just need to
-record its Image Id so that builds will use it and make the ami public.
-
-Store the Image id of the ami in the file `garden-ci/AMI_IMAGE_ID` and commit
-and push.
-
-Make the ami public (see [Making an AMI Public](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/sharingamis-intro.html)):
-
-```bash
-aws ec2 describe-image-attribute --image-id <Image Id> --attribute launchPermission
-```
