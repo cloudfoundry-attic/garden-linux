@@ -85,6 +85,7 @@
       "override": {
         "garden-ci-virtualbox-iso": {
           "scripts": [
+            "garden-ci/scripts/install_vivid_kernel.sh",
             "garden-ci/scripts/provision.sh",
             "garden-ci/scripts/vagrant_provision.sh",
             "garden-ci/scripts/install_vbox_guest_additions.sh",
