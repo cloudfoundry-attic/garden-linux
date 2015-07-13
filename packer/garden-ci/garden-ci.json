@@ -1,7 +1,7 @@
 {
   "variables": {
     "os_name": "ubuntu",
-    "os_version": "14.04",
+    "os_version": "14.04.2",
     "os_type": "Ubuntu_64",
     "os_arch": "amd64",
     "os_url": "http://releases.ubuntu.com/14.04/ubuntu-14.04.2-server-amd64.iso",
