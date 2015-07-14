@@ -19,3 +19,4 @@ garden-test-rootfs.tar
 *.test
 .idea/*
 *.iml
+.envrc
