@@ -28,7 +28,7 @@ func (UserExecer) ExecAsUser(uid, gid int, programName string, args ...string) e
 	}
 
 	if err := syscall.Exec(programPath, append([]string{programName}, args...), os.Environ()); err != nil {
-		return fmt.Errorf("system: exec: %s", err)
+		return fmt.Errorf("system: exec of %s: %s", programName, err)
 	}
 	return nil
 }
