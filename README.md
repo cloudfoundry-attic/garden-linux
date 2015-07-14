@@ -101,6 +101,6 @@ Garden Linux is configured by passing command line flags to the `garden-linux` e
 
 ## Development
 
-Restructure in progress: code in the `old/` directory is being replaced with code elsewhere in the repository.
-
 See the [Developer's Guide](docs/DEVELOPING.md) to get started.
+
+Many integration tests are in another repository, [Garden Integration Tests](https://github.com/cloudfoundry-incubator/garden-integration-tests).

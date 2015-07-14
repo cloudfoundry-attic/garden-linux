@@ -2,11 +2,11 @@
 
 ## Setting up Go
 
-Install Go 1.4 or later. For example, install [gvm](https://github.com/moovweb/gvm) and issue:
+Install Go 1.4.2 or later. For example, install [gvm](https://github.com/moovweb/gvm) and issue:
 
 ```
-# gvm install go1.4
-# gvm use go1.4
+# gvm install go1.4.2
+# gvm use go1.4.2
 ```
 
 Extend `$GOPATH` and `$PATH`:
@@ -35,7 +35,10 @@ godep restore
 cd ../../docker/docker; source ./hack/make/.go-autogen 
 
 # This time it should work
-godep restore 
+godep restore
+
+# Clone the integration tests (see the README in this repo for how to get started)
+git clone https://github.com/cloudfoundry-incubator/garden-integration-tests $GOPATH/src/github.com/cloudfoundry-incubator/garden-integration-tests
 ```
 
 ## Install Concourse and Fly
