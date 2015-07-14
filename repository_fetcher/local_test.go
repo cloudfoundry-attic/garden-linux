@@ -2,11 +2,16 @@ package repository_fetcher_test
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
+	"time"
+
+	"strconv"
 
 	"github.com/cloudfoundry-incubator/garden-linux/repository_fetcher"
 	"github.com/cloudfoundry-incubator/garden-linux/resource_pool/fake_graph"
@@ -19,14 +24,99 @@ import (
 )
 
 var _ = Describe("SHA256", func() {
+	var path string
+	var accessTime time.Time
+	var ider repository_fetcher.SHA256
+	const pathHash = "ebdc0142afda840dcdd3968ca21c62b1cdbcbc4044e6771b016fe166791ca18a"
+
+	BeforeEach(func() {
+		path = filepath.Join("/tmp", "sha-test", strconv.Itoa(GinkgoParallelNode()))
+		var err error
+		err = os.MkdirAll(path, 0777)
+		Expect(err).NotTo(HaveOccurred())
+		accessTime = time.Date(1994, time.January, 10, 20, 30, 30, 0, time.UTC)
+		modifiedTime := time.Date(1966, time.February, 8, 3, 43, 2, 0, time.UTC)
+		Expect(os.Chtimes(path, accessTime, modifiedTime)).To(Succeed())
+
+		ider = repository_fetcher.SHA256{
+			KeyFunc: func(path string, timestamp time.Time) string {
+				year := timestamp.Year()
+				switch year {
+				case 1975:
+					return "Beckham"
+				case 1966:
+					return "Stoichkov"
+				}
+
+				Fail(fmt.Sprintf("Unexpected year: %d", year))
+				return ""
+			},
+		}
+	})
+
+	AfterEach(func() {
+		if path != "" {
+			Expect(os.RemoveAll(path)).To(Succeed())
+		}
+	})
+
 	It("returns the hex-converted SHA256 sum of the path", func() {
-		ider := repository_fetcher.SHA256{}
-		Expect(ider.ID("something")).To(Equal("3fc9b689459d738f8c88a3a48aa9e33542016b7a4052e001aaa536fca74813cb"))
+		hash, err := ider.ID(path)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(hash).To(Equal(pathHash))
+	})
+
+	Context("when the modified time changes", func() {
+		const newPathHash = "77e34fc5be0fc17fea6c22dfbb04440bebca41862d0de4b6da0f64396156d0f6"
+
+		BeforeEach(func() {
+			Expect(newPathHash).NotTo(Equal(pathHash))
+			modifiedTime := time.Date(1975, time.May, 2, 3, 43, 2, 0, time.UTC)
+			os.Chtimes(path, accessTime, modifiedTime)
+		})
+
+		It("returns a distinct hash", func() {
+			hash, err := ider.ID(path)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(hash).To(Equal(newPathHash))
+		})
 	})
 
 	It("returns a string of length 64", func() { // docker verifies this
-		ider := repository_fetcher.SHA256{}
-		Expect(ider.ID("something")).To(HaveLen(64))
+		hash, err := ider.ID(path)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(hash).To(HaveLen(64))
+	})
+
+	Context("when using a symlink", func() {
+		var symlink string
+		BeforeEach(func() {
+			symlink = filepath.Join("/tmp", fmt.Sprintf("sha-test-symlink-%d", GinkgoParallelNode()))
+			Expect(os.Symlink(path, symlink)).To(Succeed())
+		})
+
+		AfterEach(func() {
+			if symlink != "" {
+				Expect(os.Remove(symlink)).To(Succeed())
+			}
+		})
+
+		It("returns the hash of the target directory", func() {
+			hash, err := ider.ID(symlink)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(hash).To(Equal(pathHash))
+		})
+	})
+
+	Context("when path does not exist", func() {
+		BeforeEach(func() {
+			path = "/some/dummy/path/that/does/not/exist"
+		})
+
+		It("returns an error", func() {
+			_, err := ider.ID(path)
+			Expect(err).To(MatchError("repository_fetcher: stat file: lstat /some/dummy/path/that/does/not/exist: no such file or directory"))
+		})
 	})
 })
 
@@ -191,6 +281,6 @@ var _ = Describe("Local", func() {
 
 type UnderscoreIDer struct{}
 
-func (UnderscoreIDer) ID(path string) string {
-	return strings.Replace(path, "/", "_", -1)
+func (UnderscoreIDer) ID(path string) (string, error) {
+	return strings.Replace(path, "/", "_", -1), nil
 }

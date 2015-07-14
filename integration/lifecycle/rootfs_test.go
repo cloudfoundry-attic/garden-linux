@@ -2,14 +2,18 @@ package lifecycle_test
 
 import (
 	"fmt"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"os/exec"
+	"path/filepath"
 
 	"github.com/cloudfoundry-incubator/garden"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
@@ -249,6 +253,60 @@ var _ = Describe("Rootfs container create parameter", func() {
 			})
 		})
 	})
+
+	Context("when the modified timestamp of the rootfs top-level directory changes", func() {
+		var (
+			rootfspath          string
+			privilegedContainer bool
+			container2          garden.Container
+		)
+
+		JustBeforeEach(func() {
+			var err error
+			rootfspath = createSmallRootfs()
+
+			container, err = client.Create(garden.ContainerSpec{
+				RootFSPath: rootfspath,
+				Privileged: privilegedContainer,
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			// ls is convenient, but any file modification is sufficient
+			ls := filepath.Join(rootfspath, "bin", "ls")
+			Expect(exec.Command("cp", ls, rootfspath).Run()).To(Succeed())
+
+			container2, err = client.Create(garden.ContainerSpec{
+				RootFSPath: rootfspath,
+				Privileged: privilegedContainer,
+			})
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		AfterEach(func() {
+			if container2 != nil {
+				Expect(client.Destroy(container2.Handle())).To(Succeed())
+			}
+		})
+
+		Context("with a non-privileged container", func() {
+			BeforeEach(func() {
+				privilegedContainer = false
+			})
+
+			It("should use the updated rootfs when creating a new container", func() {
+				process, err := container2.Run(garden.ProcessSpec{
+					Path: "/ls",
+					User: "root",
+				}, garden.ProcessIO{Stdout: GinkgoWriter, Stderr: GinkgoWriter})
+				Expect(err).NotTo(HaveOccurred())
+
+				exitStatus, err := process.Wait()
+				Expect(err).NotTo(HaveOccurred())
+				Expect(exitStatus).To(Equal(0))
+			})
+		})
+	})
+
 })
 
 func startV1DockerRegistry(dockerRegistryIP string, dockerRegistryPort string) garden.Container {
@@ -346,4 +404,19 @@ func (m *statusMatcher) NegatedFailureMessage(actual interface{}) string {
 	}
 
 	return fmt.Sprintf("Expected http status code not to be %d", m.expectedStatus)
+}
+
+func createSmallRootfs() string {
+	rootfs := os.Getenv("GARDEN_PREEXISTING_USERS_TEST_ROOTFS")
+	if rootfs == "" {
+		Skip("pre-existing users rootfs not found: skipping some rootfs tests")
+	}
+
+	rootfspath, err := ioutil.TempDir("", "rootfs-cache-invalidation")
+	Expect(err).NotTo(HaveOccurred())
+	cmd := exec.Command("cp", "-rf", rootfs, rootfspath)
+	cmd.Stdout = GinkgoWriter
+	cmd.Stderr = GinkgoWriter
+	Expect(cmd.Run()).To(Succeed())
+	return filepath.Join(rootfspath, filepath.Base(rootfs))
 }

@@ -327,7 +327,7 @@ func main() {
 		&repository_fetcher.Local{
 			Graph:             graph,
 			DefaultRootFSPath: *rootFSPath,
-			IDer:              repository_fetcher.SHA256{},
+			IDer:              repository_fetcher.NewSHA256(),
 		}, graphDriver, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock())
 	if err != nil {
 		logger.Fatal("failed-to-construct-warden-rootfs-provider", err)
