@@ -318,43 +318,6 @@ var _ = Describe("Creating a container", func() {
 		})
 
 		Context("and running a process", func() {
-			Measure("it should stream stdout and stderr efficiently", func(b Benchmarker) {
-				b.Time("(baseline) streaming 50M of stdout to /dev/null", func() {
-					stdout := gbytes.NewBuffer()
-					stderr := gbytes.NewBuffer()
-
-					_, err := container.Run(garden.ProcessSpec{
-						User: "vcap",
-						Path: "sh",
-						Args: []string{"-c", "tr '\\0' 'a' < /dev/zero | dd count=50 bs=1M of=/dev/null; echo done"},
-					}, garden.ProcessIO{
-						Stdout: stdout,
-						Stderr: stderr,
-					})
-					Expect(err).ToNot(HaveOccurred())
-
-					Eventually(stdout, "2s").Should(gbytes.Say("done\n"))
-				})
-
-				time := b.Time("streaming 50M of data via garden", func() {
-					stdout := gbytes.NewBuffer()
-					stderr := gbytes.NewBuffer()
-
-					_, err := container.Run(garden.ProcessSpec{
-						User: "vcap",
-						Path: "sh",
-						Args: []string{"-c", "tr '\\0' 'a' < /dev/zero | dd count=50 bs=1M; echo done"},
-					}, garden.ProcessIO{
-						Stdout: stdout,
-						Stderr: stderr,
-					})
-					Expect(err).ToNot(HaveOccurred())
-
-					Eventually(stdout, "10s").Should(gbytes.Say("done\n"))
-				})
-
-				Expect(time.Seconds()).To(BeNumerically("<", 3))
-			}, 10)
 
 			It("does not leak open files", func() {
 				openFileCount := func() int {
@@ -383,18 +346,6 @@ var _ = Describe("Creating a container", func() {
 				Eventually(openFileCount, "10s").Should(BeNumerically("<", initialOpenFileCount+10))
 			})
 
-		})
-
-		Context("and sending a Stop request", func() {
-			It("changes the container's state to 'stopped'", func() {
-				err := container.Stop(false)
-				Expect(err).ToNot(HaveOccurred())
-
-				info, err := container.Info()
-				Expect(err).ToNot(HaveOccurred())
-
-				Expect(info.State).To(Equal("stopped"))
-			})
 		})
 
 		Context("after destroying the container", func() {
