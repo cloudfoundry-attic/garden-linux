@@ -26,7 +26,7 @@ func (b wc) Close() error {
 	return nil
 }
 
-var _ = FDescribe("Iodaemon", func() {
+var _ = Describe("Iodaemon", func() {
 	var (
 		socketPath       string
 		tmpdir           string
@@ -135,22 +135,6 @@ var _ = FDescribe("Iodaemon", func() {
 
 			l.Close() //bash will normally terminate when it receives EOF on stdin
 		})
-
-		It("returns the exit code of the process", func(done Done) {
-			// spawnProcess("bash", "-c", "echo ok")
-			spawnProcess("echo", "hello")
-
-			l, linkStdout, _, err := createLink(socketPath)
-			Expect(err).ToNot(HaveOccurred())
-			Eventually(linkStdout).Should(gbytes.Say("hello"))
-
-			status, err := l.Wait()
-			Expect(err).ToNot(HaveOccurred())
-
-			Expect(status).To(Equal(0))
-
-			close(done)
-		}, 2.0)
 
 		It("signals the process", func() {
 			ps, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/iodaemon/test_print_signals")

@@ -53,7 +53,7 @@ var _ = Describe("Running processes", func() {
 		Expect(process.Wait()).To(Equal(42))
 	})
 
-	FDescribe("signalling a running process", func() {
+	Describe("signalling a running process", func() {
 		var (
 			process garden.Process
 			stdout  *gbytes.Buffer

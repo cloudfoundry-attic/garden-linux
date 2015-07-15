@@ -699,7 +699,7 @@ var _ = Describe("Creating a container", func() {
 				Expect(process.Wait()).To(Equal(42))
 			})
 
-			PContext("even when /bin/kill does not exist", func() {
+			Context("even when /bin/kill does not exist", func() {
 				JustBeforeEach(func() {
 					fmt.Fprintf(GinkgoWriter, "%#v\n", container)
 
@@ -714,7 +714,7 @@ var _ = Describe("Creating a container", func() {
 					Expect(err).ToNot(HaveOccurred())
 				})
 
-				It("sends a KILL signal to the process if requested", func(done Done) {
+				FIt("sends a KILL signal to the process if requested", func(done Done) {
 					stdout := gbytes.NewBuffer()
 
 					process, err := container.Run(garden.ProcessSpec{
@@ -734,13 +734,15 @@ var _ = Describe("Creating a container", func() {
 
 					Eventually(stdout).Should(gbytes.Say("waiting"))
 					Expect(process.Signal(garden.SignalKill)).To(Succeed())
-					Expect(process.Wait()).ToNot(Equal(0))
+					Expect(process.Wait()).To(Equal(255))
+
+					// TODO: Follow up ps to check if processes are still running inside the container
 
 					close(done)
 				}, 2.0)
 			})
 
-			It("avoids a race condition when sending a kill signal", func(done Done) {
+			FIt("avoids a race condition when sending a kill signal", func(done Done) {
 				for i := 0; i < 100; i++ {
 					process, err := container.Run(garden.ProcessSpec{
 						User: "vcap",

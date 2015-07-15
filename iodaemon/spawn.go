@@ -123,12 +123,7 @@ func spawn(
 		}
 
 		ws := err.(*exec.ExitError).ProcessState.Sys().(syscall.WaitStatus)
-
-		if ws.Signaled() && ws.Signal() == syscall.SIGKILL {
-			fmt.Fprintf(statusW, "255\n")
-		} else {
-			fmt.Fprintf(statusW, "%d\n", ws.ExitStatus())
-		}
+		fmt.Fprintf(statusW, "%d\n", uint8(ws.ExitStatus()))
 	}
 
 	initChild, childStarted, childEnded, stopAccepting, connected := make(chan bool), make(chan bool), make(chan bool), make(chan bool), make(chan bool)
