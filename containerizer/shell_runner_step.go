@@ -13,7 +13,7 @@ type ShellRunnerStep struct {
 	Path   string
 }
 
-func (step *ShellRunnerStep) Init() error {
+func (step *ShellRunnerStep) Run() error {
 	if _, err := os.Stat(step.Path); os.IsNotExist(err) {
 		return nil
 	}

@@ -41,7 +41,7 @@ var _ = Describe("ShellRunnerStep", func() {
 
 		It("runs a shell command", func() {
 			step := &containerizer.ShellRunnerStep{Runner: runner, Path: path}
-			err := step.Init()
+			err := step.Run()
 			Expect(err).ToNot(HaveOccurred())
 			Expect(runner).To(HaveStartedExecuting(
 				fake_command_runner.CommandSpec{
@@ -57,7 +57,7 @@ var _ = Describe("ShellRunnerStep", func() {
 			})
 
 			step := &containerizer.ShellRunnerStep{Runner: runner, Path: path}
-			err := step.Init()
+			err := step.Run()
 			Expect(err).To(HaveOccurred())
 		})
 
@@ -67,7 +67,7 @@ var _ = Describe("ShellRunnerStep", func() {
 			})
 
 			step := &containerizer.ShellRunnerStep{Runner: runner, Path: path}
-			err := step.Init()
+			err := step.Run()
 			Expect(err).To(HaveOccurred())
 		})
 	})
@@ -75,13 +75,13 @@ var _ = Describe("ShellRunnerStep", func() {
 	Context("when a given path does not exist", func() {
 		It("does not execute a shell command", func() {
 			step := &containerizer.ShellRunnerStep{Runner: runner, Path: "/whatever.sh"}
-			step.Init()
+			step.Run()
 			Expect(runner.StartedCommands()).To(HaveLen(0))
 		})
 
 		It("does not return an error", func() {
 			step := &containerizer.ShellRunnerStep{Runner: runner, Path: "/whatever.sh"}
-			Expect(step.Init()).To(Succeed())
+			Expect(step.Run()).To(Succeed())
 		})
 	})
 })

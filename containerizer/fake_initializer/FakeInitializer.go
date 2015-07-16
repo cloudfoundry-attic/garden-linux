@@ -4,7 +4,7 @@ package fake_initializer
 import (
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
+	"github.com/cloudfoundry-incubator/garden-linux/containerizer"
 )
 
 type FakeInitializer struct {
@@ -40,4 +40,4 @@ func (fake *FakeInitializer) InitReturns(result1 error) {
 	}{result1}
 }
 
-var _ system.Initializer = new(FakeInitializer)
+var _ containerizer.Initializer = new(FakeInitializer)

@@ -6,7 +6,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/fake_container_execer"
-	"github.com/cloudfoundry-incubator/garden-linux/containerizer/fake_container_initializer"
+	"github.com/cloudfoundry-incubator/garden-linux/containerizer/fake_initializer"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/fake_rlimits_initializer"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/fake_signaller"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/fake_waiter"
@@ -212,7 +212,7 @@ var _ = Describe("Containerizer", func() {
 
 	Describe("Init", func() {
 		var cz *containerizer.Containerizer
-		var initializer *fake_container_initializer.FakeContainerInitializer
+		var initializer *fake_initializer.FakeInitializer
 		var signaller *fake_signaller.FakeSignaller
 		var waiter *fake_waiter.FakeWaiter
 		var workingDirectory string
@@ -223,15 +223,15 @@ var _ = Describe("Containerizer", func() {
 			workingDirectory, err = os.Getwd()
 			Expect(err).ToNot(HaveOccurred())
 
-			initializer = &fake_container_initializer.FakeContainerInitializer{}
+			initializer = &fake_initializer.FakeInitializer{}
 			signaller = &fake_signaller.FakeSignaller{}
 			waiter = &fake_waiter.FakeWaiter{}
 
 			cz = &containerizer.Containerizer{
-				RootfsPath:  "",
-				Initializer: initializer,
-				Signaller:   signaller,
-				Waiter:      waiter,
+				RootfsPath:           "",
+				ContainerInitializer: initializer,
+				Signaller:            signaller,
+				Waiter:               waiter,
 			}
 		})
 

@@ -1,17 +1,17 @@
 package system
 
-//go:generate counterfeiter -o fake_initializer/FakeInitializer.go . Initializer
-type Initializer interface {
-	Init() error
+//go:generate counterfeiter -o fake_step_runner/FakeStepRunner.go . StepRunner
+type StepRunner interface {
+	Run() error
 }
 
-type ContainerInitializer struct {
-	Steps []Initializer
+type Initializer struct {
+	Steps []StepRunner
 }
 
-func (c *ContainerInitializer) Init() error {
+func (c *Initializer) Init() error {
 	for _, step := range c.Steps {
-		if err := step.Init(); err != nil {
+		if err := step.Run(); err != nil {
 			return err
 		}
 	}

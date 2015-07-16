@@ -30,8 +30,8 @@ type RootFSEnterer interface {
 	Enter() error
 }
 
-//go:generate counterfeiter -o fake_container_initializer/FakeContainerInitializer.go . ContainerInitializer
-type ContainerInitializer interface {
+//go:generate counterfeiter -o fake_initializer/FakeInitializer.go . Initializer
+type Initializer interface {
 	Init() error
 }
 
@@ -48,14 +48,14 @@ type Waiter interface {
 }
 
 type Containerizer struct {
-	Rlimits     RlimitsInitializer
-	InitBinPath string
-	InitArgs    []string
-	Execer      ContainerExecer
-	RootfsPath  string
-	Initializer ContainerInitializer
-	Signaller   Signaller
-	Waiter      Waiter
+	Rlimits              RlimitsInitializer
+	InitBinPath          string
+	InitArgs             []string
+	Execer               ContainerExecer
+	RootfsPath           string
+	ContainerInitializer Initializer
+	Signaller            Signaller
+	Waiter               Waiter
 	// Temporary until we merge the hook scripts functionality in Golang
 	CommandRunner command_runner.CommandRunner
 	LibPath       string
@@ -108,7 +108,7 @@ func (c *Containerizer) Create() error {
 }
 
 func (c *Containerizer) Init() error {
-	if err := c.Initializer.Init(); err != nil {
+	if err := c.ContainerInitializer.Init(); err != nil {
 		return c.signalErrorf("containerizer: initializing the container: %s", err)
 	}
 

@@ -70,8 +70,8 @@ func main() {
 		procMountFlags = procMountFlags | syscall.MS_RDONLY
 	}
 
-	initializer := &system.ContainerInitializer{
-		Steps: []system.Initializer{
+	initializer := &system.Initializer{
+		Steps: []system.StepRunner{
 			&step{system.Mount{
 				Type:  system.Tmpfs,
 				Flags: syscall.MS_NODEV,
@@ -105,10 +105,10 @@ func main() {
 	}
 
 	containerizer := containerizer.Containerizer{
-		RootfsPath:  *rootFsPath,
-		Initializer: initializer,
-		Waiter:      sync,
-		Signaller:   sync,
+		RootfsPath:           *rootFsPath,
+		ContainerInitializer: initializer,
+		Waiter:               sync,
+		Signaller:            sync,
 	}
 
 	if err := containerizer.Init(); err != nil {
@@ -164,6 +164,6 @@ type step struct {
 	fn func() error
 }
 
-func (s *step) Init() error {
+func (s *step) Run() error {
 	return s.fn()
 }

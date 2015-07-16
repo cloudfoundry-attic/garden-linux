@@ -12,7 +12,7 @@ type CapabilitiesStep struct {
 	Capabilities Capabilities
 }
 
-func (step *CapabilitiesStep) Init() error {
+func (step *CapabilitiesStep) Run() error {
 	if !step.Drop {
 		return nil
 	}

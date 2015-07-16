@@ -29,7 +29,7 @@ var _ = Describe("CapabilitiesStep", func() {
 		})
 
 		It("does not limit capabilities", func() {
-			Expect(step.Init()).To(Succeed())
+			Expect(step.Run()).To(Succeed())
 			Expect(capabilities.LimitCallCount()).To(Equal(0))
 		})
 	})
@@ -40,12 +40,12 @@ var _ = Describe("CapabilitiesStep", func() {
 		})
 
 		It("limits capabilities", func() {
-			Expect(step.Init()).To(Succeed())
+			Expect(step.Run()).To(Succeed())
 			Expect(capabilities.LimitCallCount()).To(Equal(1))
 		})
 
 		It("uses the default whitelist", func() {
-			Expect(step.Init()).To(Succeed())
+			Expect(step.Run()).To(Succeed())
 			Expect(capabilities.LimitArgsForCall(0)).To(Equal(false))
 		})
 
@@ -55,7 +55,7 @@ var _ = Describe("CapabilitiesStep", func() {
 			})
 
 			It("returns an error", func() {
-				err := step.Init()
+				err := step.Run()
 				Expect(err).To(MatchError(ContainSubstring("banana")))
 			})
 		})
