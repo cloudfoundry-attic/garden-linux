@@ -53,6 +53,54 @@ var _ = Describe("Security", func() {
 		})
 	})
 
+	Describe("Binary planting attacks", func() {
+		var (
+			container           garden.Container
+			privilegedContainer bool
+		)
+
+		JustBeforeEach(func() {
+			var err error
+			client = startGarden()
+			container, err = client.Create(garden.ContainerSpec{Privileged: privilegedContainer})
+			Expect(err).ToNot(HaveOccurred())
+		})
+
+		It("should not allow planting proc_starter in a container", func() {
+			process, err := container.Run(garden.ProcessSpec{
+				User: "root",
+				Path: "cp",
+				Args: []string{"/bin/echo", "/sbin/proc_starter"},
+			},
+				garden.ProcessIO{
+					Stdout: GinkgoWriter,
+					Stderr: GinkgoWriter,
+				})
+
+			Expect(err).NotTo(HaveOccurred())
+			exitStatus, err := process.Wait()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(exitStatus).ToNot(Equal(0))
+		})
+
+		It("should not allow planting initd in a container", func() {
+			process, err := container.Run(garden.ProcessSpec{
+				User: "root",
+				Path: "cp",
+				Args: []string{"/bin/echo", "/sbin/initd"},
+			},
+				garden.ProcessIO{
+					Stdout: GinkgoWriter,
+					Stderr: GinkgoWriter,
+				})
+
+			Expect(err).NotTo(HaveOccurred())
+			exitStatus, err := process.Wait()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(exitStatus).ToNot(Equal(0))
+		})
+	})
+
 	Describe("Mount namespace", func() {
 		It("does not allow mounts in the container to show in the host", func() {
 			client = startGarden()

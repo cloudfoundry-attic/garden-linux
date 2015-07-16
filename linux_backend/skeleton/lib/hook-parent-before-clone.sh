@@ -9,12 +9,18 @@ cd $(dirname $0)/../
 
 source ./etc/config
 
+function bindMountFileRO {
+  [ $# -ne 2 ] && exit
+  touch $2
+  mount --bind $1 $2
+  mount -o remount,ro,bind $1 $2
+}
+
 mkdir -p $rootfs_path/sbin
-cp lib/proc_starter $rootfs_path/sbin/proc_starter
-cp bin/initd $rootfs_path/sbin/initd
+bindMountFileRO $(pwd)/bin/initd $rootfs_path/sbin/initd
+bindMountFileRO $(pwd)/lib/proc_starter $rootfs_path/sbin/proc_starter
+
 cp etc/config $rootfs_path/etc/config
-chown $root_uid:$root_uid $rootfs_path/sbin/proc_starter
-chown $root_uid:$root_uid $rootfs_path/sbin/initd
 chown $root_uid:$root_uid $rootfs_path/etc/config
 
 mkdir -p $rootfs_path/dev/pts
