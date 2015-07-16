@@ -28,16 +28,10 @@ type registryProvider struct {
 	InsecureRegistries []string
 }
 
-func (rp registryProvider) ApplyDefaultHostname(hostname string) string {
-	if hostname == "" {
-		return rp.DefaultHostname
-	}
-	return hostname
-}
-
-// TODO test new signature!!
 func (rp registryProvider) ProvideRegistry(hostname string) (*registry.Session, *registry.Endpoint, error) {
-	hostname = rp.ApplyDefaultHostname(hostname)
+	if hostname == "" {
+		hostname = rp.DefaultHostname
+	}
 
 	endpoint, err := RegistryNewEndpoint(&registry.IndexInfo{
 		Name:   hostname,

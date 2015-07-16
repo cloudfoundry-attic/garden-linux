@@ -49,13 +49,6 @@ var _ = Describe("RepositoryProvider", func() {
 	})
 
 	Context("when the hostname is empty", func() {
-		It("uses the default host and port", func() {
-			provider := NewRepositoryProvider("the-default-host:11", nil)
-			hostname := provider.ApplyDefaultHostname("")
-
-			Expect(hostname).To(Equal("the-default-host:11"))
-		})
-
 		It("creates a new endpoint based on the default host and port", func() {
 			provider := NewRepositoryProvider("the-default-host:11", nil)
 			provider.ProvideRegistry("")
@@ -66,13 +59,6 @@ var _ = Describe("RepositoryProvider", func() {
 	})
 
 	Context("when the hostname is not empty", func() {
-		It("uses the passed in host and port", func() {
-			provider := NewRepositoryProvider("", nil)
-			hostname := provider.ApplyDefaultHostname("the-registry-host:44")
-
-			Expect(hostname).To(Equal("the-registry-host:44"))
-		})
-
 		It("creates a new endpoint based on the supplied host and port", func() {
 			provider := NewRepositoryProvider("", nil)
 			provider.ProvideRegistry("the-registry-host:44")

@@ -16,19 +16,21 @@ type RemoteV1Fetcher struct {
 }
 
 func (fetcher *RemoteV1Fetcher) Fetch(request *FetchRequest) (*FetchResponse, error) {
+	request.Logger.Debug("docker-v1-fetch")
+
 	repoData, err := request.Session.GetRepositoryData(request.Path)
 	if err != nil {
-		return nil, FetchError("GetRepositoryData", request.Hostname, request.Path, err)
+		return nil, FetchError("GetRepositoryData", request.Endpoint.URL.Host, request.Path, err)
 	}
 
 	tagsList, err := request.Session.GetRemoteTags(repoData.Endpoints, request.Path)
 	if err != nil {
-		return nil, FetchError("GetRemoteTags", request.Hostname, request.Path, err)
+		return nil, FetchError("GetRemoteTags", request.Endpoint.URL.Host, request.Path, err)
 	}
 
 	imgID, ok := tagsList[request.Tag]
 	if !ok {
-		return nil, FetchError("looking up tag", request.Hostname, request.Path, fmt.Errorf("unknown tag: %v", request.Tag))
+		return nil, FetchError("looking up tag", request.Endpoint.URL.Host, request.Path, fmt.Errorf("unknown tag: %v", request.Tag))
 	}
 
 	for _, endpointURL := range repoData.Endpoints {
@@ -55,7 +57,7 @@ func (fetcher *RemoteV1Fetcher) Fetch(request *FetchRequest) (*FetchResponse, er
 		}
 	}
 
-	return nil, FetchError("fetchFromEndPoint", request.Hostname, request.Path, fmt.Errorf("all endpoints failed: %v", err))
+	return nil, FetchError("fetchFromEndPoint", request.Endpoint.URL.Host, request.Path, fmt.Errorf("all endpoints failed: %v", err))
 }
 
 func (fetcher *RemoteV1Fetcher) fetchFromEndpoint(request *FetchRequest, endpointURL string, imgID string) (*dockerImage, error) {

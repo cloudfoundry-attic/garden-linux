@@ -31,6 +31,8 @@ var _ = Describe("RemoteV1", func() {
 		lock            *fake_lock.FakeLock
 		logger          *lagertest.TestLogger
 		fetchRequest    *FetchRequest
+
+		registryAddr string
 	)
 
 	BeforeEach(func() {
@@ -86,8 +88,9 @@ var _ = Describe("RemoteV1", func() {
 			),
 		)
 
+		registryAddr = server.HTTPTestServer.Listener.Addr().String()
 		endpoint, err := registry.NewEndpoint(&registry.IndexInfo{
-			Name:   server.HTTPTestServer.Listener.Addr().String(),
+			Name:   registryAddr,
 			Secure: false,
 		}, nil)
 		Expect(err).ToNot(HaveOccurred())
@@ -103,7 +106,6 @@ var _ = Describe("RemoteV1", func() {
 			Session:  session,
 			Endpoint: endpoint,
 			Logger:   logger,
-			Hostname: "some-registry:4444",
 			Path:     "some-repo",
 			Tag:      "some-tag",
 		}
@@ -177,7 +179,7 @@ var _ = Describe("RemoteV1", func() {
 
 				It("returns an error", func() {
 					_, err := fetcher.Fetch(fetchRequest)
-					Expect(err).To(MatchError(ContainSubstring("repository_fetcher: fetchFromEndPoint: could not fetch image some-repo from registry some-registry:4444: all endpoints failed:")))
+					Expect(err).To(MatchError(ContainSubstring("repository_fetcher: fetchFromEndPoint: could not fetch image some-repo from registry %s: all endpoints failed:", registryAddr)))
 				})
 			})
 		})
@@ -253,7 +255,7 @@ var _ = Describe("RemoteV1", func() {
 
 		It("returns an error", func() {
 			_, err := fetcher.Fetch(fetchRequest)
-			Expect(err).To(MatchError(ContainSubstring("repository_fetcher: GetRepositoryData: could not fetch image some-repo from registry some-registry:4444:")))
+			Expect(err).To(MatchError(ContainSubstring("repository_fetcher: GetRepositoryData: could not fetch image some-repo from registry %s:", registryAddr)))
 		})
 	})
 
@@ -292,7 +294,7 @@ var _ = Describe("RemoteV1", func() {
 
 			It("returns an error", func() {
 				_, err := fetcher.Fetch(fetchRequest)
-				Expect(err).To(MatchError(ContainSubstring("repository_fetcher: GetRemoteTags: could not fetch image some-repo from registry some-registry:4444:")))
+				Expect(err).To(MatchError(ContainSubstring("repository_fetcher: GetRemoteTags: could not fetch image some-repo from registry %s:", registryAddr)))
 			})
 		})
 	})

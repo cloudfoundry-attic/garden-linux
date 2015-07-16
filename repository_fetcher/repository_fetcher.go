@@ -16,7 +16,6 @@ import (
 //go:generate counterfeiter . RegistryProvider
 type RegistryProvider interface {
 	ProvideRegistry(hostname string) (*registry.Session, *registry.Endpoint, error)
-	ApplyDefaultHostname(hostname string) string
 }
 
 //go:generate counterfeiter -o fake_lock/FakeLock.go . Lock
@@ -55,12 +54,12 @@ type RepositoryFetcher interface {
 }
 
 type FetchRequest struct {
-	Session  *registry.Session
-	Endpoint *registry.Endpoint
-	Hostname string
-	Path     string
-	Tag      string
-	Logger   lager.Logger
+	Session    *registry.Session
+	Endpoint   *registry.Endpoint
+	Path       string
+	RemotePath string
+	Tag        string
+	Logger     lager.Logger
 }
 
 type FetchResponse struct {

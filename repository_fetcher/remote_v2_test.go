@@ -30,6 +30,8 @@ var _ = Describe("RemoteV2", func() {
 		lock         *fake_lock.FakeLock
 		logger       *lagertest.TestLogger
 		fetchRequest *FetchRequest
+
+		registryAddr string
 	)
 
 	BeforeEach(func() {
@@ -53,8 +55,9 @@ var _ = Describe("RemoteV2", func() {
 			}),
 		)
 
+		registryAddr = server.HTTPTestServer.Listener.Addr().String()
 		endpoint, err := registry.NewEndpoint(&registry.IndexInfo{
-			Name:   server.HTTPTestServer.Listener.Addr().String(),
+			Name:   registryAddr,
 			Secure: false,
 		}, nil)
 		Expect(err).ToNot(HaveOccurred())
@@ -66,12 +69,12 @@ var _ = Describe("RemoteV2", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		fetchRequest = &FetchRequest{
-			Session:  session,
-			Endpoint: endpoint,
-			Logger:   logger,
-			Hostname: "some-registry:4444",
-			Path:     "some-repo",
-			Tag:      "some-tag",
+			Session:    session,
+			Endpoint:   endpoint,
+			Logger:     logger,
+			Path:       "some-repo",
+			RemotePath: "some-repo",
+			Tag:        "some-tag",
 		}
 
 		fetcher = &RemoteV2Fetcher{
@@ -163,7 +166,7 @@ var _ = Describe("RemoteV2", func() {
 
 			It("returns an error", func() {
 				_, err := fetcher.Fetch(fetchRequest)
-				Expect(err).To(MatchError(ContainSubstring("repository_fetcher: GetV2ImageManifest: could not fetch image some-repo from registry some-registry:4444:")))
+				Expect(err).To(MatchError(ContainSubstring("repository_fetcher: GetV2ImageManifest: could not fetch image some-repo from registry %s:", registryAddr)))
 			})
 		})
 
@@ -181,7 +184,7 @@ var _ = Describe("RemoteV2", func() {
 
 			It("returns an error", func() {
 				_, err := fetcher.Fetch(fetchRequest)
-				Expect(err).To(MatchError(ContainSubstring("repository_fetcher: UnmarshalManifest: could not fetch image some-repo from registry some-registry:4444:")))
+				Expect(err).To(MatchError(ContainSubstring("repository_fetcher: UnmarshalManifest: could not fetch image some-repo from registry %s:", registryAddr)))
 			})
 		})
 	})
@@ -239,7 +242,7 @@ var _ = Describe("RemoteV2", func() {
 
 			It("returns an error", func() {
 				_, err := fetcher.Fetch(fetchRequest)
-				Expect(err).To(MatchError(ContainSubstring("repository_fetcher: NewImgJSON: could not fetch image some-repo from registry some-registry:4444:")))
+				Expect(err).To(MatchError(ContainSubstring("repository_fetcher: NewImgJSON: could not fetch image some-repo from registry %s:", registryAddr)))
 			})
 		})
 
@@ -254,7 +257,7 @@ var _ = Describe("RemoteV2", func() {
 
 			It("returns an error", func() {
 				_, err := fetcher.Fetch(fetchRequest)
-				Expect(err).To(MatchError(ContainSubstring("repository_fetcher: GetV2ImageBlobReader: could not fetch image some-repo from registry some-registry:4444:")))
+				Expect(err).To(MatchError(ContainSubstring("repository_fetcher: GetV2ImageBlobReader: could not fetch image some-repo from registry %s:", registryAddr)))
 			})
 		})
 

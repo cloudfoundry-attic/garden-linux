@@ -281,6 +281,7 @@ func main() {
 		logger.Fatal("failed-to-construct-graph", err)
 	}
 
+	lock := repository_fetcher.NewGraphLock()
 	repoFetcher := repository_fetcher.Retryable{
 		repository_fetcher.NewRemote(
 			repository_fetcher.NewRepositoryProvider(
@@ -288,6 +289,17 @@ func main() {
 				strings.Split(*insecureRegistries, ","),
 			),
 			graph,
+			map[registry.APIVersion]repository_fetcher.VersionedFetcher{
+				registry.APIVersion1: &repository_fetcher.RemoteV1Fetcher{
+					Graph:     graph,
+					GraphLock: lock,
+				},
+				registry.APIVersion2: &repository_fetcher.RemoteV2Fetcher{
+					Graph:     graph,
+					GraphLock: lock,
+				},
+			},
+			repository_fetcher.EndpointPinger{},
 		),
 	}
 

@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 
 	"github.com/docker/distribution/digest"
-	"github.com/docker/docker/cliconfig"
 	"github.com/docker/docker/image"
 	"github.com/docker/docker/registry"
+	"github.com/pivotal-golang/lager"
 )
 
 type RemoteV2Fetcher struct {
@@ -15,15 +15,23 @@ type RemoteV2Fetcher struct {
 }
 
 func (fetcher *RemoteV2Fetcher) Fetch(request *FetchRequest) (*FetchResponse, error) {
-	auth := registry.NewRequestAuthorization(&cliconfig.AuthConfig{}, request.Endpoint, "", "", []string{})
-	_, manifestBytes, err := request.Session.GetV2ImageManifest(request.Endpoint, request.Path, request.Tag, auth)
+	request.Logger.Debug("docker-v2-fetch", lager.Data{
+		"request": request,
+	})
+
+	auth, err := request.Session.GetV2Authorization(request.Endpoint, request.RemotePath, true)
 	if err != nil {
-		return nil, FetchError("GetV2ImageManifest", request.Hostname, request.Path, err)
+		return nil, FetchError("GetV2Authorization", request.Endpoint.URL.Host, request.Path, err)
+	}
+
+	_, manifestBytes, err := request.Session.GetV2ImageManifest(request.Endpoint, request.RemotePath, request.Tag, auth)
+	if err != nil {
+		return nil, FetchError("GetV2ImageManifest", request.Endpoint.URL.Host, request.Path, err)
 	}
 
 	var manifest registry.ManifestData
 	if err := json.Unmarshal(manifestBytes, &manifest); err != nil {
-		return nil, FetchError("UnmarshalManifest", request.Hostname, request.Path, err)
+		return nil, FetchError("UnmarshalManifest", request.Endpoint.URL.Host, request.Path, err)
 	}
 
 	var lastImg *image.Image
@@ -31,12 +39,12 @@ func (fetcher *RemoteV2Fetcher) Fetch(request *FetchRequest) (*FetchResponse, er
 	for i := len(manifest.FSLayers) - 1; i >= 0; i-- {
 		hash, err := digest.ParseDigest(manifest.FSLayers[i].BlobSum)
 		if err != nil {
-			return nil, FetchError("ParseDigest", request.Hostname, request.Path, err)
+			return nil, FetchError("ParseDigest", request.Endpoint.URL.Host, request.Path, err)
 		}
 
 		img, err := image.NewImgJSON([]byte(manifest.History[i].V1Compatibility))
 		if err != nil {
-			return nil, FetchError("NewImgJSON", request.Hostname, request.Path, err)
+			return nil, FetchError("NewImgJSON", request.Endpoint.URL.Host, request.Path, err)
 		}
 		if i == 0 {
 			lastImg = img
@@ -55,15 +63,15 @@ func (fetcher *RemoteV2Fetcher) fetchLayer(request *FetchRequest, img *image.Ima
 	defer fetcher.GraphLock.Release(img.ID)
 
 	if !fetcher.Graph.Exists(img.ID) {
-		reader, _, err := request.Session.GetV2ImageBlobReader(request.Endpoint, request.Path, hash, auth)
+		reader, _, err := request.Session.GetV2ImageBlobReader(request.Endpoint, request.RemotePath, hash, auth)
 		if err != nil {
-			return FetchError("GetV2ImageBlobReader", request.Hostname, request.Path, err)
+			return FetchError("GetV2ImageBlobReader", request.Endpoint.URL.Host, request.Path, err)
 		}
 		defer reader.Close()
 
 		err = fetcher.Graph.Register(img, reader)
 		if err != nil {
-			return FetchError("GraphRegister", request.Hostname, request.Path, err)
+			return FetchError("GraphRegister", request.Endpoint.URL.Host, request.Path, err)
 		}
 	}
 

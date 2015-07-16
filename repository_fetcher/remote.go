@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"strings"
 	"sync"
 
 	"github.com/cloudfoundry-incubator/garden"
@@ -12,11 +13,27 @@ import (
 	"github.com/pivotal-golang/lager"
 )
 
+//go:generate counterfeiter -o fake_versioned_fetcher/fake_versioned_fetcher.go . VersionedFetcher
+type VersionedFetcher interface {
+	Fetch(*FetchRequest) (*FetchResponse, error)
+}
+
+//go:generate counterfeiter -o fake_pinger/fake_pinger.go . Pinger
+type Pinger interface {
+	Ping(*registry.Endpoint) (registry.RegistryInfo, error)
+}
+
+type EndpointPinger struct{}
+
+func (EndpointPinger) Ping(e *registry.Endpoint) (registry.RegistryInfo, error) {
+	return e.Ping()
+}
+
 type DockerRepositoryFetcher struct {
-	v1 *RemoteV1Fetcher
-	v2 *RemoteV2Fetcher
+	fetchers map[registry.APIVersion]VersionedFetcher
 
 	registryProvider RegistryProvider
+	pinger           Pinger
 	graph            Graph
 
 	fetchingLayers map[string]chan struct{}
@@ -50,13 +67,11 @@ type dockerLayer struct {
 	vols []string
 }
 
-func NewRemote(registry RegistryProvider, graph Graph) RepositoryFetcher {
-	lock := NewGraphLock()
-
+func NewRemote(provider RegistryProvider, graph Graph, fetchers map[registry.APIVersion]VersionedFetcher, pinger Pinger) RepositoryFetcher {
 	return &DockerRepositoryFetcher{
-		v1:               &RemoteV1Fetcher{Graph: graph, GraphLock: lock},
-		v2:               &RemoteV2Fetcher{Graph: graph, GraphLock: lock},
-		registryProvider: registry,
+		fetchers:         fetchers,
+		registryProvider: provider,
+		pinger:           pinger,
 		graph:            graph,
 		fetchingLayers:   map[string]chan struct{}{},
 		fetchingMutex:    new(sync.Mutex),
@@ -88,38 +103,45 @@ func (fetcher *DockerRepositoryFetcher) Fetch(
 	}
 
 	path := repoURL.Path[1:]
-	hostname := fetcher.registryProvider.ApplyDefaultHostname(repoURL.Host)
 
-	r, endpoint, err := fetcher.registryProvider.ProvideRegistry(hostname)
+	r, endpoint, err := fetcher.registryProvider.ProvideRegistry(repoURL.Host)
 	if err != nil {
 		logger.Error("failed-to-construct-registry-endpoint", err)
-		return errs(FetchError("ProvideRegistry", hostname, path, err))
+		return errs(FetchError("ProvideRegistry", repoURL.Host, path, err))
+	}
+
+	var regInfo registry.RegistryInfo
+	if regInfo, err = fetcher.pinger.Ping(endpoint); err == nil {
+		logger.Debug("pinged-registry", lager.Data{
+			"info":             regInfo,
+			"endpoint-version": endpoint.Version,
+		})
+	} else {
+		return errs(err)
+	}
+
+	remotePath := path
+	if !regInfo.Standalone && strings.IndexRune(remotePath, '/') == -1 {
+		remotePath = "library/" + remotePath
 	}
 
 	fetchRequest := &FetchRequest{
-		Session:  r,
-		Endpoint: endpoint,
-		Logger:   fLog,
-		Hostname: hostname,
-		Path:     path,
-		Tag:      tag,
+		Session:    r,
+		Endpoint:   endpoint,
+		Logger:     fLog,
+		Path:       path,
+		RemotePath: remotePath,
+		Tag:        tag,
 	}
 
-	var response *FetchResponse
-
-	if endpoint.Version == registry.APIVersion2 {
-		response, err = fetcher.v2.Fetch(fetchRequest)
+	if realFetcher, ok := fetcher.fetchers[endpoint.Version]; ok {
+		response, err := realFetcher.Fetch(fetchRequest)
 		if err != nil {
 			return errs(err)
 		}
-	} else if endpoint.Version == registry.APIVersion1 {
-		response, err = fetcher.v1.Fetch(fetchRequest)
-		if err != nil {
-			return errs(err)
-		}
-	} else {
-		return errs(errors.New("Unknown docker registry API version"))
+
+		return response.ImageID, response.Env, response.Volumes, nil
 	}
 
-	return response.ImageID, response.Env, response.Volumes, nil
+	return errs(errors.New("unknown docker registry API version"))
 }

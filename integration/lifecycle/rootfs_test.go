@@ -74,7 +74,7 @@ var _ = Describe("Rootfs container create parameter", func() {
 
 	Context("with a docker rootfs URI", func() {
 		Context("not containing a host", func() {
-			It("the container is created successfully", func() {
+			It("succesfully creates the container", func() {
 				var err error
 
 				container, err = client.Create(garden.ContainerSpec{RootFSPath: "docker:///busybox"})
@@ -84,7 +84,20 @@ var _ = Describe("Rootfs container create parameter", func() {
 			Context("when image does not exist", func() {
 				It("returns a helpful error message", func() {
 					_, err := client.Create(garden.ContainerSpec{RootFSPath: "docker:///cloudfoundry/doesnotexist"})
-					Expect(err.Error()).To(ContainSubstring("could not fetch image cloudfoundry/doesnotexist from registry https://index.docker.io/v1/"))
+					Expect(err.Error()).To(ContainSubstring("could not fetch image cloudfoundry/doesnotexist from registry"))
+				})
+			})
+
+			Context("when the -registry flag targets a v2 repository", func() {
+				BeforeEach(func() {
+					args = []string{"--registry", "https://registry-1.docker.io/v2/"}
+				})
+
+				It("still succesfully creates the container", func() {
+					var err error
+
+					container, err = client.Create(garden.ContainerSpec{RootFSPath: "docker:///busybox"})
+					Expect(err).ToNot(HaveOccurred())
 				})
 			})
 		})
