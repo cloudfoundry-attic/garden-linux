@@ -30,7 +30,7 @@ var _ = Describe("Execer", func() {
 
 		execer = &system.NamespacingExecer{
 			CommandRunner:    commandRunner,
-			UidMappingOffset: 101,
+			UidMappingOffset: 80000,
 		}
 	})
 
@@ -96,8 +96,17 @@ var _ = Describe("Execer", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				cmd := commandRunner.StartedCommands()[0]
-				Expect(cmd.SysProcAttr.UidMappings[0].HostID).To(Equal(101))
-				Expect(cmd.SysProcAttr.GidMappings[0].HostID).To(Equal(101))
+				Expect(cmd.SysProcAttr.UidMappings[0].HostID).To(Equal(80000))
+				Expect(cmd.SysProcAttr.GidMappings[0].HostID).To(Equal(80000))
+			})
+
+			It("should map the maximal 16-bit uid and gid", func() {
+				_, err := execer.Exec("something", "smthg")
+				Expect(err).ToNot(HaveOccurred())
+
+				cmd := commandRunner.StartedCommands()[0]
+				Expect(cmd.SysProcAttr.UidMappings[0].Size).To(BeNumerically(">", 65535))
+				Expect(cmd.SysProcAttr.GidMappings[0].Size).To(BeNumerically(">", 65535))
 			})
 		})
 

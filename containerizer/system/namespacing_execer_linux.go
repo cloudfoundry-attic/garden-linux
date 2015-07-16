@@ -9,6 +9,8 @@ import (
 	"github.com/cloudfoundry/gunk/command_runner"
 )
 
+const UIDMappingRange = 65536
+
 type NamespacingExecer struct {
 	CommandRunner    command_runner.CommandRunner
 	ExtraFiles       []*os.File
@@ -33,14 +35,14 @@ func (e *NamespacingExecer) Exec(binPath string, args ...string) (int, error) {
 			{
 				ContainerID: 0,
 				HostID:      e.UidMappingOffset,
-				Size:        65534,
+				Size:        UIDMappingRange,
 			},
 		}
 		cmd.SysProcAttr.GidMappings = []syscall.SysProcIDMap{
 			{
 				ContainerID: 0,
 				HostID:      e.UidMappingOffset,
-				Size:        65545,
+				Size:        UIDMappingRange,
 			},
 		}
 

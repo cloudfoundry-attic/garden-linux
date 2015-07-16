@@ -9,20 +9,8 @@ cd $(dirname $0)/../
 
 source etc/config
 
-# write uid map if user namespacing is enabled
-# if [ "$root_uid" -ne 0 ]
-# then
-# cat > /proc/$PID/uid_map <<EOF
-# 0 $root_uid 65534
-# EOF
-
-# cat > /proc/$PID/gid_map <<EOF
-# 0 $root_uid 65534
-# EOF
-# fi
-
 # Add new group for every subsystem
-
+#
 # cpuset must be set up first, so that cpuset.cpus and cpuset.mems is assigned
 # otherwise adding the process to the subsystem's tasks will fail with ENOSPC
 for subsystem in {cpuset,cpu,cpuacct,devices,memory}

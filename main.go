@@ -26,6 +26,7 @@ import (
 	"github.com/cloudfoundry-incubator/cf-debug-server"
 	"github.com/cloudfoundry-incubator/cf-lager"
 	"github.com/cloudfoundry-incubator/garden-linux/container_repository"
+	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/bandwidth_manager"
@@ -293,7 +294,7 @@ func main() {
 	uidMappings := rootfs_provider.MappingList{{
 		FromID: 0,
 		ToID:   *uidMappingOffset,
-		Size:   65534, // map an almost-16-bit range
+		Size:   system.UIDMappingRange,
 	}}
 
 	rootFSNamespacer := &rootfs_provider.UidNamespacer{
