@@ -72,25 +72,25 @@ func main() {
 
 	initializer := &system.Initializer{
 		Steps: []system.StepRunner{
-			&step{system.Mount{
+			&containerizer.FuncStep{system.Mount{
 				Type:  system.Tmpfs,
 				Flags: syscall.MS_NODEV,
 				Path:  "/dev/shm",
 			}.Mount},
-			&step{system.Mount{
+			&containerizer.FuncStep{system.Mount{
 				Type:  system.Proc,
 				Flags: procMountFlags,
 				Path:  "/proc",
 			}.Mount},
-			&step{system.Mount{
+			&containerizer.FuncStep{system.Mount{
 				Type: system.Devpts,
 				Path: "/dev/pts",
 				Data: "newinstance,ptmxmode=0666",
 			}.Mount},
-			&step{system.Unmount{
+			&containerizer.FuncStep{system.Unmount{
 				Dir: "/tmp/garden-host",
 			}.Unmount},
-			&step{func() error {
+			&containerizer.FuncStep{func() error {
 				return setupNetwork(env)
 			}},
 			&containerizer.CapabilitiesStep{
@@ -158,12 +158,4 @@ func setupNetwork(env process.Env) error {
 	}
 
 	return nil
-}
-
-type step struct {
-	fn func() error
-}
-
-func (s *step) Run() error {
-	return s.fn()
 }

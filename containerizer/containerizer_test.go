@@ -25,6 +25,7 @@ var _ = Describe("Containerizer", func() {
 		var signaller *fake_signaller.FakeSignaller
 		var waiter *fake_waiter.FakeWaiter
 		var hookCommandRunner *FakeCommandRunner
+		var beforeCloneInitializer *fake_initializer.FakeInitializer
 
 		BeforeEach(func() {
 			rlimits = new(fake_rlimits_initializer.FakeRlimitsInitializer)
@@ -32,14 +33,16 @@ var _ = Describe("Containerizer", func() {
 			signaller = &fake_signaller.FakeSignaller{}
 			waiter = &fake_waiter.FakeWaiter{}
 			hookCommandRunner = &FakeCommandRunner{}
+			beforeCloneInitializer = &fake_initializer.FakeInitializer{}
 
 			cz = &containerizer.Containerizer{
-				Rlimits:     rlimits,
-				RootfsPath:  "some-rootfs",
-				Execer:      containerExecer,
-				InitBinPath: "initd",
-				Signaller:   signaller,
-				Waiter:      waiter,
+				Rlimits:                rlimits,
+				BeforeCloneInitializer: beforeCloneInitializer,
+				RootfsPath:             "some-rootfs",
+				Execer:                 containerExecer,
+				InitBinPath:            "initd",
+				Signaller:              signaller,
+				Waiter:                 waiter,
 				// Temporary until we merge the hook scripts functionality in Golang
 				CommandRunner: hookCommandRunner,
 				LibPath:       "./lib",
@@ -58,6 +61,61 @@ var _ = Describe("Containerizer", func() {
 
 			It("returns an error", func() {
 				Expect(cz.Create()).To(MatchError("containerizer: initializing resource limits: Failed to apply hard rlimits"))
+			})
+
+			It("does not call the before clone initializer", func() {
+				Expect(cz.Create()).ShouldNot(Succeed())
+				Expect(beforeCloneInitializer.InitCallCount()).To(Equal(0))
+			})
+
+			It("does not call parent hooks", func() {
+				Expect(cz.Create()).ToNot(Succeed())
+
+				Expect(hookCommandRunner).ToNot(HaveExecutedSerially(
+					CommandSpec{
+						Path: "lib/hook",
+						Args: []string{
+							string(hook.PARENT_BEFORE_CLONE),
+						},
+					},
+				))
+
+				Expect(hookCommandRunner).ToNot(HaveExecutedSerially(
+					CommandSpec{
+						Path: "lib/hook",
+						Args: []string{
+							string(hook.PARENT_AFTER_CLONE),
+						},
+					},
+				))
+			})
+
+			It("does not spawn the pivoter in the container", func() {
+				Expect(cz.Create()).ToNot(Succeed())
+
+				Expect(hookCommandRunner).ToNot(HaveExecutedSerially(
+					CommandSpec{
+						Path: "lib/pivotter",
+						Args: []string{
+							"-rootfs", "some-rootfs",
+						},
+					},
+				))
+			})
+		})
+
+		It("calls the before clone initializer", func() {
+			Expect(cz.Create()).To(Succeed())
+			Expect(beforeCloneInitializer.InitCallCount()).To(Equal(1))
+		})
+
+		Context("when before clone initializer fails", func() {
+			BeforeEach(func() {
+				beforeCloneInitializer.InitReturns(errors.New("Failed to run before clone initializer"))
+			})
+
+			It("returns an error", func() {
+				Expect(cz.Create()).To(MatchError("containerizer: before clone initializer: Failed to run before clone initializer"))
 			})
 
 			It("does not call parent hooks", func() {

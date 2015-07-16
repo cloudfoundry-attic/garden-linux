@@ -48,14 +48,15 @@ type Waiter interface {
 }
 
 type Containerizer struct {
-	Rlimits              RlimitsInitializer
-	InitBinPath          string
-	InitArgs             []string
-	Execer               ContainerExecer
-	RootfsPath           string
-	ContainerInitializer Initializer
-	Signaller            Signaller
-	Waiter               Waiter
+	Rlimits                RlimitsInitializer
+	InitBinPath            string
+	InitArgs               []string
+	Execer                 ContainerExecer
+	RootfsPath             string
+	BeforeCloneInitializer Initializer
+	ContainerInitializer   Initializer
+	Signaller              Signaller
+	Waiter                 Waiter
 	// Temporary until we merge the hook scripts functionality in Golang
 	CommandRunner command_runner.CommandRunner
 	LibPath       string
@@ -64,6 +65,10 @@ type Containerizer struct {
 func (c *Containerizer) Create() error {
 	if err := c.Rlimits.Init(); err != nil {
 		return fmt.Errorf("containerizer: initializing resource limits: %s", err)
+	}
+
+	if err := c.BeforeCloneInitializer.Init(); err != nil {
+		return fmt.Errorf("containerizer: before clone initializer: %s", err)
 	}
 
 	// Temporary until we merge the hook scripts functionality in Golang

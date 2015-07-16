@@ -87,9 +87,20 @@ func main() {
 		os.Exit(9)
 	}
 
+	beforeCloneInitializer := &system.Initializer{
+		Steps: []system.StepRunner{
+		// &conainerizer.FuncStep{system.Mount{
+		// 	Type:  system.Tmpfs,
+		// 	Flags: syscall.MS_NODEV,
+		// 	Path:  "/dev/shm",
+		// }.Mount},
+		},
+	}
+
 	cz := containerizer.Containerizer{
-		Rlimits:     &container_daemon.RlimitsManager{},
-		InitBinPath: path.Join(binPath, "initc"),
+		Rlimits:                &container_daemon.RlimitsManager{},
+		BeforeCloneInitializer: beforeCloneInitializer,
+		InitBinPath:            path.Join(binPath, "initc"),
 		InitArgs: []string{
 			"--root", *rootFsPath,
 			"--config", path.Join(*libPath, "../etc/config"),
