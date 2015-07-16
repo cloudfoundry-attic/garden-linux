@@ -66,38 +66,61 @@ var _ = Describe("Security", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
-		It("should not allow planting proc_starter in a container", func() {
-			process, err := container.Run(garden.ProcessSpec{
-				User: "root",
-				Path: "cp",
-				Args: []string{"/bin/echo", "/sbin/proc_starter"},
-			},
-				garden.ProcessIO{
-					Stdout: GinkgoWriter,
-					Stderr: GinkgoWriter,
-				})
+		Context("on an unprivileged container", func() {
+			BeforeEach(func() {
+				privilegedContainer = false
+			})
 
-			Expect(err).NotTo(HaveOccurred())
-			exitStatus, err := process.Wait()
-			Expect(err).ToNot(HaveOccurred())
-			Expect(exitStatus).ToNot(Equal(0))
-		})
+			It("should not allow planting proc_starter in a container", func() {
+				process, err := container.Run(garden.ProcessSpec{
+					User: "root",
+					Path: "cp",
+					Args: []string{"/bin/echo", "/sbin/proc_starter"},
+				},
+					garden.ProcessIO{
+						Stdout: GinkgoWriter,
+						Stderr: GinkgoWriter,
+					})
 
-		It("should not allow planting initd in a container", func() {
-			process, err := container.Run(garden.ProcessSpec{
-				User: "root",
-				Path: "cp",
-				Args: []string{"/bin/echo", "/sbin/initd"},
-			},
-				garden.ProcessIO{
-					Stdout: GinkgoWriter,
-					Stderr: GinkgoWriter,
-				})
+				Expect(err).NotTo(HaveOccurred())
+				exitStatus, err := process.Wait()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(exitStatus).ToNot(Equal(0))
+			})
 
-			Expect(err).NotTo(HaveOccurred())
-			exitStatus, err := process.Wait()
-			Expect(err).ToNot(HaveOccurred())
-			Expect(exitStatus).ToNot(Equal(0))
+			It("should not allow planting initd in a container", func() {
+				process, err := container.Run(garden.ProcessSpec{
+					User: "root",
+					Path: "cp",
+					Args: []string{"/bin/echo", "/sbin/initd"},
+				},
+					garden.ProcessIO{
+						Stdout: GinkgoWriter,
+						Stderr: GinkgoWriter,
+					})
+
+				Expect(err).NotTo(HaveOccurred())
+				exitStatus, err := process.Wait()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(exitStatus).ToNot(Equal(0))
+			})
+
+			It("fails to unmount the initd bind mount", func() {
+				process, err := container.Run(garden.ProcessSpec{
+					User: "root",
+					Path: "umount",
+					Args: []string{"/sbin/initd"},
+				},
+					garden.ProcessIO{
+						Stdout: GinkgoWriter,
+						Stderr: GinkgoWriter,
+					})
+
+				Expect(err).NotTo(HaveOccurred())
+				exitStatus, err := process.Wait()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(exitStatus).ToNot(Equal(0))
+			})
 		})
 	})
 
