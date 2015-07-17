@@ -14,7 +14,7 @@ import (
 	"github.com/onsi/gomega/gbytes"
 )
 
-var _ = Describe("Mount", func() {
+var _ = FDescribe("Mount", func() {
 	var (
 		dest string
 		src  string
@@ -24,9 +24,7 @@ var _ = Describe("Mount", func() {
 		var err error
 		src, err = ioutil.TempDir("", "")
 		Expect(err).ToNot(HaveOccurred())
-
-		dest, err = ioutil.TempDir("", "")
-		Expect(err).ToNot(HaveOccurred())
+		dest = fmt.Sprintf("/tmp/mount-dest-temp-%d", GinkgoParallelNode())
 	})
 
 	AfterEach(func() {
@@ -94,6 +92,12 @@ var _ = Describe("Mount", func() {
 		})
 
 		Context("when the destination cannot be created", func() {
+			BeforeEach(func() {
+				var err error
+				dest, err = ioutil.TempDir("", "")
+				Expect(err).ToNot(HaveOccurred())
+			})
+
 			It("returns an informative error", func() {
 				ioutil.WriteFile(filepath.Join(dest, "foo"), []byte("block"), 0700)
 				stderr := gbytes.NewBuffer()
@@ -117,6 +121,18 @@ var _ = Describe("Mount", func() {
 				Expect(stdout).To(gbytes.Say(fmt.Sprintf("%s ext4 rw,relatime,errors=remount-ro,data=ordered", dest)))
 			})
 
+			Context("when MountModeNone is used", func() {
+				It("mounts using the sourcePath", func() {
+					stderr := gbytes.NewBuffer()
+					err := runInContainer(GinkgoWriter, io.MultiWriter(stderr, GinkgoWriter),
+						privileged, "fake_mounter", fmt.Sprintf("-mode=%d", system.MountModeNone), "-type=bind", "-sourcePath="+src, "-targetPath="+dest, fmt.Sprintf("-flags=%d", syscall.MS_BIND), "cat", "/proc/mounts")
+
+					Expect(err).To(HaveOccurred())
+					_, err = os.Stat(dest)
+					Expect(os.IsNotExist(err)).To(BeTrue())
+				})
+			})
+
 			Context("when file is mounted", func() {
 				var (
 					srcFile string
@@ -132,19 +148,32 @@ var _ = Describe("Mount", func() {
 				})
 
 				AfterEach(func() {
-					Expect(os.Remove(dstFile)).To(Succeed())
+					Expect(os.Remove(srcFile)).To(Succeed())
 				})
 
 				It("mounts a file using the sourcePath", func() {
 					stdout := gbytes.NewBuffer()
 					Expect(
 						runInContainer(io.MultiWriter(stdout, GinkgoWriter), GinkgoWriter,
-							privileged, "fake_mounter", fmt.Sprintf("-mode=%d", system.MountModeFile), "-type=bind", "-sourcePath="+srcFile, "-targetPath="+dstFile, fmt.Sprintf("-flags=%d", syscall.MS_BIND), "cat", "/proc/mounts"),
+							privileged, "fake_mounter", fmt.Sprintf("-mode=%d", system.MountCreateFile), "-type=bind", "-sourcePath="+srcFile, "-targetPath="+dstFile, fmt.Sprintf("-flags=%d", syscall.MS_BIND), "cat", "/proc/mounts"),
 					).To(Succeed())
 
 					_, err := os.Stat(dstFile)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(stdout).To(gbytes.Say(fmt.Sprintf("%s ext4 rw,relatime,errors=remount-ro,data=ordered", dstFile)))
+					Expect(os.Remove(dstFile)).To(Succeed())
+				})
+
+				Context("when destination file cannot be created", func() {
+					It("returns an informative error", func() {
+						stderr := gbytes.NewBuffer()
+						Expect(
+							runInContainer(GinkgoWriter, io.MultiWriter(GinkgoWriter, stderr),
+								privileged, "fake_mounter", fmt.Sprintf("-mode=%d", system.MountCreateFile), "-type=bind", "-sourcePath="+srcFile, "-targetPath=/tmp", fmt.Sprintf("-flags=%d", syscall.MS_BIND), "cat", "/proc/mounts"),
+						).To(HaveOccurred())
+
+						Expect(stderr).To(gbytes.Say("error: system: create mount point file /tmp: "))
+					})
 				})
 			})
 		})

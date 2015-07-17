@@ -12,14 +12,15 @@ type Mount struct {
 	TargetPath string
 	Flags      int
 	Data       string
-	Mode 	   MountMode
+	Mode       MountMode
 }
 
 type MountMode int
 
 const (
-	MountModeDir MountMode = iota
-	MountModeFile
+	MountCreateDir MountMode = iota
+	MountCreateFile
+	MountModeNone
 )
 
 type MountType string
@@ -32,17 +33,17 @@ const (
 )
 
 func (m Mount) Mount() error {
-	if m.Mode == MountModeDir {
+	if m.Mode == MountCreateDir {
 		if err := os.MkdirAll(m.TargetPath, 0700); err != nil {
 			return fmt.Errorf("system: create mount point directory %s: %s", m.TargetPath, err)
 		}
-	} else {
-		if _, err:= os.OpenFile(m.TargetPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0700); err != nil {
+	} else if m.Mode == MountCreateFile {
+		if _, err := os.OpenFile(m.TargetPath, os.O_CREATE|os.O_RDONLY, 0700); err != nil {
 			return fmt.Errorf("system: create mount point file %s: %s", m.TargetPath, err)
 		}
 	}
 
-	sourcePath:= m.SourcePath
+	sourcePath := m.SourcePath
 	if sourcePath == "" {
 		sourcePath = string(m.Type)
 	}

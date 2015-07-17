@@ -11,13 +11,16 @@ import (
 
 func main() {
 	mountType := flag.String("type", "", "Mount type")
+	mountMode := flag.Int("mode", 0, "Mount Mode: Directory or File")
 	sourcePath := flag.String("sourcePath", "", "Source path")
 	targetPath := flag.String("targetPath", "", "Destination path")
 	flags := flag.Int("flags", -1, "Mount options")
 	data := flag.String("data", "", "Data options")
+
 	flag.Parse()
 
 	mnt := system.Mount{
+		Mode:       system.MountMode(*mountMode),
 		Type:       system.MountType(*mountType),
 		SourcePath: *sourcePath,
 		TargetPath: *targetPath,
