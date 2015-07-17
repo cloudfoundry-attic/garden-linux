@@ -1,25 +1,28 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
-	"strconv"
 
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
 )
 
 func main() {
-	flags, err := strconv.Atoi(os.Args[3])
-	if err != nil {
-		panic(err)
-	}
+	mountType := flag.String("type", "", "Mount type")
+	sourcePath := flag.String("sourcePath", "", "Source path")
+	targetPath := flag.String("targetPath", "", "Destination path")
+	flags := flag.Int("flags", -1, "Mount options")
+	data := flag.String("data", "", "Data options")
+	flag.Parse()
 
 	mnt := system.Mount{
-		Type:       system.MountType(os.Args[1]),
-		TargetPath: os.Args[2],
-		Flags:      flags,
-		Data:       os.Args[4],
+		Type:       system.MountType(*mountType),
+		SourcePath: *sourcePath,
+		TargetPath: *targetPath,
+		Flags:      *flags,
+		Data:       *data,
 	}
 
 	if err := mnt.Mount(); err != nil {
@@ -27,7 +30,8 @@ func main() {
 		panic("mount failed!")
 	}
 
-	cmd := exec.Command(os.Args[5], os.Args[6:]...)
+	args := flag.Args()
+	cmd := exec.Command(args[0], args[1:]...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 

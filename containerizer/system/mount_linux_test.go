@@ -15,15 +15,22 @@ import (
 )
 
 var _ = Describe("Mount", func() {
-	var dest string
+	var (
+		dest string
+		src  string
+	)
 
 	BeforeEach(func() {
 		var err error
+		src, err = ioutil.TempDir("", "")
+		Expect(err).ToNot(HaveOccurred())
+
 		dest, err = ioutil.TempDir("", "")
 		Expect(err).ToNot(HaveOccurred())
 	})
 
 	AfterEach(func() {
+		Expect(os.RemoveAll(src)).To(Succeed())
 		Expect(os.RemoveAll(dest)).To(Succeed())
 	})
 
@@ -33,7 +40,7 @@ var _ = Describe("Mount", func() {
 				stderr := gbytes.NewBuffer()
 				Expect(
 					runInContainer(GinkgoWriter, io.MultiWriter(stderr, GinkgoWriter),
-						privileged, "fake_mounter", "not-a-mount-type", dest, "0", "", "cat", "/proc/mounts"),
+						privileged, "fake_mounter", "-type=not-a-mount-type", "-targetPath="+dest, "-flags=0", "cat", "/proc/mounts"),
 				).To(HaveOccurred())
 
 				Expect(stderr).To(gbytes.Say("error: system: mount not-a-mount-type on %s: no such device", dest))
@@ -44,7 +51,7 @@ var _ = Describe("Mount", func() {
 			stdout := gbytes.NewBuffer()
 			Expect(
 				runInContainer(io.MultiWriter(stdout, GinkgoWriter), GinkgoWriter,
-					privileged, "fake_mounter", string(system.Tmpfs), dest, "0", "", "cat", "/proc/mounts"),
+					privileged, "fake_mounter", "-type="+string(system.Tmpfs), "-targetPath="+dest, "-flags=0", "cat", "/proc/mounts"),
 			).To(Succeed())
 
 			Expect(stdout).To(gbytes.Say(fmt.Sprintf("tmpfs %s tmpfs", dest)))
@@ -55,7 +62,7 @@ var _ = Describe("Mount", func() {
 				stdout := gbytes.NewBuffer()
 				Expect(
 					runInContainer(io.MultiWriter(stdout, GinkgoWriter), GinkgoWriter,
-						privileged, "fake_mounter", string(system.Tmpfs), dest, fmt.Sprintf("%d", syscall.MS_NODEV), "", "cat", "/proc/mounts"),
+						privileged, "fake_mounter", "-type="+string(system.Tmpfs), "-targetPath="+dest, fmt.Sprintf("-flags=%d", syscall.MS_NODEV), "cat", "/proc/mounts"),
 				).To(Succeed())
 
 				Expect(stdout).To(gbytes.Say(fmt.Sprintf("tmpfs %s tmpfs rw,nodev", dest)))
@@ -67,7 +74,7 @@ var _ = Describe("Mount", func() {
 				stdout := gbytes.NewBuffer()
 				Expect(
 					runInContainer(io.MultiWriter(stdout, GinkgoWriter), GinkgoWriter,
-						privileged, "fake_mounter", string(system.Devpts), dest, "0", "newinstance,ptmxmode=0666", "cat", "/proc/mounts"),
+						privileged, "fake_mounter", "-type="+string(system.Devpts), "-targetPath="+dest, "-flags=0", "-data=newinstance,ptmxmode=0666", "cat", "/proc/mounts"),
 				).To(Succeed())
 
 				Expect(stdout).To(gbytes.Say(fmt.Sprintf("devpts %s devpts rw,relatime,mode=600,ptmxmode=666", dest)))
@@ -79,7 +86,7 @@ var _ = Describe("Mount", func() {
 				stdout := gbytes.NewBuffer()
 				Expect(
 					runInContainer(io.MultiWriter(stdout, GinkgoWriter), GinkgoWriter,
-						privileged, "fake_mounter", string(system.Tmpfs), filepath.Join(dest, "foo"), "0", "", "cat", "/proc/mounts"),
+						privileged, "fake_mounter", "-type="+string(system.Tmpfs), "-targetPath="+filepath.Join(dest, "foo"), "-flags=0", "cat", "/proc/mounts"),
 				).To(Succeed())
 
 				Expect(stdout).To(gbytes.Say(fmt.Sprintf("tmpfs %s/foo tmpfs", dest)))
@@ -92,10 +99,22 @@ var _ = Describe("Mount", func() {
 				stderr := gbytes.NewBuffer()
 				Expect(
 					runInContainer(GinkgoWriter, io.MultiWriter(stderr, GinkgoWriter),
-						privileged, "fake_mounter", "tmpfs", filepath.Join(dest, "foo"), "0", "", "cat", "/proc/mounts"),
+						privileged, "fake_mounter", "-type=tmpfs", "-targetPath="+filepath.Join(dest, "foo"), "-flags=0", "cat", "/proc/mounts"),
 				).To(HaveOccurred())
 
 				Expect(stderr).To(gbytes.Say("error: system: create mount point directory %s/foo: ", dest))
+			})
+		})
+
+		Context("when the sourcePath is provided", func() {
+			It("mounts using the sourcePath", func() {
+				stdout := gbytes.NewBuffer()
+				Expect(
+					runInContainer(io.MultiWriter(stdout, GinkgoWriter), GinkgoWriter,
+						privileged, "fake_mounter", "-type=bind", "-sourcePath="+src, "-targetPath="+dest, fmt.Sprintf("-flags=%d", syscall.MS_BIND), "cat", "/proc/mounts"),
+				).To(Succeed())
+
+				Expect(stdout).To(gbytes.Say(fmt.Sprintf("%s ext4 rw,relatime,errors=remount-ro,data=ordered", dest)))
 			})
 		})
 	}

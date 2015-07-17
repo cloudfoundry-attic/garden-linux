@@ -28,7 +28,12 @@ func (m Mount) Mount() error {
 		return fmt.Errorf("system: create mount point directory %s: %s", m.TargetPath, err)
 	}
 
-	if err := syscall.Mount(string(m.Type), m.TargetPath, string(m.Type), uintptr(m.Flags), m.Data); err != nil {
+	sourcePath:= m.SourcePath
+	if sourcePath == "" {
+		sourcePath = string(m.Type)
+	}
+
+	if err := syscall.Mount(sourcePath, m.TargetPath, string(m.Type), uintptr(m.Flags), m.Data); err != nil {
 		return fmt.Errorf("system: mount %s on %s: %s", m.Type, m.TargetPath, err)
 	}
 
