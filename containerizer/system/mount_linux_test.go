@@ -116,6 +116,37 @@ var _ = Describe("Mount", func() {
 
 				Expect(stdout).To(gbytes.Say(fmt.Sprintf("%s ext4 rw,relatime,errors=remount-ro,data=ordered", dest)))
 			})
+
+			Context("when file is mounted", func() {
+				var (
+					srcFile string
+					dstFile string
+				)
+
+				BeforeEach(func() {
+					file, err := ioutil.TempFile("", "")
+					Expect(err).ToNot(HaveOccurred())
+					fmt.Fprintf(file, "MountMe")
+					srcFile = file.Name()
+					dstFile = fmt.Sprintf("/tmp/fake-mount-file-%d", GinkgoParallelNode())
+				})
+
+				AfterEach(func() {
+					Expect(os.Remove(dstFile)).To(Succeed())
+				})
+
+				It("mounts a file using the sourcePath", func() {
+					stdout := gbytes.NewBuffer()
+					Expect(
+						runInContainer(io.MultiWriter(stdout, GinkgoWriter), GinkgoWriter,
+							privileged, "fake_mounter", fmt.Sprintf("-mode=%d", system.MountModeFile), "-type=bind", "-sourcePath="+srcFile, "-targetPath="+dstFile, fmt.Sprintf("-flags=%d", syscall.MS_BIND), "cat", "/proc/mounts"),
+					).To(Succeed())
+
+					_, err := os.Stat(dstFile)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(stdout).To(gbytes.Say(fmt.Sprintf("%s ext4 rw,relatime,errors=remount-ro,data=ordered", dstFile)))
+				})
+			})
 		})
 	}
 
