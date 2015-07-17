@@ -73,19 +73,19 @@ func main() {
 	initializer := &system.Initializer{
 		Steps: []system.StepRunner{
 			&containerizer.FuncStep{system.Mount{
-				Type:  system.Tmpfs,
-				Flags: syscall.MS_NODEV,
-				Path:  "/dev/shm",
+				Type:       system.Tmpfs,
+				Flags:      syscall.MS_NODEV,
+				TargetPath: "/dev/shm",
 			}.Mount},
 			&containerizer.FuncStep{system.Mount{
-				Type:  system.Proc,
-				Flags: procMountFlags,
-				Path:  "/proc",
+				Type:       system.Proc,
+				Flags:      procMountFlags,
+				TargetPath: "/proc",
 			}.Mount},
 			&containerizer.FuncStep{system.Mount{
-				Type: system.Devpts,
-				Path: "/dev/pts",
-				Data: "newinstance,ptmxmode=0666",
+				Type:       system.Devpts,
+				TargetPath: "/dev/pts",
+				Data:       "newinstance,ptmxmode=0666",
 			}.Mount},
 			&containerizer.FuncStep{system.Unmount{
 				Dir: "/tmp/garden-host",

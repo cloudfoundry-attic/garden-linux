@@ -87,15 +87,7 @@ func main() {
 		os.Exit(9)
 	}
 
-	beforeCloneInitializer := &system.Initializer{
-		Steps: []system.StepRunner{
-		// &conainerizer.FuncStep{system.Mount{
-		// 	Type:  system.Tmpfs,
-		// 	Flags: syscall.MS_NODEV,
-		// 	Path:  "/dev/shm",
-		// }.Mount},
-		},
-	}
+	beforeCloneInitializer := &system.Initializer{Steps: []system.StepRunner{}}
 
 	cz := containerizer.Containerizer{
 		Rlimits:                &container_daemon.RlimitsManager{},

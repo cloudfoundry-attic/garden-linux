@@ -16,10 +16,10 @@ func main() {
 	}
 
 	mnt := system.Mount{
-		Type:  system.MountType(os.Args[1]),
-		Path:  os.Args[2],
-		Flags: flags,
-		Data:  os.Args[4],
+		Type:       system.MountType(os.Args[1]),
+		TargetPath: os.Args[2],
+		Flags:      flags,
+		Data:       os.Args[4],
 	}
 
 	if err := mnt.Mount(); err != nil {
