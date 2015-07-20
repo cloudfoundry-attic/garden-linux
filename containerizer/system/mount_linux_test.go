@@ -115,7 +115,7 @@ var _ = Describe("Mount", func() {
 			var matcher *regexp.Regexp
 
 			JustBeforeEach(func() {
-				matcher = regexp.MustCompile(fmt.Sprintf("%s (aufs|ext4|btrfs) rw,relatime,errors=remount-ro,data=ordered", dest))
+				matcher = regexp.MustCompile(fmt.Sprintf("%s (aufs|ext4|btrfs) rw,relatime", dest))
 			})
 
 			It("mounts using the sourcePath", func() {
@@ -143,7 +143,7 @@ var _ = Describe("Mount", func() {
 				})
 
 				JustBeforeEach(func() {
-					matcher = regexp.MustCompile(fmt.Sprintf("%s (aufs|ext4|btrfs) rw,relatime,errors=remount-ro,data=ordered", dstFile))
+					matcher = regexp.MustCompile(fmt.Sprintf("%s (aufs|ext4|btrfs) rw,relatime", dstFile))
 				})
 
 				AfterEach(func() {
