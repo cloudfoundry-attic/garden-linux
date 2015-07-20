@@ -102,6 +102,19 @@ func main() {
 			SourcePath: filepath.Join(binPath, "initd"),
 			TargetPath: filepath.Join(*rootFsPath, "sbin", "initd"),
 		}.Mount},
+		&containerizer.FuncStep{system.Mount{
+			Type:       system.Bind,
+			Flags:      syscall.MS_BIND,
+			SourcePath: filepath.Join(*libPath, "proc_starter"),
+			TargetPath: filepath.Join(*rootFsPath, "sbin", "proc_starter"),
+		}.Mount},
+		&containerizer.FuncStep{system.Mount{
+			Type:       system.Bind,
+			Data:       "remount,ro,bind",
+			Flags:      syscall.MS_BIND,
+			SourcePath: filepath.Join(*libPath, "proc_starter"),
+			TargetPath: filepath.Join(*rootFsPath, "sbin", "proc_starter"),
+		}.Mount},
 	}}
 
 	cz := containerizer.Containerizer{
