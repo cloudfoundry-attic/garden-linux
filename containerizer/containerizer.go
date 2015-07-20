@@ -48,7 +48,6 @@ type Waiter interface {
 }
 
 type Containerizer struct {
-	Rlimits                RlimitsInitializer
 	InitBinPath            string
 	InitArgs               []string
 	Execer                 ContainerExecer
@@ -63,10 +62,6 @@ type Containerizer struct {
 }
 
 func (c *Containerizer) Create() error {
-	if err := c.Rlimits.Init(); err != nil {
-		return fmt.Errorf("containerizer: initializing resource limits: %s", err)
-	}
-
 	if err := c.BeforeCloneInitializer.Init(); err != nil {
 		return fmt.Errorf("containerizer: before clone initializer: %s", err)
 	}

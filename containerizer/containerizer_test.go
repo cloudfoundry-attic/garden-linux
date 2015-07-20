@@ -7,7 +7,6 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/fake_container_execer"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/fake_initializer"
-	"github.com/cloudfoundry-incubator/garden-linux/containerizer/fake_rlimits_initializer"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/fake_signaller"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/fake_waiter"
 	"github.com/cloudfoundry-incubator/garden-linux/hook"
@@ -20,7 +19,6 @@ import (
 var _ = Describe("Containerizer", func() {
 	Describe("Create", func() {
 		var cz *containerizer.Containerizer
-		var rlimits *fake_rlimits_initializer.FakeRlimitsInitializer
 		var containerExecer *fake_container_execer.FakeContainerExecer
 		var signaller *fake_signaller.FakeSignaller
 		var waiter *fake_waiter.FakeWaiter
@@ -28,7 +26,6 @@ var _ = Describe("Containerizer", func() {
 		var beforeCloneInitializer *fake_initializer.FakeInitializer
 
 		BeforeEach(func() {
-			rlimits = new(fake_rlimits_initializer.FakeRlimitsInitializer)
 			containerExecer = &fake_container_execer.FakeContainerExecer{}
 			signaller = &fake_signaller.FakeSignaller{}
 			waiter = &fake_waiter.FakeWaiter{}
@@ -36,7 +33,6 @@ var _ = Describe("Containerizer", func() {
 			beforeCloneInitializer = &fake_initializer.FakeInitializer{}
 
 			cz = &containerizer.Containerizer{
-				Rlimits:                rlimits,
 				BeforeCloneInitializer: beforeCloneInitializer,
 				RootfsPath:             "some-rootfs",
 				Execer:                 containerExecer,
@@ -51,71 +47,16 @@ var _ = Describe("Containerizer", func() {
 
 		It("initializes resource limits", func() {
 			Expect(cz.Create()).To(Succeed())
-			Expect(rlimits.InitCallCount()).To(Equal(1))
+			Expect(beforeCloneInitializer.InitCallCount()).To(Equal(1))
 		})
 
 		Context("when rlimits initialization fails", func() {
 			BeforeEach(func() {
-				rlimits.InitReturns(errors.New("Failed to apply hard rlimits"))
+				beforeCloneInitializer.InitReturns(errors.New("Failed to apply hard rlimits"))
 			})
 
 			It("returns an error", func() {
-				Expect(cz.Create()).To(MatchError("containerizer: initializing resource limits: Failed to apply hard rlimits"))
-			})
-
-			It("does not call the before clone initializer", func() {
-				Expect(cz.Create()).ShouldNot(Succeed())
-				Expect(beforeCloneInitializer.InitCallCount()).To(Equal(0))
-			})
-
-			It("does not call parent hooks", func() {
-				Expect(cz.Create()).ToNot(Succeed())
-
-				Expect(hookCommandRunner).ToNot(HaveExecutedSerially(
-					CommandSpec{
-						Path: "lib/hook",
-						Args: []string{
-							string(hook.PARENT_BEFORE_CLONE),
-						},
-					},
-				))
-
-				Expect(hookCommandRunner).ToNot(HaveExecutedSerially(
-					CommandSpec{
-						Path: "lib/hook",
-						Args: []string{
-							string(hook.PARENT_AFTER_CLONE),
-						},
-					},
-				))
-			})
-
-			It("does not spawn the pivoter in the container", func() {
-				Expect(cz.Create()).ToNot(Succeed())
-
-				Expect(hookCommandRunner).ToNot(HaveExecutedSerially(
-					CommandSpec{
-						Path: "lib/pivotter",
-						Args: []string{
-							"-rootfs", "some-rootfs",
-						},
-					},
-				))
-			})
-		})
-
-		It("calls the before clone initializer", func() {
-			Expect(cz.Create()).To(Succeed())
-			Expect(beforeCloneInitializer.InitCallCount()).To(Equal(1))
-		})
-
-		Context("when before clone initializer fails", func() {
-			BeforeEach(func() {
-				beforeCloneInitializer.InitReturns(errors.New("Failed to run before clone initializer"))
-			})
-
-			It("returns an error", func() {
-				Expect(cz.Create()).To(MatchError("containerizer: before clone initializer: Failed to run before clone initializer"))
+				Expect(cz.Create()).To(MatchError("containerizer: before clone initializer: Failed to apply hard rlimits"))
 			})
 
 			It("does not call parent hooks", func() {

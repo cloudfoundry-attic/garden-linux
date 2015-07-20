@@ -89,6 +89,9 @@ func main() {
 	}
 
 	beforeCloneInitializer := &system.Initializer{Steps: []system.StepRunner{
+		&containerizer.FuncStep{
+			(&container_daemon.RlimitsManager{}).Init,
+		},
 		&containerizer.FuncStep{system.Mount{
 			Type:       system.Bind,
 			Flags:      syscall.MS_BIND,
@@ -118,7 +121,6 @@ func main() {
 	}}
 
 	cz := containerizer.Containerizer{
-		Rlimits:                &container_daemon.RlimitsManager{},
 		BeforeCloneInitializer: beforeCloneInitializer,
 		InitBinPath:            path.Join(binPath, "initc"),
 		InitArgs: []string{
