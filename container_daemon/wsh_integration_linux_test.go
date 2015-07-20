@@ -51,7 +51,7 @@ var _ = Describe("wsh and daemon integration", func() {
 
 		daemon = &container_daemon.ContainerDaemon{
 			CmdPreparer: &container_daemon.ProcessSpecPreparer{
-				Users:           system.LibContainerUser{},
+				Users:           container_daemon.LibContainerUser{},
 				ProcStarterPath: proc_starter,
 				Rlimits:         &container_daemon.RlimitsManager{},
 			},

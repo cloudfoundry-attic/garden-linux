@@ -9,16 +9,6 @@ import (
 const POLLIN = 0x1
 const timeout = 4000000000
 
-type pollfd struct {
-	fd      int32
-	events  int16
-	revents int16
-}
-
-type Poller struct {
-	fds []pollfd
-}
-
 func NewPoller(fds []uintptr) *Poller {
 	p := Poller{}
 	p.fds = make([]pollfd, len(fds))

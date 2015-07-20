@@ -15,11 +15,11 @@ import (
 
 var _ = Describe("proc_starter", func() {
 
-	var procStarter string
+	var procStarterBin string
 
 	BeforeEach(func() {
 		var err error
-		procStarter, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/container_daemon/proc_starter")
+		procStarterBin, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/container_daemon/proc_starter")
 		Expect(err).ToNot(HaveOccurred())
 	})
 
