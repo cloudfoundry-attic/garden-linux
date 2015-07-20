@@ -39,12 +39,14 @@ func (m Mount) Mount() error {
 	}
 
 	rootDir := m.TargetPath
+	rootDirPermissions := os.FileMode(0700)
 
 	if !isDir {
 		rootDir = filepath.Dir(m.TargetPath)
+		rootDirPermissions = os.FileMode(0755)
 	}
 
-	if err := os.MkdirAll(rootDir, 0700); err != nil {
+	if err := os.MkdirAll(rootDir, rootDirPermissions); err != nil {
 		return fmt.Errorf("system: create mount point directory %s: %s", rootDir, err)
 	}
 
