@@ -3,6 +3,7 @@ package system
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"syscall"
 )
 
@@ -37,11 +38,17 @@ func (m Mount) Mount() error {
 		sourcePath = string(m.Type)
 	}
 
-	if isDir {
-		if err := os.MkdirAll(m.TargetPath, 0700); err != nil {
-			return fmt.Errorf("system: create mount point directory %s: %s", m.TargetPath, err)
-		}
-	} else {
+	rootDir := m.TargetPath
+
+	if !isDir {
+		rootDir = filepath.Dir(m.TargetPath)
+	}
+
+	if err := os.MkdirAll(rootDir, 0700); err != nil {
+		return fmt.Errorf("system: create mount point directory %s: %s", rootDir, err)
+	}
+
+	if !isDir {
 		if _, err := os.OpenFile(m.TargetPath, os.O_CREATE|os.O_RDONLY, 0700); err != nil {
 			return fmt.Errorf("system: create mount point file %s: %s", m.TargetPath, err)
 		}

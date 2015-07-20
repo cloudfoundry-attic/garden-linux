@@ -154,6 +154,26 @@ var _ = Describe("Mount", func() {
 				Expect(os.Remove(dstFile)).To(Succeed())
 			})
 
+			Context("when destination file is created in non-existing directory", func() {
+				BeforeEach(func() {
+					dstFile = fmt.Sprintf("/tmp/non-existing-dir-%d/fake-mount-file-%d", GinkgoParallelNode(), GinkgoParallelNode())
+				})
+
+				It("mounts a file using the sourcePath", func() {
+					stdout := gbytes.NewBuffer()
+					Expect(
+						runInContainer(io.MultiWriter(stdout, GinkgoWriter), GinkgoWriter,
+							privileged, "fake_mounter", "-type=bind", "-sourcePath="+srcFile, "-targetPath="+dstFile, fmt.Sprintf("-flags=%d", syscall.MS_BIND), "cat", "/proc/mounts"),
+					).To(Succeed())
+
+					info, err := os.Stat(dstFile)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(info.IsDir()).ToNot(BeTrue())
+					Expect(stdout).To(gbytes.Say(fmt.Sprintf("%s ext4 rw,relatime,errors=remount-ro,data=ordered", dstFile)))
+					Expect(os.Remove(dstFile)).To(Succeed())
+				})
+			})
+
 			Context("when destination file cannot be created", func() {
 				It("returns an informative error", func() {
 					stderr := gbytes.NewBuffer()

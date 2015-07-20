@@ -17,7 +17,6 @@ function bindMountFileRO {
 }
 
 mkdir -p $rootfs_path/sbin
-bindMountFileRO $(pwd)/bin/initd $rootfs_path/sbin/initd
 bindMountFileRO $(pwd)/lib/proc_starter $rootfs_path/sbin/proc_starter
 
 cp etc/config $rootfs_path/etc/config

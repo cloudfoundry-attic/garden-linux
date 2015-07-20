@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
@@ -87,7 +88,21 @@ func main() {
 		os.Exit(9)
 	}
 
-	beforeCloneInitializer := &system.Initializer{Steps: []system.StepRunner{}}
+	beforeCloneInitializer := &system.Initializer{Steps: []system.StepRunner{
+		&containerizer.FuncStep{system.Mount{
+			Type:       system.Bind,
+			Flags:      syscall.MS_BIND,
+			SourcePath: filepath.Join(binPath, "initd"),
+			TargetPath: filepath.Join(*rootFsPath, "sbin", "initd"),
+		}.Mount},
+		&containerizer.FuncStep{system.Mount{
+			Type:       system.Bind,
+			Data:       "remount,ro,bind",
+			Flags:      syscall.MS_BIND,
+			SourcePath: filepath.Join(binPath, "initd"),
+			TargetPath: filepath.Join(*rootFsPath, "sbin", "initd"),
+		}.Mount},
+	}}
 
 	cz := containerizer.Containerizer{
 		Rlimits:                &container_daemon.RlimitsManager{},
