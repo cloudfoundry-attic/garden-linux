@@ -14,7 +14,7 @@ import (
 	"github.com/onsi/gomega/gbytes"
 )
 
-var _ = FDescribe("Mount", func() {
+var _ = Describe("Mount", func() {
 	var (
 		dest string
 		src  string
@@ -120,60 +120,49 @@ var _ = FDescribe("Mount", func() {
 
 				Expect(stdout).To(gbytes.Say(fmt.Sprintf("%s ext4 rw,relatime,errors=remount-ro,data=ordered", dest)))
 			})
+		})
 
-			Context("when MountModeNone is used", func() {
-				It("mounts using the sourcePath", func() {
-					stderr := gbytes.NewBuffer()
-					err := runInContainer(GinkgoWriter, io.MultiWriter(stderr, GinkgoWriter),
-						privileged, "fake_mounter", fmt.Sprintf("-mode=%d", system.MountModeNone), "-type=bind", "-sourcePath="+src, "-targetPath="+dest, fmt.Sprintf("-flags=%d", syscall.MS_BIND), "cat", "/proc/mounts")
+		Context("when file is mounted", func() {
+			var (
+				srcFile string
+				dstFile string
+			)
 
-					Expect(err).To(HaveOccurred())
-					_, err = os.Stat(dest)
-					Expect(os.IsNotExist(err)).To(BeTrue())
-				})
+			BeforeEach(func() {
+				file, err := ioutil.TempFile("", "")
+				Expect(err).ToNot(HaveOccurred())
+				fmt.Fprintf(file, "MountMe")
+				srcFile = file.Name()
+				dstFile = fmt.Sprintf("/tmp/fake-mount-file-%d", GinkgoParallelNode())
 			})
 
-			Context("when file is mounted", func() {
-				var (
-					srcFile string
-					dstFile string
-				)
+			AfterEach(func() {
+				Expect(os.Remove(srcFile)).To(Succeed())
+			})
 
-				BeforeEach(func() {
-					file, err := ioutil.TempFile("", "")
-					Expect(err).ToNot(HaveOccurred())
-					fmt.Fprintf(file, "MountMe")
-					srcFile = file.Name()
-					dstFile = fmt.Sprintf("/tmp/fake-mount-file-%d", GinkgoParallelNode())
-				})
+			It("mounts a file using the sourcePath", func() {
+				stdout := gbytes.NewBuffer()
+				Expect(
+					runInContainer(io.MultiWriter(stdout, GinkgoWriter), GinkgoWriter,
+						privileged, "fake_mounter", "-type=bind", "-sourcePath="+srcFile, "-targetPath="+dstFile, fmt.Sprintf("-flags=%d", syscall.MS_BIND), "cat", "/proc/mounts"),
+				).To(Succeed())
 
-				AfterEach(func() {
-					Expect(os.Remove(srcFile)).To(Succeed())
-				})
+				info, err := os.Stat(dstFile)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(info.IsDir()).ToNot(BeTrue())
+				Expect(stdout).To(gbytes.Say(fmt.Sprintf("%s ext4 rw,relatime,errors=remount-ro,data=ordered", dstFile)))
+				Expect(os.Remove(dstFile)).To(Succeed())
+			})
 
-				It("mounts a file using the sourcePath", func() {
-					stdout := gbytes.NewBuffer()
+			Context("when destination file cannot be created", func() {
+				It("returns an informative error", func() {
+					stderr := gbytes.NewBuffer()
 					Expect(
-						runInContainer(io.MultiWriter(stdout, GinkgoWriter), GinkgoWriter,
-							privileged, "fake_mounter", fmt.Sprintf("-mode=%d", system.MountCreateFile), "-type=bind", "-sourcePath="+srcFile, "-targetPath="+dstFile, fmt.Sprintf("-flags=%d", syscall.MS_BIND), "cat", "/proc/mounts"),
-					).To(Succeed())
+						runInContainer(GinkgoWriter, io.MultiWriter(GinkgoWriter, stderr),
+							privileged, "fake_mounter", "-type=bind", "-sourcePath="+srcFile, "-targetPath=/tmp", fmt.Sprintf("-flags=%d", syscall.MS_BIND), "cat", "/proc/mounts"),
+					).To(HaveOccurred())
 
-					_, err := os.Stat(dstFile)
-					Expect(err).ToNot(HaveOccurred())
-					Expect(stdout).To(gbytes.Say(fmt.Sprintf("%s ext4 rw,relatime,errors=remount-ro,data=ordered", dstFile)))
-					Expect(os.Remove(dstFile)).To(Succeed())
-				})
-
-				Context("when destination file cannot be created", func() {
-					It("returns an informative error", func() {
-						stderr := gbytes.NewBuffer()
-						Expect(
-							runInContainer(GinkgoWriter, io.MultiWriter(GinkgoWriter, stderr),
-								privileged, "fake_mounter", fmt.Sprintf("-mode=%d", system.MountCreateFile), "-type=bind", "-sourcePath="+srcFile, "-targetPath=/tmp", fmt.Sprintf("-flags=%d", syscall.MS_BIND), "cat", "/proc/mounts"),
-						).To(HaveOccurred())
-
-						Expect(stderr).To(gbytes.Say("error: system: create mount point file /tmp: "))
-					})
+					Expect(stderr).To(gbytes.Say("error: system: create mount point file /tmp: "))
 				})
 			})
 		})
