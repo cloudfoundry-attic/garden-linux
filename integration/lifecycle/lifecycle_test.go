@@ -714,7 +714,7 @@ var _ = Describe("Creating a container", func() {
 					Expect(err).ToNot(HaveOccurred())
 				})
 
-				FIt("sends a KILL signal to the process if requested", func(done Done) {
+				It("sends a KILL signal to the process if requested", func(done Done) {
 					stdout := gbytes.NewBuffer()
 
 					process, err := container.Run(garden.ProcessSpec{
@@ -742,7 +742,7 @@ var _ = Describe("Creating a container", func() {
 				}, 2.0)
 			})
 
-			FIt("avoids a race condition when sending a kill signal", func(done Done) {
+			It("avoids a race condition when sending a kill signal", func(done Done) {
 				for i := 0; i < 100; i++ {
 					process, err := container.Run(garden.ProcessSpec{
 						User: "vcap",

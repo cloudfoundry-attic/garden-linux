@@ -1,6 +1,7 @@
 package container_daemon
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -39,7 +40,7 @@ type PidfileWriter interface {
 
 //go:generate counterfeiter -o fake_connector/FakeConnector.go . Connector
 type Connector interface {
-	Connect(msg interface{}) ([]StreamingFile, int, error)
+	Connect(msg *RequestMessage) (*ResponseMessage, error)
 }
 
 // wraps docker/docker/pkg/term for mockability
@@ -56,24 +57,34 @@ func (p *Process) Start() error {
 	p.logger = lager.NewLogger("container_daemon.Process")
 	p.streamers = []*Streamer{}
 
-	fds, pid, err := p.Connector.Connect(p.Spec)
+	data, err := json.Marshal(p.Spec)
+	if err != nil {
+		return fmt.Errorf("container_daemon: marshal process spec json: %s", err)
+	}
+
+	request := &RequestMessage{
+		Type: ProcessRequest,
+		Data: data,
+	}
+
+	response, err := p.Connector.Connect(request)
 	if err != nil {
 		return fmt.Errorf("container_daemon: connect to socket: %s", err)
 	}
 
-	if err := p.Pidfile.Write(pid); err != nil {
+	if err := p.Pidfile.Write(response.Pid); err != nil {
 		return fmt.Errorf("container_daemon: write pidfile: %s", err)
 	}
 
 	p.streaming = &sync.WaitGroup{}
 
 	if p.Spec.TTY != nil {
-		p.setupPty(fds[0])
-		p.fwdOverPty(fds[0])
-		p.exitCode = p.exitWaitChannel(fds[1])
+		p.setupPty(response.Files[0])
+		p.fwdOverPty(response.Files[0])
+		p.exitCode = p.exitWaitChannel(response.Files[1])
 	} else {
-		p.fwdNoninteractive(fds[0], fds[1], fds[2])
-		p.exitCode = p.exitWaitChannel(fds[3])
+		p.fwdNoninteractive(response.Files[0], response.Files[1], response.Files[2])
+		p.exitCode = p.exitWaitChannel(response.Files[3])
 	}
 
 	return nil

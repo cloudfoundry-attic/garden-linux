@@ -43,8 +43,11 @@ var _ = Describe("Daemon", func() {
 		})
 
 		Context("when a connection is made", func() {
-			var handleFileHandles []*os.File
+			var handleFileHandles []container_daemon.StreamingFile
 			var handlerError error
+
+			var request *container_daemon.RequestMessage
+			var response *container_daemon.ResponseMessage
 
 			var spec garden.ProcessSpec
 
@@ -70,11 +73,27 @@ var _ = Describe("Daemon", func() {
 			})
 
 			JustBeforeEach(func() {
+				data, err := json.Marshal(&spec)
+				Expect(err).ToNot(HaveOccurred())
+
+				request = &container_daemon.RequestMessage{
+					Type: container_daemon.ProcessRequest,
+					Data: data,
+				}
+
 				listener.ListenStub = func(cb container_daemon.ConnectionHandler) error {
-					b, err := json.Marshal(spec)
+					b, err := json.Marshal(request)
 					Expect(err).ToNot(HaveOccurred())
 
-					handleFileHandles, handlerPid, handlerError = cb.Handle(json.NewDecoder(bytes.NewReader(b)))
+					response, handlerError = cb.Handle(json.NewDecoder(bytes.NewReader(b)))
+
+					if response != nil {
+						handleFileHandles = response.Files
+						handlerPid = response.Pid
+					} else {
+						handleFileHandles = nil
+						handlerPid = 0
+					}
 
 					return nil
 				}
@@ -159,7 +178,9 @@ var _ = Describe("Daemon", func() {
 				})
 
 				It("returns the returned file handles", func() {
-					Expect(handleFileHandles).To(Equal(someFds))
+					Expect(len(handleFileHandles)).To(Equal(len(someFds)))
+					Expect(handleFileHandles[0].Fd()).To(Equal(someFds[0].Fd()))
+					Expect(handleFileHandles[1].Fd()).To(Equal(someFds[1].Fd()))
 				})
 			})
 

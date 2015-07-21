@@ -3,26 +3,24 @@ package fake_connection_handler
 
 import (
 	"encoding/json"
-	"os"
 	"sync"
 
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
 )
 
 type FakeConnectionHandler struct {
-	HandleStub        func(decoder *json.Decoder) ([]*os.File, int, error)
+	HandleStub        func(decoder *json.Decoder) (*container_daemon.ResponseMessage, error)
 	handleMutex       sync.RWMutex
 	handleArgsForCall []struct {
 		decoder *json.Decoder
 	}
 	handleReturns struct {
-		result1 []*os.File
-		result2 int
-		result3 error
+		result1 *container_daemon.ResponseMessage
+		result2 error
 	}
 }
 
-func (fake *FakeConnectionHandler) Handle(decoder *json.Decoder) ([]*os.File, int, error) {
+func (fake *FakeConnectionHandler) Handle(decoder *json.Decoder) (*container_daemon.ResponseMessage, error) {
 	fake.handleMutex.Lock()
 	fake.handleArgsForCall = append(fake.handleArgsForCall, struct {
 		decoder *json.Decoder
@@ -31,7 +29,7 @@ func (fake *FakeConnectionHandler) Handle(decoder *json.Decoder) ([]*os.File, in
 	if fake.HandleStub != nil {
 		return fake.HandleStub(decoder)
 	} else {
-		return fake.handleReturns.result1, fake.handleReturns.result2, fake.handleReturns.result3
+		return fake.handleReturns.result1, fake.handleReturns.result2
 	}
 }
 
@@ -47,13 +45,12 @@ func (fake *FakeConnectionHandler) HandleArgsForCall(i int) *json.Decoder {
 	return fake.handleArgsForCall[i].decoder
 }
 
-func (fake *FakeConnectionHandler) HandleReturns(result1 []*os.File, result2 int, result3 error) {
+func (fake *FakeConnectionHandler) HandleReturns(result1 *container_daemon.ResponseMessage, result2 error) {
 	fake.HandleStub = nil
 	fake.handleReturns = struct {
-		result1 []*os.File
-		result2 int
-		result3 error
-	}{result1, result2, result3}
+		result1 *container_daemon.ResponseMessage
+		result2 error
+	}{result1, result2}
 }
 
 var _ container_daemon.ConnectionHandler = new(FakeConnectionHandler)

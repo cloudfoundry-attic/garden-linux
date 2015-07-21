@@ -64,35 +64,29 @@ func (l *Listener) Listen(ch container_daemon.ConnectionHandler) error {
 
 			decoder := json.NewDecoder(conn)
 
-			files, pid, err := ch.Handle(decoder)
-			writeData(conn, files, pid, err)
+			response, err := ch.Handle(decoder)
+			if err != nil {
+				response = &container_daemon.ResponseMessage{ErrMessage: err.Error()}
+			}
+			writeData(conn, response)
 		}(conn.(*net.UnixConn), ch)
 	}
 }
 
-func writeData(conn *net.UnixConn, files []*os.File, pid int, responseErr error) {
-	var errMsg string = ""
-	if responseErr != nil {
-		errMsg = responseErr.Error()
-	}
-	response := &Response{
-		Pid:        pid,
-		ErrMessage: errMsg,
-	}
+func writeData(conn *net.UnixConn, response *container_daemon.ResponseMessage) {
+	data, _ := json.Marshal(response) // Ignore error
 
-	responseJson, _ := json.Marshal(response) // Ignore error
-
-	args := make([]int, len(files))
-	for i, f := range files {
+	args := make([]int, len(response.Files))
+	for i, f := range response.Files {
 		args[i] = int(f.Fd())
 	}
-	resp := syscall.UnixRights(args...)
+	oobData := syscall.UnixRights(args...)
 
-	conn.WriteMsgUnix(responseJson, resp, nil) // Ignore error
+	conn.WriteMsgUnix(data, oobData, nil) // Ignore error
 
 	// Close the files whose descriptors have been sent to the host to ensure that
 	// a close on the host takes effect in a timely fashion.
-	for _, file := range files {
+	for _, file := range response.Files {
 		file.Close() // Ignore error
 	}
 }

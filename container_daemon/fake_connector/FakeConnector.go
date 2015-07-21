@@ -8,28 +8,27 @@ import (
 )
 
 type FakeConnector struct {
-	ConnectStub        func(msg interface{}) ([]container_daemon.StreamingFile, int, error)
+	ConnectStub        func(msg *container_daemon.RequestMessage) (*container_daemon.ResponseMessage, error)
 	connectMutex       sync.RWMutex
 	connectArgsForCall []struct {
-		msg interface{}
+		msg *container_daemon.RequestMessage
 	}
 	connectReturns struct {
-		result1 []container_daemon.StreamingFile
-		result2 int
-		result3 error
+		result1 *container_daemon.ResponseMessage
+		result2 error
 	}
 }
 
-func (fake *FakeConnector) Connect(msg interface{}) ([]container_daemon.StreamingFile, int, error) {
+func (fake *FakeConnector) Connect(msg *container_daemon.RequestMessage) (*container_daemon.ResponseMessage, error) {
 	fake.connectMutex.Lock()
 	fake.connectArgsForCall = append(fake.connectArgsForCall, struct {
-		msg interface{}
+		msg *container_daemon.RequestMessage
 	}{msg})
 	fake.connectMutex.Unlock()
 	if fake.ConnectStub != nil {
 		return fake.ConnectStub(msg)
 	} else {
-		return fake.connectReturns.result1, fake.connectReturns.result2, fake.connectReturns.result3
+		return fake.connectReturns.result1, fake.connectReturns.result2
 	}
 }
 
@@ -39,19 +38,18 @@ func (fake *FakeConnector) ConnectCallCount() int {
 	return len(fake.connectArgsForCall)
 }
 
-func (fake *FakeConnector) ConnectArgsForCall(i int) interface{} {
+func (fake *FakeConnector) ConnectArgsForCall(i int) *container_daemon.RequestMessage {
 	fake.connectMutex.RLock()
 	defer fake.connectMutex.RUnlock()
 	return fake.connectArgsForCall[i].msg
 }
 
-func (fake *FakeConnector) ConnectReturns(result1 []container_daemon.StreamingFile, result2 int, result3 error) {
+func (fake *FakeConnector) ConnectReturns(result1 *container_daemon.ResponseMessage, result2 error) {
 	fake.ConnectStub = nil
 	fake.connectReturns = struct {
-		result1 []container_daemon.StreamingFile
-		result2 int
-		result3 error
-	}{result1, result2, result3}
+		result1 *container_daemon.ResponseMessage
+		result2 error
+	}{result1, result2}
 }
 
 var _ container_daemon.Connector = new(FakeConnector)
