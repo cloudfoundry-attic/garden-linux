@@ -19,10 +19,21 @@ type User interface {
 	Lookup(name string) (*osuser.User, error)
 }
 
+//go:generate counterfeiter -o fake_commander/fake_commander.go . Commander
+type Commander interface {
+	Command(args ...string) *exec.Cmd
+}
+
+type CommandFunc func(args ...string) *exec.Cmd
+
+func (fn CommandFunc) Command(args ...string) *exec.Cmd {
+	return fn(args...)
+}
+
 type ProcessSpecPreparer struct {
 	Users                  User
-	ProcStarterPath        string
 	Rlimits                RlimitsEnvEncoder
+	Reexec                 Commander
 	AlwaysDropCapabilities bool
 }
 
@@ -55,7 +66,7 @@ func (p *ProcessSpecPreparer) PrepareCmd(spec garden.ProcessSpec) (*exec.Cmd, er
 		fmt.Sprintf("-gid=%d", usr.gid),
 	}, "--", spec.Path)
 	args = append(args, spec.Args...)
-	cmd := exec.Command(p.ProcStarterPath, args...)
+	cmd := p.Reexec.Command(append([]string{"proc_starter"}, args...)...)
 	cmd.Env = env.Array()
 	cmd.Dir = dir
 

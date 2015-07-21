@@ -5,6 +5,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
+	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_commander"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_rlimits_env_encoder"
 
 	"os/exec"
@@ -20,6 +21,7 @@ var _ = Describe("Preparing a command to run", func() {
 		users          *fake_user.FakeUser
 		preparer       *container_daemon.ProcessSpecPreparer
 		rlimitsEncoder *fake_rlimits_env_encoder.FakeRlimitsEnvEncoder
+		reexec         *fake_commander.FakeCommander
 		limits         garden.ResourceLimits
 	)
 
@@ -40,10 +42,18 @@ var _ = Describe("Preparing a command to run", func() {
 
 		rlimitsEncoder = new(fake_rlimits_env_encoder.FakeRlimitsEnvEncoder)
 
+		reexec = new(fake_commander.FakeCommander)
+		reexec.CommandStub = func(args ...string) *exec.Cmd {
+			return &exec.Cmd{
+				Path: "REEXECED",
+				Args: args,
+			}
+		}
+
 		preparer = &container_daemon.ProcessSpecPreparer{
 			Users:                  users,
 			Rlimits:                rlimitsEncoder,
-			ProcStarterPath:        "/path/to/proc/starter",
+			Reexec:                 reexec,
 			AlwaysDropCapabilities: true,
 		}
 	})
@@ -81,10 +91,10 @@ var _ = Describe("Preparing a command to run", func() {
 				thePreparedCmd, theReturnedError = preparer.PrepareCmd(spec)
 			})
 
-			It("executes the proc_starter binary with the process path and args", func() {
+			It("re-executes the current binary as proc_starter binary with the process path and args", func() {
 				Expect(theReturnedError).To(BeNil())
-				Expect(thePreparedCmd.Path).To(Equal("/path/to/proc/starter"))
-				Expect(thePreparedCmd.Args[0]).To(Equal("/path/to/proc/starter"))
+				Expect(thePreparedCmd.Path).To(Equal("REEXECED"))
+				Expect(thePreparedCmd.Args[0]).To(Equal("proc_starter"))
 				Expect(thePreparedCmd.Args).To(ContainElement("fishfinger"))
 				Expect(thePreparedCmd.Args).To(ContainElement("foo"))
 				Expect(thePreparedCmd.Args).To(ContainElement("bar"))

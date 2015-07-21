@@ -71,23 +71,6 @@ var _ = Describe("Security", func() {
 				privilegedContainer = false
 			})
 
-			It("should not allow planting proc_starter in a container", func() {
-				process, err := container.Run(garden.ProcessSpec{
-					User: "root",
-					Path: "cp",
-					Args: []string{"/bin/echo", "/sbin/proc_starter"},
-				},
-					garden.ProcessIO{
-						Stdout: GinkgoWriter,
-						Stderr: GinkgoWriter,
-					})
-
-				Expect(err).NotTo(HaveOccurred())
-				exitStatus, err := process.Wait()
-				Expect(err).ToNot(HaveOccurred())
-				Expect(exitStatus).ToNot(Equal(0))
-			})
-
 			It("should not allow planting initd in a container", func() {
 				process, err := container.Run(garden.ProcessSpec{
 					User: "root",

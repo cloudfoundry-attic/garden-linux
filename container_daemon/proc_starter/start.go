@@ -1,4 +1,4 @@
-package main
+package proc_starter
 
 import (
 	"fmt"
@@ -12,15 +12,17 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
 	"github.com/cloudfoundry-incubator/garden-linux/system"
+	"github.com/docker/docker/pkg/reexec"
 )
 
 func init() {
 	runtime.LockOSThread()
+	reexec.Register("proc_starter", start)
 }
 
 // proc_starter starts a user process with the correct rlimits and after
 // closing any open FDs.
-func main() {
+func start() {
 	rlimits := flag.String("rlimits", "", "encoded rlimits")
 	dropCapabilities := flag.Bool("dropCapabilities", true, "drop capabilities before starting process")
 	uid := flag.Int("uid", -1, "user id to run the process as")

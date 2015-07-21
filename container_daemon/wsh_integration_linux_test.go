@@ -1,10 +1,13 @@
 package container_daemon_test
 
 import (
+	"io"
+	"os"
 	"os/exec"
 	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
+	"github.com/docker/docker/pkg/reexec"
 
 	"io/ioutil"
 
@@ -16,7 +19,15 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
 	"github.com/onsi/gomega/gexec"
+
+	_ "github.com/cloudfoundry-incubator/garden-linux/container_daemon/proc_starter"
 )
+
+func init() {
+	if reexec.Init() {
+		os.Exit(0)
+	}
+}
 
 type FakeCommandRunner struct {
 }
@@ -40,9 +51,6 @@ var _ = Describe("wsh and daemon integration", func() {
 		wsh, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/container_daemon/wsh")
 		Expect(err).ToNot(HaveOccurred())
 
-		proc_starter, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/container_daemon/proc_starter")
-		Expect(err).ToNot(HaveOccurred())
-
 		tempDir, err = ioutil.TempDir("", "")
 		Expect(err).ToNot(HaveOccurred())
 		socketPath = path.Join(tempDir, "test.sock")
@@ -51,9 +59,9 @@ var _ = Describe("wsh and daemon integration", func() {
 
 		daemon = &container_daemon.ContainerDaemon{
 			CmdPreparer: &container_daemon.ProcessSpecPreparer{
-				Users:           container_daemon.LibContainerUser{},
-				ProcStarterPath: proc_starter,
-				Rlimits:         &container_daemon.RlimitsManager{},
+				Users:   container_daemon.LibContainerUser{},
+				Reexec:  container_daemon.CommandFunc(reexec.Command),
+				Rlimits: &container_daemon.RlimitsManager{},
 			},
 			Spawner: &container_daemon.Spawn{
 				Runner: &FakeCommandRunner{},
@@ -113,46 +121,19 @@ var _ = Describe("wsh and daemon integration", func() {
 					  sleep 1
 					done
 				`)
-		wshCmd.Stdout = stdout
+		wshCmd.Stdout = io.MultiWriter(GinkgoWriter, stdout)
 		wshCmd.Stderr = GinkgoWriter
 
 		err := wshCmd.Start()
 		Expect(err).ToNot(HaveOccurred())
 
-		Eventually(stdout).Should(gbytes.Say("waiting"))
+		Eventually(stdout, "5s").Should(gbytes.Say("waiting"))
 
 		Expect(kill(pidfilePath, syscall.SIGTERM)).To(Succeed())
 
 		Expect(exitStatusFromErr(wshCmd.Wait())).To(Equal(byte(42)))
 		Eventually(stdout, "2s").Should(gbytes.Say("termed"))
 
-		close(done)
-	}, 320.0)
-
-	It("receives the correct exit status and output from a process exits 255", func(done Done) {
-		for i := 0; i < 200; i++ {
-			stdout := gbytes.NewBuffer()
-
-			wshCmd := exec.Command(wsh,
-				"--socket", socketPath,
-				"--user", "root",
-				"sh", "-c", `
-					for i in $(seq 0 512); do
-					  echo 0123456789
-					done
-
-					echo ended
-					exit 255
-				`)
-			wshCmd.Stdout = stdout
-			wshCmd.Stderr = GinkgoWriter
-
-			err := wshCmd.Start()
-			Expect(err).ToNot(HaveOccurred())
-
-			Expect(exitStatusFromErr(wshCmd.Wait())).To(Equal(byte(255)))
-			Eventually(stdout, "2s").Should(gbytes.Say("ended"))
-		}
 		close(done)
 	}, 320.0)
 

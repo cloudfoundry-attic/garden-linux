@@ -4,18 +4,27 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
+	"github.com/docker/docker/pkg/reexec"
 	"github.com/pivotal-golang/lager"
+
+	// for rexec.Register("proc_starter")
+	_ "github.com/cloudfoundry-incubator/garden-linux/container_daemon/proc_starter"
 )
 
 // initd listens on a socket, spawns requested processes and reaps their
 // exit statuses.
 func main() {
+	if reexec.Init() {
+		return
+	}
+
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Fprintf(os.Stderr, "initd: panicked: %s\n", r)
@@ -42,9 +51,14 @@ func main() {
 
 	daemon := &container_daemon.ContainerDaemon{
 		CmdPreparer: &container_daemon.ProcessSpecPreparer{
-			Users:                  container_daemon.LibContainerUser{},
-			Rlimits:                &container_daemon.RlimitsManager{},
-			ProcStarterPath:        "/sbin/proc_starter",
+			Users:   container_daemon.LibContainerUser{},
+			Rlimits: &container_daemon.RlimitsManager{},
+			Reexec: container_daemon.CommandFunc(func(args ...string) *exec.Cmd {
+				return &exec.Cmd{
+					Path: "/sbin/initd",
+					Args: args,
+				}
+			}),
 			AlwaysDropCapabilities: *dropCaps,
 		},
 		Spawner: &container_daemon.Spawn{
