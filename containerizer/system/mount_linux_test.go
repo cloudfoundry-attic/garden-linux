@@ -6,7 +6,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"regexp"
 	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
@@ -112,12 +111,6 @@ var _ = Describe("Mount", func() {
 		})
 
 		Context("when the sourcePath is provided", func() {
-			var matcher *regexp.Regexp
-
-			JustBeforeEach(func() {
-				matcher = regexp.MustCompile(fmt.Sprintf("%s (aufs|ext4|btrfs) rw,relatime", dest))
-			})
-
 			It("mounts using the sourcePath", func() {
 				stdout := gbytes.NewBuffer()
 				Expect(
@@ -125,7 +118,7 @@ var _ = Describe("Mount", func() {
 						privileged, "fake_mounter", "-type=bind", "-sourcePath="+src, "-targetPath="+dest, fmt.Sprintf("-flags=%d", syscall.MS_BIND), "cat", "/proc/mounts"),
 				).To(Succeed())
 
-				Expect(matcher.Find(stdout.Contents())).ToNot(BeNil())
+				Expect(stdout).To(gbytes.Say("%s (aufs|ext4|btrfs) rw,relatime", dest))
 			})
 
 			Context("when file is mounted", func() {
@@ -142,10 +135,6 @@ var _ = Describe("Mount", func() {
 					dstFile = fmt.Sprintf("/tmp/fake-mount-file-%d", GinkgoParallelNode())
 				})
 
-				JustBeforeEach(func() {
-					matcher = regexp.MustCompile(fmt.Sprintf("%s (aufs|ext4|btrfs) rw,relatime", dstFile))
-				})
-
 				AfterEach(func() {
 					Expect(os.Remove(srcFile)).To(Succeed())
 				})
@@ -160,7 +149,7 @@ var _ = Describe("Mount", func() {
 					info, err := os.Stat(dstFile)
 					Expect(err).ToNot(HaveOccurred())
 					Expect(info.IsDir()).ToNot(BeTrue())
-					Expect(matcher.Find(stdout.Contents())).ToNot(BeNil())
+					Expect(stdout).To(gbytes.Say("%s (aufs|ext4|btrfs) rw,relatime", dstFile))
 					Expect(os.Remove(dstFile)).To(Succeed())
 				})
 
@@ -179,7 +168,7 @@ var _ = Describe("Mount", func() {
 						info, err := os.Stat(dstFile)
 						Expect(err).ToNot(HaveOccurred())
 						Expect(info.IsDir()).ToNot(BeTrue())
-						Expect(matcher.Find(stdout.Contents())).ToNot(BeNil())
+						Expect(stdout).To(gbytes.Say("%s (aufs|ext4|btrfs) rw,relatime", dstFile))
 						Expect(os.Remove(dstFile)).To(Succeed())
 					})
 				})
