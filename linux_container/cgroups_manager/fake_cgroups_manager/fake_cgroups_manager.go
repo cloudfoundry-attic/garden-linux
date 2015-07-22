@@ -15,6 +15,8 @@ type FakeCgroupsManager struct {
 	addValues    []AddValue
 	getCallbacks []GetCallback
 	setCallbacks []SetCallback
+
+	subsystemPathCalls []string
 }
 
 type AddValue struct {
@@ -88,7 +90,16 @@ func (m *FakeCgroupsManager) Get(subsytem, name string) (string, error) {
 }
 
 func (m *FakeCgroupsManager) SubsystemPath(subsystem string) (string, error) {
+	m.subsystemPathCalls = append(m.subsystemPathCalls, subsystem)
 	return path.Join(m.cgroupsPath, subsystem, "instance-"+m.id), nil
+}
+
+func (m *FakeCgroupsManager) SubsystemPathCallCount() int {
+	return len(m.subsystemPathCalls)
+}
+
+func (m *FakeCgroupsManager) SubsystemArgsForCall(index int) string {
+	return m.subsystemPathCalls[index]
 }
 
 func (m *FakeCgroupsManager) AddedValues() []AddValue {
