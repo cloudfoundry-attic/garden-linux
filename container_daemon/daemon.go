@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden"
 )
@@ -52,10 +53,20 @@ type Spawner interface {
 	Spawn(cmd *exec.Cmd, withTty bool) ([]*os.File, error)
 }
 
+//go:generate counterfeiter -o fake_signaller/FakeSignaller.go . Signaller
+type Signaller interface {
+	Signal(pid int, signal syscall.Signal) error
+}
+
 type ContainerDaemon struct {
 	CmdPreparer CmdPreparer
+	Spawner     Spawner
+	Signaller   Signaller
+}
 
-	Spawner Spawner
+type SignalSpec struct {
+	Pid    int
+	Signal syscall.Signal
 }
 
 func (cd *ContainerDaemon) Run(listener Listener) error {
@@ -80,7 +91,7 @@ func (cd *ContainerDaemon) Handle(decoder *json.Decoder) (response *ResponseMess
 		return nil, fmt.Errorf("container_daemon: decode message spec: %s", err)
 	}
 
-	response = &ResponseMessage{Type: ProcessResponse}
+	response = &ResponseMessage{}
 
 	switch request.Type {
 	case ProcessRequest:
@@ -105,9 +116,21 @@ func (cd *ContainerDaemon) Handle(decoder *json.Decoder) (response *ResponseMess
 			}
 		}
 
+		response.Type = ProcessResponse
 		response.Pid = cmd.Process.Pid
 
 	case SignalRequest:
+		var spec SignalSpec
+
+		if err := json.Unmarshal(request.Data, &spec); err != nil {
+			return nil, fmt.Errorf("container_daemon: json unmarshal signal spec: %s", err)
+		}
+
+		if err := cd.Signaller.Signal(spec.Pid, spec.Signal); err != nil {
+			return nil, err
+		}
+
+		response.Type = SignalResponse
 
 	default:
 		return nil, fmt.Errorf("container_daemon: unknown message: %s", request)

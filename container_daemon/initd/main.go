@@ -65,6 +65,9 @@ func main() {
 			Runner: reaper,
 			PTY:    system.KrPty,
 		},
+		Signaller: &container_daemon.ProcessSignaller{
+			Logger: logger,
+		},
 	}
 
 	socketFile := os.NewFile(uintptr(5), "/dev/host.sock")

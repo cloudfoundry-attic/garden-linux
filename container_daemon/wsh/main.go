@@ -39,6 +39,9 @@ func main() {
 		signal.Notify(resize, syscall.SIGWINCH)
 	}
 
+	sigterm := make(chan os.Signal)
+	signal.Notify(sigterm, syscall.SIGTERM)
+
 	var pidfileWriter container_daemon.PidfileWriter = container_daemon.NoPidfile{}
 	if *pidfile != "" {
 		pidfileWriter = container_daemon.Pidfile{
@@ -56,6 +59,7 @@ func main() {
 		Pidfile: pidfileWriter,
 
 		SigwinchCh: resize,
+		SigtermCh:  sigterm,
 
 		Spec: &garden.ProcessSpec{
 			Path:   extraArgs[0],

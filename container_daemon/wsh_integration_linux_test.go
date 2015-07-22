@@ -40,6 +40,13 @@ func (r *FakeCommandRunner) Wait(cmd *exec.Cmd) byte {
 	return exitStatusFromErr(cmd.Wait())
 }
 
+type FakeProcessSignaller struct {
+}
+
+func (s *FakeProcessSignaller) Signal(pid int, signal syscall.Signal) error {
+	return syscall.Kill(pid, signal)
+}
+
 var _ = Describe("wsh and daemon integration", func() {
 	var daemon *container_daemon.ContainerDaemon
 	var tempDir string
@@ -66,6 +73,7 @@ var _ = Describe("wsh and daemon integration", func() {
 			Spawner: &container_daemon.Spawn{
 				Runner: &FakeCommandRunner{},
 			},
+			Signaller: &FakeProcessSignaller{},
 		}
 
 		go func(listener container_daemon.Listener) {
@@ -134,6 +142,91 @@ var _ = Describe("wsh and daemon integration", func() {
 		Expect(exitStatusFromErr(wshCmd.Wait())).To(Equal(byte(42)))
 		Eventually(stdout, "2s").Should(gbytes.Say("termed"))
 
+		close(done)
+	}, 320.0)
+
+	It("receives the correct exit status and output from a process exits 255", func(done Done) {
+		for i := 0; i < 200; i++ {
+			stdout := gbytes.NewBuffer()
+
+			wshCmd := exec.Command(wshBin,
+				"--socket", socketPath,
+				"--user", "root",
+				"sh", "-c", `
+					for i in $(seq 0 512); do
+					  echo 0123456789
+					done
+
+					echo ended
+					exit 255
+				`)
+			wshCmd.Stdout = stdout
+			wshCmd.Stderr = GinkgoWriter
+
+			err := wshCmd.Start()
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(exitStatusFromErr(wshCmd.Wait())).To(Equal(byte(255)))
+			Eventually(stdout, "2s").Should(gbytes.Say("ended"))
+		}
+		close(done)
+	}, 320.0)
+
+	It("traps SIGTERM and forwards it to the process", func(done Done) {
+		stdout := gbytes.NewBuffer()
+
+		pidfilePath := path.Join(tempDir, "cmd.pid")
+		wshCmd := exec.Command(wshBin,
+			"--socket", socketPath,
+			"--pidfile", pidfilePath,
+			"--user", "root",
+			"sh", "-c", `
+				  trap 'echo termed; exit 142' TERM
+
+					while true; do
+					  echo waiting
+					  sleep 1
+					done
+				`)
+		wshCmd.Stdout = stdout
+		wshCmd.Stderr = GinkgoWriter
+
+		err := wshCmd.Start()
+		Expect(err).ToNot(HaveOccurred())
+
+		Eventually(stdout).Should(gbytes.Say("waiting"))
+		Expect(syscall.Kill(wshCmd.Process.Pid, syscall.SIGTERM)).To(Succeed())
+
+		Expect(exitStatusFromErr(wshCmd.Wait())).To(Equal(byte(142)))
+		Eventually(stdout, "2s").Should(gbytes.Say("termed"))
+
+		close(done)
+	}, 320.0)
+
+	It("receives the correct exit status and output from a process exits 255", func(done Done) {
+		for i := 0; i < 200; i++ {
+			stdout := gbytes.NewBuffer()
+
+			wshCmd := exec.Command(wshBin,
+				"--socket", socketPath,
+				"--user", "root",
+				"sh", "-c", `
+					for i in $(seq 0 512); do
+					  echo 0123456789
+					done
+
+					echo ended
+					exit 255
+				`)
+			wshCmd.Stdout = stdout
+			wshCmd.Stderr = GinkgoWriter
+
+			err := wshCmd.Start()
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(exitStatusFromErr(wshCmd.Wait())).To(Equal(byte(255)))
+			Eventually(stdout, "2s").Should(gbytes.Say("ended"))
+		}
 		close(done)
 	}, 320.0)
 

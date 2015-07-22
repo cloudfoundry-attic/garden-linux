@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"sync"
+	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/system"
@@ -19,6 +20,7 @@ type Process struct {
 	Connector  Connector
 	Term       Term
 	SigwinchCh <-chan os.Signal
+	SigtermCh  <-chan os.Signal
 	Spec       *garden.ProcessSpec
 	Pidfile    PidfileWriter
 	IO         *garden.ProcessIO
@@ -53,6 +55,29 @@ type Term interface {
 	RestoreTerminal(fd uintptr, state *term.State) error
 }
 
+func (p *Process) Signal() error {
+	spec := &SignalSpec{
+		Pid:    p.pid,
+		Signal: syscall.SIGTERM,
+	}
+
+	data, err := json.Marshal(spec)
+	if err != nil {
+		return fmt.Errorf("container_daemon: marshal signal spec json: %s", err)
+	}
+
+	request := &RequestMessage{
+		Type: SignalRequest,
+		Data: data,
+	}
+
+	if _, err := p.Connector.Connect(request); err != nil {
+		return fmt.Errorf("container_daemon: connect to some socket: %s", err)
+	}
+
+	return nil
+}
+
 func (p *Process) Start() error {
 	p.logger = lager.NewLogger("container_daemon.Process")
 	p.streamers = []*Streamer{}
@@ -72,9 +97,13 @@ func (p *Process) Start() error {
 		return fmt.Errorf("container_daemon: connect to socket: %s", err)
 	}
 
+	p.pid = response.Pid
+
 	if err := p.Pidfile.Write(response.Pid); err != nil {
 		return fmt.Errorf("container_daemon: write pidfile: %s", err)
 	}
+
+	go p.sigtermLoop()
 
 	p.streaming = &sync.WaitGroup{}
 
@@ -95,6 +124,13 @@ func (p *Process) setupPty(ptyFd StreamingFile) error {
 
 	go p.sigwinchLoop(ptyFd)
 	return p.syncWindowSize(ptyFd)
+}
+
+func (p *Process) sigtermLoop() {
+	for {
+		<-p.SigtermCh
+		p.Signal()
+	}
 }
 
 func (p *Process) sigwinchLoop(ptyFd StreamingFile) {
