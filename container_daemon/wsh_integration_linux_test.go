@@ -14,7 +14,6 @@ import (
 	"path"
 
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
-	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
@@ -82,7 +81,7 @@ var _ = Describe("wsh and daemon integration", func() {
 		}(listener)
 	})
 
-	It("should run a program when no pidfile is specified", func() {
+	It("should run a program", func() {
 		wshCmd := exec.Command(wsh,
 			"--socket", socketPath,
 			"--user", "root",
@@ -95,10 +94,8 @@ var _ = Describe("wsh and daemon integration", func() {
 
 	It("should avoid a race condition when sending a kill signal", func(done Done) {
 		for i := 0; i < 20; i++ {
-			pidfilePath := path.Join(tempDir, "cmd.pid")
 			wshCmd := exec.Command(wsh,
 				"--socket", socketPath,
-				"--pidfile", pidfilePath,
 				"--user", "root",
 				"sh", "-c",
 				`while true; do echo -n "x"; sleep 1; done`)
@@ -106,7 +103,7 @@ var _ = Describe("wsh and daemon integration", func() {
 			err := wshCmd.Start()
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(kill(pidfilePath, syscall.SIGKILL)).To(Succeed())
+			Expect(syscall.Kill(wshCmd.Process.Pid, syscall.SIGKILL)).To(Succeed())
 			Expect(err).ToNot(HaveOccurred())
 			Expect(exitStatusFromErr(wshCmd.Wait())).To(Equal(byte(255)))
 		}
@@ -116,10 +113,8 @@ var _ = Describe("wsh and daemon integration", func() {
 	It("receives the correct exit status and output from a process which is sent SIGTERM", func(done Done) {
 		stdout := gbytes.NewBuffer()
 
-		pidfilePath := path.Join(tempDir, "cmd.pid")
 		wshCmd := exec.Command(wsh,
 			"--socket", socketPath,
-			"--pidfile", pidfilePath,
 			"--user", "root",
 			"sh", "-c", `
 				  trap 'echo termed; exit 42' TERM
@@ -175,10 +170,8 @@ var _ = Describe("wsh and daemon integration", func() {
 	It("traps SIGTERM and forwards it to the process", func(done Done) {
 		stdout := gbytes.NewBuffer()
 
-		pidfilePath := path.Join(tempDir, "cmd.pid")
-		wshCmd := exec.Command(wshBin,
+		wshCmd := exec.Command(wsh,
 			"--socket", socketPath,
-			"--pidfile", pidfilePath,
 			"--user", "root",
 			"sh", "-c", `
 				  trap 'echo termed; exit 142' TERM
@@ -255,13 +248,4 @@ func exitStatusFromErr(err error) byte {
 	} else {
 		return 0
 	}
-}
-
-func kill(pidFilePath string, signal syscall.Signal) error {
-	pid, err := linux_backend.PidFromFile(pidFilePath)
-	if err != nil {
-		return err
-	}
-
-	return syscall.Kill(pid, signal)
 }

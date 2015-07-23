@@ -21,7 +21,6 @@ func main() {
 	var envVars container_daemon.StringList
 	flag.Var(&envVars, "env", "Environment variables to set for the command.")
 
-	pidfile := flag.String("pidfile", "", "File to save container-namespaced pid of spawned process to")
 	flag.Bool("rsh", false, "RSH compatibility mode")
 
 	flag.Parse()
@@ -42,21 +41,12 @@ func main() {
 	sigterm := make(chan os.Signal)
 	signal.Notify(sigterm, syscall.SIGTERM)
 
-	var pidfileWriter container_daemon.PidfileWriter = container_daemon.NoPidfile{}
-	if *pidfile != "" {
-		pidfileWriter = container_daemon.Pidfile{
-			Path: *pidfile,
-		}
-	}
-
 	process := &container_daemon.Process{
 		Connector: &unix_socket.Connector{
 			SocketPath: *socketPath,
 		},
 
 		Term: container_daemon.TermPkg{},
-
-		Pidfile: pidfileWriter,
 
 		SigwinchCh: resize,
 		SigtermCh:  sigterm,

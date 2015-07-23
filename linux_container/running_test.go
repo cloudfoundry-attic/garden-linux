@@ -117,7 +117,6 @@ var _ = Describe("Linux containers", func() {
 				"--user", "vcap",
 				"--env", "env1=env1Value",
 				"--env", "env2=env2Value",
-				"--pidfile", containerDir + "/processes/1.pid",
 				"/some/script",
 				"arg1",
 				"arg2",
@@ -142,7 +141,7 @@ var _ = Describe("Linux containers", func() {
 			}))
 		})
 
-		It("runs wsh with the --pidfile parameter and configures the Process with this pidfile", func() {
+		It("runs wsh", func() {
 			_, err := container.Run(garden.ProcessSpec{
 				User: "alice",
 				Path: "/some/script",
@@ -156,7 +155,6 @@ var _ = Describe("Linux containers", func() {
 				"--user", "alice",
 				"--env", "env1=env1Value",
 				"--env", "env2=env2Value",
-				"--pidfile", containerDir + "/processes/1.pid",
 				"/some/script",
 			}))
 		})
@@ -207,7 +205,6 @@ var _ = Describe("Linux containers", func() {
 				"--env", "UNESCAPED=isaac\nhayes",
 				"--env", "env1=env1Value",
 				"--env", "env2=env2Value",
-				"--pidfile", containerDir + "/processes/1.pid",
 				"/some/script",
 			}))
 		})
@@ -230,7 +227,6 @@ var _ = Describe("Linux containers", func() {
 				"--user", "vcap",
 				"--env", "env1=overridden",
 				"--env", "env2=env2Value",
-				"--pidfile", containerDir + "/processes/1.pid",
 				"/some/script",
 			}))
 		})
@@ -252,7 +248,6 @@ var _ = Describe("Linux containers", func() {
 				"--env", "env1=env1Value",
 				"--env", "env2=env2Value",
 				"--dir", "/some/dir",
-				"--pidfile", containerDir + "/processes/1.pid",
 				"/some/script",
 			}))
 		})
@@ -356,7 +351,6 @@ var _ = Describe("Linux containers", func() {
 				"--user", "vcap",
 				"--env", "env1=env1Value",
 				"--env", "env2=env2Value",
-				"--pidfile", containerDir + "/processes/1.pid",
 				"/some/script",
 			}))
 

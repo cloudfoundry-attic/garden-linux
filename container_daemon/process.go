@@ -22,7 +22,6 @@ type Process struct {
 	SigwinchCh <-chan os.Signal
 	SigtermCh  <-chan os.Signal
 	Spec       *garden.ProcessSpec
-	Pidfile    PidfileWriter
 	IO         *garden.ProcessIO
 
 	// assigned after Start() is called
@@ -33,11 +32,6 @@ type Process struct {
 	streamers []*Streamer
 
 	logger lager.Logger
-}
-
-type PidfileWriter interface {
-	Write(pid int) error
-	Remove()
 }
 
 //go:generate counterfeiter -o fake_connector/FakeConnector.go . Connector
@@ -98,10 +92,6 @@ func (p *Process) Start() error {
 	}
 
 	p.pid = response.Pid
-
-	if err := p.Pidfile.Write(response.Pid); err != nil {
-		return fmt.Errorf("container_daemon: write pidfile: %s", err)
-	}
 
 	go p.sigtermLoop()
 
@@ -204,8 +194,6 @@ func (p *Process) Cleanup() {
 }
 
 func (p *Process) Wait() (int, error) {
-	defer p.Pidfile.Remove()
-
 	return <-p.exitCode, nil
 }
 

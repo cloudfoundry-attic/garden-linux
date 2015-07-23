@@ -50,9 +50,6 @@ func (c *LinuxContainer) Run(spec garden.ProcessSpec, processIO garden.ProcessIO
 	processID := c.processIDPool.Next()
 	c.logger.Info("next pid", lager.Data{"pid": processID})
 
-	pidfile := path.Join(c.ContainerPath, "processes", fmt.Sprintf("%d.pid", processID))
-	args = append(args, "--pidfile", pidfile)
-
 	args = append(args, spec.Path)
 
 	wsh := exec.Command(wshPath, append(args, spec.Args...)...)

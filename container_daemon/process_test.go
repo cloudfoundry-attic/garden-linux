@@ -3,9 +3,7 @@ package container_daemon_test
 import (
 	"encoding/json"
 	"errors"
-	"io/ioutil"
 	"os"
-	"path"
 	"syscall"
 	"time"
 
@@ -26,7 +24,6 @@ var _ = Describe("Process", func() {
 	var response *container_daemon.ResponseMessage
 
 	var process *container_daemon.Process
-	var pidfile string
 
 	BeforeEach(func() {
 		fakeTerm = new(fake_term.FakeTerm)
@@ -41,11 +38,6 @@ var _ = Describe("Process", func() {
 
 		sigwinchCh = make(chan os.Signal)
 
-		tmp, err := ioutil.TempDir("", "pidfile")
-		Expect(err).NotTo(HaveOccurred())
-
-		pidfile = path.Join(tmp, "the-pid-file")
-
 		process = &container_daemon.Process{
 			Connector:  socketConnector,
 			Term:       fakeTerm,
@@ -54,13 +46,8 @@ var _ = Describe("Process", func() {
 				Path: "/bin/echo",
 				Args: []string{"Hello world"},
 			},
-			Pidfile: container_daemon.Pidfile{pidfile},
-			IO:      nil,
+			IO: nil,
 		}
-	})
-
-	AfterEach(func() {
-		os.Remove(pidfile)
 	})
 
 	It("sends the correct process payload to the server", func() {
@@ -197,29 +184,6 @@ var _ = Describe("Process", func() {
 		})
 	})
 
-	Context("when a pidfile parameter is supplied", func() {
-		It("writes the PID of the spawned process to the pidfile", func() {
-			response.Files = []container_daemon.StreamingFile{nil, nil, nil, FakeFd(0)}
-			response.Pid = 123
-
-			socketConnector.ConnectReturns(response, nil)
-
-			err := process.Start()
-			Expect(err).ToNot(HaveOccurred())
-
-			Expect(pidfile).To(BeAnExistingFile())
-			Expect(ioutil.ReadFile(pidfile)).To(Equal([]byte("123\n")))
-		})
-
-		Context("when writing the pidfile fails", func() {
-			It("returns an error", func() {
-				Expect(os.MkdirAll(pidfile, 0700)) // make writing fail
-				defer os.Remove(pidfile)
-				Expect(process.Start()).To(MatchError(ContainSubstring("container_daemon: write pidfile")))
-			})
-		})
-	})
-
 	It("streams stdout back", func() {
 		remoteStdout := FakeFd(0)
 		response.Files = []container_daemon.StreamingFile{nil, remoteStdout, nil, FakeFd(0)}
@@ -289,24 +253,6 @@ var _ = Describe("Process", func() {
 
 		remoteExitFd.Write([]byte{42})
 		Expect(process.Wait()).To(Equal(42))
-	})
-
-	Context("when the exit status is returned", func() {
-		It("removes the pidfile", func() {
-			remoteExitFd := FakeFd(0)
-
-			response.Files = []container_daemon.StreamingFile{nil, nil, nil, remoteExitFd}
-			response.Pid = 0
-
-			socketConnector.ConnectReturns(response, nil)
-
-			err := process.Start()
-			Expect(err).ToNot(HaveOccurred())
-
-			Expect(pidfile).To(BeAnExistingFile())
-			process.Wait()
-			Expect(pidfile).NotTo(BeAnExistingFile())
-		})
 	})
 
 	Context("when it fails to connect", func() {
