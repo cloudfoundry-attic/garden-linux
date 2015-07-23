@@ -27,7 +27,7 @@ set +x
 if [ -n "$COVERALLS_TOKEN" ] && [ "$COVERALLS_TOKEN" != "{{coveralls_token}}" ] ; then
   go get github.com/dustin/goveralls
 
-  profiles=$(find . -name '*.coverprofile' | grep -v fake | grep -v Godeps )
+  profiles=$(find . -name '*.coverprofile' | grep -v fake)
 
   echo mode: set > all.coverprofile
   cat $profiles | grep -v mode: >> all.coverprofile

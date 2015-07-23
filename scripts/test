@@ -9,10 +9,7 @@ export PATH=$FIRST_GOPATH/bin:$PATH
 go get code.google.com/p/go.tools/cmd/cover
 go get github.com/dustin/goveralls
 
-WORKSPACE=$PWD/Godeps/_workspace
-
-export GOPATH=$WORKSPACE:$GOPATH
-export PATH=$WORKSPACE/bin:$PATH
+export PATH=$GOPATH/bin:$PATH
 
 mkdir -p /tmp/gobin
 export GOBIN=/tmp/gobin

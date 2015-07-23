@@ -1,11 +1,8 @@
 #!/bin/bash
 set -e -x
 
-export GODEPS_WORKSPACE=$PWD/Godeps/_workspace
-export GOPATH=$GODEPS_WORKSPACE:$GOPATH
-export PATH=$GODEPS_WORKSPACE/bin:$PATH
+export PATH=$GOPATH/bin:$PATH
 
 go install github.com/onsi/ginkgo/ginkgo
 
 ginkgo -r -p -race -cover -keepGoing -nodes=4 "$@"
-
