@@ -1,7 +1,6 @@
 package container_daemon_test
 
 import (
-	"io"
 	"os"
 	"os/exec"
 	"syscall"
@@ -117,65 +116,7 @@ var _ = Describe("wsh and daemon integration", func() {
 			"--socket", socketPath,
 			"--user", "root",
 			"sh", "-c", `
-				  trap 'echo termed; exit 42' TERM
-
-					while true; do
-					  echo waiting
-					  sleep 1
-					done
-				`)
-		wshCmd.Stdout = io.MultiWriter(GinkgoWriter, stdout)
-		wshCmd.Stderr = GinkgoWriter
-
-		err := wshCmd.Start()
-		Expect(err).ToNot(HaveOccurred())
-
-		Eventually(stdout, "5s").Should(gbytes.Say("waiting"))
-
-		Expect(kill(pidfilePath, syscall.SIGTERM)).To(Succeed())
-
-		Expect(exitStatusFromErr(wshCmd.Wait())).To(Equal(byte(42)))
-		Eventually(stdout, "2s").Should(gbytes.Say("termed"))
-
-		close(done)
-	}, 320.0)
-
-	It("receives the correct exit status and output from a process exits 255", func(done Done) {
-		for i := 0; i < 200; i++ {
-			stdout := gbytes.NewBuffer()
-
-			wshCmd := exec.Command(wshBin,
-				"--socket", socketPath,
-				"--user", "root",
-				"sh", "-c", `
-					for i in $(seq 0 512); do
-					  echo 0123456789
-					done
-
-					echo ended
-					exit 255
-				`)
-			wshCmd.Stdout = stdout
-			wshCmd.Stderr = GinkgoWriter
-
-			err := wshCmd.Start()
-			Expect(err).ToNot(HaveOccurred())
-
-			Expect(exitStatusFromErr(wshCmd.Wait())).To(Equal(byte(255)))
-			Eventually(stdout, "2s").Should(gbytes.Say("ended"))
-		}
-		close(done)
-	}, 320.0)
-
-	It("traps SIGTERM and forwards it to the process", func(done Done) {
-		stdout := gbytes.NewBuffer()
-
-		wshCmd := exec.Command(wsh,
-			"--socket", socketPath,
-			"--user", "root",
-			"sh", "-c", `
 				  trap 'echo termed; exit 142' TERM
-
 					while true; do
 					  echo waiting
 					  sleep 1
@@ -187,7 +128,7 @@ var _ = Describe("wsh and daemon integration", func() {
 		err := wshCmd.Start()
 		Expect(err).ToNot(HaveOccurred())
 
-		Eventually(stdout).Should(gbytes.Say("waiting"))
+		Eventually(stdout, "10s").Should(gbytes.Say("waiting"))
 		Expect(syscall.Kill(wshCmd.Process.Pid, syscall.SIGTERM)).To(Succeed())
 
 		Expect(exitStatusFromErr(wshCmd.Wait())).To(Equal(byte(142)))
@@ -200,7 +141,7 @@ var _ = Describe("wsh and daemon integration", func() {
 		for i := 0; i < 200; i++ {
 			stdout := gbytes.NewBuffer()
 
-			wshCmd := exec.Command(wshBin,
+			wshCmd := exec.Command(wsh,
 				"--socket", socketPath,
 				"--user", "root",
 				"sh", "-c", `
