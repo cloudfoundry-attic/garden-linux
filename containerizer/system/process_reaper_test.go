@@ -2,7 +2,9 @@ package system_test
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
+	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
 	"github.com/pivotal-golang/lager"
@@ -14,11 +16,16 @@ import (
 
 var _ = Describe("ProcessReaper", func() {
 	var reaper *system.ProcessReaper
+	var waitFunc system.Wait4Func
 
 	BeforeEach(func() {
+		waitFunc = syscall.Wait4
+	})
+
+	JustBeforeEach(func() {
 		logger := lager.NewLogger("process_reaper_test_logger")
 		logger.RegisterSink(lager.NewWriterSink(GinkgoWriter, lager.ERROR))
-		reaper = system.StartReaper(logger)
+		reaper = system.StartReaper(logger, waitFunc)
 	})
 
 	AfterEach(func() {
@@ -100,4 +107,41 @@ var _ = Describe("ProcessReaper", func() {
 		}
 		close(done)
 	}, 90.0)
+
+	Context("when a container reuses a waited-for pid", func() {
+		var nextPid chan int
+		var waited chan bool
+
+		BeforeEach(func() {
+			nextPid = make(chan int, 100)
+			waited = make(chan bool)
+			waitFunc = func(pid int, wstatu *syscall.WaitStatus, options int, rusage *syscall.Rusage) (int, error) {
+				waited <- true
+				return <-nextPid, nil
+			}
+		})
+
+		It("does not deadlock", func(done Done) {
+			cmd := exec.Command("sh", "-c", `while true; do sleep 1; done`)
+			Expect(reaper.Start(cmd)).To(Succeed())
+
+			thePid := cmd.Process.Pid
+
+			nextPid <- thePid
+			nextPid <- 0
+			syscall.Kill(os.Getpid(), syscall.SIGCHLD)
+			Eventually(waited).Should(Receive())
+			Eventually(waited).Should(Receive())
+
+			nextPid <- thePid
+			nextPid <- thePid
+			nextPid <- 0
+			syscall.Kill(os.Getpid(), syscall.SIGCHLD)
+
+			Eventually(waited).Should(Receive())
+			Eventually(waited).Should(Receive())
+			Eventually(waited).Should(Receive())
+			close(done)
+		})
+	})
 })

@@ -11,19 +11,27 @@ import (
 )
 
 type ProcessReaper struct {
-	mu      *sync.Mutex
-	waiting map[int]chan int
-	sigChld chan os.Signal
-	log     lager.Logger
+	mu            *sync.Mutex
+	waiting       map[int]chan int
+	monitoredPids map[int]bool // pids which we launched, to avoid confusion with processes launched by children inside the container
+	sigChld       chan os.Signal
+	log           lager.Logger
+
+	wait4 Wait4Func
 }
 
-func StartReaper(logger lager.Logger) *ProcessReaper {
+type Wait4Func func(pid int, wstatus *syscall.WaitStatus, options int, rusage *syscall.Rusage) (wpid int, err error)
+
+func StartReaper(logger lager.Logger, waitSyscall Wait4Func) *ProcessReaper {
 	logger.Debug("start-reaper")
 	p := &ProcessReaper{
-		mu:      new(sync.Mutex),
-		waiting: make(map[int]chan int),
-		sigChld: make(chan os.Signal, 1000),
-		log:     logger,
+		mu:            new(sync.Mutex),
+		waiting:       make(map[int]chan int),
+		monitoredPids: make(map[int]bool),
+		sigChld:       make(chan os.Signal, 1000),
+		log:           logger,
+
+		wait4: waitSyscall,
 	}
 
 	signal.Notify(p.sigChld, syscall.SIGCHLD)
@@ -47,6 +55,7 @@ func (p *ProcessReaper) Start(cmd *exec.Cmd) error {
 	p.log.Info("started", lager.Data{"pid": cmd.Process.Pid, "cmd": cmd})
 
 	p.waiting[cmd.Process.Pid] = make(chan int, 1)
+	p.monitoredPids[cmd.Process.Pid] = true
 	return nil
 }
 
@@ -76,7 +85,7 @@ func (p *ProcessReaper) reap() {
 		p.log.Debug("reap")
 		var status syscall.WaitStatus
 		var rusage syscall.Rusage
-		wpid, err := syscall.Wait4(-1, &status, syscall.WNOHANG, &rusage)
+		wpid, err := p.wait4(-1, &status, syscall.WNOHANG, &rusage)
 
 		if wpid == 0 || (wpid == -1 && err.Error() == "no child processes") {
 			break
@@ -89,8 +98,10 @@ func (p *ProcessReaper) reap() {
 
 		p.log.Info("reaped", lager.Data{"pid": wpid, "status": status, "rusage": rusage})
 
-		if ch, ok := p.waitChan(wpid); ok {
+		if ch, ok := p.waitChan(wpid); p.monitoredPids[wpid] && ok {
 			ch <- status.ExitStatus()
+			p.unmonitorPid(wpid)
+
 			p.log.Info("wait-once-sent-exit-status", lager.Data{"pid": wpid, "status": status, "rusage": rusage})
 		} else {
 			p.log.Info("wait-once-not-found", lager.Data{"pid": wpid, "status": status, "rusage": rusage})
@@ -103,4 +114,10 @@ func (p *ProcessReaper) waitChan(pid int) (chan int, bool) {
 	defer p.mu.Unlock()
 	wChan, ok := p.waiting[pid]
 	return wChan, ok
+}
+
+func (p *ProcessReaper) unmonitorPid(pid int) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	delete(p.monitoredPids, pid)
 }

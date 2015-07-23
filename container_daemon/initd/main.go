@@ -46,7 +46,7 @@ func main() {
 		Writer: syncWriter,
 	}
 
-	reaper := system.StartReaper(logger)
+	reaper := system.StartReaper(logger, syscall.Wait4)
 	defer reaper.Stop()
 
 	daemon := &container_daemon.ContainerDaemon{
