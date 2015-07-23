@@ -53,6 +53,8 @@ git clone https://github.com/cloudfoundry-incubator/garden-integration-tests $GO
 
 ### Vagrant
 
+First ensure your `$GOPATH` refers to `garden-linux-release`. This should be automatic if you have installed direnv and allowed the `.envrc` file in `garden-linux-release`.
+
 To run the tests locally pull and start the `cloudfoundry/garden-ci-ubuntu` box
 
 ```bash
