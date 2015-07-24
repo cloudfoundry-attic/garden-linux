@@ -68,7 +68,8 @@ func (m *BtrfsQuotaManager) GetUsage(logger lager.Logger, subvolumePath string) 
 		return usage, err
 	}
 
-	usage.BytesUsed = quotaInfo.Usage
+	usage.TotalBytesUsed = quotaInfo.TotalUsage
+	usage.ExclusiveBytesUsed = quotaInfo.ExclusiveUsage
 
 	return usage, nil
 }
@@ -78,15 +79,15 @@ func (m *BtrfsQuotaManager) IsEnabled() bool {
 }
 
 type QuotaInfo struct {
-	Id    string
-	Usage uint64
-	Limit uint64
+	Id             string
+	TotalUsage     uint64
+	ExclusiveUsage uint64
+	Limit          uint64
 }
 
 func (m *BtrfsQuotaManager) quotaInfo(logger lager.Logger, path string) (*QuotaInfo, error) {
 	var (
 		cmdOut bytes.Buffer
-		skip   int
 		info   QuotaInfo
 		limit  string
 	)
@@ -105,7 +106,7 @@ func (m *BtrfsQuotaManager) quotaInfo(logger lager.Logger, path string) (*QuotaI
 
 	lines := strings.Split(strings.TrimSpace(cmdOut.String()), "\n")
 
-	_, err := fmt.Sscanf(lines[len(lines)-1], "%s %d %d %s", &info.Id, &info.Usage, &skip, &limit)
+	_, err := fmt.Sscanf(lines[len(lines)-1], "%s %d %d %s", &info.Id, &info.TotalUsage, &info.ExclusiveUsage, &limit)
 	if err != nil {
 		return nil, fmt.Errorf("quota_manager: parse quota info: %v", err)
 	}

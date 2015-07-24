@@ -218,16 +218,20 @@ system 2
 		Describe("disk usage info", func() {
 			It("is returned in the response", func() {
 				fakeQuotaManager.GetUsageReturns(garden.ContainerDiskStat{
-					BytesUsed:  1,
-					InodesUsed: 2,
+					TotalBytesUsed:      1,
+					TotalInodesUsed:     2,
+					ExclusiveBytesUsed:  3,
+					ExclusiveInodesUsed: 4,
 				}, nil)
 
 				metrics, err := container.Metrics()
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(metrics.DiskStat).To(Equal(garden.ContainerDiskStat{
-					BytesUsed:  1,
-					InodesUsed: 2,
+					TotalBytesUsed:      1,
+					TotalInodesUsed:     2,
+					ExclusiveBytesUsed:  3,
+					ExclusiveInodesUsed: 4,
 				}))
 
 			})

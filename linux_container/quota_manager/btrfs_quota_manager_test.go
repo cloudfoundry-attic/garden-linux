@@ -157,7 +157,7 @@ var _ = Describe("btrfs quota manager", func() {
 			qgroupShowResponse = []byte(
 				`qgroupid         rfer         excl     max_rfer
 --------         ----         ----     --------
-0/257           10485760        16384     16384
+0/257           10485760        16384     25494
 `)
 			qgroupShowError = nil
 		})
@@ -180,8 +180,10 @@ var _ = Describe("btrfs quota manager", func() {
 				usage, err := quotaManager.GetUsage(logger, subvolumePath)
 				Expect(err).ToNot(HaveOccurred())
 				Expect(usage).To(Equal(garden.ContainerDiskStat{
-					BytesUsed:  uint64(10 * 1024 * 1024),
-					InodesUsed: uint64(0),
+					TotalBytesUsed:      uint64(10 * 1024 * 1024),
+					TotalInodesUsed:     uint64(0),
+					ExclusiveBytesUsed:  uint64(16 * 1024),
+					ExclusiveInodesUsed: uint64(0),
 				}))
 			})
 

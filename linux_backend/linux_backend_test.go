@@ -665,7 +665,7 @@ var _ = Describe("LinuxBackend", func() {
 			fakeContainer.MetricsReturns(
 				garden.Metrics{
 					DiskStat: garden.ContainerDiskStat{
-						InodesUsed: n,
+						TotalInodesUsed: n,
 					},
 				},
 				nil,
@@ -690,14 +690,14 @@ var _ = Describe("LinuxBackend", func() {
 				container1.Handle(): garden.ContainerMetricsEntry{
 					Metrics: garden.Metrics{
 						DiskStat: garden.ContainerDiskStat{
-							InodesUsed: 1,
+							TotalInodesUsed: 1,
 						},
 					},
 				},
 				container2.Handle(): garden.ContainerMetricsEntry{
 					Metrics: garden.Metrics{
 						DiskStat: garden.ContainerDiskStat{
-							InodesUsed: 2,
+							TotalInodesUsed: 2,
 						},
 					},
 				},
@@ -715,7 +715,7 @@ var _ = Describe("LinuxBackend", func() {
 					container2.Handle(): garden.ContainerMetricsEntry{
 						Metrics: garden.Metrics{
 							DiskStat: garden.ContainerDiskStat{
-								InodesUsed: 2,
+								TotalInodesUsed: 2,
 							},
 						},
 					},
@@ -738,7 +738,7 @@ var _ = Describe("LinuxBackend", func() {
 					container1.Handle(): garden.ContainerMetricsEntry{
 						Metrics: garden.Metrics{
 							DiskStat: garden.ContainerDiskStat{
-								InodesUsed: 1,
+								TotalInodesUsed: 1,
 							},
 						},
 					},
