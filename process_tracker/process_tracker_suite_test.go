@@ -11,15 +11,20 @@ import (
 )
 
 var iodaemonBin string
+var testPrintBin string
 
 func TestProcess_tracker(t *testing.T) {
 	var beforeSuite struct {
-		IodaemonPath string
+		IodaemonPath        string
+		TestPrintSignalPath string
 	}
 
 	SynchronizedBeforeSuite(func() []byte {
 		var err error
 		beforeSuite.IodaemonPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/iodaemon")
+		Expect(err).ToNot(HaveOccurred())
+
+		beforeSuite.TestPrintSignalPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/iodaemon/test_print_signals")
 		Expect(err).ToNot(HaveOccurred())
 
 		b, err := json.Marshal(beforeSuite)
@@ -32,6 +37,9 @@ func TestProcess_tracker(t *testing.T) {
 
 		iodaemonBin = beforeSuite.IodaemonPath
 		Expect(iodaemonBin).NotTo(BeEmpty())
+
+		testPrintBin = beforeSuite.TestPrintSignalPath
+		Expect(testPrintBin).NotTo(BeEmpty())
 	})
 
 	SynchronizedAfterSuite(func() {

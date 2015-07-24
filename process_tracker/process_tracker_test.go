@@ -12,7 +12,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
-	"github.com/onsi/gomega/gexec"
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/process_tracker"
@@ -60,10 +59,8 @@ var _ = Describe("Running processes", func() {
 		)
 
 		BeforeEach(func() {
-			ps, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/iodaemon/test_print_signals")
-			Expect(err).ToNot(HaveOccurred())
-
-			cmd := exec.Command(ps)
+			var err error
+			cmd := exec.Command(testPrintBin)
 
 			stdout = gbytes.NewBuffer()
 			process, err = processTracker.Run(2, cmd, garden.ProcessIO{Stdout: io.MultiWriter(stdout, GinkgoWriter), Stderr: GinkgoWriter}, nil)
@@ -269,18 +266,6 @@ var _ = Describe("Restoring processes", func() {
 		activeProcesses := processTracker.ActiveProcesses()
 		Expect(activeProcesses).To(HaveLen(1))
 		Expect(activeProcesses[0].ID()).To(Equal(uint32(2)))
-	})
-
-	PIt("assigns the signaller to the process", func() {
-		// signaller := &FakeSignaller{}
-		processTracker.Restore(2)
-		// , signaller
-
-		activeProcesses := processTracker.ActiveProcesses()
-		Expect(activeProcesses).To(HaveLen(1))
-
-		Expect(activeProcesses[0].Signal(garden.SignalKill)).To(Succeed())
-		// Expect(signaller.sent).To(Equal([]os.Signal{os.Kill}))
 	})
 })
 

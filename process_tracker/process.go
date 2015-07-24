@@ -77,6 +77,8 @@ func (p *Process) SetTTY(tty garden.TTYSpec) error {
 }
 
 func (p *Process) Signal(s garden.Signal) error {
+	<-p.linked
+
 	switch s {
 	case garden.SignalKill:
 		return p.link.Signal(syscall.SIGKILL)
