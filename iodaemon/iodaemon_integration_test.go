@@ -84,7 +84,7 @@ var _ = Describe("Iodaemon integration tests", func() {
 			lk.Close()
 
 			Eventually(spawnS).Should(gbytes.Say("active\n"))
-			Eventually(spawnS).Should(gexec.Exit(0))
+			Eventually(spawnS, 2).Should(gexec.Exit(0))
 		}
 	})
 
