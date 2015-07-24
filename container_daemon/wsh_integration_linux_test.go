@@ -74,10 +74,14 @@ var _ = Describe("wsh and daemon integration", func() {
 			Signaller: &FakeProcessSignaller{},
 		}
 
-		go func(listener container_daemon.Listener) {
+		go func(listener container_daemon.Listener, daemon *container_daemon.ContainerDaemon) {
 			defer GinkgoRecover()
 			Expect(daemon.Run(listener)).To(Succeed())
-		}(listener)
+		}(listener, daemon)
+	})
+
+	AfterEach(func() {
+		os.RemoveAll(tempDir)
 	})
 
 	It("should run a program", func() {
@@ -109,7 +113,7 @@ var _ = Describe("wsh and daemon integration", func() {
 		close(done)
 	}, 40.0)
 
-	It("receives the correct exit status and output from a process which is sent SIGTERM", func(done Done) {
+	It("receives the correct exit status and output from a process which is sent SIGTERM", func() {
 		stdout := gbytes.NewBuffer()
 
 		wshCmd := exec.Command(wsh,
@@ -128,17 +132,15 @@ var _ = Describe("wsh and daemon integration", func() {
 		err := wshCmd.Start()
 		Expect(err).ToNot(HaveOccurred())
 
-		Eventually(stdout, "10s").Should(gbytes.Say("waiting"))
+		Eventually(stdout, "15s").Should(gbytes.Say("waiting"))
 		Expect(syscall.Kill(wshCmd.Process.Pid, syscall.SIGTERM)).To(Succeed())
 
 		Expect(exitStatusFromErr(wshCmd.Wait())).To(Equal(byte(142)))
 		Eventually(stdout, "2s").Should(gbytes.Say("termed"))
-
-		close(done)
-	}, 320.0)
+	})
 
 	It("receives the correct exit status and output from a process exits 255", func(done Done) {
-		for i := 0; i < 200; i++ {
+		for i := 0; i < 20; i++ {
 			stdout := gbytes.NewBuffer()
 
 			wshCmd := exec.Command(wsh,
@@ -159,10 +161,10 @@ var _ = Describe("wsh and daemon integration", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(exitStatusFromErr(wshCmd.Wait())).To(Equal(byte(255)))
-			Eventually(stdout, "2s").Should(gbytes.Say("ended"))
+			Eventually(stdout, "3s").Should(gbytes.Say("ended"))
 		}
 		close(done)
-	}, 320.0)
+	}, 120.0)
 
 	It("applies the provided rlimits", func() {
 		wshCmd := exec.Command(wsh,
