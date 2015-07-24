@@ -48,6 +48,12 @@ type NetworkStatisticser interface {
 	Statistics() (stats garden.ContainerNetworkStat, err error)
 }
 
+//go:generate counterfeiter -o fake_watcher/fake_watcher.go . Watcher
+type Watcher interface {
+	Watch(notify chan struct{}) error
+	Unwatch()
+}
+
 type BandwidthManager interface {
 	SetLimits(lager.Logger, garden.BandwidthLimits) error
 	GetLimits(lager.Logger) (garden.ContainerBandwidthStat, error)
@@ -80,8 +86,7 @@ type LinuxContainer struct {
 	filter           network.Filter
 	processIDPool    *ProcessIDPool
 
-	oomNotifier *exec.Cmd
-	oomMutex    sync.RWMutex
+	oomWatcher Watcher
 
 	mtu uint32
 
@@ -128,6 +133,7 @@ func NewLinuxContainer(
 	processTracker process_tracker.ProcessTracker,
 	filter network.Filter,
 	netStats NetworkStatisticser,
+	oomWatcher Watcher,
 	logger lager.Logger,
 ) *LinuxContainer {
 	return &LinuxContainer{
@@ -142,6 +148,8 @@ func NewLinuxContainer(
 		filter:           filter,
 		processIDPool:    &ProcessIDPool{},
 		netStats:         netStats,
+
+		oomWatcher: oomWatcher,
 
 		logger: logger,
 	}
@@ -360,7 +368,7 @@ func (c *LinuxContainer) Cleanup() {
 	cLog := c.logger.Session("cleanup")
 
 	cLog.Debug("stopping-oom-notifier")
-	c.stopOomNotifier()
+	c.oomWatcher.Unwatch()
 
 	cLog.Info("done")
 }
@@ -377,7 +385,7 @@ func (c *LinuxContainer) Stop(kill bool) error {
 		return err
 	}
 
-	c.stopOomNotifier()
+	c.oomWatcher.Unwatch()
 
 	c.setState(linux_backend.StateStopped)
 

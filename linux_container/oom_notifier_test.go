@@ -1,7 +1,8 @@
 package linux_container_test
 
 import (
-	"fmt"
+	"errors"
+	"os/exec"
 	"path"
 
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
@@ -13,12 +14,12 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = FDescribe("OomNotifier", func() {
+var _ = Describe("OomNotifier", func() {
 	var (
 		runner         *fake_command_runner.FakeCommandRunner
 		cgroupsPath    string
 		cgroupsManager linux_container.CgroupsManager
-		stopCallback   func()
+		oom            chan struct{}
 		containerPath  string
 		oomNotifier    *linux_container.OomNotifier
 	)
@@ -29,23 +30,22 @@ var _ = FDescribe("OomNotifier", func() {
 		cgroupsPath = path.Join("path", "to", "cgroups")
 		cgroupsManager = fake_cgroups_manager.New(cgroupsPath, "123456")
 
-		stopCallback = func() {}
-
 		containerPath = path.Join("path", "to", "container")
+
+		oom = make(chan struct{})
 	})
 
 	JustBeforeEach(func() {
 		oomNotifier = linux_container.NewOomNotifier(
 			runner,
 			containerPath,
-			stopCallback,
 			cgroupsManager,
 		)
 	})
 
-	Describe("Start", func() {
-		It("calls oom", func() {
-			Expect(oomNotifier.Start()).To(Succeed())
+	Describe("Watch", func() {
+		It("calls the oom binary", func() {
+			Expect(oomNotifier.Watch(oom)).To(Succeed())
 
 			Expect(runner).To(HaveStartedExecuting(
 				fake_command_runner.CommandSpec{
@@ -55,23 +55,75 @@ var _ = FDescribe("OomNotifier", func() {
 			))
 		})
 
-		Context("when the stop callback is set", func() {
-			var stopCalled chan struct{}
+		Context("when the notifier is set", func() {
+			Context("when the oom process exits with exit code 0", func() {
+				It("notifies", func() {
+					Expect(oomNotifier.Watch(oom)).To(Succeed())
 
-			BeforeEach(func() {
-				stopCalled = make(chan struct{})
-
-				stopCallback = func() {
-					fmt.Fprintf(GinkgoWriter, "Callback called!\n\n\n")
-					close(stopCalled)
-				}
+					Eventually(oom).Should(BeClosed())
+				})
 			})
 
-			It("calls it", func() {
-				Expect(oomNotifier.Start()).To(Succeed())
+			Context("when the oom process does not exit", func() {
+				var waitReturns chan struct{}
 
-				Eventually(stopCalled).Should(BeClosed())
+				BeforeEach(func() {
+					waitReturns = make(chan struct{})
+
+					runner.WhenWaitingFor(
+						fake_command_runner.CommandSpec{
+							Path: path.Join(containerPath, "bin", "oom"),
+						},
+						func(cmd *exec.Cmd) error {
+							<-waitReturns
+							return nil
+						},
+					)
+				})
+
+				AfterEach(func() {
+					close(waitReturns)
+				})
+
+				It("does not notify", func() {
+					Expect(oomNotifier.Watch(oom)).To(Succeed())
+
+					Consistently(oom).ShouldNot(BeClosed())
+				})
 			})
+
+			Context("when the oom process exists with exit code 1", func() {
+				BeforeEach(func() {
+					runner.WhenWaitingFor(
+						fake_command_runner.CommandSpec{
+							Path: path.Join(containerPath, "bin", "oom"),
+						},
+						func(cmd *exec.Cmd) error {
+							return errors.New("banana")
+						},
+					)
+				})
+
+				It("does not notify", func() {
+					Expect(oomNotifier.Watch(oom)).To(Succeed())
+
+					Consistently(oom).ShouldNot(BeClosed())
+				})
+			})
+		})
+	})
+
+	Describe("Unwatch", func() {
+		It("kills the oom process", func() {
+			Expect(oomNotifier.Watch(oom)).To(Succeed())
+
+			oomNotifier.Unwatch()
+
+			startedCommands := runner.StartedCommands()
+			killedCommands := runner.KilledCommands()
+
+			Expect(startedCommands).To(HaveLen(1))
+			Expect(startedCommands).To(Equal(killedCommands))
 		})
 	})
 })

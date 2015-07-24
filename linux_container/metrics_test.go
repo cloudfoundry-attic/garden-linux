@@ -12,6 +12,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/cgroups_manager/fake_cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_network_statisticser"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_quota_manager"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_watcher"
 	networkFakes "github.com/cloudfoundry-incubator/garden-linux/network/fakes"
 	"github.com/cloudfoundry-incubator/garden-linux/port_pool/fake_port_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/process_tracker/fake_process_tracker"
@@ -66,6 +67,7 @@ var _ = Describe("Linux containers", func() {
 			new(fake_process_tracker.FakeProcessTracker),
 			new(networkFakes.FakeFilter),
 			fakeNetStats,
+			new(fake_watcher.FakeWatcher),
 			lagertest.NewTestLogger("linux-container-limits-test"),
 		)
 	})

@@ -489,16 +489,23 @@ func (p *provider) ProvideContainer(spec linux_backend.LinuxContainerSpec) linux
 		Path: p.sysconfig.CgroupNodeFilePath,
 	}
 
+	cgroupsManager := cgroups_manager.New(p.sysconfig.CgroupPath, spec.ID, cgroupReader)
+
+	oomWatcher := linux_container.NewOomNotifier(
+		p.runner, spec.ContainerPath, cgroupsManager,
+	)
+
 	return linux_container.NewLinuxContainer(
 		spec,
 		p.portPool,
 		p.runner,
-		cgroups_manager.New(p.sysconfig.CgroupPath, spec.ID, cgroupReader),
+		cgroupsManager,
 		p.quotaManager,
 		bandwidth_manager.New(spec.ContainerPath, spec.ID, p.runner),
 		process_tracker.New(spec.ContainerPath, p.runner),
 		p.ProvideFilter(spec.ID),
 		devices.Link{Name: p.sysconfig.NetworkInterfacePrefix + spec.ID + "-0"},
+		oomWatcher,
 		p.log,
 	)
 }

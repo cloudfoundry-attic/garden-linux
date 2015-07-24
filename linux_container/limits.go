@@ -2,8 +2,6 @@ package linux_container
 
 import (
 	"fmt"
-	"os/exec"
-	"path"
 	"strconv"
 
 	"github.com/cloudfoundry-incubator/garden"
@@ -58,8 +56,14 @@ func (c *LinuxContainer) CurrentDiskLimits() (garden.DiskLimits, error) {
 }
 
 func (c *LinuxContainer) LimitMemory(limits garden.MemoryLimits) error {
-	err := c.startOomNotifier()
-	if err != nil {
+	oom := make(chan struct{})
+	go func() {
+		<-oom
+		c.registerEvent("out of memory")
+		c.Stop(true)
+	}()
+
+	if err := c.oomWatcher.Watch(oom); err != nil {
 		return err
 	}
 
@@ -74,7 +78,7 @@ func (c *LinuxContainer) LimitMemory(limits garden.MemoryLimits) error {
 	c.cgroupsManager.Set("memory", "memory.limit_in_bytes", limit)
 	c.cgroupsManager.Set("memory", "memory.memsw.limit_in_bytes", limit)
 
-	err = c.cgroupsManager.Set("memory", "memory.limit_in_bytes", limit)
+	err := c.cgroupsManager.Set("memory", "memory.limit_in_bytes", limit)
 	if err != nil {
 		return err
 	}
@@ -129,49 +133,4 @@ func (c *LinuxContainer) CurrentCPULimits() (garden.CPULimits, error) {
 	}
 
 	return garden.CPULimits{uint64(numericLimit)}, nil
-}
-
-func (c *LinuxContainer) startOomNotifier() error {
-	c.oomMutex.Lock()
-	defer c.oomMutex.Unlock()
-
-	if c.oomNotifier != nil {
-		return nil
-	}
-
-	oomPath := path.Join(c.ContainerPath, "bin", "oom")
-
-	memorySubsystemPath, err := c.cgroupsManager.SubsystemPath("memory")
-	if err != nil {
-		return fmt.Errorf("linux_container: startOomNotifier: %s", err)
-	}
-	c.oomNotifier = exec.Command(oomPath, memorySubsystemPath)
-
-	err = c.runner.Start(c.oomNotifier)
-	if err != nil {
-		return err
-	}
-
-	go c.watchForOom(c.oomNotifier)
-
-	return nil
-}
-
-func (c *LinuxContainer) stopOomNotifier() {
-	c.oomMutex.RLock()
-	defer c.oomMutex.RUnlock()
-
-	if c.oomNotifier != nil {
-		c.runner.Kill(c.oomNotifier)
-	}
-}
-
-func (c *LinuxContainer) watchForOom(oom *exec.Cmd) {
-	err := c.runner.Wait(oom)
-	if err == nil {
-		c.registerEvent("out of memory")
-		c.Stop(false)
-	}
-
-	// TODO: handle case where oom notifier itself failed? kill container?
 }

@@ -20,6 +20,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/cgroups_manager/fake_cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_network_statisticser"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_quota_manager"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_watcher"
 	networkFakes "github.com/cloudfoundry-incubator/garden-linux/network/fakes"
 	"github.com/cloudfoundry-incubator/garden-linux/port_pool/fake_port_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/process_tracker/fake_process_tracker"
@@ -38,6 +39,7 @@ var _ = Describe("Linux containers", func() {
 	var fakePortPool *fake_port_pool.FakePortPool
 	var fakeProcessTracker *fake_process_tracker.FakeProcessTracker
 	var fakeFilter *networkFakes.FakeFilter
+	var fakeOomWatcher *fake_watcher.FakeWatcher
 	var containerDir string
 	var containerProps map[string]string
 
@@ -91,6 +93,8 @@ var _ = Describe("Linux containers", func() {
 		}
 	})
 
+	fakeOomWatcher = new(fake_watcher.FakeWatcher)
+
 	JustBeforeEach(func() {
 		container = linux_container.NewLinuxContainer(
 			linux_backend.LinuxContainerSpec{
@@ -114,6 +118,7 @@ var _ = Describe("Linux containers", func() {
 			fakeProcessTracker,
 			fakeFilter,
 			new(fake_network_statisticser.FakeNetworkStatisticser),
+			fakeOomWatcher,
 			lagertest.NewTestLogger("linux-container-limits-test"),
 		)
 	})
@@ -244,11 +249,14 @@ var _ = Describe("Linux containers", func() {
 
 		Context("with limits set", func() {
 			JustBeforeEach(func() {
+				fakeOomWatcher.WatchStub = func(c chan struct{}) error {
+					close(c)
+					return nil
+				}
+
 				err := container.LimitMemory(memoryLimits)
 				Expect(err).ToNot(HaveOccurred())
 
-				// oom exits immediately since it's faked out; should see event,
-				// and it should show up in the snapshot
 				Eventually(container.Events).Should(ContainElement("out of memory"))
 				Eventually(container.State).Should(Equal(linux_backend.StateStopped))
 

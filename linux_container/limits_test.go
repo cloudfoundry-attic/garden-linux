@@ -5,7 +5,6 @@ import (
 	"io/ioutil"
 	"math"
 	"net"
-	"os/exec"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -19,6 +18,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/cgroups_manager/fake_cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_network_statisticser"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_quota_manager"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_watcher"
 	networkFakes "github.com/cloudfoundry-incubator/garden-linux/network/fakes"
 	"github.com/cloudfoundry-incubator/garden-linux/port_pool/fake_port_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/process_tracker/fake_process_tracker"
@@ -31,6 +31,7 @@ var _ = Describe("Linux containers", func() {
 	var fakeQuotaManager *fake_quota_manager.FakeQuotaManager
 	var fakeBandwidthManager *fake_bandwidth_manager.FakeBandwidthManager
 	var fakeRunner *fake_command_runner.FakeCommandRunner
+	var fakeOomWatcher *fake_watcher.FakeWatcher
 	var containerResources *linux_backend.Resources
 	var container *linux_container.LinuxContainer
 	var containerDir string
@@ -42,6 +43,7 @@ var _ = Describe("Linux containers", func() {
 
 		fakeQuotaManager = new(fake_quota_manager.FakeQuotaManager)
 		fakeBandwidthManager = fake_bandwidth_manager.New()
+		fakeOomWatcher = new(fake_watcher.FakeWatcher)
 
 		var err error
 		containerDir, err = ioutil.TempDir("", "depot")
@@ -81,6 +83,7 @@ var _ = Describe("Linux containers", func() {
 			new(fake_process_tracker.FakeProcessTracker),
 			new(networkFakes.FakeFilter),
 			new(fake_network_statisticser.FakeNetworkStatisticser),
+			fakeOomWatcher,
 			lagertest.NewTestLogger("linux-container-limits-test"),
 		)
 	})
@@ -162,13 +165,7 @@ var _ = Describe("Linux containers", func() {
 			err := container.LimitMemory(limits)
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(fakeRunner).To(HaveStartedExecuting(
-				fake_command_runner.CommandSpec{
-					Path: containerDir + "/bin/oom",
-					Args: []string{"/cgroups/memory/instance-some-id"},
-				},
-			))
-
+			Expect(fakeOomWatcher.WatchCallCount()).To(Equal(1))
 		})
 
 		It("sets memory.limit_in_bytes and then memory.memsw.limit_in_bytes", func() {
@@ -201,38 +198,12 @@ var _ = Describe("Linux containers", func() {
 
 		})
 
-		Context("when the oom notifier is already running", func() {
-			It("does not start another", func() {
-				started := 0
-
-				fakeRunner.WhenRunning(fake_command_runner.CommandSpec{
-					Path: containerDir + "/bin/oom",
-				}, func(*exec.Cmd) error {
-					started++
+		Context("when the OOM watcher channle gets triggered", func() {
+			BeforeEach(func() {
+				fakeOomWatcher.WatchStub = func(c chan struct{}) error {
+					close(c)
 					return nil
-				})
-
-				limits := garden.MemoryLimits{
-					LimitInBytes: 102400,
 				}
-
-				err := container.LimitMemory(limits)
-				Expect(err).ToNot(HaveOccurred())
-
-				err = container.LimitMemory(limits)
-				Expect(err).ToNot(HaveOccurred())
-
-				Expect(started).To(Equal(1))
-			})
-		})
-
-		Context("when the oom notifier exits 0", func() {
-			JustBeforeEach(func() {
-				fakeRunner.WhenWaitingFor(fake_command_runner.CommandSpec{
-					Path: containerDir + "/bin/oom",
-				}, func(cmd *exec.Cmd) error {
-					return nil
-				})
 			})
 
 			It("stops the container", func() {
@@ -339,14 +310,8 @@ var _ = Describe("Linux containers", func() {
 		})
 
 		Context("when starting the oom notifier fails", func() {
-			disaster := errors.New("oh no!")
-
 			BeforeEach(func() {
-				fakeRunner.WhenRunning(fake_command_runner.CommandSpec{
-					Path: containerDir + "/bin/oom",
-				}, func(cmd *exec.Cmd) error {
-					return disaster
-				})
+				fakeOomWatcher.WatchReturns(errors.New("banana"))
 			})
 
 			It("returns the error", func() {
@@ -354,7 +319,7 @@ var _ = Describe("Linux containers", func() {
 					LimitInBytes: 102400,
 				})
 
-				Expect(err).To(Equal(disaster))
+				Expect(err).To(MatchError("banana"))
 			})
 		})
 	})
