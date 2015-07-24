@@ -58,13 +58,26 @@ var _ = Describe("btrfs quota manager", func() {
 	})
 
 	Describe("setting quotas", func() {
-		limits := garden.DiskLimits{
-			ByteSoft: 1,
-			ByteHard: 2,
+		var (
+			limits garden.DiskLimits
+			scope  garden.DiskLimitScope
+		)
 
-			InodeSoft: 11,
-			InodeHard: 12,
-		}
+		BeforeEach(func() {
+			scope = garden.DiskLimitScopeTotal
+		})
+
+		JustBeforeEach(func() {
+			limits = garden.DiskLimits{
+				ByteSoft: 1,
+				ByteHard: 2,
+
+				InodeSoft: 11,
+				InodeHard: 12,
+
+				Scope: scope,
+			}
+		})
 
 		Context("when the subvolume exists", func() {
 			BeforeEach(func() {
@@ -76,16 +89,36 @@ var _ = Describe("btrfs quota manager", func() {
 				qgroupShowError = nil
 			})
 
-			It("executes qgroup limit with the correct qgroup id", func() {
-				err := quotaManager.SetLimits(logger, subvolumePath, limits)
-				Expect(err).ToNot(HaveOccurred())
+			Context("when disk limit scope is total (the default)", func() {
+				It("executes qgroup limit with the correct qgroup id", func() {
+					err := quotaManager.SetLimits(logger, subvolumePath, limits)
+					Expect(err).ToNot(HaveOccurred())
 
-				Expect(fakeRunner).To(HaveExecutedSerially(
-					fake_command_runner.CommandSpec{
-						Path: "btrfs",
-						Args: []string{"qgroup", "limit", "2", "0/257", subvolumePath},
-					},
-				))
+					Expect(fakeRunner).To(HaveExecutedSerially(
+						fake_command_runner.CommandSpec{
+							Path: "btrfs",
+							Args: []string{"qgroup", "limit", "2", "0/257", subvolumePath},
+						},
+					))
+				})
+			})
+
+			Context("when disk limit scope is exclusive", func() {
+				BeforeEach(func() {
+					scope = garden.DiskLimitScopeExclusive
+				})
+
+				It("executes qgroup limit with the correct qgroup id", func() {
+					err := quotaManager.SetLimits(logger, subvolumePath, limits)
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(fakeRunner).To(HaveExecutedSerially(
+						fake_command_runner.CommandSpec{
+							Path: "btrfs",
+							Args: []string{"qgroup", "limit", "-e", "2", "0/257", subvolumePath},
+						},
+					))
+				})
 			})
 
 			Context("when executing qgroup limit fails", func() {

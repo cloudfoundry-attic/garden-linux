@@ -35,7 +35,13 @@ func (m *BtrfsQuotaManager) SetLimits(logger lager.Logger, subvolumePath string,
 		return err
 	}
 
-	cmd := exec.Command("btrfs", "qgroup", "limit", fmt.Sprintf("%d", limits.ByteHard), quotaInfo.Id, subvolumePath)
+	args := []string{"qgroup", "limit"}
+	if limits.Scope == garden.DiskLimitScopeExclusive {
+		args = append(args, "-e")
+	}
+
+	args = append(args, fmt.Sprintf("%d", limits.ByteHard), quotaInfo.Id, subvolumePath)
+	cmd := exec.Command("btrfs", args...)
 	if err := runner.Run(cmd); err != nil {
 		return fmt.Errorf("quota_manager: failed to apply limit: %v", err)
 	}
