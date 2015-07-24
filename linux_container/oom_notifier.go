@@ -14,24 +14,23 @@ type OomNotifier struct {
 	cmd            *exec.Cmd
 	runner         command_runner.CommandRunner
 	containerPath  string
-	stopCallback   func()
 	cgroupsManager CgroupsManager
+
+	doneWatching chan struct{}
 }
 
 func NewOomNotifier(runner command_runner.CommandRunner,
 	containerPath string,
-	stopCallback func(),
 	cgroupsManager CgroupsManager) *OomNotifier {
 	return &OomNotifier{
 		mutex:          sync.RWMutex{},
 		runner:         runner,
 		containerPath:  containerPath,
-		stopCallback:   stopCallback,
 		cgroupsManager: cgroupsManager,
 	}
 }
 
-func (o *OomNotifier) Start() error {
+func (o *OomNotifier) Watch(oom chan struct{}) error {
 	o.mutex.Lock()
 	defer o.mutex.Unlock()
 
@@ -52,13 +51,12 @@ func (o *OomNotifier) Start() error {
 		return err
 	}
 
-	go o.watch(o.cmd)
-	// o.watch(o.cmd)
+	go o.watch(o.cmd, oom)
 
 	return nil
 }
 
-func (o *OomNotifier) Stop() {
+func (o *OomNotifier) Unwatch() {
 	o.mutex.RLock()
 	defer o.mutex.RUnlock()
 
@@ -67,11 +65,10 @@ func (o *OomNotifier) Stop() {
 	}
 }
 
-func (o *OomNotifier) watch(cmd *exec.Cmd) {
+func (o *OomNotifier) watch(cmd *exec.Cmd, oom chan struct{}) {
 	err := o.runner.Wait(cmd)
 	if err == nil {
-		// TODO: o.registerEvent("out of memory")
-		o.stopCallback()
+		close(oom)
 	}
 
 	// TODO: handle case where oom notifier itself failed? kill container?

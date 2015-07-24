@@ -22,6 +22,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/cgroups_manager/fake_cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_network_statisticser"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_quota_manager"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_watcher"
 	networkFakes "github.com/cloudfoundry-incubator/garden-linux/network/fakes"
 	"github.com/cloudfoundry-incubator/garden-linux/port_pool/fake_port_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/process_tracker/fake_process_tracker"
@@ -40,6 +41,7 @@ var _ = Describe("Linux containers", func() {
 	var fakePortPool *fake_port_pool.FakePortPool
 	var fakeProcessTracker *fake_process_tracker.FakeProcessTracker
 	var fakeFilter *networkFakes.FakeFilter
+	var fakeOomWatcher *fake_watcher.FakeWatcher
 	var containerDir string
 	var containerProps map[string]string
 
@@ -52,6 +54,7 @@ var _ = Describe("Linux containers", func() {
 		fakeBandwidthManager = fake_bandwidth_manager.New()
 		fakeProcessTracker = new(fake_process_tracker.FakeProcessTracker)
 		fakeFilter = new(networkFakes.FakeFilter)
+		fakeOomWatcher = new(fake_watcher.FakeWatcher)
 
 		fakePortPool = fake_port_pool.New(1000)
 
@@ -104,6 +107,7 @@ var _ = Describe("Linux containers", func() {
 			fakeProcessTracker,
 			fakeFilter,
 			new(fake_network_statisticser.FakeNetworkStatisticser),
+			fakeOomWatcher,
 			lagertest.NewTestLogger("linux-container-limits-test"),
 		)
 	})
@@ -256,10 +260,7 @@ var _ = Describe("Linux containers", func() {
 				err := container.Stop(false)
 				Expect(err).ToNot(HaveOccurred())
 
-				Expect(fakeRunner).To(HaveKilled(fake_command_runner.CommandSpec{
-					Path: containerDir + "/bin/oom",
-				}))
-
+				Expect(fakeOomWatcher.UnwatchCallCount()).To(Equal(1))
 			})
 		})
 	})
@@ -276,11 +277,7 @@ var _ = Describe("Linux containers", func() {
 
 			It("stops it", func() {
 				container.Cleanup()
-
-				Expect(fakeRunner).To(HaveKilled(fake_command_runner.CommandSpec{
-					Path: containerDir + "/bin/oom",
-				}))
-
+				Expect(fakeOomWatcher.UnwatchCallCount()).To(Equal(1))
 			})
 		})
 	})
