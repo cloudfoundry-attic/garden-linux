@@ -19,8 +19,9 @@ type LinuxContainerSpec struct {
 
 	garden.ContainerSpec
 
-	Limits    Limits
-	Processes []ActiveProcess
+	Limits                  Limits
+	Processes               []ActiveProcess
+	DefaultProcessSignaller bool
 
 	NetIns  []NetInSpec
 	NetOuts []garden.NetOutRule

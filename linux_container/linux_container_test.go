@@ -21,6 +21,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/bandwidth_manager/fake_bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/cgroups_manager/fake_cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_network_statisticser"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_process_signaller"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_quota_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_watcher"
 	networkFakes "github.com/cloudfoundry-incubator/garden-linux/network/fakes"
@@ -105,6 +106,7 @@ var _ = Describe("Linux containers", func() {
 			fakeQuotaManager,
 			fakeBandwidthManager,
 			fakeProcessTracker,
+			new(fake_process_signaller.FakeProcessSignaller),
 			fakeFilter,
 			new(fake_network_statisticser.FakeNetworkStatisticser),
 			fakeOomWatcher,

@@ -19,6 +19,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/bandwidth_manager/fake_bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/cgroups_manager/fake_cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_network_statisticser"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_process_signaller"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_quota_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_watcher"
 	networkFakes "github.com/cloudfoundry-incubator/garden-linux/network/fakes"
@@ -30,18 +31,21 @@ import (
 )
 
 var _ = Describe("Linux containers", func() {
-	var fakeCgroups *fake_cgroups_manager.FakeCgroupsManager
-	var fakeQuotaManager *fake_quota_manager.FakeQuotaManager
-	var fakeBandwidthManager *fake_bandwidth_manager.FakeBandwidthManager
-	var fakeRunner *fake_command_runner.FakeCommandRunner
-	var containerResources *linux_backend.Resources
-	var container *linux_container.LinuxContainer
-	var fakePortPool *fake_port_pool.FakePortPool
-	var fakeProcessTracker *fake_process_tracker.FakeProcessTracker
-	var fakeFilter *networkFakes.FakeFilter
-	var fakeOomWatcher *fake_watcher.FakeWatcher
-	var containerDir string
-	var containerProps map[string]string
+	var (
+		fakeCgroups          *fake_cgroups_manager.FakeCgroupsManager
+		fakeQuotaManager     *fake_quota_manager.FakeQuotaManager
+		fakeBandwidthManager *fake_bandwidth_manager.FakeBandwidthManager
+		fakeRunner           *fake_command_runner.FakeCommandRunner
+		containerResources   *linux_backend.Resources
+		container            *linux_container.LinuxContainer
+		fakePortPool         *fake_port_pool.FakePortPool
+		fakeProcessTracker   *fake_process_tracker.FakeProcessTracker
+		fakeFilter           *networkFakes.FakeFilter
+		fakeOomWatcher       *fake_watcher.FakeWatcher
+		fakeProcessSignaller *fake_process_signaller.FakeProcessSignaller
+		containerDir         string
+		containerProps       map[string]string
+	)
 
 	netOutRule1 := garden.NetOutRule{
 		Protocol: garden.ProtocolUDP,
@@ -68,6 +72,7 @@ var _ = Describe("Linux containers", func() {
 		fakeBandwidthManager = fake_bandwidth_manager.New()
 		fakeProcessTracker = new(fake_process_tracker.FakeProcessTracker)
 		fakeFilter = new(networkFakes.FakeFilter)
+		fakeProcessSignaller = new(fake_process_signaller.FakeProcessSignaller)
 
 		fakePortPool = fake_port_pool.New(1000)
 
@@ -116,6 +121,7 @@ var _ = Describe("Linux containers", func() {
 			fakeQuotaManager,
 			fakeBandwidthManager,
 			fakeProcessTracker,
+			fakeProcessSignaller,
 			fakeFilter,
 			new(fake_network_statisticser.FakeNetworkStatisticser),
 			fakeOomWatcher,
@@ -190,6 +196,7 @@ var _ = Describe("Linux containers", func() {
 			Expect(snapshot.GraceTime).To(Equal(1 * time.Second))
 
 			Expect(snapshot.State).To(Equal("active"))
+			Expect(snapshot.DefaultProcessSignaller).To(BeTrue())
 
 			_, subnet, err := net.ParseCIDR("2.3.4.0/30")
 			Expect(snapshot.Resources).To(Equal(
@@ -245,6 +252,20 @@ var _ = Describe("Linux containers", func() {
 			})))
 
 			Expect(snapshot.EnvVars).To(Equal([]string{"env1=env1Value", "env2=env2Value"}))
+		})
+
+		Context("with the default process signaller", func() {
+			It("saves the default process signaller as 'true'", func() {
+				out := new(bytes.Buffer)
+				Expect(container.Snapshot(out)).To(Succeed())
+
+				var snapshot linux_backend.LinuxContainerSpec
+
+				err := json.NewDecoder(out).Decode(&snapshot)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(snapshot.DefaultProcessSignaller).To(BeTrue())
+			})
 		})
 
 		Context("with limits set", func() {

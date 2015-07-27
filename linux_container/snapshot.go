@@ -21,7 +21,8 @@ type ContainerSnapshot struct {
 
 	Resources ResourcesSnapshot
 
-	Processes []linux_backend.ActiveProcess
+	Processes               []linux_backend.ActiveProcess
+	DefaultProcessSignaller bool
 
 	NetIns  []linux_backend.NetInSpec
 	NetOuts []garden.NetOutRule

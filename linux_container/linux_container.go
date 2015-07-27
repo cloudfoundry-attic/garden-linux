@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
@@ -65,6 +66,11 @@ type CgroupsManager interface {
 	SubsystemPath(subsystem string) (string, error)
 }
 
+//go:generate counterfeiter -o fake_process_signaller/fake_process_signaller.go . ProcessSignaller
+type ProcessSignaller interface {
+	Signal(pid int, signal syscall.Signal) error
+}
+
 type LinuxContainer struct {
 	propertiesMutex sync.RWMutex
 	stateMutex      sync.RWMutex
@@ -85,6 +91,7 @@ type LinuxContainer struct {
 	processTracker   process_tracker.ProcessTracker
 	filter           network.Filter
 	processIDPool    *ProcessIDPool
+	processSignaller ProcessSignaller
 
 	oomWatcher Watcher
 
@@ -131,6 +138,7 @@ func NewLinuxContainer(
 	quotaManager QuotaManager,
 	bandwidthManager BandwidthManager,
 	processTracker process_tracker.ProcessTracker,
+	processSignaller ProcessSignaller,
 	filter network.Filter,
 	netStats NetworkStatisticser,
 	oomWatcher Watcher,
@@ -145,6 +153,7 @@ func NewLinuxContainer(
 		quotaManager:     quotaManager,
 		bandwidthManager: bandwidthManager,
 		processTracker:   processTracker,
+		processSignaller: processSignaller,
 		filter:           filter,
 		processIDPool:    &ProcessIDPool{},
 		netStats:         netStats,
@@ -250,7 +259,8 @@ func (c *LinuxContainer) Snapshot(out io.Writer) error {
 		NetIns:  c.NetIns,
 		NetOuts: c.NetOuts,
 
-		Processes: processSnapshots,
+		Processes:               processSnapshots,
+		DefaultProcessSignaller: true,
 
 		Properties: properties,
 
