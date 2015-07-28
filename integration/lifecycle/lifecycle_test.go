@@ -39,7 +39,6 @@ var _ = Describe("Creating a container", func() {
 	})
 
 	Describe("concurrent creation of containers based on same docker rootfs", func() {
-
 		It("retains the full rootFS without truncating files", func() {
 			client = startGarden()
 			c1chan := make(chan garden.Container)
@@ -318,12 +317,12 @@ var _ = Describe("Creating a container", func() {
 		})
 
 		Context("and running a process", func() {
-
 			It("does not leak open files", func() {
 				openFileCount := func() int {
 					procFd := fmt.Sprintf("/proc/%d/fd", client.Pid)
 					files, err := ioutil.ReadDir(procFd)
 					Expect(err).ToNot(HaveOccurred())
+
 					return len(files)
 				}
 
@@ -333,10 +332,7 @@ var _ = Describe("Creating a container", func() {
 					process, err := container.Run(garden.ProcessSpec{
 						User: "vcap",
 						Path: "true",
-					}, garden.ProcessIO{
-						Stdout: GinkgoWriter,
-						Stderr: GinkgoWriter,
-					})
+					}, garden.ProcessIO{})
 					Expect(err).ToNot(HaveOccurred())
 					Expect(process.Wait()).To(Equal(0))
 				}
@@ -345,7 +341,6 @@ var _ = Describe("Creating a container", func() {
 				// linearly with the number of processes spawned
 				Eventually(openFileCount, "10s").Should(BeNumerically("<", initialOpenFileCount+10))
 			})
-
 		})
 
 		Context("after destroying the container", func() {

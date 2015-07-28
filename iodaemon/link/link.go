@@ -12,8 +12,8 @@ import (
 type Link struct {
 	*Writer
 
-	exitStatus io.Reader
-	streaming  *sync.WaitGroup
+	exitStatus io.ReadCloser
+	done       <-chan struct{}
 }
 
 func Create(socketPath string, stdout io.Writer, stderr io.Writer) (*Link, error) {
@@ -72,16 +72,24 @@ func Create(socketPath string, stdout io.Writer, stderr io.Writer) (*Link, error
 		streaming.Done()
 	}()
 
+	done := make(chan struct{})
+	go func() {
+		streaming.Wait()
+		close(done)
+		conn.Close()
+	}()
+
 	return &Link{
 		Writer: linkWriter,
 
 		exitStatus: lstatus,
-		streaming:  streaming,
+		done:       done,
 	}, nil
 }
 
 func (link *Link) Wait() (int, error) {
-	link.streaming.Wait()
+	<-link.done
+	defer link.exitStatus.Close()
 
 	var exitStatus int
 	_, err := fmt.Fscanf(link.exitStatus, "%d\n", &exitStatus)
