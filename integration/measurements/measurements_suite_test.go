@@ -1,7 +1,6 @@
 package measurements_test
 
 import (
-	"log"
 	"os"
 	"testing"
 
@@ -18,10 +17,11 @@ func startGarden(argv ...string) *runner.RunningGarden {
 }
 
 func TestLifecycle(t *testing.T) {
-	if os.Getenv("GARDEN_TEST_ROOTFS") == "" {
-		log.Println("GARDEN_TEST_ROOTFS undefined; skipping")
-		return
-	}
+	BeforeEach(func() {
+		if os.Getenv("GARDEN_TEST_ROOTFS") == "" {
+			Skip("GARDEN_TEST_ROOTFS undefined")
+		}
+	})
 
 	AfterEach(func() {
 		err := client.DestroyAndStop()

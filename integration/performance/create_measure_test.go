@@ -4,9 +4,6 @@ import (
 	"runtime"
 	"strconv"
 
-	"log"
-	"os"
-
 	"github.com/cloudfoundry-incubator/garden"
 	gclient "github.com/cloudfoundry-incubator/garden/client"
 	"github.com/cloudfoundry-incubator/garden/client/connection"
@@ -25,11 +22,7 @@ var _ = Describe("Concurrent container creation", func() {
 		runtime.GOMAXPROCS(runtime.NumCPU())
 	})
 
-	PMeasure("multiple concurrent creates", func(b Benchmarker) {
-		if os.Getenv("GARDEN_PERFORMANCE") == "" {
-			log.Println("GARDEN_PERFORMANCE undefined; skipping")
-			return
-		}
+	Measure("multiple concurrent creates", func(b Benchmarker) {
 		handles := []string{}
 
 		b.Time("concurrent creations", func() {

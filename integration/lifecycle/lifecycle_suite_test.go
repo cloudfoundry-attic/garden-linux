@@ -1,7 +1,6 @@
 package lifecycle_test
 
 import (
-	"log"
 	"os"
 	"testing"
 	"time"
@@ -29,13 +28,6 @@ func restartGarden(argv ...string) {
 }
 
 func TestLifecycle(t *testing.T) {
-	if os.Getenv("GARDEN_TEST_ROOTFS") == "" {
-		log.Println("GARDEN_TEST_ROOTFS undefined; skipping")
-		return
-	}
-
-	SetDefaultEventuallyTimeout(5 * time.Second) // CI is sometimes slow
-
 	SynchronizedBeforeSuite(func() []byte {
 		shmPath, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/integration/lifecycle/shm_test")
 		Expect(err).ToNot(HaveOccurred())
@@ -43,6 +35,12 @@ func TestLifecycle(t *testing.T) {
 	}, func(path []byte) {
 		Expect(string(path)).NotTo(BeEmpty())
 		shmTestBin = string(path)
+	})
+
+	BeforeEach(func() {
+		if os.Getenv("GARDEN_TEST_ROOTFS") == "" {
+			Skip("GARDEN_TEST_ROOTFS undefined")
+		}
 	})
 
 	AfterEach(func() {
@@ -56,6 +54,8 @@ func TestLifecycle(t *testing.T) {
 	}, func() {
 		gexec.CleanupBuildArtifacts()
 	})
+
+	SetDefaultEventuallyTimeout(5 * time.Second) // CI is sometimes slow
 
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Lifecycle Suite")

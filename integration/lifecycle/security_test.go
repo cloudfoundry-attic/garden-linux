@@ -331,9 +331,8 @@ var _ = Describe("Security", func() {
 
 		BeforeEach(func() {
 			emptyRootFSPath = os.Getenv("GARDEN_EMPTY_TEST_ROOTFS")
-
 			if emptyRootFSPath == "" {
-				Fail("GARDEN_EMPTY_TEST_ROOTFS undefined;")
+				Skip("GARDEN_EMPTY_TEST_ROOTFS undefined")
 			}
 
 			client = startGarden()

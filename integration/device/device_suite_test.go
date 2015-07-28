@@ -1,7 +1,6 @@
 package device_test
 
 import (
-	"log"
 	"os"
 	"testing"
 	"time"
@@ -20,18 +19,19 @@ func startGarden(argv ...string) *runner.RunningGarden {
 }
 
 func TestDevice(t *testing.T) {
-	if fuseRootFSPath == "" {
-		log.Println("GARDEN_FUSE_TEST_ROOTFS undefined; skipping")
-		return
-	}
-
-	SetDefaultEventuallyTimeout(5 * time.Second) // CI is sometimes slow
+	BeforeEach(func() {
+		if fuseRootFSPath == "" {
+			Skip("GARDEN_FUSE_TEST_ROOTFS undefined")
+		}
+	})
 
 	AfterEach(func() {
 		err := client.DestroyAndStop()
 		client.Cleanup()
 		Expect(err).NotTo(HaveOccurred())
 	})
+
+	SetDefaultEventuallyTimeout(5 * time.Second) // CI is sometimes slow
 
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Device Suite")

@@ -3,7 +3,6 @@ package lifecycle_test
 import (
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/http/httptest"
 	"net/http/httputil"
@@ -19,7 +18,10 @@ import (
 	"github.com/onsi/gomega/types"
 )
 
-var dockerRegistryRootFSPath = os.Getenv("GARDEN_DOCKER_REGISTRY_TEST_ROOTFS")
+var (
+	dockerRegistryRootFSPath   = os.Getenv("GARDEN_DOCKER_REGISTRY_TEST_ROOTFS")
+	dockerRegistryV2RootFSPath = os.Getenv("GARDEN_DOCKER_REGISTRY_V2_TEST_ROOTFS")
+)
 
 var _ = Describe("Rootfs container create parameter", func() {
 	var container garden.Container
@@ -142,19 +144,22 @@ var _ = Describe("Rootfs container create parameter", func() {
 				dockerRegistryIP := "10.0.0.1"
 				dockerRegistryPort := "5000"
 
-				if dockerRegistryRootFSPath == "" {
-					log.Println("GARDEN_DOCKER_REGISTRY_TEST_ROOTFS undefined; skipping")
-					return
-				}
-
 				BeforeEach(func() {
 					v2 = false
 				})
 
 				JustBeforeEach(func() {
 					if v2 {
+						if dockerRegistryV2RootFSPath == "" {
+							Skip("GARDEN_DOCKER_REGISTRY_V2_TEST_ROOTFS undefined")
+						}
+
 						dockerRegistry = startV2DockerRegistry(dockerRegistryIP, dockerRegistryPort)
 					} else {
+						if dockerRegistryRootFSPath == "" {
+							Skip("GARDEN_DOCKER_REGISTRY_TEST_ROOTFS undefined")
+						}
+
 						dockerRegistry = startV1DockerRegistry(dockerRegistryIP, dockerRegistryPort)
 					}
 				})
@@ -356,7 +361,7 @@ func startV1DockerRegistry(dockerRegistryIP string, dockerRegistryPort string) g
 func startV2DockerRegistry(dockerRegistryIP string, dockerRegistryPort string) garden.Container {
 	dockerRegistry, err := client.Create(
 		garden.ContainerSpec{
-			RootFSPath: "/opt/warden/docker-registry-v2-rootfs",
+			RootFSPath: dockerRegistryV2RootFSPath,
 			Network:    dockerRegistryIP,
 		},
 	)
@@ -422,7 +427,7 @@ func (m *statusMatcher) NegatedFailureMessage(actual interface{}) string {
 func createSmallRootfs() string {
 	rootfs := os.Getenv("GARDEN_PREEXISTING_USERS_TEST_ROOTFS")
 	if rootfs == "" {
-		Skip("pre-existing users rootfs not found: skipping some rootfs tests")
+		Skip("pre-existing users rootfs not found")
 	}
 
 	rootfspath, err := ioutil.TempDir("", "rootfs-cache-invalidation")

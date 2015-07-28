@@ -2,7 +2,6 @@ package networking_test
 
 import (
 	"encoding/json"
-	"log"
 	"net"
 	"os"
 
@@ -30,13 +29,6 @@ func killGarden() {
 }
 
 func TestNetworking(t *testing.T) {
-	if os.Getenv("GARDEN_TEST_ROOTFS") == "" {
-		log.Println("GARDEN_TEST_ROOTFS undefined; skipping")
-		return
-	}
-
-	SetDefaultEventuallyTimeout(5 * time.Second) // CI is sometimes slow
-
 	var beforeSuite struct {
 		ExampleDotCom net.IP
 	}
@@ -60,11 +52,19 @@ func TestNetworking(t *testing.T) {
 		externalIP = beforeSuite.ExampleDotCom
 	})
 
+	BeforeEach(func() {
+		if os.Getenv("GARDEN_TEST_ROOTFS") == "" {
+			Skip("GARDEN_TEST_ROOTFS undefined")
+		}
+	})
+
 	AfterEach(func() {
 		err := client.DestroyAndStop()
 		client.Cleanup()
 		Expect(err).NotTo(HaveOccurred())
 	})
+
+	SetDefaultEventuallyTimeout(5 * time.Second) // CI is sometimes slow
 
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Networking Suite")

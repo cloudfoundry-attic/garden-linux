@@ -3,7 +3,6 @@ package lifecycle_test
 import (
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -24,12 +23,12 @@ import (
 
 var _ = Describe("When nested", func() {
 	nestedRootfsPath := os.Getenv("GARDEN_NESTABLE_TEST_ROOTFS")
-	if nestedRootfsPath == "" {
-		log.Println("GARDEN_NESTABLE_TEST_ROOTFS undefined; skipping nesting test")
-		return
-	}
 
 	BeforeEach(func() {
+		if nestedRootfsPath == "" {
+			Skip("GARDEN_NESTABLE_TEST_ROOTFS undefined")
+		}
+
 		client = startGarden()
 	})
 
