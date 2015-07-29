@@ -65,6 +65,7 @@ func main() {
 
 	dropCapabilities := env["root_uid"] != "0"
 	procMountFlags := syscall.MS_NOSUID | syscall.MS_NODEV | syscall.MS_NOEXEC
+	sysMountFlags := syscall.MS_NOSUID | syscall.MS_NODEV | syscall.MS_NOEXEC | syscall.MS_RDONLY
 
 	if dropCapabilities {
 		procMountFlags = procMountFlags | syscall.MS_RDONLY
@@ -81,6 +82,11 @@ func main() {
 				Type:       system.Proc,
 				Flags:      procMountFlags,
 				TargetPath: "/proc",
+			}.Mount},
+			&containerizer.FuncStep{system.Mount{
+				Type:       system.Sys,
+				Flags:      sysMountFlags,
+				TargetPath: "/sys",
 			}.Mount},
 			&containerizer.FuncStep{system.Mount{
 				Type:       system.Devpts,

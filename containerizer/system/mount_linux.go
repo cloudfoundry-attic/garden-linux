@@ -22,6 +22,7 @@ const (
 	Proc             = "proc"
 	Devpts           = "devpts"
 	Bind             = "bind"
+	Sys              = "sysfs"
 )
 
 func (m Mount) Mount() error {
