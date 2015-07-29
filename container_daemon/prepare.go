@@ -56,6 +56,12 @@ func (p *ProcessSpecPreparer) PrepareCmd(spec garden.ProcessSpec) (*exec.Cmd, er
 	dir := spec.Dir
 	if spec.Dir == "" {
 		dir = usr.homeDir
+	} else {
+		// Create the directory with the appropriate user & group permission
+		// if _, err = os.Stat(dir); os.IsNotExist(err) {
+		// 	os.Mkdir(dir, perm)
+		// }
+		// Return appropriate error if not allowed.
 	}
 
 	args := append([]string{
