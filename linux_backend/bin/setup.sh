@@ -47,8 +47,7 @@ function mount_nested_cgroup() {
   done
 }
 
-if [ ! -d $cgroup_path ]
-then
+if ! mountpoint -q $cgroup_path; then
   mount_nested_cgroup $cgroup_path || \
     mount_flat_cgroup $cgroup_path
 fi
