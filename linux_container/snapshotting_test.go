@@ -494,6 +494,11 @@ var _ = Describe("Linux containers", func() {
 		}
 
 		It("re-enforces the memory limit", func() {
+			fakeOomWatcher.WatchStub = func(c chan struct{}) error {
+				close(c)
+				return nil
+			}
+
 			err := container.Restore(linux_backend.LinuxContainerSpec{
 				State:  "active",
 				Events: []string{},
