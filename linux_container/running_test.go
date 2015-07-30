@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
@@ -179,7 +180,7 @@ var _ = Describe("Linux containers", func() {
 			Expect(signaller).To(BeAssignableToTypeOf(&process_tracker.LinkSignaller{}))
 		})
 
-		Context("when the container version is 0.0.0 (an old container)", func() {
+		Context("when the container version is missing (an old container)", func() {
 			BeforeEach(func() {
 				containerVersion = linux_container.MissingVersion
 			})
@@ -193,6 +194,18 @@ var _ = Describe("Linux containers", func() {
 
 				_, _, _, _, signaller := fakeProcessTracker.RunArgsForCall(0)
 				Expect(signaller).To(BeAssignableToTypeOf(&process_tracker.NamespacedSignaller{}))
+			})
+
+			It("adds --pidfile argument in wsh", func() {
+				_, err := container.Run(garden.ProcessSpec{
+					User: "vcap",
+					Path: "/some/script",
+				}, garden.ProcessIO{})
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(fakeProcessTracker.RunCallCount()).To(Equal(1))
+				_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
+				Expect(strings.Join(ranCmd.Args, " ")).To(ContainSubstring(fmt.Sprintf("--pidfile %s/processes/1.pid", containerDir)))
 			})
 		})
 
