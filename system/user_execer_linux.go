@@ -1,6 +1,7 @@
 package system
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -14,12 +15,24 @@ func init() {
 
 type UserExecer struct{}
 
-func (UserExecer) ExecAsUser(uid, gid int, programName string, args ...string) error {
+func (UserExecer) ExecAsUser(uid, gid int, workDir, programName string, args ...string) error {
 	if _, _, errNo := syscall.RawSyscall(syscall.SYS_SETGID, uintptr(gid), 0, 0); errNo != 0 {
 		return fmt.Errorf("system: setgid: %s", errNo.Error())
 	}
 	if _, _, errNo := syscall.RawSyscall(syscall.SYS_SETUID, uintptr(uid), 0, 0); errNo != 0 {
 		return fmt.Errorf("system: setuid: %s", errNo.Error())
+	}
+
+	if workDir == "" {
+		return errors.New("system: working directory is not provided.")
+	}
+
+	if err := os.MkdirAll(workDir, 0755); err != nil {
+		return fmt.Errorf("system: %s", err)
+	}
+
+	if err := os.Chdir(workDir); err != nil {
+		return fmt.Errorf("system: invalid working directory: %s", workDir)
 	}
 
 	programPath, err := exec.LookPath(programName)

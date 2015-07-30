@@ -245,43 +245,6 @@ var _ = Describe("Preparing a command to run", func() {
 					Expect(thePreparedCmd.Args).To(ContainElement("-rlimits=hello=world,name=wsh"))
 				})
 			})
-
-			Context("when a working directory is supplied", func() {
-				BeforeEach(func() {
-					spec.Dir = "some-dir"
-				})
-
-				It("uses the supplied dir", func() {
-					Expect(thePreparedCmd.Dir).To(Equal("some-dir"))
-				})
-			})
-
-			Context("when a working directory is not supplied", func() {
-
-				BeforeEach(func() {
-					spec.Dir = ""
-				})
-
-				Context("and the user is not root", func() {
-					BeforeEach(func() {
-						spec.User = "another-user"
-					})
-
-					It("uses the user's home directory", func() {
-						Expect(thePreparedCmd.Dir).To(Equal("/the/home/dir"))
-					})
-				})
-
-				Context("and the user is root", func() {
-					BeforeEach(func() {
-						spec.User = "root"
-					})
-
-					It("uses root's home directory", func() {
-						Expect(thePreparedCmd.Dir).To(Equal("/root"))
-					})
-				})
-			})
 		})
 	})
 })
