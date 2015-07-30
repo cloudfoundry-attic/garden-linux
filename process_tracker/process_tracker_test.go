@@ -44,7 +44,7 @@ var _ = AfterEach(func() {
 	os.RemoveAll(tmpdir)
 })
 
-var _ = FDescribe("Running processes", func() {
+var _ = Describe("Running processes", func() {
 	BeforeEach(func() {
 		processTracker = process_tracker.New(tmpdir, linux_command_runner.New())
 	})
@@ -100,7 +100,7 @@ var _ = FDescribe("Running processes", func() {
 
 		Context("when an unsupported signal is sent", func() {
 			AfterEach(func() {
-				Expect(exec.Command("sh", "-c", "killall iodaemon || true").Run()).To(Succeed())
+				Expect(process.Signal(garden.SignalKill)).To(Succeed())
 			})
 
 			It("return error", func() {
