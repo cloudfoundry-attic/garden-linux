@@ -510,6 +510,62 @@ var _ = Describe("LinuxBackend", func() {
 				Expect(err).To(MatchError("cannot create more than 2 containers"))
 			})
 		})
+
+		FContext("when limits are set in the container spec", func() {
+			var containerSpec garden.ContainerSpec
+
+			BeforeEach(func() {
+				containerSpec = garden.ContainerSpec{
+					Handle: "limits",
+					Limits: garden.Limits{
+						Disk: garden.DiskLimits{
+							InodeSoft: 1,
+							InodeHard: 2,
+							ByteSoft:  3,
+							ByteHard:  4,
+							Scope:     garden.DiskLimitScopeExclusive,
+						},
+						Memory: garden.MemoryLimits{
+							LimitInBytes: 1024,
+						},
+					},
+				}
+			})
+
+			It("applies the limits", func() {
+				container := registerTestContainer(newTestContainer(
+					linux_backend.LinuxContainerSpec{
+						ContainerSpec: containerSpec,
+					},
+				))
+
+				_, err := linuxBackend.Create(containerSpec)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(container.LimitDiskCallCount()).To(Equal(1))
+				Expect(container.LimitDiskArgsForCall(0)).To(Equal(containerSpec.Limits.Disk))
+
+				Expect(container.LimitMemoryCallCount()).To(Equal(1))
+				Expect(container.LimitMemoryArgsForCall(0)).To(Equal(containerSpec.Limits.Memory))
+
+				Expect(container.LimitBandwidthCallCount()).To(Equal(0))
+				Expect(container.LimitCPUCallCount()).To(Equal(0))
+			})
+
+			Context("when applying limits fails", func() {
+				It("returns the error", func() {
+					container := registerTestContainer(newTestContainer(
+						linux_backend.LinuxContainerSpec{
+							ContainerSpec: garden.ContainerSpec{Handle: "what!!"},
+						},
+					))
+					container.LimitDiskReturns(errors.New("oh no!!"))
+
+					_, err := linuxBackend.Create(garden.ContainerSpec{Handle: "what!!"})
+					Expect(err).To(MatchError(ContainSubstring("oh no!!")))
+				})
+			})
+		})
 	})
 
 	Describe("Destroy", func() {
