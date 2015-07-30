@@ -64,11 +64,11 @@ func (p *ProcessSpecPreparer) PrepareCmd(spec garden.ProcessSpec) (*exec.Cmd, er
 		rlimitArg,
 		fmt.Sprintf("-uid=%d", usr.uid),
 		fmt.Sprintf("-gid=%d", usr.gid),
+		fmt.Sprintf("-workDir=%s", dir),
 	}, "--", spec.Path)
 	args = append(args, spec.Args...)
 	cmd := p.Reexec.Command(append([]string{"proc_starter"}, args...)...)
 	cmd.Env = env.Array()
-	cmd.Dir = dir
 
 	return cmd, nil
 }

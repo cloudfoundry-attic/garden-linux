@@ -2,6 +2,8 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"os"
 
 	"github.com/cloudfoundry-incubator/garden-linux/system"
 )
@@ -9,10 +11,12 @@ import (
 func main() {
 	uid := flag.Int("uid", -1, "uid")
 	gid := flag.Int("gid", -1, "gid")
+	workDir := flag.String("workDir", "", "working directory")
 	flag.Parse()
 
 	execer := system.UserExecer{}
-	if err := execer.ExecAsUser(*uid, *gid, "bash", "-c", "id -u && id -g"); err != nil {
-		panic(err)
+	if err := execer.ExecAsUser(*uid, *gid, *workDir, "bash", "-c", "id -u && id -g"); err != nil {
+		fmt.Fprintf(os.Stderr, "%s", err)
+		os.Exit(2)
 	}
 }

@@ -27,6 +27,7 @@ func start() {
 	dropCapabilities := flag.Bool("dropCapabilities", true, "drop capabilities before starting process")
 	uid := flag.Int("uid", -1, "user id to run the process as")
 	gid := flag.Int("gid", -1, "group id to run the process as")
+	workDir := flag.String("workDir", "", "working dir for the process")
 	extendedWhitelist := flag.Bool("extendedWhitelist", false, "whitelist CAP_SYS_ADMIN in addition to the default set. Use only with -dropCapabilities=true")
 	flag.Parse()
 
@@ -43,7 +44,7 @@ func start() {
 	}
 
 	execer := system.UserExecer{}
-	if err := execer.ExecAsUser(*uid, *gid, args[0], args[1:]...); err != nil {
+	if err := execer.ExecAsUser(*uid, *gid, *workDir, args[0], args[1:]...); err != nil {
 		fmt.Fprintf(os.Stderr, "proc_starter: ExecAsUser: %s\n", err)
 		os.Exit(255)
 	}
