@@ -11,10 +11,12 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/blang/semver"
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/pivotal-golang/lager"
@@ -31,9 +33,10 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/sysconfig"
 )
 
-var ErrUnknownRootFSProvider = errors.New("unknown rootfs provider")
-
-var vcapUid int = 10001
+var (
+	ErrUnknownRootFSProvider     = errors.New("unknown rootfs provider")
+	vcapUid                  int = 10001
+)
 
 //go:generate counterfeiter -o fake_filter_provider/FakeFilterProvider.go . FilterProvider
 type FilterProvider interface {
@@ -80,6 +83,8 @@ type LinuxResourcePool struct {
 	quotaManager linux_container.QuotaManager
 
 	containerIDs chan string
+
+	currentContainerVersion semver.Version
 }
 
 func New(
@@ -99,6 +104,7 @@ func New(
 	denyNetworks, allowNetworks []string,
 	runner command_runner.CommandRunner,
 	quotaManager linux_container.QuotaManager,
+	currentContainerVersion semver.Version,
 ) *LinuxResourcePool {
 	pool := &LinuxResourcePool{
 		logger: logger.Session("pool"),
@@ -131,7 +137,8 @@ func New(
 
 		quotaManager: quotaManager,
 
-		containerIDs: make(chan string),
+		containerIDs:            make(chan string),
+		currentContainerVersion: currentContainerVersion,
 	}
 
 	go pool.generateContainerIDs()
@@ -321,6 +328,11 @@ func (p *LinuxResourcePool) Restore(snapshot io.Reader) (linux_backend.LinuxCont
 		}
 	}
 
+	version, err := p.restoreContainerVersion(id)
+	if err != nil {
+		return linux_backend.LinuxContainerSpec{}, err
+	}
+
 	spec := linux_backend.LinuxContainerSpec{
 		ID:                  id,
 		ContainerPath:       path.Join(p.depotPath, id),
@@ -347,6 +359,7 @@ func (p *LinuxResourcePool) Restore(snapshot io.Reader) (linux_backend.LinuxCont
 		NetIns:    containerSnapshot.NetIns,
 		NetOuts:   containerSnapshot.NetOuts,
 		Processes: containerSnapshot.Processes,
+		Version:   version,
 	}
 
 	return spec, nil
@@ -439,6 +452,23 @@ func (p *LinuxResourcePool) saveBridgeName(id string, bridgeName string) error {
 func (p *LinuxResourcePool) saveRootFSProvider(id string, provider string) error {
 	providerFile := path.Join(p.depotPath, id, "rootfs-provider")
 	return ioutil.WriteFile(providerFile, []byte(provider), 0644)
+}
+
+func (p *LinuxResourcePool) saveContainerVersion(id string) error {
+	versionFile := path.Join(p.depotPath, id, "version")
+	return ioutil.WriteFile(versionFile, []byte(p.currentContainerVersion.String()), 0644)
+}
+
+func (p *LinuxResourcePool) restoreContainerVersion(id string) (semver.Version, error) {
+	content, err := ioutil.ReadFile(filepath.Join(p.depotPath, id, "version"))
+	if err != nil {
+		if os.IsNotExist(err) {
+			return linux_container.MissingVersion, nil
+		}
+		return semver.Version{}, err
+	}
+
+	return semver.Make(string(content))
 }
 
 func (p *LinuxResourcePool) acquirePoolResources(spec garden.ContainerSpec, id string) (*linux_backend.Resources, error) {
@@ -573,6 +603,15 @@ func (p *LinuxResourcePool) acquireSystemResources(id, handle, containerPath, ro
 		p.logger.Error("save-rootfs-provider-failed", err, lager.Data{
 			"Id":     id,
 			"rootfs": rootfsURL.String(),
+		})
+		return "", nil, err
+	}
+
+	err = p.saveContainerVersion(id)
+	if err != nil {
+		p.logger.Error("save-container-version-failed", err, lager.Data{
+			"Id":            id,
+			"ContainerPath": containerPath,
 		})
 		return "", nil, err
 	}

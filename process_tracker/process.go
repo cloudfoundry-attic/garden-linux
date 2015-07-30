@@ -15,6 +15,22 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/process_tracker/writer"
 )
 
+//go:generate counterfeiter -o fake_signaller/fake_signaller.go . Signaller
+type Signaller interface {
+	Signal(*SignalRequest) error
+}
+
+//go:generate counterfeiter -o fake_linker/fake_linker.go . Linker
+type Linker interface {
+	SendSignal(syscall.Signal) error
+}
+
+type SignalRequest struct {
+	Pid    uint32
+	Signal syscall.Signal
+	Link   Linker
+}
+
 type Process struct {
 	id uint32
 
@@ -32,12 +48,15 @@ type Process struct {
 	stdin  writer.FanIn
 	stdout writer.FanOut
 	stderr writer.FanOut
+
+	signaller Signaller
 }
 
 func NewProcess(
 	id uint32,
 	containerPath string,
 	runner command_runner.CommandRunner,
+	signaller Signaller,
 ) *Process {
 	return &Process{
 		id: id,
@@ -51,9 +70,10 @@ func NewProcess(
 
 		exited: make(chan struct{}),
 
-		stdin:  writer.NewFanIn(),
-		stdout: writer.NewFanOut(),
-		stderr: writer.NewFanOut(),
+		stdin:     writer.NewFanIn(),
+		stdout:    writer.NewFanOut(),
+		stderr:    writer.NewFanOut(),
+		signaller: signaller,
 	}
 }
 
@@ -76,17 +96,21 @@ func (p *Process) SetTTY(tty garden.TTYSpec) error {
 	return nil
 }
 
-func (p *Process) Signal(s garden.Signal) error {
+func (p *Process) Signal(signal garden.Signal) error {
 	<-p.linked
 
-	switch s {
+	request := &SignalRequest{Pid: p.id, Link: p.link}
+
+	switch signal {
 	case garden.SignalKill:
-		return p.link.Signal(syscall.SIGKILL)
+		request.Signal = syscall.SIGKILL
 	case garden.SignalTerminate:
-		return p.link.Signal(syscall.SIGTERM)
+		request.Signal = syscall.SIGTERM
 	default:
-		return fmt.Errorf("process_tracker: failed to send signal: unknown signal: %d", s)
+		return fmt.Errorf("process_tracker: failed to send signal: unknown signal: %d", signal)
 	}
+
+	return p.signaller.Signal(request)
 }
 
 func (p *Process) Spawn(cmd *exec.Cmd, tty *garden.TTYSpec) (ready, active chan error) {

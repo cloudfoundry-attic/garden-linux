@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/blang/semver"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
@@ -20,11 +21,11 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/bandwidth_manager/fake_bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/cgroups_manager/fake_cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_network_statisticser"
-	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_process_signaller"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_quota_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_watcher"
 	networkFakes "github.com/cloudfoundry-incubator/garden-linux/network/fakes"
 	"github.com/cloudfoundry-incubator/garden-linux/port_pool/fake_port_pool"
+	"github.com/cloudfoundry-incubator/garden-linux/process_tracker"
 	"github.com/cloudfoundry-incubator/garden-linux/process_tracker/fake_process_tracker"
 	wfakes "github.com/cloudfoundry-incubator/garden/fakes"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
@@ -34,10 +35,13 @@ var _ = Describe("Linux containers", func() {
 	var containerResources *linux_backend.Resources
 	var container *linux_container.LinuxContainer
 	var fakeProcessTracker *fake_process_tracker.FakeProcessTracker
+	var logger *lagertest.TestLogger
 	var containerDir string
+	var containerVersion semver.Version
 
 	BeforeEach(func() {
 		fakeProcessTracker = new(fake_process_tracker.FakeProcessTracker)
+		containerVersion = semver.Version{Major: 1, Minor: 0, Patch: 0}
 
 		var err error
 		containerDir, err = ioutil.TempDir("", "depot")
@@ -58,6 +62,7 @@ var _ = Describe("Linux containers", func() {
 	})
 
 	JustBeforeEach(func() {
+		logger = lagertest.NewTestLogger("linux-container-limits-test")
 		container = linux_container.NewLinuxContainer(
 			linux_backend.LinuxContainerSpec{
 				ID:                  "some-id",
@@ -69,6 +74,7 @@ var _ = Describe("Linux containers", func() {
 					GraceTime: time.Second * 1,
 					Env:       []string{"env1=env1Value", "env2=env2Value"},
 				},
+				Version: containerVersion,
 			},
 			fake_port_pool.New(1000),
 			fake_command_runner.New(),
@@ -76,11 +82,10 @@ var _ = Describe("Linux containers", func() {
 			new(fake_quota_manager.FakeQuotaManager),
 			fake_bandwidth_manager.New(),
 			fakeProcessTracker,
-			new(fake_process_signaller.FakeProcessSignaller),
 			new(networkFakes.FakeFilter),
 			new(fake_network_statisticser.FakeNetworkStatisticser),
 			new(fake_watcher.FakeWatcher),
-			lagertest.NewTestLogger("linux-container-limits-test"),
+			logger,
 		)
 	})
 
@@ -112,7 +117,7 @@ var _ = Describe("Linux containers", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(fakeProcessTracker.RunCallCount()).To(Equal(1))
-			_, ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
+			_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
 			Expect(ranCmd.Path).To(Equal(containerDir + "/bin/wsh"))
 
 			Expect(ranCmd.Args).To(Equal([]string{
@@ -152,7 +157,7 @@ var _ = Describe("Linux containers", func() {
 			}, garden.ProcessIO{})
 			Expect(err).ToNot(HaveOccurred())
 
-			_, ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
+			_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
 			Expect(ranCmd.Args).To(Equal([]string{
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
@@ -161,6 +166,34 @@ var _ = Describe("Linux containers", func() {
 				"--env", "env2=env2Value",
 				"/some/script",
 			}))
+		})
+
+		It("configures the correct process signaller (LinkSignaller)", func() {
+			_, err := container.Run(garden.ProcessSpec{
+				User: "vcap",
+				Path: "/some/script",
+			}, garden.ProcessIO{})
+			Expect(err).ToNot(HaveOccurred())
+
+			_, _, _, _, signaller := fakeProcessTracker.RunArgsForCall(0)
+			Expect(signaller).To(BeAssignableToTypeOf(&process_tracker.LinkSignaller{}))
+		})
+
+		Context("when the container version is 0.0.0 (an old container)", func() {
+			BeforeEach(func() {
+				containerVersion = linux_container.MissingVersion
+			})
+
+			It("configures the correct process signaller (NamespacedSignaller)", func() {
+				_, err := container.Run(garden.ProcessSpec{
+					User: "vcap",
+					Path: "/some/script",
+				}, garden.ProcessIO{})
+				Expect(err).ToNot(HaveOccurred())
+
+				_, _, _, _, signaller := fakeProcessTracker.RunArgsForCall(0)
+				Expect(signaller).To(BeAssignableToTypeOf(&process_tracker.NamespacedSignaller{}))
+			})
 		})
 
 		It("uses unique process IDs for each process", func() {
@@ -176,8 +209,8 @@ var _ = Describe("Linux containers", func() {
 			}, garden.ProcessIO{})
 			Expect(err).ToNot(HaveOccurred())
 
-			id1, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
-			id2, _, _, _ := fakeProcessTracker.RunArgsForCall(1)
+			id1, _, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
+			id2, _, _, _, _ := fakeProcessTracker.RunArgsForCall(1)
 
 			Expect(id1).ToNot(Equal(id2))
 		})
@@ -200,7 +233,7 @@ var _ = Describe("Linux containers", func() {
 
 			Expect(err).ToNot(HaveOccurred())
 
-			_, ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
+			_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
 			Expect(ranCmd.Args).To(Equal([]string{
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
@@ -224,7 +257,7 @@ var _ = Describe("Linux containers", func() {
 
 			Expect(err).ToNot(HaveOccurred())
 
-			_, ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
+			_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
 			Expect(ranCmd.Args).To(Equal([]string{
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
@@ -244,7 +277,7 @@ var _ = Describe("Linux containers", func() {
 
 			Expect(err).ToNot(HaveOccurred())
 
-			_, ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
+			_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
 			Expect(ranCmd.Args).To(Equal([]string{
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
@@ -272,13 +305,13 @@ var _ = Describe("Linux containers", func() {
 
 			Expect(err).ToNot(HaveOccurred())
 
-			_, _, _, tty := fakeProcessTracker.RunArgsForCall(0)
+			_, _, _, tty, _ := fakeProcessTracker.RunArgsForCall(0)
 			Expect(tty).To(Equal(ttySpec))
 		})
 
 		Describe("streaming", func() {
 			JustBeforeEach(func() {
-				fakeProcessTracker.RunStub = func(processID uint32, cmd *exec.Cmd, io garden.ProcessIO, tty *garden.TTYSpec) (garden.Process, error) {
+				fakeProcessTracker.RunStub = func(processID uint32, cmd *exec.Cmd, io garden.ProcessIO, tty *garden.TTYSpec, signaller process_tracker.Signaller) (garden.Process, error) {
 					writing := new(sync.WaitGroup)
 					writing.Add(1)
 
@@ -346,7 +379,7 @@ var _ = Describe("Linux containers", func() {
 
 			Expect(err).ToNot(HaveOccurred())
 
-			_, ranCmd, _, _ := fakeProcessTracker.RunArgsForCall(0)
+			_, ranCmd, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
 			Expect(ranCmd.Path).To(Equal(containerDir + "/bin/wsh"))
 
 			Expect(ranCmd.Args).To(Equal([]string{

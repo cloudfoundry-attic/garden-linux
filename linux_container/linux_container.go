@@ -12,9 +12,9 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
+	"github.com/blang/semver"
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/logging"
@@ -24,6 +24,8 @@ import (
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/pivotal-golang/lager"
 )
+
+var MissingVersion = semver.Version{}
 
 type UndefinedPropertyError struct {
 	Key string
@@ -66,11 +68,6 @@ type CgroupsManager interface {
 	SubsystemPath(subsystem string) (string, error)
 }
 
-//go:generate counterfeiter -o fake_process_signaller/fake_process_signaller.go . ProcessSignaller
-type ProcessSignaller interface {
-	Signal(pid int, signal syscall.Signal) error
-}
-
 type LinuxContainer struct {
 	propertiesMutex sync.RWMutex
 	stateMutex      sync.RWMutex
@@ -91,7 +88,6 @@ type LinuxContainer struct {
 	processTracker   process_tracker.ProcessTracker
 	filter           network.Filter
 	processIDPool    *ProcessIDPool
-	processSignaller ProcessSignaller
 
 	oomWatcher Watcher
 
@@ -138,7 +134,6 @@ func NewLinuxContainer(
 	quotaManager QuotaManager,
 	bandwidthManager BandwidthManager,
 	processTracker process_tracker.ProcessTracker,
-	processSignaller ProcessSignaller,
 	filter network.Filter,
 	netStats NetworkStatisticser,
 	oomWatcher Watcher,
@@ -153,14 +148,12 @@ func NewLinuxContainer(
 		quotaManager:     quotaManager,
 		bandwidthManager: bandwidthManager,
 		processTracker:   processTracker,
-		processSignaller: processSignaller,
 		filter:           filter,
 		processIDPool:    &ProcessIDPool{},
 		netStats:         netStats,
 
 		oomWatcher: oomWatcher,
-
-		logger: logger,
+		logger:     logger,
 	}
 }
 
@@ -310,13 +303,15 @@ func (c *LinuxContainer) Restore(snapshot linux_backend.LinuxContainerSpec) erro
 		}
 	}
 
+	signaller := c.processSignaller()
+
 	for _, process := range snapshot.Processes {
 		cLog.Info("restoring-process", lager.Data{
 			"process": process,
 		})
 
 		c.processIDPool.Restore(process.ID)
-		c.processTracker.Restore(process.ID)
+		c.processTracker.Restore(process.ID, signaller)
 	}
 
 	net := exec.Command(path.Join(c.ContainerPath, "net.sh"), "setup")
@@ -343,6 +338,23 @@ func (c *LinuxContainer) Restore(snapshot linux_backend.LinuxContainerSpec) erro
 	cLog.Info("restored")
 
 	return nil
+}
+
+func (c *LinuxContainer) processSignaller() process_tracker.Signaller {
+	var signaller process_tracker.Signaller
+
+	// For backwards compatibility for pre 1.0.0 version containers
+	if c.Version.Compare(MissingVersion) == 0 {
+		signaller = &process_tracker.NamespacedSignaller{
+			Logger:        c.logger,
+			Runner:        c.runner,
+			ContainerPath: c.ContainerPath,
+		}
+	} else {
+		signaller = &process_tracker.LinkSignaller{Logger: c.logger}
+	}
+
+	return signaller
 }
 
 func (c *LinuxContainer) Start() error {

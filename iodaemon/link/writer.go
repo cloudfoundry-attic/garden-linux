@@ -53,7 +53,7 @@ func (w *Writer) SetWindowSize(cols, rows int) error {
 	})
 }
 
-func (w *Writer) Signal(signal syscall.Signal) error {
+func (w *Writer) SendSignal(signal syscall.Signal) error {
 	return w.enc.Encode(Input{
 		Signal: signal,
 	})

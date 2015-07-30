@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"time"
 
+	"github.com/blang/semver"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/pivotal-golang/lager/lagertest"
@@ -19,11 +20,11 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/bandwidth_manager/fake_bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/cgroups_manager/fake_cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_network_statisticser"
-	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_process_signaller"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_quota_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_watcher"
 	networkFakes "github.com/cloudfoundry-incubator/garden-linux/network/fakes"
 	"github.com/cloudfoundry-incubator/garden-linux/port_pool/fake_port_pool"
+	"github.com/cloudfoundry-incubator/garden-linux/process_tracker"
 	"github.com/cloudfoundry-incubator/garden-linux/process_tracker/fake_process_tracker"
 	wfakes "github.com/cloudfoundry-incubator/garden/fakes"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
@@ -42,9 +43,9 @@ var _ = Describe("Linux containers", func() {
 		fakeProcessTracker   *fake_process_tracker.FakeProcessTracker
 		fakeFilter           *networkFakes.FakeFilter
 		fakeOomWatcher       *fake_watcher.FakeWatcher
-		fakeProcessSignaller *fake_process_signaller.FakeProcessSignaller
 		containerDir         string
 		containerProps       map[string]string
+		containerVersion     semver.Version
 	)
 
 	netOutRule1 := garden.NetOutRule{
@@ -72,13 +73,14 @@ var _ = Describe("Linux containers", func() {
 		fakeBandwidthManager = fake_bandwidth_manager.New()
 		fakeProcessTracker = new(fake_process_tracker.FakeProcessTracker)
 		fakeFilter = new(networkFakes.FakeFilter)
-		fakeProcessSignaller = new(fake_process_signaller.FakeProcessSignaller)
 
 		fakePortPool = fake_port_pool.New(1000)
 
 		var err error
 		containerDir, err = ioutil.TempDir("", "depot")
 		Expect(err).ToNot(HaveOccurred())
+
+		containerVersion = semver.Version{Major: 1, Minor: 0, Patch: 0}
 
 		_, subnet, err := net.ParseCIDR("2.3.4.0/30")
 		containerResources = linux_backend.NewResources(
@@ -114,6 +116,7 @@ var _ = Describe("Linux containers", func() {
 					Env:        []string{"env1=env1Value", "env2=env2Value"},
 					Properties: containerProps,
 				},
+				Version: containerVersion,
 			},
 			fakePortPool,
 			fakeRunner,
@@ -121,7 +124,6 @@ var _ = Describe("Linux containers", func() {
 			fakeQuotaManager,
 			fakeBandwidthManager,
 			fakeProcessTracker,
-			fakeProcessSignaller,
 			fakeFilter,
 			new(fake_network_statisticser.FakeNetworkStatisticser),
 			fakeOomWatcher,
@@ -196,7 +198,6 @@ var _ = Describe("Linux containers", func() {
 			Expect(snapshot.GraceTime).To(Equal(1 * time.Second))
 
 			Expect(snapshot.State).To(Equal("active"))
-			Expect(snapshot.DefaultProcessSignaller).To(BeTrue())
 
 			_, subnet, err := net.ParseCIDR("2.3.4.0/30")
 			Expect(snapshot.Resources).To(Equal(
@@ -252,20 +253,6 @@ var _ = Describe("Linux containers", func() {
 			})))
 
 			Expect(snapshot.EnvVars).To(Equal([]string{"env1=env1Value", "env2=env2Value"}))
-		})
-
-		Context("with the default process signaller", func() {
-			It("saves the default process signaller as 'true'", func() {
-				out := new(bytes.Buffer)
-				Expect(container.Snapshot(out)).To(Succeed())
-
-				var snapshot linux_backend.LinuxContainerSpec
-
-				err := json.NewDecoder(out).Decode(&snapshot)
-				Expect(err).ToNot(HaveOccurred())
-
-				Expect(snapshot.DefaultProcessSignaller).To(BeTrue())
-			})
 		})
 
 		Context("with limits set", func() {
@@ -375,10 +362,10 @@ var _ = Describe("Linux containers", func() {
 			})
 			Expect(err).ToNot(HaveOccurred())
 
-			pid := fakeProcessTracker.RestoreArgsForCall(0)
+			pid, _ := fakeProcessTracker.RestoreArgsForCall(0)
 			Expect(pid).To(Equal(uint32(0)))
 
-			pid = fakeProcessTracker.RestoreArgsForCall(1)
+			pid, _ = fakeProcessTracker.RestoreArgsForCall(1)
 			Expect(pid).To(Equal(uint32(1)))
 		})
 
@@ -406,9 +393,35 @@ var _ = Describe("Linux containers", func() {
 			}, garden.ProcessIO{})
 			Expect(err).ToNot(HaveOccurred())
 
-			nextId, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
+			nextId, _, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
 
 			Expect(nextId).To(BeNumerically(">", 5))
+		})
+
+		It("restores the correct process signaller", func() {
+			Expect(container.Restore(linux_backend.LinuxContainerSpec{
+				State:     "active",
+				Processes: []linux_backend.ActiveProcess{{ID: 0, TTY: false}},
+			})).To(Succeed())
+
+			_, signaller := fakeProcessTracker.RestoreArgsForCall(0)
+			Expect(signaller).To(BeAssignableToTypeOf(&process_tracker.LinkSignaller{}))
+		})
+
+		Context("when the container is version 0.0.0 (old container)", func() {
+			BeforeEach(func() {
+				containerVersion = semver.Version{Major: 0, Minor: 0, Patch: 0}
+			})
+
+			It("restores the correct process signaller", func() {
+				Expect(container.Restore(linux_backend.LinuxContainerSpec{
+					State:     "active",
+					Processes: []linux_backend.ActiveProcess{{ID: 0, TTY: false}},
+				})).To(Succeed())
+
+				_, signaller := fakeProcessTracker.RestoreArgsForCall(0)
+				Expect(signaller).To(BeAssignableToTypeOf(&process_tracker.NamespacedSignaller{}))
+			})
 		})
 
 		It("restores environment variables", func() {

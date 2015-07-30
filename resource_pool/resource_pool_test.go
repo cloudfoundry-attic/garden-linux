@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/blang/semver"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/pivotal-golang/lager/lagertest"
@@ -58,6 +59,7 @@ var _ = Describe("Container pool", func() {
 		config                    sysconfig.Config
 		containerNetwork          *linux_backend.Network
 		defaultProviderName       string
+		defaultVersion            string
 	)
 
 	BeforeEach(func() {
@@ -88,12 +90,17 @@ var _ = Describe("Container pool", func() {
 		fakeRootfsRemover = new(fake_rootfs_provider.FakeRootFSRemover)
 		fakeRootFSProvider = new(fake_rootfs_provider.FakeRootFSProvider)
 
+		defaultVersion = "1.0.0"
+
 		defaultProviderName = "docker-local-vfs"
 		defaultFakeRootFSProvider.ProvideRootFSReturns("/provided/rootfs/path", nil, nil)
 		defaultFakeRootFSProvider.NameReturns(defaultProviderName)
 		fakeRootFSProvider.NameReturns("fake")
 
 		depotPath, err = ioutil.TempDir("", "depot-path")
+		Expect(err).ToNot(HaveOccurred())
+
+		currentContainerVersion, err := semver.Make("1.0.0")
 		Expect(err).ToNot(HaveOccurred())
 
 		config = sysconfig.NewConfig("0", false)
@@ -120,6 +127,7 @@ var _ = Describe("Container pool", func() {
 			[]string{"1.1.1.1/32", "", "2.2.2.2/32"},
 			fakeRunner,
 			fakeQuotaManager,
+			currentContainerVersion,
 		)
 	})
 
@@ -619,6 +627,16 @@ var _ = Describe("Container pool", func() {
 			Expect(string(body)).To(Equal(defaultProviderName))
 		})
 
+		It("saves the container version to the depot", func() {
+			container, err := pool.Acquire(garden.ContainerSpec{})
+			Expect(err).ToNot(HaveOccurred())
+
+			body, err := ioutil.ReadFile(path.Join(depotPath, container.ID, "version"))
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(string(body)).To(Equal(defaultVersion))
+		})
+
 		Context("when a rootfs is specified", func() {
 			It("is used to provide a rootfs", func() {
 				container, err := pool.Acquire(garden.ContainerSpec{
@@ -1101,6 +1119,60 @@ var _ = Describe("Container pool", func() {
 
 			Expect(containerSpec.Resources.Network).To(Equal(containerNetwork))
 			Expect(containerSpec.Resources.Bridge).To(Equal("some-bridge"))
+		})
+
+		Context("when a version file exists in the container", func() {
+			var (
+				expectedVersion semver.Version
+				containerSpec   linux_backend.LinuxContainerSpec
+				versionFilePath string
+			)
+
+			JustBeforeEach(func() {
+				var err error
+
+				expectedVersion, err = semver.Make("1.0.0")
+				Expect(err).ToNot(HaveOccurred())
+
+				id := "some-restored-id"
+				Expect(os.MkdirAll(filepath.Join(depotPath, id), 0755)).To(Succeed())
+				versionFilePath = filepath.Join(depotPath, id, "version")
+
+				err = ioutil.WriteFile(versionFilePath, []byte(expectedVersion.String()), 0644)
+				Expect(err).ToNot(HaveOccurred())
+
+				containerSpec, err = pool.Restore(snapshot)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			AfterEach(func() {
+				Expect(os.RemoveAll(versionFilePath)).To(Succeed())
+			})
+
+			It("restores the container version", func() {
+				Expect(containerSpec.Version).To(Equal(expectedVersion))
+			})
+		})
+
+		Context("when a version file does not exists in the container", func() {
+			var (
+				expectedVersion semver.Version
+				containerSpec   linux_backend.LinuxContainerSpec
+			)
+
+			JustBeforeEach(func() {
+				var err error
+
+				expectedVersion, err = semver.Make("0.0.0")
+				Expect(err).ToNot(HaveOccurred())
+
+				containerSpec, err = pool.Restore(snapshot)
+				Expect(err).ToNot(HaveOccurred())
+			})
+
+			It("restores the empty version", func() {
+				Expect(containerSpec.Version).To(Equal(expectedVersion))
+			})
 		})
 
 		It("removes its network from the pool", func() {

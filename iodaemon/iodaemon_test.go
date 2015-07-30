@@ -147,13 +147,13 @@ var _ = Describe("Iodaemon", func() {
 
 			Eventually(linkStdout).Should(gbytes.Say("pid"))
 
-			Expect(l.Signal(syscall.SIGTERM)).To(Succeed())
+			Expect(l.SendSignal(syscall.SIGTERM)).To(Succeed())
 			Eventually(linkStdout).Should(gbytes.Say("Received signal 15"))
 
-			Expect(l.Signal(syscall.SIGINT)).To(Succeed())
+			Expect(l.SendSignal(syscall.SIGINT)).To(Succeed())
 			Eventually(linkStdout).Should(gbytes.Say("Received signal 2"))
 
-			Expect(l.Signal(syscall.SIGKILL)).To(Succeed())
+			Expect(l.SendSignal(syscall.SIGKILL)).To(Succeed())
 		})
 
 		Context("when there is an existing socket file", func() {

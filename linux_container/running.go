@@ -56,7 +56,7 @@ func (c *LinuxContainer) Run(spec garden.ProcessSpec, processIO garden.ProcessIO
 
 	setRLimitsEnv(wsh, spec.Limits)
 
-	return c.processTracker.Run(processID, wsh, processIO, spec.TTY)
+	return c.processTracker.Run(processID, wsh, processIO, spec.TTY, c.processSignaller())
 }
 
 func (c *LinuxContainer) Attach(processID uint32, processIO garden.ProcessIO) (garden.Process, error) {

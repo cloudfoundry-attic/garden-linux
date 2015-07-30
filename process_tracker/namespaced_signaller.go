@@ -1,10 +1,11 @@
-package linux_backend
+package process_tracker
 
 import (
 	"errors"
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 
 	"time"
@@ -18,31 +19,32 @@ import (
 type NamespacedSignaller struct {
 	Runner        command_runner.CommandRunner
 	ContainerPath string
-	PidFilePath   string
 	Logger        lager.Logger
 }
 
-func (n *NamespacedSignaller) Signal(signal os.Signal) error {
-	n.Logger.Debug("NamespacedSignaller.Signal-entered", lager.Data{"signal": signal})
-	pid, err := PidFromFile(n.PidFilePath)
+func (n *NamespacedSignaller) Signal(request *SignalRequest) error {
+	pidfile := path.Join(n.ContainerPath, "processes", fmt.Sprintf("%d.pid", request.Pid))
+
+	n.Logger.Debug("NamespacedSignaller.Signal-entered", lager.Data{"signal": request.Signal})
+	pid, err := PidFromFile(pidfile)
 	if err != nil {
-		n.Logger.Error("NamespacedSignaller.Signal-failed-to-read-PID-file", err, lager.Data{"signal": signal})
+		n.Logger.Error("NamespacedSignaller.Signal-failed-to-read-PID-file", err, lager.Data{"signal": request.Signal})
 		return err
 	}
 
 	cmd := exec.Command(filepath.Join(n.ContainerPath, "bin/wsh"),
 		"--socket", filepath.Join(n.ContainerPath, "run/wshd.sock"),
 		"--user", "root",
-		"kill", fmt.Sprintf("-%d", signal), fmt.Sprintf("%d", pid))
+		"kill", fmt.Sprintf("-%d", request.Signal), fmt.Sprintf("%d", pid))
 
-	n.Logger.Debug("NamespacedSignaller.Signal-about-to-run-kill-command", lager.Data{"signal": signal, "cmd": cmd})
+	n.Logger.Debug("NamespacedSignaller.Signal-about-to-run-kill-command", lager.Data{"signal": request.Signal, "cmd": cmd})
 	err = n.Runner.Run(cmd)
 	if err != nil {
-		n.Logger.Error("NamespacedSignaller.Signal-failed-to-run-kill", err, lager.Data{"signal": signal})
+		n.Logger.Error("NamespacedSignaller.Signal-failed-to-run-kill", err, lager.Data{"signal": request.Signal})
 		return err
 	}
 
-	n.Logger.Debug("NamespacedSignaller.Signal-ran-kill-successfully", lager.Data{"signal": signal})
+	n.Logger.Debug("NamespacedSignaller.Signal-ran-kill-successfully", lager.Data{"signal": request.Signal})
 	return nil
 }
 

@@ -12,6 +12,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/blang/semver"
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/docker/docker/daemon/graphdriver"
 	_ "github.com/docker/docker/daemon/graphdriver/btrfs"
@@ -52,8 +53,9 @@ import (
 )
 
 const (
-	DefaultNetworkPool = "10.254.0.0/22"
-	DefaultMTUSize     = 1500
+	DefaultNetworkPool      = "10.254.0.0/22"
+	DefaultMTUSize          = 1500
+	CurrentContainerVersion = "1.0.0"
 )
 
 var listenNetwork = flag.String(
@@ -383,6 +385,11 @@ func main() {
 		quotaManager:     quotaManager,
 	}
 
+	currentContainerVersion, err := semver.Make(CurrentContainerVersion)
+	if err != nil {
+		logger.Fatal("failed-to-parse-container-version", err)
+	}
+
 	pool := resource_pool.New(
 		logger,
 		*binPath,
@@ -402,6 +409,7 @@ func main() {
 		strings.Split(*allowNetworks, ","),
 		runner,
 		quotaManager,
+		currentContainerVersion,
 	)
 
 	systemInfo := system_info.NewProvider(*depotPath)

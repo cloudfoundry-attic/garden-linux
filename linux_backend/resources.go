@@ -5,6 +5,7 @@ import (
 	"net"
 	"sync"
 
+	"github.com/blang/semver"
 	"github.com/cloudfoundry-incubator/garden"
 )
 
@@ -25,6 +26,8 @@ type LinuxContainerSpec struct {
 
 	NetIns  []NetInSpec
 	NetOuts []garden.NetOutRule
+
+	Version semver.Version
 }
 
 type ActiveProcess struct {
