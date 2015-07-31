@@ -281,6 +281,7 @@ func (p *LinuxResourcePool) Acquire(spec garden.ContainerSpec) (linux_backend.Li
 		ContainerRootFSPath: containerRootFSPath,
 		Resources:           resources,
 		Events:              []string{},
+		Version:             p.currentContainerVersion,
 		State:               linux_backend.StateBorn,
 
 		ContainerSpec: spec,

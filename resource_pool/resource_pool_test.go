@@ -637,6 +637,13 @@ var _ = Describe("Container pool", func() {
 			Expect(string(body)).To(Equal(defaultVersion))
 		})
 
+		It("initializes the container with the current version", func() {
+			spec, err := pool.Acquire(garden.ContainerSpec{})
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(spec.Version).To(Equal(semver.MustParse(defaultVersion)))
+		})
+
 		Context("when a rootfs is specified", func() {
 			It("is used to provide a rootfs", func() {
 				container, err := pool.Acquire(garden.ContainerSpec{
