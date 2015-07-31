@@ -511,10 +511,14 @@ var _ = Describe("LinuxBackend", func() {
 			})
 		})
 
-		FContext("when limits are set in the container spec", func() {
+		Context("when limits are set in the container spec", func() {
 			var containerSpec garden.ContainerSpec
+			var container *fakes.FakeContainer
 
 			BeforeEach(func() {
+				container = new(fakes.FakeContainer)
+				fakeContainerProvider.ProvideContainerReturns(container)
+
 				containerSpec = garden.ContainerSpec{
 					Handle: "limits",
 					Limits: garden.Limits{
@@ -533,36 +537,29 @@ var _ = Describe("LinuxBackend", func() {
 			})
 
 			It("applies the limits", func() {
-				container := registerTestContainer(newTestContainer(
-					linux_backend.LinuxContainerSpec{
-						ContainerSpec: containerSpec,
-					},
-				))
-
 				_, err := linuxBackend.Create(containerSpec)
 				Expect(err).ToNot(HaveOccurred())
+
+				Expect(container.LimitCPUCallCount()).To(Equal(0))
+				Expect(container.LimitBandwidthCallCount()).To(Equal(0))
 
 				Expect(container.LimitDiskCallCount()).To(Equal(1))
 				Expect(container.LimitDiskArgsForCall(0)).To(Equal(containerSpec.Limits.Disk))
 
 				Expect(container.LimitMemoryCallCount()).To(Equal(1))
 				Expect(container.LimitMemoryArgsForCall(0)).To(Equal(containerSpec.Limits.Memory))
-
-				Expect(container.LimitBandwidthCallCount()).To(Equal(0))
-				Expect(container.LimitCPUCallCount()).To(Equal(0))
 			})
 
 			Context("when applying limits fails", func() {
-				It("returns the error", func() {
-					container := registerTestContainer(newTestContainer(
-						linux_backend.LinuxContainerSpec{
-							ContainerSpec: garden.ContainerSpec{Handle: "what!!"},
-						},
-					))
-					container.LimitDiskReturns(errors.New("oh no!!"))
+				limitErr := errors.New("failed to limit")
 
-					_, err := linuxBackend.Create(garden.ContainerSpec{Handle: "what!!"})
-					Expect(err).To(MatchError(ContainSubstring("oh no!!")))
+				BeforeEach(func() {
+					container.LimitDiskReturns(limitErr)
+				})
+
+				It("returns the error", func() {
+					_, err := linuxBackend.Create(containerSpec)
+					Expect(err).To(MatchError(limitErr))
 				})
 			})
 		})

@@ -196,9 +196,42 @@ func (b *LinuxBackend) Create(spec garden.ContainerSpec) (garden.Container, erro
 		return nil, err
 	}
 
+	if err := b.ApplyLimits(container, spec.Limits); err != nil {
+		b.resourcePool.Release(containerSpec)
+		return nil, err
+	}
+
 	b.containerRepo.Add(container)
 
 	return container, nil
+}
+
+func (b *LinuxBackend) ApplyLimits(container garden.Container, limits garden.Limits) error {
+	if limits.CPU != (garden.CPULimits{}) {
+		if err := container.LimitCPU(limits.CPU); err != nil {
+			return err
+		}
+	}
+
+	if limits.Disk != (garden.DiskLimits{}) {
+		if err := container.LimitDisk(limits.Disk); err != nil {
+			return err
+		}
+	}
+
+	if limits.Bandwidth != (garden.BandwidthLimits{}) {
+		if err := container.LimitBandwidth(limits.Bandwidth); err != nil {
+			return err
+		}
+	}
+
+	if limits.Memory != (garden.MemoryLimits{}) {
+		if err := container.LimitMemory(limits.Memory); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (b *LinuxBackend) Destroy(handle string) error {
