@@ -29,7 +29,7 @@ func main() {
 		return
 	}
 
-	sig := make(chan os.Signal)
+	sig := make(chan os.Signal, 1)
 
 	signal.Notify(sig, syscall.SIGUSR2, syscall.SIGTERM, syscall.SIGINT)
 

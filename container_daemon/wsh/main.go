@@ -32,7 +32,7 @@ func main() {
 	}
 
 	var tty *garden.TTYSpec
-	resize := make(chan os.Signal)
+	resize := make(chan os.Signal, 1)
 	if terminal.IsTerminal(syscall.Stdin) {
 		tty = &garden.TTYSpec{}
 		signal.Notify(resize, syscall.SIGWINCH)
