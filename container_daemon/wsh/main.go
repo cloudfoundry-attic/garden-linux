@@ -38,7 +38,7 @@ func main() {
 		signal.Notify(resize, syscall.SIGWINCH)
 	}
 
-	sigterm := make(chan os.Signal)
+	sigterm := make(chan os.Signal, 1)
 	signal.Notify(sigterm, syscall.SIGTERM)
 
 	process := &container_daemon.Process{

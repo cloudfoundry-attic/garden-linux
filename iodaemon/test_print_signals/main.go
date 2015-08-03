@@ -12,7 +12,7 @@ func main() {
 	fmt.Printf("pid = %d\n", syscall.Getpid())
 
 	// http://stackoverflow.com/a/18106962
-	sigc := make(chan os.Signal)
+	sigc := make(chan os.Signal, 32)
 
 	signal.Notify(sigc,
 		syscall.SIGHUP,
