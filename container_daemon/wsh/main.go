@@ -39,7 +39,7 @@ func main() {
 	}
 
 	sigterm := make(chan os.Signal, 1)
-	signal.Notify(sigterm, syscall.SIGTERM)
+	signal.Notify(sigterm, syscall.SIGTERM, syscall.SIGUSR1)
 
 	process := &container_daemon.Process{
 		Connector: &unix_socket.Connector{

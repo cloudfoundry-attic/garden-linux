@@ -48,10 +48,14 @@ type Term interface {
 	RestoreTerminal(fd uintptr, state *term.State) error
 }
 
-func (p *Process) Signal() error {
+func (p *Process) Signal(signal os.Signal) error {
+	if signal == syscall.SIGUSR1 {
+		signal = syscall.SIGKILL
+	}
+
 	spec := &SignalSpec{
 		Pid:    p.pid,
-		Signal: syscall.SIGTERM,
+		Signal: signal.(syscall.Signal),
 	}
 
 	data, err := json.Marshal(spec)
@@ -115,8 +119,8 @@ func (p *Process) setupPty(ptyFd StreamingFile) error {
 
 func (p *Process) sigtermLoop() {
 	for {
-		<-p.SigtermCh
-		p.Signal()
+		signal := <-p.SigtermCh
+		p.Signal(signal)
 	}
 }
 

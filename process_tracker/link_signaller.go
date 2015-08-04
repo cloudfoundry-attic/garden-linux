@@ -1,6 +1,10 @@
 package process_tracker
 
-import "github.com/pivotal-golang/lager"
+import (
+	"syscall"
+
+	"github.com/pivotal-golang/lager"
+)
 
 type LinkSignaller struct {
 	Logger lager.Logger
@@ -9,11 +13,17 @@ type LinkSignaller struct {
 func (ls *LinkSignaller) Signal(request *SignalRequest) error {
 	data := lager.Data{"pid": request.Pid, "signal": request.Signal}
 
-	ls.Logger.Debug("ProcessSignaller.Signal-about-to-signal", data)
-	if err := request.Link.SendSignal(request.Signal); err != nil {
-		ls.Logger.Error("ProcessSignaller.Signal-failed-to-signal", err, data)
+	signal := request.Signal
+	if signal == syscall.SIGKILL {
+		signal = syscall.SIGUSR1
+	}
+
+	ls.Logger.Debug("LinkSignaller.Signal-about-to-signal", data)
+	if err := request.Link.SendSignal(signal); err != nil {
+		ls.Logger.Error("LinkSignaller.Signal-failed-to-signal", err, data)
 		return err
 	}
-	ls.Logger.Debug("ProcessSignaller.Signal-signal-succeeded", data)
+
+	ls.Logger.Debug("LinkSignaller.Signal-signal-succeeded", data)
 	return nil
 }
