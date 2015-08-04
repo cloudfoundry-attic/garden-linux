@@ -68,21 +68,23 @@ func main() {
 		},
 	}
 
+	exitCode := container_daemon.UnknownExitStatus
+	defer func() {
+		process.Cleanup()
+		os.Exit(exitCode)
+	}()
+
 	err := process.Start()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "start process: %s", err)
-		os.Exit(container_daemon.UnknownExitStatus)
+		return
 	}
 
-	defer process.Cleanup()
-
-	exitCode, err := process.Wait()
+	exitCode, err = process.Wait()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "wait for process: %s", err)
-		os.Exit(container_daemon.UnknownExitStatus)
+		return
 	}
-
-	os.Exit(exitCode)
 }
 
 func getRLimitFromEnv(envVar string) *uint64 {
