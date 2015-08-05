@@ -21,9 +21,8 @@ var _ = Describe("Process", func() {
 	var socketConnector *fake_connector.FakeConnector
 	var fakeTerm *fake_term.FakeTerm
 	var sigwinchCh chan os.Signal
-	var sigtermCh chan os.Signal
+	var signalCh chan os.Signal
 	var response *container_daemon.ResponseMessage
-
 	var process *container_daemon.Process
 
 	BeforeEach(func() {
@@ -38,13 +37,13 @@ var _ = Describe("Process", func() {
 		socketConnector.ConnectReturns(response, nil)
 
 		sigwinchCh = make(chan os.Signal)
-		sigtermCh = make(chan os.Signal)
+		signalCh = make(chan os.Signal)
 
 		process = &container_daemon.Process{
 			Connector:  socketConnector,
 			Term:       fakeTerm,
 			SigwinchCh: sigwinchCh,
-			SigtermCh:  sigtermCh,
+			SignalCh:   signalCh,
 			Spec: &garden.ProcessSpec{
 				Path: "/bin/echo",
 				Args: []string{"Hello world"},
@@ -64,6 +63,33 @@ var _ = Describe("Process", func() {
 
 		socketMessage := socketConnector.ConnectArgsForCall(0)
 		Expect(socketMessage.Data).To(Equal(json.RawMessage(payload)))
+	})
+
+	Describe("Signalling", func() {
+		BeforeEach(func() {
+			response.Pid = 12
+
+			socketConnector.ConnectReturns(response, nil)
+			Expect(process.Start()).To(Succeed())
+		})
+
+		Context("when a USR1 signal is received", func() {
+			It("sends a kill signal message to the daemon", func() {
+				signalCh <- syscall.SIGUSR1
+				Eventually(socketConnector.ConnectCallCount).Should(Equal(2))
+				Expect(socketConnector.ConnectArgsForCall(1).Type).To(Equal(container_daemon.SignalRequest))
+				Expect(string(socketConnector.ConnectArgsForCall(1).Data)).To(MatchJSON(`{"Pid": 12, "Signal": 9}`))
+			})
+		})
+
+		Context("when a TERM signal is received", func() {
+			It("sends a signal message to the daemon", func() {
+				signalCh <- syscall.SIGTERM
+				Eventually(socketConnector.ConnectCallCount).Should(Equal(2))
+				Expect(socketConnector.ConnectArgsForCall(1).Type).To(Equal(container_daemon.SignalRequest))
+				Expect(string(socketConnector.ConnectArgsForCall(1).Data)).To(MatchJSON(`{"Pid": 12, "Signal": 15}`))
+			})
+		})
 	})
 
 	Context("when the process is interactive (i.e. connected to a TTY)", func() {
@@ -121,24 +147,6 @@ var _ = Describe("Process", func() {
 			Expect(size).To(Equal(&term.Winsize{
 				Width: 1, Height: 2,
 			}))
-		})
-
-		Context("when a TERM signal is received", func() {
-			It("sends a signal message to the daemon", func() {
-				remotePty := FakeFd(123)
-				response.Files = []container_daemon.StreamingFile{remotePty, FakeFd(999)}
-				response.Pid = 12
-
-				socketConnector.ConnectReturns(response, nil)
-				Expect(process.Start()).To(Succeed())
-
-				Eventually(socketConnector.ConnectCallCount).Should(Equal(1)) // first is SIGWINCH
-
-				sigtermCh <- os.Interrupt
-				Eventually(socketConnector.ConnectCallCount).Should(Equal(2))
-				Expect(socketConnector.ConnectArgsForCall(1).Type).To(Equal(container_daemon.SignalRequest))
-				Expect(string(socketConnector.ConnectArgsForCall(1).Data)).To(MatchJSON(`{"Pid": 12, "Signal": 15}`))
-			})
 		})
 
 		Context("when SIGWINCH is received", func() {

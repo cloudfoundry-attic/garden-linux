@@ -20,7 +20,7 @@ type Process struct {
 	Connector  Connector
 	Term       Term
 	SigwinchCh <-chan os.Signal
-	SigtermCh  <-chan os.Signal
+	SignalCh   <-chan os.Signal
 	Spec       *garden.ProcessSpec
 	IO         *garden.ProcessIO
 
@@ -95,7 +95,7 @@ func (p *Process) Start() error {
 
 	p.pid = response.Pid
 
-	go p.sigtermLoop()
+	go p.signalLoop()
 	p.streaming = &sync.WaitGroup{}
 
 	if p.Spec.TTY != nil {
@@ -117,9 +117,9 @@ func (p *Process) setupPty(ptyFd StreamingFile) error {
 	return p.syncWindowSize(ptyFd)
 }
 
-func (p *Process) sigtermLoop() {
+func (p *Process) signalLoop() {
 	for {
-		signal := <-p.SigtermCh
+		signal := <-p.SignalCh
 		p.Signal(signal)
 	}
 }
