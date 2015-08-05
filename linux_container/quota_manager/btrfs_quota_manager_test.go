@@ -38,7 +38,7 @@ var _ = Describe("btrfs quota manager", func() {
 		fakeRunner.WhenRunning(
 			fake_command_runner.CommandSpec{
 				Path: "sh",
-				Args: []string{"-c", fmt.Sprintf("btrfs qgroup show -rF --raw %s", subvolumePath)},
+				Args: []string{"-c", fmt.Sprintf("sync && btrfs qgroup show -rF --raw %s", subvolumePath)},
 			},
 			func(cmd *exec.Cmd) error {
 				cmd.Stdout.Write(qgroupShowResponse)
