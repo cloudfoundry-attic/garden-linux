@@ -32,7 +32,7 @@ var _ = Describe("Link Signaller", func() {
 	It("signals process successfully", func() {
 		Expect(signaller.Signal(request)).To(Succeed())
 		Expect(fakeLink.SendSignalCallCount()).To(Equal(1))
-		Expect(fakeLink.SendSignalArgsForCall(0)).To(Equal(request.Signal))
+		Expect(fakeLink.SendSignalArgsForCall(0)).To(Equal(syscall.SIGUSR1))
 	})
 
 	Context("when the link fails to send the signal", func() {
