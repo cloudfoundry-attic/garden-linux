@@ -20,13 +20,16 @@ type NamespacedSignaller struct {
 	Runner        command_runner.CommandRunner
 	ContainerPath string
 	Logger        lager.Logger
+
+	Retry     int
+	RetryWait time.Duration
 }
 
 func (n *NamespacedSignaller) Signal(request *SignalRequest) error {
 	pidfile := path.Join(n.ContainerPath, "processes", fmt.Sprintf("%d.pid", request.Pid))
 
 	n.Logger.Debug("NamespacedSignaller.Signal-entered", lager.Data{"signal": request.Signal})
-	pid, err := PidFromFile(pidfile)
+	pid, err := PidFromFile(pidfile, n.Retry, n.RetryWait)
 	if err != nil {
 		n.Logger.Error("NamespacedSignaller.Signal-failed-to-read-PID-file", err, lager.Data{"signal": request.Signal})
 		return err
@@ -48,14 +51,14 @@ func (n *NamespacedSignaller) Signal(request *SignalRequest) error {
 	return nil
 }
 
-func PidFromFile(pidFilePath string) (int, error) {
-	pidFile, err := openPIDFile(pidFilePath)
+func PidFromFile(pidFilePath string, retries int, retryWait time.Duration) (int, error) {
+	pidFile, err := openPIDFile(pidFilePath, retries, retryWait)
 	if err != nil {
 		return 0, err
 	}
 	defer pidFile.Close()
 
-	fileContent, err := readPIDFile(pidFile)
+	fileContent, err := readPIDFile(pidFile, retries, retryWait)
 	if err != nil {
 		return 0, err
 	}
@@ -69,31 +72,33 @@ func PidFromFile(pidFilePath string) (int, error) {
 	return pid, nil
 }
 
-func openPIDFile(pidFilePath string) (*os.File, error) {
+func openPIDFile(pidFilePath string, retries int, retryWait time.Duration) (*os.File, error) {
 	var err error
 
-	for i := 0; i < 100; i++ { // 10 seconds
+	for i := 0; i < retries; i++ {
 		var pidFile *os.File
 		pidFile, err = os.Open(pidFilePath)
 		if err == nil {
 			return pidFile, nil
 		}
-		time.Sleep(time.Millisecond * 100)
+
+		time.Sleep(retryWait)
 	}
 
 	return nil, fmt.Errorf("linux_backend: can't open PID file: %s", err)
 }
 
-func readPIDFile(pidFile *os.File) (string, error) {
+func readPIDFile(pidFile *os.File, retries int, retryWait time.Duration) (string, error) {
 	var bytesReadAmt int
 
 	buffer := make([]byte, 32)
-	for i := 0; i < 100; i++ { // retry 10 seconds
+	for i := 0; i < retries; i++ {
 		bytesReadAmt, _ = pidFile.Read(buffer)
 
 		if bytesReadAmt == 0 {
 			pidFile.Seek(0, 0)
-			time.Sleep(time.Millisecond * 100)
+			time.Sleep(retryWait)
+
 			continue
 		}
 		break

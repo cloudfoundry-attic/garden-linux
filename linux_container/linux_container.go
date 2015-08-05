@@ -349,6 +349,9 @@ func (c *LinuxContainer) processSignaller() process_tracker.Signaller {
 			Logger:        c.logger,
 			Runner:        c.runner,
 			ContainerPath: c.ContainerPath,
+
+			Retry:     100,
+			RetryWait: 100 * time.Millisecond,
 		}
 	} else {
 		signaller = &process_tracker.LinkSignaller{Logger: c.logger}
