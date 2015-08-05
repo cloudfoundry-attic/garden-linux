@@ -38,8 +38,8 @@ func main() {
 		signal.Notify(resize, syscall.SIGWINCH)
 	}
 
-	sigterm := make(chan os.Signal, 1)
-	signal.Notify(sigterm, syscall.SIGTERM, syscall.SIGUSR1)
+	signalCh := make(chan os.Signal, 1)
+	signal.Notify(signalCh, syscall.SIGTERM, syscall.SIGUSR1)
 
 	process := &container_daemon.Process{
 		Connector: &unix_socket.Connector{
@@ -49,7 +49,7 @@ func main() {
 		Term: container_daemon.TermPkg{},
 
 		SigwinchCh: resize,
-		SigtermCh:  sigterm,
+		SignalCh:   signalCh,
 
 		Spec: &garden.ProcessSpec{
 			Path:   extraArgs[0],
