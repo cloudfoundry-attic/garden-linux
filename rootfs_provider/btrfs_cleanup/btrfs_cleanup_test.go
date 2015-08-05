@@ -49,6 +49,7 @@ var _ = Describe("BtrfsRootFSRemover", func() {
 				removedDirectories = append(removedDirectories, dir)
 				return nil
 			},
+			Logger: lagertest.NewTestLogger("test"),
 		}
 
 		runner.WhenRunning(fake_command_runner.CommandSpec{
@@ -150,8 +151,6 @@ ID 259 gen 9 top level 257 path relative/path/to/%s/subvolume2
 			Expect(cleaner.CleanupRootFS(logger, layerId)).To(Succeed())
 		})
 
-		PIt("when deleting dir contents fails", func() {})
-
 		Context("and the nested subvolumes have nested subvolumes", func() {
 			BeforeEach(func() {
 				listSubvolumesOutput = fmt.Sprintf(`ID 257 gen 9 top level 5 path relative/path/to/%s
@@ -170,6 +169,32 @@ ID 259 gen 9 top level 257 path relative/path/to/%s/subvolume1/subsubvol1
 					Args: []string{"subvolume", "delete", subvolume1},
 				}))
 			})
+		})
+	})
+
+	Context("when there is an associated qgroup", func() {
+		BeforeEach(func() {
+			runner.WhenRunning(fake_command_runner.CommandSpec{
+				Path: "btrfs",
+				Args: []string{"qgroup", "show", "-f", "/absolute/btrfs_mount/relative/path/to/" + layerId},
+			}, func(cmd *exec.Cmd) error {
+				_, err := cmd.Stdout.Write([]byte(`qgroupid rfer  excl
+-------- ----  ----
+0/5      49152 49152
+`))
+				Expect(err).NotTo(HaveOccurred())
+				return listSubVolumeErr
+			})
+		})
+
+		It("removes the associated qgroup", func() {
+			Expect(cleaner.CleanupRootFS(logger, layerId)).To(Succeed())
+			Expect(runner).To(HaveExecutedSerially(fake_command_runner.CommandSpec{
+				Path: "btrfs",
+				Args: []string{
+					"qgroup", "destroy", "0/5", btrfsMountPoint,
+				},
+			}))
 		})
 	})
 

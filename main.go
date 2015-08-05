@@ -329,6 +329,7 @@ func main() {
 			GraphDriver:     graphDriver,
 			BtrfsMountPoint: graphMountPoint,
 			RemoveAll:       os.RemoveAll,
+			Logger:          logger.Session("btrfs-cleanup"),
 		}
 	}
 
