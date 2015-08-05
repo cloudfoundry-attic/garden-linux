@@ -15,6 +15,7 @@ func main() {
 	sigc := make(chan os.Signal, 32)
 
 	signal.Notify(sigc,
+		syscall.SIGUSR1,
 		syscall.SIGHUP,
 		syscall.SIGINT,
 		syscall.SIGUSR2,

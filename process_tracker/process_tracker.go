@@ -7,6 +7,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry/gunk/command_runner"
+	"github.com/pivotal-golang/lager"
 )
 
 //go:generate counterfeiter -o fake_process_tracker/fake_process_tracker.go . ProcessTracker
@@ -23,6 +24,8 @@ type processTracker struct {
 
 	processes      map[uint32]*Process
 	processesMutex *sync.RWMutex
+
+	logger lager.Logger
 }
 
 type UnknownProcessError struct {
@@ -33,13 +36,15 @@ func (e UnknownProcessError) Error() string {
 	return fmt.Sprintf("process_tracker: unknown process: %d", e.ProcessID)
 }
 
-func New(containerPath string, runner command_runner.CommandRunner) ProcessTracker {
+func New(containerPath string, runner command_runner.CommandRunner, logger lager.Logger) ProcessTracker {
 	return &processTracker{
 		containerPath: containerPath,
 		runner:        runner,
 
 		processesMutex: new(sync.RWMutex),
 		processes:      make(map[uint32]*Process),
+
+		logger: logger,
 	}
 }
 

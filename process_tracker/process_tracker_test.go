@@ -3,15 +3,18 @@ package process_tracker_test
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"syscall"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
+	"github.com/pivotal-golang/lager"
 	"github.com/pivotal-golang/lager/lagertest"
 
 	"github.com/cloudfoundry-incubator/garden"
@@ -22,6 +25,7 @@ import (
 var processTracker process_tracker.ProcessTracker
 var tmpdir string
 var signaller process_tracker.Signaller
+var logger lager.Logger
 
 var _ = BeforeEach(func() {
 	var err error
@@ -35,8 +39,10 @@ var _ = BeforeEach(func() {
 	err = copyFile(iodaemonBin, filepath.Join(tmpdir, "bin", "iodaemon"))
 	Expect(err).ToNot(HaveOccurred())
 
+	logger = lagertest.NewTestLogger("Process tracker")
+
 	signaller = &process_tracker.LinkSignaller{
-		Logger: lagertest.NewTestLogger("test"),
+		Logger: logger,
 	}
 })
 
@@ -46,7 +52,7 @@ var _ = AfterEach(func() {
 
 var _ = Describe("Running processes", func() {
 	BeforeEach(func() {
-		processTracker = process_tracker.New(tmpdir, linux_command_runner.New())
+		processTracker = process_tracker.New(tmpdir, linux_command_runner.New(), logger)
 	})
 
 	It("runs the process and returns its exit code", func() {
@@ -64,37 +70,40 @@ var _ = Describe("Running processes", func() {
 		var (
 			process garden.Process
 			stdout  *gbytes.Buffer
+			cmd     *exec.Cmd
 		)
 
 		BeforeEach(func() {
 			var err error
-			cmd := exec.Command(testPrintBin)
+			cmd = exec.Command(testPrintBin)
 
 			stdout = gbytes.NewBuffer()
-			process, err = processTracker.Run(2, cmd, garden.ProcessIO{Stdout: io.MultiWriter(stdout, GinkgoWriter), Stderr: GinkgoWriter}, nil, signaller)
+			process, err = processTracker.Run(
+				2, cmd,
+				garden.ProcessIO{
+					Stdout: io.MultiWriter(stdout, GinkgoWriter),
+					Stderr: GinkgoWriter,
+				}, nil, signaller)
 			Expect(err).NotTo(HaveOccurred())
 
 			Eventually(stdout).Should(gbytes.Say("pid"))
 		})
 
+		AfterEach(func() {
+			if cmd.ProcessState != nil && !cmd.ProcessState.Exited() {
+				cmd.Process.Signal(os.Kill)
+			}
+		})
+
 		It("kills the process with a kill signal", func(done Done) {
 			Expect(process.Signal(garden.SignalKill)).To(Succeed())
-			exitStatus, err := process.Wait()
-			Expect(err).NotTo(HaveOccurred())
-			Expect(exitStatus).To(Equal(255))
-
+			Eventually(stdout).Should(gbytes.Say(fmt.Sprintf("Received signal %d", syscall.SIGUSR1)))
 			close(done)
 		}, 2.0)
 
 		It("kills the process with a terminate signal", func(done Done) {
 			Expect(process.Signal(garden.SignalTerminate)).To(Succeed())
 			Eventually(stdout).Should(gbytes.Say("Received signal 15"))
-
-			Expect(process.Signal(garden.SignalKill)).To(Succeed())
-			exitStatus, err := process.Wait()
-			Expect(err).NotTo(HaveOccurred())
-			Expect(exitStatus).To(Equal(255))
-
 			close(done)
 		}, 2.0)
 
@@ -273,7 +282,7 @@ var _ = Describe("Running processes", func() {
 
 var _ = Describe("Restoring processes", func() {
 	BeforeEach(func() {
-		processTracker = process_tracker.New(tmpdir, linux_command_runner.New())
+		processTracker = process_tracker.New(tmpdir, linux_command_runner.New(), logger)
 	})
 
 	It("tracks the restored process", func() {
@@ -287,7 +296,7 @@ var _ = Describe("Restoring processes", func() {
 
 var _ = Describe("Attaching to running processes", func() {
 	BeforeEach(func() {
-		processTracker = process_tracker.New(tmpdir, linux_command_runner.New())
+		processTracker = process_tracker.New(tmpdir, linux_command_runner.New(), logger)
 	})
 
 	It("streams stdout, stdin, and stderr", func() {
@@ -317,7 +326,7 @@ var _ = Describe("Attaching to running processes", func() {
 
 var _ = Describe("Listing active process IDs", func() {
 	BeforeEach(func() {
-		processTracker = process_tracker.New(tmpdir, linux_command_runner.New())
+		processTracker = process_tracker.New(tmpdir, linux_command_runner.New(), logger)
 	})
 
 	It("includes running process IDs", func() {
