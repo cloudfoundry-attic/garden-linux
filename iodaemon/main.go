@@ -40,7 +40,7 @@ var windowRows = flag.Int(
 var debug = flag.Bool(
 	"debug",
 	false,
-	"emit debugging information beside socket file as .trace (unsupported option)",
+	"emit debugging information beside socket file as .trace and .log (unsupported option)",
 )
 
 func main() {

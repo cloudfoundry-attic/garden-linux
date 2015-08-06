@@ -2,6 +2,7 @@ package container_daemon_test
 
 import (
 	"fmt"
+	"io"
 	"os/exec"
 	"syscall"
 
@@ -9,7 +10,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
-	"github.com/onsi/gomega/gexec"
 	"github.com/pivotal-golang/lager/lagertest"
 )
 
@@ -20,13 +20,15 @@ var _ = Describe("Signalling a running process", func() {
 
 	BeforeEach(func() {
 		stdout = gbytes.NewBuffer()
-		ps, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/iodaemon/test_print_signals")
-		Expect(err).ToNot(HaveOccurred())
+		cmd := exec.Command("bash", "-c", `
+		trap "echo TERMed; exit" TERM
+		echo "pid = $$"
+		sleep 2
+	`)
+		cmd.Stdout = io.MultiWriter(stdout, GinkgoWriter)
+		cmd.Stderr = GinkgoWriter
 
-		cmd := exec.Command(ps)
-		cmd.Stdout = stdout
-
-		err = cmd.Start()
+		err := cmd.Start()
 		Expect(err).NotTo(HaveOccurred())
 
 		Eventually(stdout).Should(gbytes.Say("pid"))
@@ -41,7 +43,7 @@ var _ = Describe("Signalling a running process", func() {
 	Context("when a process with the given pid exists", func() {
 		It("sends the signal to the process", func() {
 			Expect(signaller.Signal(pid, syscall.SIGTERM)).To(Succeed())
-			Eventually(stdout).Should(gbytes.Say(fmt.Sprintf("Received signal %d", syscall.SIGTERM)))
+			Eventually(stdout, "5s").Should(gbytes.Say("TERMed"))
 		})
 	})
 

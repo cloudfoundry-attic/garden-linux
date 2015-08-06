@@ -3,13 +3,11 @@ package process_tracker_test
 import (
 	"bytes"
 	"errors"
-	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"syscall"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -73,7 +71,7 @@ var _ = Describe("Running processes", func() {
 			cmd     *exec.Cmd
 		)
 
-		BeforeEach(func() {
+		JustBeforeEach(func() {
 			var err error
 			cmd = exec.Command(testPrintBin)
 
@@ -95,25 +93,27 @@ var _ = Describe("Running processes", func() {
 			}
 		})
 
-		It("kills the process with a kill signal", func(done Done) {
-			Expect(process.Signal(garden.SignalKill)).To(Succeed())
-			Eventually(stdout).Should(gbytes.Say(fmt.Sprintf("Received signal %d", syscall.SIGUSR1)))
-			close(done)
-		}, 2.0)
-
-		It("kills the process with a terminate signal", func(done Done) {
-			Expect(process.Signal(garden.SignalTerminate)).To(Succeed())
-			Eventually(stdout).Should(gbytes.Say("Received signal 15"))
-			close(done)
-		}, 2.0)
-
-		Context("when an unsupported signal is sent", func() {
-			AfterEach(func() {
+		Context("when the signaller is an LinkSignaller", func() {
+			It("sends a kill message on the extra file descriptor", func(done Done) {
 				Expect(process.Signal(garden.SignalKill)).To(Succeed())
-			})
+				Eventually(stdout).Should(gbytes.Say("Received: killed"))
+				close(done)
+			}, 2.0)
 
-			It("return error", func() {
-				Expect(process.Signal(garden.Signal(999))).To(MatchError(HaveSuffix("failed to send signal: unknown signal: 999")))
+			It("kills the process with a terminate signal", func(done Done) {
+				Expect(process.Signal(garden.SignalTerminate)).To(Succeed())
+				Eventually(stdout).Should(gbytes.Say("Received: terminated"))
+				close(done)
+			}, 2.0)
+
+			Context("when an unsupported signal is sent", func() {
+				AfterEach(func() {
+					Expect(process.Signal(garden.SignalKill)).To(Succeed())
+				})
+
+				It("return error", func() {
+					Expect(process.Signal(garden.Signal(999))).To(MatchError(HaveSuffix("failed to send signal: unknown signal: 999")))
+				})
 			})
 		})
 	})

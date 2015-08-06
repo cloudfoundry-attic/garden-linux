@@ -1,29 +1,18 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
-	"os/signal"
 	"syscall"
 )
 
 func main() {
-
 	fmt.Printf("pid = %d\n", syscall.Getpid())
 
-	// http://stackoverflow.com/a/18106962
-	sigc := make(chan os.Signal, 32)
+	extraFd := os.NewFile(3, "extrafd")
+	msg := &struct{ Signal string }{}
+	json.NewDecoder(extraFd).Decode(&msg)
 
-	signal.Notify(sigc,
-		syscall.SIGUSR1,
-		syscall.SIGHUP,
-		syscall.SIGINT,
-		syscall.SIGUSR2,
-		syscall.SIGTERM,
-		syscall.SIGQUIT)
-
-	for {
-		s := <-sigc
-		fmt.Printf("Received signal %#v\n", s)
-	}
+	fmt.Println("Received:", msg.Signal)
 }

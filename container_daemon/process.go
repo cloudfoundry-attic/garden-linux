@@ -17,12 +17,12 @@ import (
 const UnknownExitStatus = 255
 
 type Process struct {
-	Connector  Connector
-	Term       Term
-	SigwinchCh <-chan os.Signal
-	SignalCh   <-chan os.Signal
-	Spec       *garden.ProcessSpec
-	IO         *garden.ProcessIO
+	Connector    Connector
+	Term         Term
+	SigwinchCh   <-chan os.Signal
+	SignalReader io.Reader
+	Spec         *garden.ProcessSpec
+	IO           *garden.ProcessIO
 
 	// assigned after Start() is called
 	pid       int
@@ -30,7 +30,7 @@ type Process struct {
 	exitCode  <-chan int
 	streaming *sync.WaitGroup
 
-	logger lager.Logger
+	Logger lager.Logger
 }
 
 //go:generate counterfeiter -o fake_connector/FakeConnector.go . Connector
@@ -49,7 +49,7 @@ type Term interface {
 }
 
 func (p *Process) Signal(signal os.Signal) error {
-	if signal == syscall.SIGUSR1 {
+	if signal == syscall.SIGHUP {
 		signal = syscall.SIGKILL
 	}
 
@@ -76,8 +76,6 @@ func (p *Process) Signal(signal os.Signal) error {
 }
 
 func (p *Process) Start() error {
-	p.logger = lager.NewLogger("container_daemon.Process")
-
 	data, err := json.Marshal(p.Spec)
 	if err != nil {
 		return fmt.Errorf("container_daemon: marshal process spec json: %s", err)
@@ -118,9 +116,24 @@ func (p *Process) setupPty(ptyFd StreamingFile) error {
 }
 
 func (p *Process) signalLoop() {
+	decoder := json.NewDecoder(p.SignalReader)
+
+	msg := struct{ Signal string }{}
+
 	for {
-		signal := <-p.SignalCh
-		p.Signal(signal)
+		if err := decoder.Decode(&msg); err != nil {
+			p.Logger.Error("decode-signal", err)
+			continue
+		}
+
+		p.Logger.Info("received-signal", lager.Data{"signal": msg.Signal})
+
+		switch msg.Signal {
+		case "KILL":
+			p.Signal(syscall.SIGKILL)
+		case "TERM":
+			p.Signal(syscall.SIGTERM)
+		}
 	}
 }
 

@@ -3,6 +3,7 @@ package container_daemon_test
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"os"
 	"syscall"
 	"time"
@@ -15,13 +16,15 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
+	"github.com/pivotal-golang/lager/lagertest"
 )
 
 var _ = Describe("Process", func() {
 	var socketConnector *fake_connector.FakeConnector
 	var fakeTerm *fake_term.FakeTerm
 	var sigwinchCh chan os.Signal
-	var signalCh chan os.Signal
+	var signalReader io.Reader
+	var signalWriter io.Writer
 	var response *container_daemon.ResponseMessage
 	var process *container_daemon.Process
 
@@ -37,18 +40,19 @@ var _ = Describe("Process", func() {
 		socketConnector.ConnectReturns(response, nil)
 
 		sigwinchCh = make(chan os.Signal)
-		signalCh = make(chan os.Signal)
+		signalReader, signalWriter = io.Pipe()
 
 		process = &container_daemon.Process{
-			Connector:  socketConnector,
-			Term:       fakeTerm,
-			SigwinchCh: sigwinchCh,
-			SignalCh:   signalCh,
+			Connector:    socketConnector,
+			Term:         fakeTerm,
+			SigwinchCh:   sigwinchCh,
+			SignalReader: signalReader,
 			Spec: &garden.ProcessSpec{
 				Path: "/bin/echo",
 				Args: []string{"Hello world"},
 			},
-			IO: nil,
+			IO:     nil,
+			Logger: lagertest.NewTestLogger("test"),
 		}
 	})
 
@@ -73,9 +77,9 @@ var _ = Describe("Process", func() {
 			Expect(process.Start()).To(Succeed())
 		})
 
-		Context("when a USR1 signal is received", func() {
+		Context("when a KILL signal is received", func() {
 			It("sends a kill signal message to the daemon", func() {
-				signalCh <- syscall.SIGUSR1
+				signalWriter.Write([]byte(`{"Signal": "KILL"}`))
 				Eventually(socketConnector.ConnectCallCount).Should(Equal(2))
 				Expect(socketConnector.ConnectArgsForCall(1).Type).To(Equal(container_daemon.SignalRequest))
 				Expect(string(socketConnector.ConnectArgsForCall(1).Data)).To(MatchJSON(`{"Pid": 12, "Signal": 9}`))
@@ -84,7 +88,7 @@ var _ = Describe("Process", func() {
 
 		Context("when a TERM signal is received", func() {
 			It("sends a signal message to the daemon", func() {
-				signalCh <- syscall.SIGTERM
+				signalWriter.Write([]byte(`{"Signal": "TERM"}`))
 				Eventually(socketConnector.ConnectCallCount).Should(Equal(2))
 				Expect(socketConnector.ConnectArgsForCall(1).Type).To(Equal(container_daemon.SignalRequest))
 				Expect(string(socketConnector.ConnectArgsForCall(1).Data)).To(MatchJSON(`{"Pid": 12, "Signal": 15}`))

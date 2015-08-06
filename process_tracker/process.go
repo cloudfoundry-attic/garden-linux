@@ -20,15 +20,10 @@ type Signaller interface {
 	Signal(*SignalRequest) error
 }
 
-//go:generate counterfeiter -o fake_linker/fake_linker.go . Linker
-type Linker interface {
-	SendSignal(syscall.Signal) error
-}
-
 type SignalRequest struct {
 	Pid    uint32
 	Signal syscall.Signal
-	Link   Linker
+	Link   *link.Link
 }
 
 type Process struct {
