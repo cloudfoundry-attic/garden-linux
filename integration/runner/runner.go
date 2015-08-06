@@ -199,7 +199,7 @@ func (r *RunningGarden) cleanupSubvolumes() {
 	r.logger.Info("cleanup-subvolumes")
 
 	// need to remove subvolumes before cleaning graphpath
-	subvolumesOutput, err := exec.Command("btrfs", "subvolume", "list", r.GraphRoot).CombinedOutput()
+	subvolumesOutput, err := exec.Command("btrfs", "subvolume", "list", "-o", r.GraphRoot).CombinedOutput()
 	r.logger.Debug(fmt.Sprintf("listing-subvolumes: %s", string(subvolumesOutput)))
 	if err != nil {
 		r.logger.Fatal("listing-subvolumes-error", err)
@@ -209,8 +209,14 @@ func (r *RunningGarden) cleanupSubvolumes() {
 		if len(fields) < 1 {
 			continue
 		}
-		subvolumeRelativePath := fields[len(fields)-1]
-		subvolumeAbsolutePath := filepath.Join(r.GraphRoot, subvolumeRelativePath)
+
+		subvolumePath := fields[len(fields)-1] // this path is relative to the outer Garden-Linux BTRFS mount
+		idx := strings.Index(subvolumePath, r.GraphRoot)
+		if idx == -1 {
+			continue
+		}
+		subvolumeAbsolutePath := subvolumePath[idx:]
+
 		if strings.Contains(subvolumeAbsolutePath, r.graphPath) {
 			if b, err := exec.Command("btrfs", "subvolume", "delete", subvolumeAbsolutePath).CombinedOutput(); err != nil {
 				r.logger.Fatal(fmt.Sprintf("deleting-subvolume: %s", string(b)), err)
