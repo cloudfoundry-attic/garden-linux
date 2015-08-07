@@ -9,6 +9,10 @@ import (
 	"syscall"
 )
 
+type SignalMsg struct {
+	Signal syscall.Signal `json:"signal"`
+}
+
 type Link struct {
 	*Writer
 

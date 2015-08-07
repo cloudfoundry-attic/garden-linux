@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"syscall"
 	"time"
 
@@ -147,13 +148,10 @@ var _ = Describe("Iodaemon", func() {
 
 			Eventually(linkStdout).Should(gbytes.Say("pid"))
 
-			Expect(l.SendSignal(syscall.SIGTERM)).To(Succeed())
-			Eventually(linkStdout).Should(gbytes.Say("Received signal 15"))
-
-			Expect(l.SendSignal(syscall.SIGINT)).To(Succeed())
-			Eventually(linkStdout).Should(gbytes.Say("Received signal 2"))
-
-			Expect(l.SendSignal(syscall.SIGKILL)).To(Succeed())
+			data, err := json.Marshal(&linkpkg.SignalMsg{Signal: syscall.SIGTERM})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(l.SendMsg(data)).To(Succeed())
+			Eventually(linkStdout).Should(gbytes.Say("Received: terminated"))
 		})
 
 		Context("when there is an existing socket file", func() {

@@ -52,7 +52,7 @@ func (w *Writer) SetWindowSize(cols, rows int) error {
 	})
 }
 
-func (w *Writer) SendExtraFdMsg(msg []byte) error {
+func (w *Writer) SendMsg(msg []byte) error {
 	return w.enc.Encode(Input{
 		ExtraFdMsg: msg,
 	})

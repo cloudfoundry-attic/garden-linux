@@ -1,0 +1,59 @@
+package process_tracker_test
+
+import (
+	"encoding/json"
+	"errors"
+	"syscall"
+
+	"github.com/cloudfoundry-incubator/garden-linux/iodaemon/link"
+	"github.com/cloudfoundry-incubator/garden-linux/process_tracker"
+	"github.com/cloudfoundry-incubator/garden-linux/process_tracker/fake_msg_sender"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	"github.com/pivotal-golang/lager/lagertest"
+)
+
+var _ = Describe("Link Signaller", func() {
+	var fakeLink *fake_msg_sender.FakeMsgSender
+	var request *process_tracker.SignalRequest
+	var signaller *process_tracker.LinkSignaller
+	var signalSent syscall.Signal
+
+	BeforeEach(func() {
+		signalSent = syscall.SIGTERM
+	})
+
+	JustBeforeEach(func() {
+		fakeLink = new(fake_msg_sender.FakeMsgSender)
+		request = &process_tracker.SignalRequest{
+			Pid:    12345,
+			Link:   fakeLink,
+			Signal: signalSent,
+		}
+
+		signaller = &process_tracker.LinkSignaller{
+			Logger: lagertest.NewTestLogger("test"),
+		}
+	})
+
+	It("signals process successfully", func() {
+		Expect(signaller.Signal(request)).To(Succeed())
+		Expect(fakeLink.SendMsgCallCount()).To(Equal(1))
+
+		data, err := json.Marshal(&link.SignalMsg{Signal: signalSent})
+		Expect(err).ToNot(HaveOccurred())
+		Expect(fakeLink.SendMsgArgsForCall(0)).To(Equal(data))
+	})
+
+	Context("when the link fails to send the signal", func() {
+		var err error
+		JustBeforeEach(func() {
+			err = errors.New("what!!")
+			fakeLink.SendMsgReturns(err)
+		})
+
+		It("returns the error", func() {
+			Expect(signaller.Signal(request)).To(MatchError(err))
+		})
+	})
+})
