@@ -8,6 +8,8 @@ import (
 	"path"
 	"time"
 
+	"runtime"
+
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/system_info"
 	"github.com/pivotal-golang/lager"
@@ -163,10 +165,16 @@ func (b *LinuxBackend) Capacity() (garden.Capacity, error) {
 		maxContainers = b.maxContainers
 	}
 
+	numGoroutines := runtime.NumGoroutine()
+	buffer := make([]byte, numGoroutines*1024)
+	runtime.Stack(buffer, true)
+
 	return garden.Capacity{
 		MemoryInBytes: totalMemory,
 		DiskInBytes:   totalDisk,
 		MaxContainers: uint64(maxContainers),
+		NumGoroutine:  uint64(numGoroutines),
+		Stacks:        string(buffer),
 	}, nil
 }
 
