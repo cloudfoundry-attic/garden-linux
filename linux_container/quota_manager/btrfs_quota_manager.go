@@ -103,6 +103,11 @@ func (m *BtrfsQuotaManager) quotaInfo(logger lager.Logger, path string) (*QuotaI
 		CommandRunner: m.Runner,
 	}
 
+	syncCmd := exec.Command("sync")
+	if err := runner.Run(syncCmd); err != nil {
+		return nil, fmt.Errorf("quota_manager: sync disk i/o: %s", err)
+	}
+
 	cmd := exec.Command("sh", "-c", fmt.Sprintf("btrfs qgroup show -rF --raw %s", path))
 	cmd.Stdout = &cmdOut
 

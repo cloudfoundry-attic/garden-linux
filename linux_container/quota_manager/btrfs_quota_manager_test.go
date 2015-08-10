@@ -195,20 +195,25 @@ var _ = Describe("btrfs quota manager", func() {
 			qgroupShowError = nil
 		})
 
-		Context("when btrfs succeeds", func() {
+		Context("when sync fails", func() {
 			BeforeEach(func() {
 				fakeRunner.WhenRunning(
 					fake_command_runner.CommandSpec{
-						Path: "btrfs",
-						Args: []string{"quota", "rescan", subvolumePath},
+						Path: "sync",
 					},
 					func(cmd *exec.Cmd) error {
-						cmd.Stdout.Write([]byte("\n"))
-						return nil
+						return errors.New("oh no!")
 					},
 				)
 			})
 
+			It("returns an error", func() {
+				_, err := quotaManager.GetUsage(logger, subvolumePath)
+				Expect(err).To(MatchError("quota_manager: sync disk i/o: oh no!"))
+			})
+		})
+
+		Context("when btrfs succeeds", func() {
 			It("reports the disk usage", func() {
 				usage, err := quotaManager.GetUsage(logger, subvolumePath)
 				Expect(err).ToNot(HaveOccurred())
@@ -218,6 +223,16 @@ var _ = Describe("btrfs quota manager", func() {
 					ExclusiveBytesUsed:  uint64(16 * 1024),
 					ExclusiveInodesUsed: uint64(0),
 				}))
+
+				Expect(fakeRunner).To(HaveExecutedSerially(
+					fake_command_runner.CommandSpec{
+						Path: "sync",
+					},
+					fake_command_runner.CommandSpec{
+						Path: "sh",
+						Args: []string{"-c", fmt.Sprintf("btrfs qgroup show -rF --raw %s", subvolumePath)},
+					},
+				))
 			})
 
 			Context("when there is no quota", func() {
