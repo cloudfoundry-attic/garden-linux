@@ -44,6 +44,10 @@ func main() {
 		signal.Notify(resize, syscall.SIGWINCH)
 	}
 
+	i := 0 // number of fd after stdin, stdout and stderr
+	// see ExtraFiles property in https://golang.org/pkg/os/exec/#Cmd
+	signalReader := os.NewFile(uintptr(3+i), "extrafd")
+
 	process := &container_daemon.Process{
 		Connector: &unix_socket.Connector{
 			SocketPath: *socketPath,
@@ -51,8 +55,9 @@ func main() {
 
 		Term: container_daemon.TermPkg{},
 
-		SigwinchCh:   resize,
-		SignalReader: os.NewFile(3, "extrafd"),
+		SigwinchCh: resize,
+
+		SignalReader: signalReader,
 
 		Spec: &garden.ProcessSpec{
 			Path:   extraArgs[0],

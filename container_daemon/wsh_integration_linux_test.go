@@ -1,11 +1,14 @@
 package container_daemon_test
 
 import (
+	"encoding/json"
+	"io"
 	"os"
 	"os/exec"
 	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
+	"github.com/cloudfoundry-incubator/garden-linux/iodaemon/link"
 	"github.com/docker/docker/pkg/reexec"
 
 	"io/ioutil"
@@ -89,7 +92,8 @@ var _ = Describe("wsh and daemon integration", func() {
 			"--socket", socketPath,
 			"--user", "root",
 			"echo", "hello")
-
+		wshReader, _, _ := os.Pipe()
+		wshCmd.ExtraFiles = []*os.File{wshReader}
 		op, err := wshCmd.CombinedOutput()
 		Expect(err).ToNot(HaveOccurred())
 		Expect(string(op)).To(Equal("hello\n"))
@@ -102,11 +106,14 @@ var _ = Describe("wsh and daemon integration", func() {
 				"--user", "root",
 				"sh", "-c",
 				`while true; do echo -n "x"; sleep 1; done`)
+			wshReader, wshWriter, err := os.Pipe()
+			Expect(err).ToNot(HaveOccurred())
+			wshCmd.ExtraFiles = []*os.File{wshReader}
 
-			err := wshCmd.Start()
+			err = wshCmd.Start()
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(syscall.Kill(wshCmd.Process.Pid, syscall.SIGKILL)).To(Succeed())
+			Expect(sendSignal(wshWriter, syscall.SIGKILL)).To(Succeed())
 			Expect(err).ToNot(HaveOccurred())
 			Expect(exitStatusFromErr(wshCmd.Wait())).To(Equal(byte(255)))
 		}
@@ -126,14 +133,19 @@ var _ = Describe("wsh and daemon integration", func() {
 					  sleep 1
 					done
 				`)
+
+		wshReader, wshWriter, err := os.Pipe()
+		Expect(err).ToNot(HaveOccurred())
+		wshCmd.ExtraFiles = []*os.File{wshReader}
+
 		wshCmd.Stdout = stdout
 		wshCmd.Stderr = GinkgoWriter
 
-		err := wshCmd.Start()
+		err = wshCmd.Start()
 		Expect(err).ToNot(HaveOccurred())
 
 		Eventually(stdout, "15s").Should(gbytes.Say("waiting"))
-		Expect(syscall.Kill(wshCmd.Process.Pid, syscall.SIGTERM)).To(Succeed())
+		Expect(sendSignal(wshWriter, syscall.SIGTERM)).To(Succeed())
 
 		Expect(exitStatusFromErr(wshCmd.Wait())).To(Equal(byte(142)))
 		Eventually(stdout, "2s").Should(gbytes.Say("termed"))
@@ -157,7 +169,11 @@ var _ = Describe("wsh and daemon integration", func() {
 			wshCmd.Stdout = stdout
 			wshCmd.Stderr = GinkgoWriter
 
-			err := wshCmd.Start()
+			wshReader, _, err := os.Pipe()
+			Expect(err).ToNot(HaveOccurred())
+			wshCmd.ExtraFiles = []*os.File{wshReader}
+
+			err = wshCmd.Start()
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(exitStatusFromErr(wshCmd.Wait())).To(Equal(byte(255)))
@@ -174,12 +190,23 @@ var _ = Describe("wsh and daemon integration", func() {
 			"ulimit -n")
 
 		wshCmd.Env = append(wshCmd.Env, "RLIMIT_NOFILE=16")
+		wshReader, _, _ := os.Pipe()
+		wshCmd.ExtraFiles = []*os.File{wshReader}
 
 		op, err := wshCmd.CombinedOutput()
 		Expect(err).ToNot(HaveOccurred())
 		Expect(string(op)).To(Equal("16\n"))
 	})
 })
+
+func sendSignal(wshWriter io.Writer, signal syscall.Signal) error {
+	data, err := json.Marshal(&link.SignalMsg{Signal: signal})
+	if err != nil {
+		return err
+	}
+	_, err = wshWriter.Write(data)
+	return err
+}
 
 func exitStatusFromErr(err error) byte {
 	if exitError, ok := err.(*exec.ExitError); ok {

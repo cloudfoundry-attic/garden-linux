@@ -12,6 +12,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_connector"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_term"
+	"github.com/cloudfoundry-incubator/garden-linux/iodaemon/link"
 	"github.com/docker/docker/pkg/term"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -79,7 +80,9 @@ var _ = Describe("Process", func() {
 
 		Context("when a KILL signal is received", func() {
 			It("sends a kill signal message to the daemon", func() {
-				signalWriter.Write([]byte(`{"Signal": "KILL"}`))
+				data, err := json.Marshal(&link.SignalMsg{Signal: syscall.SIGKILL})
+				Expect(err).ToNot(HaveOccurred())
+				signalWriter.Write(data)
 				Eventually(socketConnector.ConnectCallCount).Should(Equal(2))
 				Expect(socketConnector.ConnectArgsForCall(1).Type).To(Equal(container_daemon.SignalRequest))
 				Expect(string(socketConnector.ConnectArgsForCall(1).Data)).To(MatchJSON(`{"Pid": 12, "Signal": 9}`))
@@ -88,7 +91,9 @@ var _ = Describe("Process", func() {
 
 		Context("when a TERM signal is received", func() {
 			It("sends a signal message to the daemon", func() {
-				signalWriter.Write([]byte(`{"Signal": "TERM"}`))
+				data, err := json.Marshal(&link.SignalMsg{Signal: syscall.SIGTERM})
+				Expect(err).ToNot(HaveOccurred())
+				signalWriter.Write(data)
 				Eventually(socketConnector.ConnectCallCount).Should(Equal(2))
 				Expect(socketConnector.ConnectArgsForCall(1).Type).To(Equal(container_daemon.SignalRequest))
 				Expect(string(socketConnector.ConnectArgsForCall(1).Data)).To(MatchJSON(`{"Pid": 12, "Signal": 15}`))

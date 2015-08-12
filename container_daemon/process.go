@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
+	"github.com/cloudfoundry-incubator/garden-linux/iodaemon/link"
 	"github.com/docker/docker/pkg/term"
 	"github.com/pivotal-golang/lager"
 )
@@ -49,10 +50,6 @@ type Term interface {
 }
 
 func (p *Process) Signal(signal os.Signal) error {
-	if signal == syscall.SIGHUP {
-		signal = syscall.SIGKILL
-	}
-
 	spec := &SignalSpec{
 		Pid:    p.pid,
 		Signal: signal.(syscall.Signal),
@@ -116,9 +113,8 @@ func (p *Process) setupPty(ptyFd StreamingFile) error {
 }
 
 func (p *Process) signalLoop() {
+	var msg link.SignalMsg
 	decoder := json.NewDecoder(p.SignalReader)
-
-	msg := struct{ Signal string }{}
 
 	for {
 		if err := decoder.Decode(&msg); err != nil {
@@ -127,13 +123,7 @@ func (p *Process) signalLoop() {
 		}
 
 		p.Logger.Info("received-signal", lager.Data{"signal": msg.Signal})
-
-		switch msg.Signal {
-		case "KILL":
-			p.Signal(syscall.SIGKILL)
-		case "TERM":
-			p.Signal(syscall.SIGTERM)
-		}
+		p.Signal(msg.Signal)
 	}
 }
 
