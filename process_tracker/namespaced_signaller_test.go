@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -39,6 +40,7 @@ var _ = Describe("Namespaced Signaller", func() {
 			Runner:        fakeRunner,
 			ContainerPath: containerPath,
 			Logger:        lagertest.NewTestLogger("test"),
+			Timeout:       time.Millisecond * 100,
 		}
 
 		processId = 12345
