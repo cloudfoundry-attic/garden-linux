@@ -1,4 +1,4 @@
-package main
+package iodaemon_test
 
 import (
 	"encoding/json"
@@ -12,6 +12,7 @@ import (
 	"bytes"
 	"io"
 
+	"github.com/cloudfoundry-incubator/garden-linux/iodaemon"
 	linkpkg "github.com/cloudfoundry-incubator/garden-linux/iodaemon/link"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -30,10 +31,14 @@ var _ = Describe("Iodaemon", func() {
 	var (
 		socketPath       string
 		tmpdir           string
-		terminate        chan int
 		fakeOut          wc
 		fakeErr          wc
 		expectedExitCode int
+
+		wirer  *iodaemon.Wirer
+		daemon *iodaemon.Daemon
+
+		exited chan struct{}
 	)
 
 	BeforeEach(func() {
@@ -44,7 +49,7 @@ var _ = Describe("Iodaemon", func() {
 
 		socketPath = filepath.Join(tmpdir, "iodaemon.sock")
 
-		terminate = make(chan int, 1)
+		exited = make(chan struct{})
 
 		fakeOut = wc{
 			bytes.NewBuffer([]byte{}),
@@ -52,13 +57,15 @@ var _ = Describe("Iodaemon", func() {
 		fakeErr = wc{
 			bytes.NewBuffer([]byte{}),
 		}
+
+		wirer = &iodaemon.Wirer{}
+		daemon = &iodaemon.Daemon{}
 	})
 
 	AfterEach(func() {
 		defer os.RemoveAll(tmpdir)
 
-		By("waiting for iodeamon to terminate")
-		Eventually(terminate, "2s").Should(Receive(Equal(expectedExitCode)))
+		Eventually(exited).Should(BeClosed())
 
 		By("tidying up the socket file")
 		if _, err := os.Stat(socketPath); !os.IsNotExist(err) {
@@ -68,12 +75,16 @@ var _ = Describe("Iodaemon", func() {
 
 	Context("spawning a process", func() {
 		spawnProcess := func(args ...string) {
-			go spawn(socketPath, args, time.Second, false, 0, 0, false, terminate, fakeOut, fakeErr)
+			go func() {
+				iodaemon.Spawn(socketPath, args, time.Second, fakeOut, wirer, daemon)
+				close(exited)
+			}()
 		}
 
 		It("times out when no listeners connect", func() {
-			expectedExitCode = 2
 			spawnProcess("echo", "hello")
+
+			Eventually(exited, "3s").Should(BeClosed())
 		})
 
 		It("reports back stdout", func() {
@@ -207,8 +218,18 @@ var _ = Describe("Iodaemon", func() {
 
 	Context("spawning a tty", func() {
 		spawnTty := func(args ...string) {
-			go spawn(socketPath, args, time.Second, true, 200, 80, false, terminate, fakeOut, fakeErr)
+			go func() {
+				iodaemon.Spawn(socketPath, args, time.Second, fakeOut, wirer, daemon)
+				close(exited)
+			}()
 		}
+
+		BeforeEach(func() {
+			wirer.WithTty = true
+			wirer.WindowColumns = 200
+			wirer.WindowRows = 80
+			daemon.WithTty = true
+		})
 
 		It("reports back stdout", func() {
 			spawnTty("echo", "hello")

@@ -21,7 +21,7 @@ func TestProcess_tracker(t *testing.T) {
 
 	SynchronizedBeforeSuite(func() []byte {
 		var err error
-		beforeSuite.IodaemonPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/iodaemon")
+		beforeSuite.IodaemonPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/iodaemon/cmd/iodaemon")
 		Expect(err).ToNot(HaveOccurred())
 
 		beforeSuite.TestPrintSignalPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/iodaemon/test_print_signals")

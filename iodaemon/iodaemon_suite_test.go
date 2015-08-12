@@ -1,4 +1,4 @@
-package main
+package iodaemon_test
 
 import (
 	"encoding/json"
@@ -27,7 +27,7 @@ type CompiledAssets struct {
 var _ = SynchronizedBeforeSuite(func() []byte {
 	var err error
 	assets := CompiledAssets{}
-	assets.IoDaemonBinPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/iodaemon", "-race")
+	assets.IoDaemonBinPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/iodaemon/cmd/iodaemon", "-race")
 	Expect(err).ToNot(HaveOccurred())
 
 	assets.TestPrintSignalBinPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/iodaemon/test_print_signals")

@@ -2,8 +2,11 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"time"
+
+	"github.com/cloudfoundry-incubator/garden-linux/iodaemon"
 )
 
 const USAGE = `usage:
@@ -37,12 +40,6 @@ var windowRows = flag.Int(
 	"initial window rows for the process's tty",
 )
 
-var debug = flag.Bool(
-	"debug",
-	false,
-	"emit debugging information beside socket file as .trace and .log (unsupported option)",
-)
-
 func main() {
 	flag.Parse()
 
@@ -54,18 +51,23 @@ func main() {
 			usage()
 		}
 
-		terminate := make(chan int, 1)
-		go func() {
-			os.Exit(<-terminate)
-		}()
-
-		spawn(args[1], args[2:], *timeout, *tty, *windowColumns, *windowRows, *debug, terminate, os.Stdout, os.Stderr)
-		//block & allow goroutine to handle the exit
-		select {}
+		spawn(args)
 
 	default:
 		usage()
 	}
+}
+
+func spawn(args []string) {
+	wirer := &iodaemon.Wirer{WithTty: *tty, WindowColumns: *windowColumns, WindowRows: *windowRows}
+	daemon := &iodaemon.Daemon{WithTty: *tty}
+
+	if err := iodaemon.Spawn(args[1], args[2:], *timeout, os.Stdout, wirer, daemon); err != nil {
+		fmt.Fprintf(os.Stderr, "failed: %s", err)
+		os.Exit(2)
+	}
+
+	os.Exit(0)
 }
 
 func usage() {
