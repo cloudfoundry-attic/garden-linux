@@ -17,7 +17,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
-	"github.com/pivotal-golang/lager/lagertest"
 )
 
 var _ = Describe("Process", func() {
@@ -52,8 +51,7 @@ var _ = Describe("Process", func() {
 				Path: "/bin/echo",
 				Args: []string{"Hello world"},
 			},
-			IO:     nil,
-			Logger: lagertest.NewTestLogger("test"),
+			IO: nil,
 		}
 	})
 
@@ -71,6 +69,10 @@ var _ = Describe("Process", func() {
 	})
 
 	Describe("Signalling", func() {
+		var (
+			signalSent syscall.Signal
+		)
+
 		BeforeEach(func() {
 			response.Pid = 12
 
@@ -78,22 +80,30 @@ var _ = Describe("Process", func() {
 			Expect(process.Start()).To(Succeed())
 		})
 
-		Context("when a KILL signal is received", func() {
-			It("sends a kill signal message to the daemon", func() {
-				data, err := json.Marshal(&link.SignalMsg{Signal: syscall.SIGKILL})
-				Expect(err).ToNot(HaveOccurred())
-				signalWriter.Write(data)
+		JustBeforeEach(func() {
+			data, err := json.Marshal(&link.SignalMsg{Signal: signalSent})
+			Expect(err).ToNot(HaveOccurred())
+			signalWriter.Write(data)
+		})
+
+		Context("when sending a KILL signal", func() {
+			BeforeEach(func() {
+				signalSent = syscall.SIGKILL
+			})
+
+			It("sends the correct message", func() {
 				Eventually(socketConnector.ConnectCallCount).Should(Equal(2))
 				Expect(socketConnector.ConnectArgsForCall(1).Type).To(Equal(container_daemon.SignalRequest))
 				Expect(string(socketConnector.ConnectArgsForCall(1).Data)).To(MatchJSON(`{"Pid": 12, "Signal": 9}`))
 			})
 		})
 
-		Context("when a TERM signal is received", func() {
-			It("sends a signal message to the daemon", func() {
-				data, err := json.Marshal(&link.SignalMsg{Signal: syscall.SIGTERM})
-				Expect(err).ToNot(HaveOccurred())
-				signalWriter.Write(data)
+		Context("when sending a TERM signal", func() {
+			BeforeEach(func() {
+				signalSent = syscall.SIGTERM
+			})
+
+			It("sends the correct message", func() {
 				Eventually(socketConnector.ConnectCallCount).Should(Equal(2))
 				Expect(socketConnector.ConnectArgsForCall(1).Type).To(Equal(container_daemon.SignalRequest))
 				Expect(string(socketConnector.ConnectArgsForCall(1).Data)).To(MatchJSON(`{"Pid": 12, "Signal": 15}`))

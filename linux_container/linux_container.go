@@ -351,7 +351,7 @@ func (c *LinuxContainer) processSignaller() process_tracker.Signaller {
 			ContainerPath: c.ContainerPath,
 		}
 	} else {
-		signaller = &process_tracker.LinkSignaller{Logger: c.logger}
+		signaller = &process_tracker.LinkSignaller{}
 	}
 
 	return signaller

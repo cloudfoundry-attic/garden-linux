@@ -1,4 +1,4 @@
-package main_test
+package main
 
 import (
 	"fmt"
@@ -15,7 +15,7 @@ import (
 var _ = Describe("Iodaemon integration tests", func() {
 	It("can read stdin", func() {
 		spawnS, err := gexec.Start(exec.Command(
-			iodaemon,
+			iodaemonBinPath,
 			"spawn",
 			socketPath,
 			"bash", "-c", "cat <&0; exit 42",
@@ -42,7 +42,7 @@ var _ = Describe("Iodaemon integration tests", func() {
 
 	It("can read stdin in tty mode", func() {
 		spawnS, err := gexec.Start(exec.Command(
-			iodaemon,
+			iodaemonBinPath,
 			"-tty",
 			"spawn",
 			socketPath,
@@ -71,7 +71,7 @@ var _ = Describe("Iodaemon integration tests", func() {
 	It("consistently executes a quickly-printing-and-exiting command", func() {
 		for i := 0; i < 100; i++ {
 			spawnS, err := gexec.Start(exec.Command(
-				iodaemon,
+				iodaemonBinPath,
 				"spawn",
 				socketPath,
 				"echo", "hi",
@@ -91,7 +91,7 @@ var _ = Describe("Iodaemon integration tests", func() {
 
 	It("times out while spawning when no listeners connect", func() {
 		process, err := gexec.Start(exec.Command(
-			iodaemon,
+			iodaemonBinPath,
 			"-timeout 5s",
 			"spawn",
 			socketPath,
@@ -104,7 +104,7 @@ var _ = Describe("Iodaemon integration tests", func() {
 
 	It("returns the exit code of the process", func(done Done) {
 		spawnS, err := gexec.Start(exec.Command(
-			iodaemon,
+			iodaemonBinPath,
 			"spawn",
 			socketPath,
 			"echo", "hello",
@@ -139,7 +139,7 @@ var _ = Describe("Iodaemon integration tests", func() {
 			var err error
 
 			spawnS, err = gexec.Start(exec.Command(
-				iodaemon,
+				iodaemonBinPath,
 				"spawn",
 				socketPath,
 				"bash", "-c", fmt.Sprintf("exit %d", sentExitCode),

@@ -10,7 +10,6 @@ import (
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
-	"github.com/pivotal-golang/lager"
 	"golang.org/x/crypto/ssh/terminal"
 )
 
@@ -18,18 +17,13 @@ func main() {
 	socketPath := flag.String("socket", "./run/wshd.sock", "Path to socket")
 	user := flag.String("user", "vcap", "User to change to")
 	dir := flag.String("dir", "", "Working directory for the running process")
-	logFile := flag.String("log", "", "file to log to")
-	flag.Bool("rsh", false, "RSH compatibility mode")
+
 	var envVars container_daemon.StringList
 	flag.Var(&envVars, "env", "Environment variables to set for the command.")
 
-	flag.Parse()
+	flag.Bool("rsh", false, "RSH compatibility mode")
 
-	logger := lager.NewLogger("container_daemon.wsh")
-	if logFile != nil {
-		log, _ := os.OpenFile(*logFile, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0700)
-		logger.RegisterSink(lager.NewWriterSink(log, lager.DEBUG))
-	}
+	flag.Parse()
 
 	extraArgs := flag.Args()
 	if len(extraArgs) == 0 {
@@ -74,8 +68,6 @@ func main() {
 			Stderr: os.Stderr,
 			Stdout: os.Stdout,
 		},
-
-		Logger: logger,
 	}
 
 	exitCode := container_daemon.UnknownExitStatus
@@ -86,13 +78,13 @@ func main() {
 
 	err := process.Start()
 	if err != nil {
-		logger.Error("start", err)
+		fmt.Fprintf(os.Stderr, "start process: %s", err)
 		return
 	}
 
 	exitCode, err = process.Wait()
 	if err != nil {
-		logger.Error("wait", err)
+		fmt.Fprintf(os.Stderr, "wait for process: %s", err)
 		return
 	}
 }

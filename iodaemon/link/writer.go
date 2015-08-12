@@ -6,7 +6,7 @@ import (
 )
 
 type Input struct {
-	Data       []byte
+	StdinData  []byte
 	EOF        bool
 	WindowSize *WindowSize
 	ExtraFdMsg []byte
@@ -31,7 +31,7 @@ func (w *Writer) TerminateConnection() error {
 }
 
 func (w *Writer) Write(d []byte) (int, error) {
-	err := w.enc.Encode(Input{Data: d})
+	err := w.enc.Encode(Input{StdinData: d})
 	if err != nil {
 		return 0, err
 	}

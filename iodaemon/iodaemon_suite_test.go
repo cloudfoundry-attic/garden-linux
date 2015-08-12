@@ -1,4 +1,4 @@
-package main_test
+package main
 
 import (
 	"encoding/json"
@@ -13,24 +13,24 @@ import (
 	"testing"
 )
 
-var iodaemon string
-var winsizeReporter string
+var iodaemonBinPath string
+var testPrintSignalBinPath string
 
 var tmpdir string
 var socketPath string
 
 type CompiledAssets struct {
-	IoDaemon        string
-	WinSizeReporter string
+	IoDaemonBinPath        string
+	TestPrintSignalBinPath string
 }
 
 var _ = SynchronizedBeforeSuite(func() []byte {
 	var err error
 	assets := CompiledAssets{}
-	assets.IoDaemon, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/iodaemon", "-race")
+	assets.IoDaemonBinPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/iodaemon", "-race")
 	Expect(err).ToNot(HaveOccurred())
 
-	assets.WinSizeReporter, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/iodaemon/winsizereporter", "-race")
+	assets.TestPrintSignalBinPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/iodaemon/test_print_signals")
 	Expect(err).ToNot(HaveOccurred())
 
 	marshalledAssets, err := json.Marshal(assets)
@@ -40,8 +40,8 @@ var _ = SynchronizedBeforeSuite(func() []byte {
 	assets := CompiledAssets{}
 	err := json.Unmarshal(marshalledAssets, &assets)
 	Expect(err).ToNot(HaveOccurred())
-	iodaemon = assets.IoDaemon
-	winsizeReporter = assets.WinSizeReporter
+	iodaemonBinPath = assets.IoDaemonBinPath
+	testPrintSignalBinPath = assets.TestPrintSignalBinPath
 })
 
 var _ = SynchronizedAfterSuite(func() {

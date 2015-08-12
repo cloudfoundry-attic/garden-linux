@@ -16,7 +16,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
-	"github.com/onsi/gomega/gexec"
 )
 
 type wc struct {
@@ -137,21 +136,56 @@ var _ = Describe("Iodaemon", func() {
 			l.Close() //bash will normally terminate when it receives EOF on stdin
 		})
 
-		It("signals the process", func() {
-			ps, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/iodaemon/test_print_signals")
-			Expect(err).ToNot(HaveOccurred())
+		Context("when signalling the process", func() {
+			var (
+				signalSent syscall.Signal
+				linkStdout io.WriteCloser
+				l          *linkpkg.Link
+			)
 
-			spawnProcess(ps)
+			BeforeEach(func() {
+				signalSent = syscall.SIGTERM
+			})
 
-			l, linkStdout, _, err := createLink(socketPath)
-			Expect(err).ToNot(HaveOccurred())
+			JustBeforeEach(func() {
+				var err error
 
-			Eventually(linkStdout).Should(gbytes.Say("pid"))
+				spawnProcess(testPrintSignalBinPath)
 
-			data, err := json.Marshal(&linkpkg.SignalMsg{Signal: syscall.SIGTERM})
-			Expect(err).ToNot(HaveOccurred())
-			Expect(l.SendMsg(data)).To(Succeed())
-			Eventually(linkStdout).Should(gbytes.Say("Received: terminated"))
+				l, linkStdout, _, err = createLink(socketPath)
+				Expect(err).ToNot(HaveOccurred())
+
+				Eventually(linkStdout).Should(gbytes.Say("pid"))
+
+				data, err := json.Marshal(&linkpkg.SignalMsg{Signal: signalSent})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(l.SendMsg(data)).To(Succeed())
+			})
+
+			AfterEach(func() {
+				l.Close()
+			})
+
+			Context("and it sends SIGTERM", func() {
+				BeforeEach(func() {
+					signalSent = syscall.SIGTERM
+				})
+
+				It("succeeds", func() {
+					Eventually(linkStdout).Should(gbytes.Say("Received: terminated"))
+				})
+			})
+
+			Context("and it sends SIGKILL", func() {
+				BeforeEach(func() {
+					signalSent = syscall.SIGKILL
+				})
+
+				It("succeeds", func() {
+					Eventually(linkStdout).Should(gbytes.Say("Received: killed"))
+				})
+			})
+
 		})
 
 		Context("when there is an existing socket file", func() {

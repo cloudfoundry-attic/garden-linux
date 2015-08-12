@@ -17,7 +17,6 @@ import (
 
 	linkpkg "github.com/cloudfoundry-incubator/garden-linux/iodaemon/link"
 	"github.com/kr/pty"
-	"github.com/pivotal-golang/lager"
 )
 
 // spawn listens on a unix socket at the given socketPath and when the first connection
@@ -47,10 +46,8 @@ func spawn(
 		terminate <- 1
 	}
 
-	logger := lager.NewLogger("iodaemon")
 	if debug {
 		enableTracing(socketPath, fatal)
-		enableLogging(socketPath, logger, fatal)
 	}
 
 	listener, err := listen(socketPath)
@@ -94,11 +91,9 @@ func spawn(
 	}
 
 	acceptConn := func(stopAccepting chan bool) (net.Conn, error) {
-		logger.Info("accept")
 		notify(notifyStream, "ready")
 		conn, err := acceptConnection(listener, stdoutR, stderrR, statusR)
 		if err != nil {
-			logger.Error("accept-failed", err)
 			select {
 			case <-stopAccepting:
 				return nil, err
@@ -111,20 +106,16 @@ func spawn(
 	}
 
 	processConn := func(conn net.Conn) {
-		logger.Info("process-connection")
-		processLinkRequests(conn, stdinW, extraFdW, cmd, withTty, logger)
+		processLinkRequests(conn, stdinW, extraFdW, cmd, withTty)
 	}
 
 	startChild := func() error {
-		logger.Info("start-child")
 		err := cmd.Start()
 		if err != nil {
-			logger.Error("start-child-failed", err)
 			fatal(err)
 			return err
 		}
 
-		logger.Info("start-child-complete")
 		notify(notifyStream, "active")
 		notifyStream.Close()
 		return nil
@@ -200,15 +191,6 @@ func notify(notifyStream io.Writer, message string) {
 	fmt.Fprintln(notifyStream, message)
 }
 
-func enableLogging(socketPath string, logger lager.Logger, fatal func(error)) {
-	log, err := os.OpenFile(socketPath+".log", os.O_CREATE|os.O_RDWR, 0700)
-	if err != nil {
-		fatal(err)
-	}
-
-	logger.RegisterSink(lager.NewWriterSink(log, lager.DEBUG))
-}
-
 func enableTracing(socketPath string, fatal func(error)) {
 	ownPid := os.Getpid()
 
@@ -264,19 +246,10 @@ func acceptConnection(listener net.Listener, stdoutR, stderrR, statusR *os.File)
 
 // Loop receiving and processing link requests on the given connection.
 // The loop terminates when the connection is closed or an error occurs.
-func processLinkRequests(conn net.Conn, stdinW *os.File, extraFd *os.File, cmd *exec.Cmd, withTty bool, logger lager.Logger) {
-	logger = logger.Session("process-link", lager.Data{
-		"cmd": cmd,
-		"tty": withTty,
-	})
-
-	logger.Info("start")
-
+func processLinkRequests(conn net.Conn, stdinW *os.File, extraFd *os.File, cmd *exec.Cmd, withTty bool) {
 	decoder := gob.NewDecoder(conn)
 
 	for {
-		logger.Info("receive")
-
 		var input linkpkg.Input
 		err := decoder.Decode(&input)
 		if err != nil {
@@ -284,28 +257,23 @@ func processLinkRequests(conn net.Conn, stdinW *os.File, extraFd *os.File, cmd *
 		}
 
 		if input.WindowSize != nil {
-			logger.Info("winch")
 			setWinSize(stdinW, input.WindowSize.Columns, input.WindowSize.Rows)
 			cmd.Process.Signal(syscall.SIGWINCH)
 		} else if input.EOF {
-			logger.Info("eof")
 			stdinW.Sync()
 			err := stdinW.Close()
 			if withTty {
 				cmd.Process.Signal(syscall.SIGHUP)
 			}
 			if err != nil {
-				logger.Error("eof", err)
 				conn.Close()
 				break
 			}
 		} else if input.ExtraFdMsg != nil {
-			logger.Info("send-fd-msg")
 			extraFd.Write(input.ExtraFdMsg)
 		} else {
-			_, err := stdinW.Write(input.Data)
+			_, err := stdinW.Write(input.StdinData)
 			if err != nil {
-				logger.Error("write-error", err)
 				conn.Close()
 				break
 			}

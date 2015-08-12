@@ -12,7 +12,6 @@ import (
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/iodaemon/link"
 	"github.com/docker/docker/pkg/term"
-	"github.com/pivotal-golang/lager"
 )
 
 const UnknownExitStatus = 255
@@ -30,8 +29,6 @@ type Process struct {
 	termState *term.State
 	exitCode  <-chan int
 	streaming *sync.WaitGroup
-
-	Logger lager.Logger
 }
 
 //go:generate counterfeiter -o fake_connector/FakeConnector.go . Connector
@@ -118,11 +115,9 @@ func (p *Process) signalLoop() {
 
 	for {
 		if err := decoder.Decode(&msg); err != nil {
-			p.Logger.Error("decode-signal", err)
 			continue
 		}
 
-		p.Logger.Info("received-signal", lager.Data{"signal": msg.Signal})
 		p.Signal(msg.Signal)
 	}
 }

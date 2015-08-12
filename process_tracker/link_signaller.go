@@ -5,11 +5,9 @@ import (
 	"fmt"
 
 	"github.com/cloudfoundry-incubator/garden-linux/iodaemon/link"
-	"github.com/pivotal-golang/lager"
 )
 
 type LinkSignaller struct {
-	Logger lager.Logger
 }
 
 func (e *LinkSignaller) Signal(signal *SignalRequest) error {

@@ -12,8 +12,6 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
-	"github.com/pivotal-golang/lager"
-	"github.com/pivotal-golang/lager/lagertest"
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/process_tracker"
@@ -25,7 +23,6 @@ var _ = Describe("Process tracker", func() {
 		processTracker process_tracker.ProcessTracker
 		tmpdir         string
 		signaller      process_tracker.Signaller
-		logger         lager.Logger
 	)
 
 	BeforeEach(func() {
@@ -40,13 +37,9 @@ var _ = Describe("Process tracker", func() {
 		err = copyFile(iodaemonBin, filepath.Join(tmpdir, "bin", "iodaemon"))
 		Expect(err).ToNot(HaveOccurred())
 
-		logger = lagertest.NewTestLogger("Process tracker")
+		signaller = &process_tracker.LinkSignaller{}
 
-		signaller = &process_tracker.LinkSignaller{
-			Logger: logger,
-		}
-
-		processTracker = process_tracker.New(tmpdir, linux_command_runner.New(), logger)
+		processTracker = process_tracker.New(tmpdir, linux_command_runner.New())
 	})
 
 	AfterEach(func() {
