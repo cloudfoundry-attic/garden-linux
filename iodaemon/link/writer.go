@@ -9,7 +9,7 @@ type Input struct {
 	StdinData  []byte
 	EOF        bool
 	WindowSize *WindowSize
-	ExtraFdMsg []byte
+	Msg        []byte
 }
 
 type WindowSize struct {
@@ -54,6 +54,6 @@ func (w *Writer) SetWindowSize(cols, rows int) error {
 
 func (w *Writer) SendMsg(msg []byte) error {
 	return w.enc.Encode(Input{
-		ExtraFdMsg: msg,
+		Msg: msg,
 	})
 }

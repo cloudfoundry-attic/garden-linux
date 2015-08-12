@@ -269,8 +269,8 @@ func processLinkRequests(conn net.Conn, stdinW *os.File, extraFd *os.File, cmd *
 				conn.Close()
 				break
 			}
-		} else if input.ExtraFdMsg != nil {
-			extraFd.Write(input.ExtraFdMsg)
+		} else if input.Msg != nil {
+			extraFd.Write(input.Msg)
 		} else {
 			_, err := stdinW.Write(input.StdinData)
 			if err != nil {
