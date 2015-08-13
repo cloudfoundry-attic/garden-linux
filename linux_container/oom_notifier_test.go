@@ -10,21 +10,27 @@ import (
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
 
+	"runtime"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("OomNotifier", func() {
+var _ = FDescribe("OomNotifier", func() {
 	var (
-		runner         *fake_command_runner.FakeCommandRunner
-		cgroupsPath    string
-		cgroupsManager linux_container.CgroupsManager
-		oom            chan struct{}
-		containerPath  string
-		oomNotifier    *linux_container.OomNotifier
+		runner            *fake_command_runner.FakeCommandRunner
+		cgroupsPath       string
+		cgroupsManager    linux_container.CgroupsManager
+		oNoom             func()
+		oomChan           chan struct{}
+		containerPath     string
+		oomNotifier       *linux_container.OomNotifier
+		initialGoroutines int
 	)
 
 	BeforeEach(func() {
+		initialGoroutines = runtime.NumGoroutine()
+
 		runner = fake_command_runner.New()
 
 		cgroupsPath = path.Join("path", "to", "cgroups")
@@ -32,7 +38,10 @@ var _ = Describe("OomNotifier", func() {
 
 		containerPath = path.Join("path", "to", "container")
 
-		oom = make(chan struct{})
+		oomChan = make(chan struct{})
+		oNoom = func() {
+			close(oomChan)
+		}
 	})
 
 	JustBeforeEach(func() {
@@ -43,9 +52,16 @@ var _ = Describe("OomNotifier", func() {
 		)
 	})
 
+	AfterEach(func() {
+		// Ensure lingering goroutines terminate so they do not pollute other tests.
+		Eventually(func() int {
+			return runtime.NumGoroutine()
+		}).Should(Equal(initialGoroutines))
+	})
+
 	Describe("Watch", func() {
 		It("calls the oom binary", func() {
-			Expect(oomNotifier.Watch(oom)).To(Succeed())
+			Expect(oomNotifier.Watch(oNoom)).To(Succeed())
 
 			Expect(runner).To(HaveStartedExecuting(
 				fake_command_runner.CommandSpec{
@@ -53,14 +69,16 @@ var _ = Describe("OomNotifier", func() {
 					Args: []string{path.Join(cgroupsPath, "memory", "instance-123456")},
 				},
 			))
+
+			Eventually(oomChan).Should(BeClosed())
 		})
 
 		Context("when the notifier is set", func() {
 			Context("when the oom process exits with exit code 0", func() {
 				It("notifies", func() {
-					Expect(oomNotifier.Watch(oom)).To(Succeed())
+					Expect(oomNotifier.Watch(oNoom)).To(Succeed())
 
-					Eventually(oom).Should(BeClosed())
+					Eventually(oomChan).Should(BeClosed())
 				})
 			})
 
@@ -83,16 +101,18 @@ var _ = Describe("OomNotifier", func() {
 
 				AfterEach(func() {
 					close(waitReturns)
+
+					Eventually(oomChan).Should(BeClosed())
 				})
 
 				It("does not notify", func() {
-					Expect(oomNotifier.Watch(oom)).To(Succeed())
+					Expect(oomNotifier.Watch(oNoom)).To(Succeed())
 
-					Consistently(oom).ShouldNot(BeClosed())
+					Consistently(oomChan).ShouldNot(BeClosed())
 				})
 			})
 
-			Context("when the oom process exists with exit code 1", func() {
+			Context("when the oom process exits with exit code 1", func() {
 				BeforeEach(func() {
 					runner.WhenWaitingFor(
 						fake_command_runner.CommandSpec{
@@ -104,26 +124,68 @@ var _ = Describe("OomNotifier", func() {
 					)
 				})
 
-				It("does not notify", func() {
-					Expect(oomNotifier.Watch(oom)).To(Succeed())
+				It("does not call back", func() {
+					Expect(oomNotifier.Watch(oNoom)).To(Succeed())
 
-					Consistently(oom).ShouldNot(BeClosed())
+					Consistently(oomChan).ShouldNot(BeClosed())
+				})
+
+				It("should not leak goroutines", func() {
+					Expect(oomNotifier.Watch(oNoom)).To(Succeed())
+
+					Eventually(func() int {
+						return runtime.NumGoroutine()
+					}).Should(Equal(initialGoroutines))
 				})
 			})
 		})
 	})
 
 	Describe("Unwatch", func() {
-		It("kills the oom process", func() {
-			Expect(oomNotifier.Watch(oom)).To(Succeed())
+		Context("when oom has already occurred", func() {
+			JustBeforeEach(func() {
+				oomNotifier.Watch(oNoom)
+			})
 
-			oomNotifier.Unwatch()
+			It("should not kill the oom command", func() {
+				Eventually(oomChan).Should(BeClosed())
 
-			startedCommands := runner.StartedCommands()
-			killedCommands := runner.KilledCommands()
+				oomNotifier.Unwatch()
 
-			Expect(startedCommands).To(HaveLen(1))
-			Expect(startedCommands).To(Equal(killedCommands))
+				Expect(runner.KilledCommands()).To(HaveLen(0))
+			})
+		})
+
+		Context("when oom has not already occurred", func() {
+			BeforeEach(func() {
+				runner.WhenWaitingFor(
+					fake_command_runner.CommandSpec{},
+					func(cmd *exec.Cmd) error {
+						return errors.New("Command got killed")
+					})
+			})
+
+			It("kills the oom process", func() {
+				Expect(oomNotifier.Watch(oNoom)).To(Succeed())
+
+				oomNotifier.Unwatch()
+
+				startedCommands := runner.StartedCommands()
+				killedCommands := runner.KilledCommands()
+
+				Expect(startedCommands).To(HaveLen(1))
+				Expect(startedCommands).To(Equal(killedCommands))
+			})
+
+			It("should not leak goroutines", func() {
+				Expect(oomNotifier.Watch(oNoom)).To(Succeed())
+
+				oomNotifier.Unwatch()
+
+				Eventually(func() int {
+					return runtime.NumGoroutine()
+				}).Should(Equal(initialGoroutines))
+			})
 		})
 	})
 })

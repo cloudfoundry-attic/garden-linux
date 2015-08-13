@@ -56,14 +56,10 @@ func (c *LinuxContainer) CurrentDiskLimits() (garden.DiskLimits, error) {
 }
 
 func (c *LinuxContainer) LimitMemory(limits garden.MemoryLimits) error {
-	oom := make(chan struct{})
-	go func() {
-		<-oom
+	if err := c.oomWatcher.Watch(func() {
 		c.registerEvent("out of memory")
-		c.Stop(true)
-	}()
-
-	if err := c.oomWatcher.Watch(oom); err != nil {
+		c.Stop(true) // ignore any error
+	}); err != nil {
 		return err
 	}
 

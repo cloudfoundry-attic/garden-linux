@@ -198,10 +198,10 @@ var _ = Describe("Linux containers", func() {
 
 		})
 
-		Context("when the OOM watcher channle gets triggered", func() {
+		Context("when the OOM watcher calls back", func() {
 			BeforeEach(func() {
-				fakeOomWatcher.WatchStub = func(c chan struct{}) error {
-					close(c)
+				fakeOomWatcher.WatchStub = func(onOom func()) error {
+					onOom()
 					return nil
 				}
 			})

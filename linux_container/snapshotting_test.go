@@ -257,8 +257,8 @@ var _ = Describe("Linux containers", func() {
 
 		Context("with limits set", func() {
 			JustBeforeEach(func() {
-				fakeOomWatcher.WatchStub = func(c chan struct{}) error {
-					close(c)
+				fakeOomWatcher.WatchStub = func(onOom func()) error {
+					onOom()
 					return nil
 				}
 
@@ -528,8 +528,8 @@ var _ = Describe("Linux containers", func() {
 		}
 
 		It("re-enforces the memory limit", func() {
-			fakeOomWatcher.WatchStub = func(c chan struct{}) error {
-				close(c)
+			fakeOomWatcher.WatchStub = func(onOom func()) error {
+				onOom()
 				return nil
 			}
 

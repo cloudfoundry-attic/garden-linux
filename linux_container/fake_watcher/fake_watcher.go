@@ -8,10 +8,10 @@ import (
 )
 
 type FakeWatcher struct {
-	WatchStub        func(notify chan struct{}) error
+	WatchStub        func(func()) error
 	watchMutex       sync.RWMutex
 	watchArgsForCall []struct {
-		notify chan struct{}
+		arg1 func()
 	}
 	watchReturns struct {
 		result1 error
@@ -21,14 +21,14 @@ type FakeWatcher struct {
 	unwatchArgsForCall []struct{}
 }
 
-func (fake *FakeWatcher) Watch(notify chan struct{}) error {
+func (fake *FakeWatcher) Watch(arg1 func()) error {
 	fake.watchMutex.Lock()
 	fake.watchArgsForCall = append(fake.watchArgsForCall, struct {
-		notify chan struct{}
-	}{notify})
+		arg1 func()
+	}{arg1})
 	fake.watchMutex.Unlock()
 	if fake.WatchStub != nil {
-		return fake.WatchStub(notify)
+		return fake.WatchStub(arg1)
 	} else {
 		return fake.watchReturns.result1
 	}
@@ -40,10 +40,10 @@ func (fake *FakeWatcher) WatchCallCount() int {
 	return len(fake.watchArgsForCall)
 }
 
-func (fake *FakeWatcher) WatchArgsForCall(i int) chan struct{} {
+func (fake *FakeWatcher) WatchArgsForCall(i int) func() {
 	fake.watchMutex.RLock()
 	defer fake.watchMutex.RUnlock()
-	return fake.watchArgsForCall[i].notify
+	return fake.watchArgsForCall[i].arg1
 }
 
 func (fake *FakeWatcher) WatchReturns(result1 error) {

@@ -53,7 +53,7 @@ type NetworkStatisticser interface {
 
 //go:generate counterfeiter -o fake_watcher/fake_watcher.go . Watcher
 type Watcher interface {
-	Watch(notify chan struct{}) error
+	Watch(func()) error
 	Unwatch()
 }
 

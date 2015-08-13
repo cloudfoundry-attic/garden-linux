@@ -16,7 +16,7 @@ type OomNotifier struct {
 	containerPath  string
 	cgroupsManager CgroupsManager
 
-	doneWatching chan struct{}
+	doneWatching chan bool
 }
 
 func NewOomNotifier(runner command_runner.CommandRunner,
@@ -30,13 +30,22 @@ func NewOomNotifier(runner command_runner.CommandRunner,
 	}
 }
 
-func (o *OomNotifier) Watch(oom chan struct{}) error {
+func (o *OomNotifier) Watch(onOom func()) error {
 	o.mutex.Lock()
 	defer o.mutex.Unlock()
 
 	if o.cmd != nil {
 		return nil
 	}
+
+	o.doneWatching = make(chan bool)
+	go func() {
+		if <-o.doneWatching {
+			onOom()
+
+			close(o.doneWatching)
+		}
+	}()
 
 	oomPath := path.Join(o.containerPath, "bin", "oom")
 
@@ -51,7 +60,7 @@ func (o *OomNotifier) Watch(oom chan struct{}) error {
 		return err
 	}
 
-	go o.watch(o.cmd, oom)
+	go o.watch()
 
 	return nil
 }
@@ -65,11 +74,19 @@ func (o *OomNotifier) Unwatch() {
 	}
 }
 
-func (o *OomNotifier) watch(cmd *exec.Cmd, oom chan struct{}) {
-	err := o.runner.Wait(cmd)
-	if err == nil {
-		close(oom)
-	}
+func (o *OomNotifier) watch() {
+	o.mutex.RLock()
+	cmd := o.cmd
+	o.mutex.RUnlock()
 
-	// TODO: handle case where oom notifier itself failed? kill container?
+	err := o.runner.Wait(cmd)
+	o.mutex.Lock()
+	o.cmd = nil
+	o.mutex.Unlock()
+
+	if err != nil {
+		close(o.doneWatching)
+	} else {
+		o.doneWatching <- true
+	}
 }
