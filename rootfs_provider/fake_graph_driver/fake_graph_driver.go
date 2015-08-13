@@ -64,6 +64,15 @@ type FakeGraphDriver struct {
 	statusReturns     struct {
 		result1 [][2]string
 	}
+	GetMetadataStub        func(id string) (map[string]string, error)
+	getMetadataMutex       sync.RWMutex
+	getMetadataArgsForCall []struct {
+		id string
+	}
+	getMetadataReturns struct {
+		result1 map[string]string
+		result2 error
+	}
 	CleanupStub        func() error
 	cleanupMutex       sync.RWMutex
 	cleanupArgsForCall []struct{}
@@ -322,6 +331,39 @@ func (fake *FakeGraphDriver) StatusReturns(result1 [][2]string) {
 	fake.statusReturns = struct {
 		result1 [][2]string
 	}{result1}
+}
+
+func (fake *FakeGraphDriver) GetMetadata(id string) (map[string]string, error) {
+	fake.getMetadataMutex.Lock()
+	fake.getMetadataArgsForCall = append(fake.getMetadataArgsForCall, struct {
+		id string
+	}{id})
+	fake.getMetadataMutex.Unlock()
+	if fake.GetMetadataStub != nil {
+		return fake.GetMetadataStub(id)
+	} else {
+		return fake.getMetadataReturns.result1, fake.getMetadataReturns.result2
+	}
+}
+
+func (fake *FakeGraphDriver) GetMetadataCallCount() int {
+	fake.getMetadataMutex.RLock()
+	defer fake.getMetadataMutex.RUnlock()
+	return len(fake.getMetadataArgsForCall)
+}
+
+func (fake *FakeGraphDriver) GetMetadataArgsForCall(i int) string {
+	fake.getMetadataMutex.RLock()
+	defer fake.getMetadataMutex.RUnlock()
+	return fake.getMetadataArgsForCall[i].id
+}
+
+func (fake *FakeGraphDriver) GetMetadataReturns(result1 map[string]string, result2 error) {
+	fake.GetMetadataStub = nil
+	fake.getMetadataReturns = struct {
+		result1 map[string]string
+		result2 error
+	}{result1, result2}
 }
 
 func (fake *FakeGraphDriver) Cleanup() error {
