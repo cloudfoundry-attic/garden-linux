@@ -28,6 +28,7 @@ import (
 	"github.com/cloudfoundry-incubator/cf-lager"
 	"github.com/cloudfoundry-incubator/garden-linux/container_repository"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
+	"github.com/cloudfoundry-incubator/garden-linux/debug"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/bandwidth_manager"
@@ -216,7 +217,7 @@ func main() {
 
 	logger, reconfigurableSink := cf_lager.New("garden-linux")
 	if dbgAddr := cf_debug_server.DebugAddress(flag.CommandLine); dbgAddr != "" {
-		cf_debug_server.Run(dbgAddr, reconfigurableSink)
+		debug.Run(dbgAddr, reconfigurableSink)
 	}
 
 	initializeDropsonde(logger)
