@@ -26,7 +26,7 @@ func (fake *FakeCommander) Command(args ...string) *exec.Cmd {
 	}{args})
 	fake.commandMutex.Unlock()
 	if fake.CommandStub != nil {
-		return fake.CommandStub(args...)
+		return fake.CommandStub(args)
 	} else {
 		return fake.commandReturns.result1
 	}
