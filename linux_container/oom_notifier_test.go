@@ -16,7 +16,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = FDescribe("OomNotifier", func() {
+var _ = Describe("OomNotifier", func() {
 	var (
 		runner            *fake_command_runner.FakeCommandRunner
 		cgroupsPath       string
