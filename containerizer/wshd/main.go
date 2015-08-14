@@ -7,14 +7,12 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
-	"strconv"
 	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
-	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
 )
 
@@ -64,18 +62,6 @@ func main() {
 		Writer: hostWriter,
 	}
 
-	env, err := process.EnvFromFile(path.Join(*libPath, "../etc/config"))
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "wshd: failed to read env from config file: %s", err)
-		os.Exit(3)
-	}
-
-	uidMappingOffset, err := strconv.Atoi(env["root_uid"])
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "wshd: failed to parse uid mapping offset from etc/config: %s", err)
-		os.Exit(7)
-	}
-
 	listener, err := unix_socket.NewListenerFromPath(socketPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "wshd: failed to create listener: %s", err)
@@ -116,10 +102,9 @@ func main() {
 			"--title", *title,
 		},
 		Execer: &system.NamespacingExecer{
-			CommandRunner:    linux_command_runner.New(),
-			ExtraFiles:       []*os.File{containerReader, containerWriter, socketFile},
-			Privileged:       privileged,
-			UidMappingOffset: uidMappingOffset,
+			CommandRunner: linux_command_runner.New(),
+			ExtraFiles:    []*os.File{containerReader, containerWriter, socketFile},
+			Privileged:    privileged,
 		},
 		Signaller: sync,
 		Waiter:    sync,

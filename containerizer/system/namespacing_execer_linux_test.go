@@ -7,6 +7,7 @@ import (
 	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
+	coresys "github.com/cloudfoundry-incubator/garden-linux/system"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
 	. "github.com/onsi/ginkgo"
@@ -29,8 +30,7 @@ var _ = Describe("Execer", func() {
 		})
 
 		execer = &system.NamespacingExecer{
-			CommandRunner:    commandRunner,
-			UidMappingOffset: 80000,
+			CommandRunner: commandRunner,
 		}
 	})
 
@@ -95,18 +95,19 @@ var _ = Describe("Execer", func() {
 				_, err := execer.Exec("something", "smthg")
 				Expect(err).ToNot(HaveOccurred())
 
-				cmd := commandRunner.StartedCommands()[0]
-				Expect(cmd.SysProcAttr.UidMappings[0].HostID).To(Equal(80000))
-				Expect(cmd.SysProcAttr.GidMappings[0].HostID).To(Equal(80000))
-			})
-
-			It("should map the maximal 16-bit uid and gid", func() {
-				_, err := execer.Exec("something", "smthg")
+				mappingList, err := coresys.NewMappingList()
 				Expect(err).ToNot(HaveOccurred())
 
 				cmd := commandRunner.StartedCommands()[0]
-				Expect(cmd.SysProcAttr.UidMappings[0].Size).To(BeNumerically(">", 65535))
-				Expect(cmd.SysProcAttr.GidMappings[0].Size).To(BeNumerically(">", 65535))
+
+				Expect(cmd.SysProcAttr.UidMappings).To(HaveLen(len(mappingList)))
+				for i, mapping := range cmd.SysProcAttr.UidMappings {
+					actualMapping := mappingList[i]
+
+					Expect(mapping.ContainerID).To(Equal(actualMapping.FromID))
+					Expect(mapping.HostID).To(Equal(actualMapping.ToID))
+					Expect(mapping.Size).To(Equal(actualMapping.Size))
+				}
 			})
 		})
 

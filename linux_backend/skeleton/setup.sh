@@ -156,8 +156,7 @@ if ! chroot $rootfs_path id vcap >/dev/null 2>&1; then
   touch $rootfs_path/etc/passwd
   touch $rootfs_path/etc/group
   useradd -R $rootfs_path -m -u 10001 -U -s $shell vcap
-  vcap_uid=$(($root_uid + 10001))
-  chown $vcap_uid:$vcap_uid $rootfs_path/home/vcap
+  chown $user_uid:$user_uid $rootfs_path/home/vcap
 fi
 
 # workaround aufs limitations by copying /root directory out and back

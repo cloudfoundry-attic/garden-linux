@@ -6,16 +6,16 @@ import (
 	"os/exec"
 	"syscall"
 
+	coresys "github.com/cloudfoundry-incubator/garden-linux/system"
 	"github.com/cloudfoundry/gunk/command_runner"
 )
 
 const UIDMappingRange = 65536
 
 type NamespacingExecer struct {
-	CommandRunner    command_runner.CommandRunner
-	ExtraFiles       []*os.File
-	Privileged       bool
-	UidMappingOffset int
+	CommandRunner command_runner.CommandRunner
+	ExtraFiles    []*os.File
+	Privileged    bool
 }
 
 func (e *NamespacingExecer) Exec(binPath string, args ...string) (int, error) {
@@ -31,20 +31,12 @@ func (e *NamespacingExecer) Exec(binPath string, args ...string) (int, error) {
 	if !e.Privileged {
 		flags = flags | syscall.CLONE_NEWUSER
 
-		cmd.SysProcAttr.UidMappings = []syscall.SysProcIDMap{
-			{
-				ContainerID: 0,
-				HostID:      e.UidMappingOffset,
-				Size:        UIDMappingRange,
-			},
+		mapping, err := makeSysProcIDMap()
+		if err != nil {
+			return 0, err
 		}
-		cmd.SysProcAttr.GidMappings = []syscall.SysProcIDMap{
-			{
-				ContainerID: 0,
-				HostID:      e.UidMappingOffset,
-				Size:        UIDMappingRange,
-			},
-		}
+		cmd.SysProcAttr.UidMappings = mapping
+		cmd.SysProcAttr.GidMappings = mapping
 
 		cmd.SysProcAttr.Credential = &syscall.Credential{
 			Uid: 0,
@@ -60,4 +52,22 @@ func (e *NamespacingExecer) Exec(binPath string, args ...string) (int, error) {
 	}
 
 	return cmd.Process.Pid, nil
+}
+
+func makeSysProcIDMap() ([]syscall.SysProcIDMap, error) {
+	mappingList, err := coresys.NewMappingList()
+	if err != nil {
+		return nil, err
+	}
+
+	mapping := []syscall.SysProcIDMap{}
+	for _, entry := range mappingList {
+		mapping = append(mapping, syscall.SysProcIDMap{
+			ContainerID: entry.FromID,
+			HostID:      entry.ToID,
+			Size:        entry.Size,
+		})
+	}
+
+	return mapping, nil
 }

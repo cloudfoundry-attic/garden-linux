@@ -27,7 +27,6 @@ import (
 	"github.com/cloudfoundry-incubator/cf-debug-server"
 	"github.com/cloudfoundry-incubator/cf-lager"
 	"github.com/cloudfoundry-incubator/garden-linux/container_repository"
-	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
 	"github.com/cloudfoundry-incubator/garden-linux/debug"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
@@ -46,6 +45,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/rootfs_provider/btrfs_cleanup"
 	"github.com/cloudfoundry-incubator/garden-linux/sysconfig"
+	"github.com/cloudfoundry-incubator/garden-linux/system"
 	"github.com/cloudfoundry-incubator/garden-linux/system_info"
 	"github.com/cloudfoundry-incubator/garden/server"
 	"github.com/cloudfoundry/dropsonde"
@@ -306,17 +306,16 @@ func main() {
 		),
 	}
 
-	uidMappings := rootfs_provider.MappingList{{
-		FromID: 0,
-		ToID:   *uidMappingOffset,
-		Size:   system.UIDMappingRange,
-	}}
+	mappingList, err := system.NewMappingList()
+	if err != nil {
+		logger.Fatal("failed-to-construct-mappings", err)
+	}
 
 	rootFSNamespacer := &rootfs_provider.UidNamespacer{
 		Logger: logger,
 		Translator: rootfs_provider.NewUidTranslator(
-			uidMappings,
-			uidMappings,
+			mappingList, // uid
+			mappingList, // gid
 		).Translate,
 	}
 
@@ -399,7 +398,7 @@ func main() {
 		config,
 		rootFSProviders,
 		rootFSRemover,
-		*uidMappingOffset,
+		mappingList,
 		parsedExternalIP,
 		*mtu,
 		subnetPool,

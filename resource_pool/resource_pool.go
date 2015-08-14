@@ -31,6 +31,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/cloudfoundry-incubator/garden-linux/rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/sysconfig"
+	"github.com/cloudfoundry-incubator/garden-linux/system"
 )
 
 var (
@@ -62,9 +63,9 @@ type LinuxResourcePool struct {
 	denyNetworks  []string
 	allowNetworks []string
 
-	rootfsProviders    map[string]rootfs_provider.RootFSProvider
-	rootfsRemover      rootfs_provider.RootFSRemover
-	uidNamespaceOffset int
+	rootfsProviders map[string]rootfs_provider.RootFSProvider
+	rootfsRemover   rootfs_provider.RootFSRemover
+	mappingList     system.MappingList
 
 	subnetPool SubnetPool
 
@@ -93,7 +94,7 @@ func New(
 	sysconfig sysconfig.Config,
 	rootfsProviders map[string]rootfs_provider.RootFSProvider,
 	rootfsRemover rootfs_provider.RootFSRemover,
-	uidNamespaceOffset int,
+	mappingList system.MappingList,
 	externalIP net.IP,
 	mtu int,
 	subnetPool SubnetPool,
@@ -114,9 +115,9 @@ func New(
 
 		sysconfig: sysconfig,
 
-		rootfsProviders:    rootfsProviders,
-		rootfsRemover:      rootfsRemover,
-		uidNamespaceOffset: uidNamespaceOffset,
+		rootfsProviders: rootfsProviders,
+		rootfsRemover:   rootfsRemover,
+		mappingList:     mappingList,
 
 		allowNetworks: allowNetworks,
 		denyNetworks:  denyNetworks,
@@ -494,8 +495,8 @@ func (p *LinuxResourcePool) acquirePoolResources(spec garden.ContainerSpec, id s
 
 func (p *LinuxResourcePool) acquireUID(resources *linux_backend.Resources, privileged bool) error {
 	if !privileged {
-		resources.UserUID = vcapUid + p.uidNamespaceOffset
-		resources.RootUID = p.uidNamespaceOffset
+		resources.UserUID = p.mappingList.Map(vcapUid)
+		resources.RootUID = p.mappingList.Map(0)
 		return nil
 	}
 
