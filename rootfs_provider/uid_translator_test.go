@@ -1,6 +1,7 @@
 package rootfs_provider
 
 import (
+	"fmt"
 	"os"
 	"time"
 
@@ -37,6 +38,10 @@ var _ = Describe("UidTranslator", func() {
 
 			return nil
 		}
+	})
+
+	It("returns a cachekey based on the uid and gid map", func() {
+		Expect(translator.CacheKey()).To(Equal("12-24+33-66"))
 	})
 
 	Context("when neither mapping affects the file", func() {
@@ -122,4 +127,8 @@ func (f fakeMap) Map(id int) int {
 	}
 
 	return id
+}
+
+func (f fakeMap) String() string {
+	return fmt.Sprintf("%d-%d", f.From, f.To)
 }

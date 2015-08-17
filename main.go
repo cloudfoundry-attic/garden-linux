@@ -306,9 +306,22 @@ func main() {
 		),
 	}
 
-	mappingList, err := system.NewMappingList()
+	maxUid, err := system.MaxValidUid("/proc/self/uid_map", "/proc/self/gid_map")
 	if err != nil {
-		logger.Fatal("failed-to-construct-mappings", err)
+		logger.Fatal("failed-to-determine-max-uid", err)
+	}
+
+	mappingList := rootfs_provider.MappingList{
+		{
+			FromID: 0,
+			ToID:   maxUid,
+			Size:   1,
+		},
+		{
+			FromID: 1,
+			ToID:   1,
+			Size:   maxUid - 1,
+		},
 	}
 
 	rootFSNamespacer := &rootfs_provider.UidNamespacer{
@@ -316,7 +329,7 @@ func main() {
 		Translator: rootfs_provider.NewUidTranslator(
 			mappingList, // uid
 			mappingList, // gid
-		).Translate,
+		),
 	}
 
 	graphMountPoint := mountPoint(logger, *graphRoot)

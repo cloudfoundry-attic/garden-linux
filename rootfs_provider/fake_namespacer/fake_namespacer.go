@@ -8,6 +8,12 @@ import (
 )
 
 type FakeNamespacer struct {
+	CacheKeyStub        func() string
+	cacheKeyMutex       sync.RWMutex
+	cacheKeyArgsForCall []struct{}
+	cacheKeyReturns     struct {
+		result1 string
+	}
 	NamespaceStub        func(rootfsPath string) error
 	namespaceMutex       sync.RWMutex
 	namespaceArgsForCall []struct {
@@ -16,6 +22,30 @@ type FakeNamespacer struct {
 	namespaceReturns struct {
 		result1 error
 	}
+}
+
+func (fake *FakeNamespacer) CacheKey() string {
+	fake.cacheKeyMutex.Lock()
+	fake.cacheKeyArgsForCall = append(fake.cacheKeyArgsForCall, struct{}{})
+	fake.cacheKeyMutex.Unlock()
+	if fake.CacheKeyStub != nil {
+		return fake.CacheKeyStub()
+	} else {
+		return fake.cacheKeyReturns.result1
+	}
+}
+
+func (fake *FakeNamespacer) CacheKeyCallCount() int {
+	fake.cacheKeyMutex.RLock()
+	defer fake.cacheKeyMutex.RUnlock()
+	return len(fake.cacheKeyArgsForCall)
+}
+
+func (fake *FakeNamespacer) CacheKeyReturns(result1 string) {
+	fake.CacheKeyStub = nil
+	fake.cacheKeyReturns = struct {
+		result1 string
+	}{result1}
 }
 
 func (fake *FakeNamespacer) Namespace(rootfsPath string) error {

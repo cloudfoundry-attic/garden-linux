@@ -31,7 +31,6 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/cloudfoundry-incubator/garden-linux/rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/sysconfig"
-	"github.com/cloudfoundry-incubator/garden-linux/system"
 )
 
 var (
@@ -65,7 +64,7 @@ type LinuxResourcePool struct {
 
 	rootfsProviders map[string]rootfs_provider.RootFSProvider
 	rootfsRemover   rootfs_provider.RootFSRemover
-	mappingList     system.MappingList
+	mappingList     rootfs_provider.MappingList
 
 	subnetPool SubnetPool
 
@@ -94,7 +93,7 @@ func New(
 	sysconfig sysconfig.Config,
 	rootfsProviders map[string]rootfs_provider.RootFSProvider,
 	rootfsRemover rootfs_provider.RootFSRemover,
-	mappingList system.MappingList,
+	mappingList rootfs_provider.MappingList,
 	externalIP net.IP,
 	mtu int,
 	subnetPool SubnetPool,

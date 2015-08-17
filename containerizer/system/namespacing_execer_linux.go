@@ -55,19 +55,21 @@ func (e *NamespacingExecer) Exec(binPath string, args ...string) (int, error) {
 }
 
 func makeSysProcIDMap() ([]syscall.SysProcIDMap, error) {
-	mappingList, err := coresys.NewMappingList()
+	maxUid, err := coresys.MaxValidUid("/proc/self/uid_map", "/proc/self/gid_map")
 	if err != nil {
 		return nil, err
 	}
 
-	mapping := []syscall.SysProcIDMap{}
-	for _, entry := range mappingList {
-		mapping = append(mapping, syscall.SysProcIDMap{
-			ContainerID: entry.FromID,
-			HostID:      entry.ToID,
-			Size:        entry.Size,
-		})
-	}
-
-	return mapping, nil
+	return []syscall.SysProcIDMap{
+		syscall.SysProcIDMap{
+			ContainerID: 0,
+			HostID:      maxUid,
+			Size:        1,
+		},
+		syscall.SysProcIDMap{
+			ContainerID: 1,
+			HostID:      1,
+			Size:        maxUid - 1,
+		},
+	}, nil
 }

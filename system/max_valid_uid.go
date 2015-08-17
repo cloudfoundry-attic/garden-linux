@@ -7,44 +7,6 @@ import (
 	"strings"
 )
 
-type Mapping struct {
-	FromID int
-	ToID   int
-	Size   int
-}
-
-type MappingList []Mapping
-
-func (m MappingList) Map(id int) int {
-	for _, m := range m {
-		if delta := id - m.FromID; delta < m.Size {
-			return m.ToID + delta
-		}
-	}
-
-	return id
-}
-
-func NewMappingList() (MappingList, error) {
-	maxUid, err := MaxValidUid("/proc/self/uid_map", "/proc/self/gid_map")
-	if err != nil {
-		return nil, err
-	}
-
-	return MappingList{
-		Mapping{
-			FromID: 0,
-			ToID:   maxUid,
-			Size:   1,
-		},
-		Mapping{
-			FromID: 1,
-			ToID:   1,
-			Size:   maxUid - 1,
-		},
-	}, nil
-}
-
 // The maximum valid uid is the minimum of the maximum uid and maximum gid as found in the specified files.
 // This assumes that the container's uid and gid mappings will be identical.
 func MaxValidUid(uidMapPath, gidMapPath string) (int, error) {

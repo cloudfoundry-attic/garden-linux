@@ -1,10 +1,13 @@
 package rootfs_provider
 
-import "os"
+import (
+	"fmt"
+	"os"
+)
 
 type UidTranslator struct {
-	uidMappings Mapper
-	gidMappings Mapper
+	uidMappings StringMapper
+	gidMappings StringMapper
 
 	getuidgid func(os.FileInfo) (int, int, error)
 	chown     func(path string, uid, gid int) error
@@ -14,7 +17,12 @@ type Mapper interface {
 	Map(id int) int
 }
 
-func NewUidTranslator(uidMappings Mapper, gidMappings Mapper) *UidTranslator {
+type StringMapper interface {
+	fmt.Stringer
+	Mapper
+}
+
+func NewUidTranslator(uidMappings StringMapper, gidMappings StringMapper) *UidTranslator {
 	return &UidTranslator{
 		uidMappings: uidMappings,
 		gidMappings: gidMappings,
@@ -33,4 +41,8 @@ func (u UidTranslator) Translate(path string, info os.FileInfo, err error) error
 	}
 
 	return nil
+}
+
+func (u UidTranslator) CacheKey() string {
+	return fmt.Sprintf("%s+%s", u.uidMappings.String(), u.gidMappings.String())
 }

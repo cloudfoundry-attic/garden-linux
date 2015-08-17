@@ -120,6 +120,8 @@ var _ = Describe("DockerRootFSProvider", func() {
 						return "/mount/point/" + id, nil
 					}
 
+					fakeNamespacer.CacheKeyReturns("jam")
+
 					mountpoint, envvars, err := provider.ProvideRootFS(
 						logger,
 						"some-id",
@@ -137,16 +139,16 @@ var _ = Describe("DockerRootFSProvider", func() {
 
 					Expect(fakeGraphDriver.CreateCallCount()).To(Equal(2))
 					id, parent := fakeGraphDriver.CreateArgsForCall(0)
-					Expect(id).To(Equal("some-image-id@namespaced"))
+					Expect(id).To(Equal("some-image-id@jam"))
 					Expect(parent).To(Equal("some-image-id"))
 
 					id, parent = fakeGraphDriver.CreateArgsForCall(1)
 					Expect(id).To(Equal("some-id"))
-					Expect(parent).To(Equal("some-image-id@namespaced"))
+					Expect(parent).To(Equal("some-image-id@jam"))
 
 					Expect(fakeNamespacer.NamespaceCallCount()).To(Equal(1))
 					dst := fakeNamespacer.NamespaceArgsForCall(0)
-					Expect(dst).To(Equal("/mount/point/some-image-id@namespaced"))
+					Expect(dst).To(Equal("/mount/point/some-image-id@jam"))
 
 					Expect(mountpoint).To(Equal("/mount/point/some-id"))
 					Expect(envvars).To(Equal(
@@ -165,8 +167,10 @@ var _ = Describe("DockerRootFSProvider", func() {
 						return "/mount/point/" + id, nil
 					}
 
+					fakeNamespacer.CacheKeyReturns("sandwich")
+
 					fakeGraphDriver.ExistsStub = func(id string) bool {
-						return id == "some-image-id@namespaced"
+						return id == "some-image-id@sandwich"
 					}
 				})
 
@@ -189,7 +193,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 					Expect(fakeGraphDriver.CreateCallCount()).To(Equal(1))
 					id, parent := fakeGraphDriver.CreateArgsForCall(0)
 					Expect(id).To(Equal("some-id"))
-					Expect(parent).To(Equal("some-image-id@namespaced"))
+					Expect(parent).To(Equal("some-image-id@sandwich"))
 
 					Expect(fakeNamespacer.NamespaceCallCount()).To(Equal(0))
 

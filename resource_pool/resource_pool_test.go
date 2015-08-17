@@ -37,7 +37,6 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/rootfs_provider/fake_rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/sysconfig"
-	"github.com/cloudfoundry-incubator/garden-linux/system"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
 )
@@ -116,8 +115,8 @@ var _ = Describe("Container pool", func() {
 				"fake": fakeRootFSProvider,
 			},
 			fakeRootfsRemover,
-			system.MappingList{
-				system.Mapping{
+			rootfs_provider.MappingList{
+				{
 					FromID: 0,
 					ToID:   700000,
 					Size:   65536,

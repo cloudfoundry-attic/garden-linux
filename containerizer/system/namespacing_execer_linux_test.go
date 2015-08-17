@@ -95,19 +95,27 @@ var _ = Describe("Execer", func() {
 				_, err := execer.Exec("something", "smthg")
 				Expect(err).ToNot(HaveOccurred())
 
-				mappingList, err := coresys.NewMappingList()
-				Expect(err).ToNot(HaveOccurred())
+				// FIXME: inject instead
+				maxUid, err := coresys.MaxValidUid("/proc/self/uid_map", "/proc/self/gid_map")
+				Expect(err).NotTo(HaveOccurred())
 
 				cmd := commandRunner.StartedCommands()[0]
 
-				Expect(cmd.SysProcAttr.UidMappings).To(HaveLen(len(mappingList)))
-				for i, mapping := range cmd.SysProcAttr.UidMappings {
-					actualMapping := mappingList[i]
+				Expect(cmd.SysProcAttr.UidMappings).To(HaveLen(2))
+				Expect(cmd.SysProcAttr.UidMappings[0].ContainerID).To(Equal(0))
+				Expect(cmd.SysProcAttr.UidMappings[0].HostID).To(Equal(maxUid))
+				Expect(cmd.SysProcAttr.UidMappings[0].Size).To(Equal(1))
+				Expect(cmd.SysProcAttr.UidMappings[1].ContainerID).To(Equal(1))
+				Expect(cmd.SysProcAttr.UidMappings[1].HostID).To(Equal(1))
+				Expect(cmd.SysProcAttr.UidMappings[1].Size).To(Equal(maxUid - 1))
 
-					Expect(mapping.ContainerID).To(Equal(actualMapping.FromID))
-					Expect(mapping.HostID).To(Equal(actualMapping.ToID))
-					Expect(mapping.Size).To(Equal(actualMapping.Size))
-				}
+				Expect(cmd.SysProcAttr.GidMappings).To(HaveLen(2))
+				Expect(cmd.SysProcAttr.GidMappings[0].ContainerID).To(Equal(0))
+				Expect(cmd.SysProcAttr.GidMappings[0].HostID).To(Equal(maxUid))
+				Expect(cmd.SysProcAttr.GidMappings[0].Size).To(Equal(1))
+				Expect(cmd.SysProcAttr.GidMappings[1].ContainerID).To(Equal(1))
+				Expect(cmd.SysProcAttr.GidMappings[1].HostID).To(Equal(1))
+				Expect(cmd.SysProcAttr.GidMappings[1].Size).To(Equal(maxUid - 1))
 			})
 		})
 
