@@ -27,8 +27,8 @@ function teardown_filter() {
     sed -e "s/-A/-D/" |
     xargs --no-run-if-empty --max-lines=1 iptables --wait
 
-  # Flush and delete instance chain 
-  iptables --wait -F ${filter_instance_chain} 2> /dev/null || true 
+  # Flush and delete instance chain
+  iptables --wait -F ${filter_instance_chain} 2> /dev/null || true
   iptables --wait -X ${filter_instance_chain} 2> /dev/null || true
 }
 
@@ -74,11 +74,11 @@ function setup_nat() {
     --jump ${nat_instance_chain}
 
   # Enable NAT for traffic coming from containers
-  (iptables --wait --table nat -S ${nat_postrouting_chain} | grep "\-j SNAT\b" | grep -q -F -- "-s ${network_cidr}") ||
+  (iptables --wait --table nat -S ${nat_postrouting_chain} | grep "\-j MASQUERADE\b" | grep -q -F -- "-s ${network_cidr}") ||
     iptables --wait --table nat -A ${nat_postrouting_chain} \
       --source ${network_cidr} \
-      --jump SNAT \
-      --to $external_ip
+      ! --destination ${network_cidr} \
+      --jump MASQUERADE
 }
 
 case "${1}" in
