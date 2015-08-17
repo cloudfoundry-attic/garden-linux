@@ -16,7 +16,6 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/network"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	sys "github.com/cloudfoundry-incubator/garden-linux/system"
-	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
 )
 
 func init() {
@@ -102,10 +101,6 @@ func main() {
 			&containerizer.CapabilitiesStep{
 				Drop:         dropCapabilities,
 				Capabilities: &sys.ProcessCapabilities{Pid: os.Getpid()},
-			},
-			&containerizer.ShellRunnerStep{
-				Runner: linux_command_runner.New(),
-				Path:   "/etc/seed",
 			},
 		},
 	}

@@ -22,15 +22,6 @@ import (
 )
 
 var _ = Describe("Security", func() {
-	Describe("Capabilities", func() {
-		It("drops capabilities for the initc/initd process in a non-privileged container", func() {
-			client = startGarden()
-
-			_, err := client.Create(garden.ContainerSpec{RootFSPath: "docker:///cloudfoundry/garden-with-etc-seed"})
-			Expect(err).To(MatchError(ContainSubstring("start: exit status 2")))
-		})
-	})
-
 	Describe("PID namespace", func() {
 		It("does not keep any host files open", func() {
 			client = startGarden()

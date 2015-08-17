@@ -254,34 +254,6 @@ var _ = Describe("Creating a container", func() {
 			rootfs = ""
 		})
 
-		It("sources /etc/seed", func() {
-			stdout := gbytes.NewBuffer()
-			stderr := gbytes.NewBuffer()
-			process, err := container.Run(garden.ProcessSpec{
-				User: "vcap",
-				Path: "test",
-				Args: []string{"-e", "/tmp/ran-seed"},
-			},
-				garden.ProcessIO{
-					Stdout: stdout,
-					Stderr: stderr,
-				})
-			Expect(err).ToNot(HaveOccurred())
-
-			exitStatus, err := process.Wait()
-			Expect(err).ToNot(HaveOccurred())
-
-			if exitStatus != 0 {
-				Fail(fmt.Sprintf(
-					"Non zero exit status %d:\n stderr says: %s\n stdout says: %s\n",
-					exitStatus,
-					string(stderr.Contents()),
-					string(stdout.Contents()),
-				))
-			}
-			Expect(exitStatus).To(Equal(0))
-		})
-
 		Context("when the rootfs is a symlink", func() {
 			var symlinkDir string
 
