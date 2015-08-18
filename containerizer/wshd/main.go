@@ -93,6 +93,12 @@ func main() {
 		}.Mount},
 	}}
 
+	maxUID, err := system.MaxValidUID("/proc/self/uid_map", "/proc/self/guid_map")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "wshd: calculate max valid uid", err)
+		os.Exit(9)
+	}
+
 	cz := containerizer.Containerizer{
 		BeforeCloneInitializer: beforeCloneInitializer,
 		InitBinPath:            path.Join(binPath, "initc"),
@@ -105,6 +111,7 @@ func main() {
 			CommandRunner: linux_command_runner.New(),
 			ExtraFiles:    []*os.File{containerReader, containerWriter, socketFile},
 			Privileged:    privileged,
+			MaxUID:        maxUID,
 		},
 		Signaller: sync,
 		Waiter:    sync,

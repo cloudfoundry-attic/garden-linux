@@ -6,7 +6,6 @@ import (
 	"os/exec"
 	"syscall"
 
-	coresys "github.com/cloudfoundry-incubator/garden-linux/system"
 	"github.com/cloudfoundry/gunk/command_runner"
 )
 
@@ -16,6 +15,10 @@ type NamespacingExecer struct {
 	CommandRunner command_runner.CommandRunner
 	ExtraFiles    []*os.File
 	Privileged    bool
+
+	// When User Namespaces are enabled, maps 1-MaxUID-1 UIDS, and
+	// maps container root (0) to MaxUID
+	MaxUID int
 }
 
 func (e *NamespacingExecer) Exec(binPath string, args ...string) (int, error) {
@@ -31,7 +34,7 @@ func (e *NamespacingExecer) Exec(binPath string, args ...string) (int, error) {
 	if !e.Privileged {
 		flags = flags | syscall.CLONE_NEWUSER
 
-		mapping, err := makeSysProcIDMap()
+		mapping, err := makeSysProcIDMap(e.MaxUID)
 		if err != nil {
 			return 0, err
 		}
@@ -54,12 +57,7 @@ func (e *NamespacingExecer) Exec(binPath string, args ...string) (int, error) {
 	return cmd.Process.Pid, nil
 }
 
-func makeSysProcIDMap() ([]syscall.SysProcIDMap, error) {
-	maxUid, err := coresys.MaxValidUid("/proc/self/uid_map", "/proc/self/gid_map")
-	if err != nil {
-		return nil, err
-	}
-
+func makeSysProcIDMap(maxUid int) ([]syscall.SysProcIDMap, error) {
 	return []syscall.SysProcIDMap{
 		syscall.SysProcIDMap{
 			ContainerID: 0,

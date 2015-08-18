@@ -7,7 +7,6 @@ import (
 	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
-	coresys "github.com/cloudfoundry-incubator/garden-linux/system"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
 	. "github.com/onsi/ginkgo"
@@ -92,30 +91,17 @@ var _ = Describe("Execer", func() {
 			})
 
 			It("sets uid and gid mappings", func() {
+				execer.MaxUID = 33
 				_, err := execer.Exec("something", "smthg")
 				Expect(err).ToNot(HaveOccurred())
 
-				// FIXME: inject instead
-				maxUid, err := coresys.MaxValidUid("/proc/self/uid_map", "/proc/self/gid_map")
-				Expect(err).NotTo(HaveOccurred())
-
 				cmd := commandRunner.StartedCommands()[0]
+				Expect(cmd.SysProcAttr.UidMappings).To(Equal([]syscall.SysProcIDMap{
+					{ContainerID: 0, HostID: 33, Size: 1},
+					{ContainerID: 1, HostID: 1, Size: 32},
+				}))
 
-				Expect(cmd.SysProcAttr.UidMappings).To(HaveLen(2))
-				Expect(cmd.SysProcAttr.UidMappings[0].ContainerID).To(Equal(0))
-				Expect(cmd.SysProcAttr.UidMappings[0].HostID).To(Equal(maxUid))
-				Expect(cmd.SysProcAttr.UidMappings[0].Size).To(Equal(1))
-				Expect(cmd.SysProcAttr.UidMappings[1].ContainerID).To(Equal(1))
-				Expect(cmd.SysProcAttr.UidMappings[1].HostID).To(Equal(1))
-				Expect(cmd.SysProcAttr.UidMappings[1].Size).To(Equal(maxUid - 1))
-
-				Expect(cmd.SysProcAttr.GidMappings).To(HaveLen(2))
-				Expect(cmd.SysProcAttr.GidMappings[0].ContainerID).To(Equal(0))
-				Expect(cmd.SysProcAttr.GidMappings[0].HostID).To(Equal(maxUid))
-				Expect(cmd.SysProcAttr.GidMappings[0].Size).To(Equal(1))
-				Expect(cmd.SysProcAttr.GidMappings[1].ContainerID).To(Equal(1))
-				Expect(cmd.SysProcAttr.GidMappings[1].HostID).To(Equal(1))
-				Expect(cmd.SysProcAttr.GidMappings[1].Size).To(Equal(maxUid - 1))
+				Expect(cmd.SysProcAttr.GidMappings).To(Equal(cmd.SysProcAttr.UidMappings))
 			})
 		})
 
