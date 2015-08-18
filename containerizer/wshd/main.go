@@ -34,7 +34,7 @@ func main() {
 
 	binPath, err := filepath.Abs(filepath.Dir(os.Args[0]))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "wshd: failed to obtain absolute path: %s", err)
+		fmt.Fprintf(os.Stderr, "wshd: obtain absolute path: %s", err)
 		os.Exit(6)
 	}
 
@@ -47,13 +47,13 @@ func main() {
 
 	containerReader, hostWriter, err := os.Pipe()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "wshd: failed to create pipe: %s", err)
+		fmt.Fprintf(os.Stderr, "wshd: create pipe: %s", err)
 		os.Exit(5)
 	}
 
 	hostReader, containerWriter, err := os.Pipe()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "wshd: failed to create pipe: %s", err)
+		fmt.Fprintf(os.Stderr, "wshd: create pipe: %s", err)
 		os.Exit(4)
 	}
 
@@ -64,13 +64,13 @@ func main() {
 
 	listener, err := unix_socket.NewListenerFromPath(socketPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "wshd: failed to create listener: %s", err)
+		fmt.Fprintf(os.Stderr, "wshd: create listener: %s", err)
 		os.Exit(8)
 	}
 
 	socketFile, err := listener.File()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "wshd: failed to obtain listener file: %s", err)
+		fmt.Fprintf(os.Stderr, "wshd: obtain listener file: %s", err)
 		os.Exit(9)
 	}
 
