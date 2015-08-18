@@ -1,4 +1,4 @@
-package system_info
+package sysinfo
 
 import (
 	"github.com/cloudfoundry/gosigar"

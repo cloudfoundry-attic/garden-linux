@@ -17,7 +17,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/container_repository"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/fakes"
-	"github.com/cloudfoundry-incubator/garden-linux/system_info/fake_system_info"
+	"github.com/cloudfoundry-incubator/garden-linux/sysinfo/fake_system_info"
 )
 
 var _ = Describe("LinuxBackend", func() {

@@ -13,6 +13,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer"
 	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
+	"github.com/cloudfoundry-incubator/garden-linux/sysinfo"
 	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
 )
 
@@ -93,12 +94,7 @@ func main() {
 		}.Mount},
 	}}
 
-	maxUID, err := system.MaxValidUID("/proc/self/uid_map", "/proc/self/guid_map")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "wshd: calculate max valid uid", err)
-		os.Exit(9)
-	}
-
+	maxUID := sysinfo.Min(sysinfo.MustGetMaxValidUID(), sysinfo.MustGetMaxValidGID())
 	cz := containerizer.Containerizer{
 		BeforeCloneInitializer: beforeCloneInitializer,
 		InitBinPath:            path.Join(binPath, "initc"),

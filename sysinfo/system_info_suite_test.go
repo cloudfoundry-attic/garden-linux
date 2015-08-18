@@ -1,4 +1,4 @@
-package system_info_test
+package sysinfo_test
 
 import (
 	. "github.com/onsi/ginkgo"

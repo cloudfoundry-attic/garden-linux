@@ -45,8 +45,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/rootfs_provider/btrfs_cleanup"
 	"github.com/cloudfoundry-incubator/garden-linux/sysconfig"
-	"github.com/cloudfoundry-incubator/garden-linux/system"
-	"github.com/cloudfoundry-incubator/garden-linux/system_info"
+	"github.com/cloudfoundry-incubator/garden-linux/sysinfo"
 	"github.com/cloudfoundry-incubator/garden/server"
 	"github.com/cloudfoundry/dropsonde"
 	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
@@ -306,21 +305,17 @@ func main() {
 		),
 	}
 
-	maxUid, err := system.MaxValidUid("/proc/self/uid_map", "/proc/self/gid_map")
-	if err != nil {
-		logger.Fatal("failed-to-determine-max-uid", err)
-	}
-
+	maxId := sysinfo.Min(sysinfo.MustGetMaxValidUID(), sysinfo.MustGetMaxValidGID())
 	mappingList := rootfs_provider.MappingList{
 		{
 			FromID: 0,
-			ToID:   maxUid,
+			ToID:   maxId,
 			Size:   1,
 		},
 		{
 			FromID: 1,
 			ToID:   1,
-			Size:   maxUid - 1,
+			Size:   maxId - 1,
 		},
 	}
 
@@ -426,7 +421,7 @@ func main() {
 		currentContainerVersion,
 	)
 
-	systemInfo := system_info.NewProvider(*depotPath)
+	systemInfo := sysinfo.NewProvider(*depotPath)
 
 	backend := linux_backend.New(logger, pool, container_repository.New(), injector, systemInfo, *snapshotsPath, int(*maxContainers))
 

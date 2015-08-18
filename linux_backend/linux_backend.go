@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/system_info"
+	"github.com/cloudfoundry-incubator/garden-linux/sysinfo"
 	"github.com/pivotal-golang/lager"
 )
 
@@ -56,7 +56,7 @@ type LinuxBackend struct {
 	logger lager.Logger
 
 	resourcePool  ResourcePool
-	systemInfo    system_info.Provider
+	systemInfo    sysinfo.Provider
 	snapshotsPath string
 	maxContainers int
 
@@ -93,7 +93,7 @@ func New(
 	resourcePool ResourcePool,
 	containerRepo ContainerRepository,
 	containerProvider ContainerProvider,
-	systemInfo system_info.Provider,
+	systemInfo sysinfo.Provider,
 	snapshotsPath string,
 	maxContainers int,
 ) *LinuxBackend {
