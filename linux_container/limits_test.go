@@ -51,7 +51,6 @@ var _ = Describe("Linux containers", func() {
 
 		_, subnet, _ := net.ParseCIDR("2.3.4.0/30")
 		containerResources = linux_backend.NewResources(
-			1234,
 			1235,
 			&linux_backend.Network{
 				IP:     net.ParseIP("1.2.3.4"),

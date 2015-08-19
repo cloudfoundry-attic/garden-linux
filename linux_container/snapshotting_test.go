@@ -84,7 +84,6 @@ var _ = Describe("Linux containers", func() {
 
 		_, subnet, err := net.ParseCIDR("2.3.4.0/30")
 		containerResources = linux_backend.NewResources(
-			1234,
 			1235,
 			&linux_backend.Network{
 				IP:     net.ParseIP("1.2.3.4"),
@@ -202,7 +201,6 @@ var _ = Describe("Linux containers", func() {
 			_, subnet, err := net.ParseCIDR("2.3.4.0/30")
 			Expect(snapshot.Resources).To(Equal(
 				linux_container.ResourcesSnapshot{
-					UserUID: containerResources.UserUID,
 					RootUID: containerResources.RootUID,
 					Network: &linux_backend.Network{
 						IP:     net.ParseIP("1.2.3.4"),
@@ -388,7 +386,7 @@ var _ = Describe("Linux containers", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			_, err = container.Run(garden.ProcessSpec{
-				User: "vcap",
+				User: "alice",
 				Path: "/some/script",
 			}, garden.ProcessIO{})
 			Expect(err).ToNot(HaveOccurred())

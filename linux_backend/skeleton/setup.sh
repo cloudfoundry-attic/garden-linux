@@ -20,7 +20,6 @@ network_container_ip=${network_container_ip:-10.0.0.2}
 network_container_iface="${iface_name_prefix}${iface_name}-1"
 bridge_iface="${bridge_iface}"
 network_cidr_suffix=${network_cidr_suffix:-30}
-user_uid=${user_uid:-10000}
 root_uid=${root_uid:-10000}
 rootfs_path=$(readlink -f $rootfs_path)
 
@@ -46,7 +45,6 @@ network_cidr_suffix=$network_cidr_suffix
 container_iface_mtu=$container_iface_mtu
 network_cidr=$network_cidr
 root_uid=$root_uid
-user_uid=$user_uid
 rootfs_path=$rootfs_path
 external_ip=$external_ip
 EOS
@@ -141,40 +139,6 @@ else
   rm -f $rootfs_path/etc/resolv.conf
 
   cp /etc/resolv.conf $rootfs_path/etc/
-fi
-
-
-# Add vcap user if not already present
-if ! chroot $rootfs_path id vcap >/dev/null 2>&1; then
-  mkdir -p $rootfs_path/home
-
-  shell=/bin/sh
-  if [ -f $rootfs_path/bin/bash ]; then
-    shell=/bin/bash
-  fi
-
-  touch $rootfs_path/etc/passwd
-  touch $rootfs_path/etc/group
-  useradd -R $rootfs_path -m -u 10001 -U -s $shell vcap
-  chown $user_uid:$user_uid $rootfs_path/home/vcap
-fi
-
-# workaround aufs limitations by copying /root directory out and back
-# in order to get it a new inode. This is the only way to prevent the
-# ownership in the read-only layer affecting the read-write layer. Later
-# versions of aufs support a dirperm1 mount option which should allow us
-# to remove this workaround.
-rm -rf "$rootfs_path/tmp/root" || true # just in case
-[ -d "$rootfs_path/root" ] && cp -r "$rootfs_path/root" "$rootfs_path/tmp/root"
-if rm -r "$rootfs_path/root" 2>&1; then
-  mv "$rootfs_path/tmp/root" "$rootfs_path/root"
-fi
-rm -rf "$rootfs_path/tmp/root"
-
-# change the root user id in the rootfs /root dir to the container root uid if they
-# differ and if /root exists
-if [ -d "$rootfs_path/root" ] && [ "$root_uid" -ne 0 ]; then
-  chown -R --from 0:0 $root_uid:$root_uid "$rootfs_path/root"
 fi
 
 if [ -d "$rootfs_path/dev" ] && [ "$root_uid" -ne 0 ]; then

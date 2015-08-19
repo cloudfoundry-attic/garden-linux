@@ -79,7 +79,7 @@ var _ = Describe("Denying access to network ranges", func() {
 
 	runInContainer := func(container garden.Container, script string) garden.Process {
 		process, err := container.Run(garden.ProcessSpec{
-			User: "vcap",
+			User: "alice",
 			Path: "sh",
 			Args: []string{"-c", script},
 		}, garden.ProcessIO{

@@ -55,7 +55,7 @@ var _ = Describe("Creating a container", func() {
 			runInContainer := func(c garden.Container) {
 				out := gbytes.NewBuffer()
 				process, err := c.Run(garden.ProcessSpec{
-					User: "vcap",
+					User: "alice",
 					Path: "/usr/local/go/bin/go",
 					Args: []string{"version"},
 				}, garden.ProcessIO{
@@ -275,7 +275,7 @@ var _ = Describe("Creating a container", func() {
 				stdout := gbytes.NewBuffer()
 
 				process, err := container.Run(garden.ProcessSpec{
-					User: "vcap",
+					User: "alice",
 					Path: "ls",
 					Args: []string{"/"},
 				}, garden.ProcessIO{
@@ -302,7 +302,7 @@ var _ = Describe("Creating a container", func() {
 
 				for i := 0; i < 50; i++ {
 					process, err := container.Run(garden.ProcessSpec{
-						User: "vcap",
+						User: "alice",
 						Path: "true",
 					}, garden.ProcessIO{})
 					Expect(err).ToNot(HaveOccurred())

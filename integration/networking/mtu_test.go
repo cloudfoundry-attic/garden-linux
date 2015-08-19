@@ -32,7 +32,7 @@ var _ = Describe("MTU size", func() {
 			stderr := gbytes.NewBuffer()
 
 			process, err := container.Run(garden.ProcessSpec{
-				User: "vcap",
+				User: "alice",
 				Path: "/sbin/ifconfig",
 				Args: []string{containerIfName(container)},
 			}, garden.ProcessIO{

@@ -21,23 +21,23 @@ var _ = Describe("Environment", func() {
 	Context("with a non empty environment", func() {
 		It("converts the environment into the corresponding array", func() {
 			env := process.Env{
-				"HOME": "/home/vcap",
-				"USER": "vcap",
+				"HOME": "/home/alice",
+				"USER": "alice",
 			}
 			Expect(env.Array()).To(ConsistOf(
-				"HOME=/home/vcap",
-				"USER=vcap",
+				"HOME=/home/alice",
+				"USER=alice",
 			))
 		})
 
 		It("sorts the keys into a predictable order", func() {
 			envForwards := process.Env{
-				"HOME": "/home/vcap",
-				"USER": "vcap",
+				"HOME": "/home/alice",
+				"USER": "alice",
 			}
 			envBackwards := process.Env{
-				"USER": "vcap",
-				"HOME": "/home/vcap",
+				"USER": "alice",
+				"HOME": "/home/alice",
 			}
 
 			Expect(envForwards.Array()).To(Equal(envBackwards.Array()))
@@ -46,16 +46,16 @@ var _ = Describe("Environment", func() {
 		Describe("merging in a second environment", func() {
 			It("adds the new environment to the old one", func() {
 				old := process.Env{
-					"HOME": "/home/vcap",
+					"HOME": "/home/alice",
 				}
 				extra := process.Env{
-					"USER": "vcap",
+					"USER": "alice",
 				}
 
 				merged := old.Merge(extra)
 				Expect(merged.Array()).To(ConsistOf(
-					"HOME=/home/vcap",
-					"USER=vcap",
+					"HOME=/home/alice",
+					"USER=alice",
 				))
 			})
 
@@ -64,12 +64,12 @@ var _ = Describe("Environment", func() {
 					"USER": "root",
 				}
 				extra := process.Env{
-					"USER": "vcap",
+					"USER": "alice",
 				}
 
 				merged := old.Merge(extra)
 				Expect(merged.Array()).To(ConsistOf(
-					"USER=vcap",
+					"USER=alice",
 				))
 			})
 		})
@@ -112,26 +112,26 @@ var _ = Describe("Environment", func() {
 	Context("when using the constructor", func() {
 		It("can be constructed from an array", func() {
 			env, err := process.NewEnv([]string{
-				"HOME=/home/vcap",
-				"USER=vcap",
+				"HOME=/home/alice",
+				"USER=alice",
 			})
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(env.Array()).To(ConsistOf(
-				"HOME=/home/vcap",
-				"USER=vcap",
+				"HOME=/home/alice",
+				"USER=alice",
 			))
 		})
 
 		It("removes duplicate entries (last one wins)", func() {
 			env, err := process.NewEnv([]string{
 				"HOME=/home/wrong",
-				"HOME=/home/vcap",
+				"HOME=/home/alice",
 			})
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(env.Array()).To(ConsistOf(
-				"HOME=/home/vcap",
+				"HOME=/home/alice",
 			))
 		})
 

@@ -50,7 +50,6 @@ var _ = Describe("Linux containers", func() {
 
 		_, subnet, _ := net.ParseCIDR("2.3.4.0/30")
 		containerResources = linux_backend.NewResources(
-			1234,
 			1235,
 			&linux_backend.Network{
 				IP:     net.ParseIP("1.2.3.4"),
@@ -93,7 +92,7 @@ var _ = Describe("Linux containers", func() {
 	Describe("Running", func() {
 		It("runs the /bin/bash via wsh with the given script as the input, and rlimits in env", func() {
 			_, err := container.Run(garden.ProcessSpec{
-				User: "vcap",
+				User: "alice",
 				Path: "/some/script",
 				Args: []string{"arg1", "arg2"},
 				Limits: garden.ResourceLimits{
@@ -124,7 +123,7 @@ var _ = Describe("Linux containers", func() {
 			Expect(ranCmd.Args).To(Equal([]string{
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
-				"--user", "vcap",
+				"--user", "alice",
 				"--env", "env1=env1Value",
 				"--env", "env2=env2Value",
 				"/some/script",
@@ -171,7 +170,7 @@ var _ = Describe("Linux containers", func() {
 
 		It("configures the correct process signaller (LinkSignaller)", func() {
 			_, err := container.Run(garden.ProcessSpec{
-				User: "vcap",
+				User: "alice",
 				Path: "/some/script",
 			}, garden.ProcessIO{})
 			Expect(err).ToNot(HaveOccurred())
@@ -187,7 +186,7 @@ var _ = Describe("Linux containers", func() {
 
 			It("configures the correct process signaller (NamespacedSignaller)", func() {
 				_, err := container.Run(garden.ProcessSpec{
-					User: "vcap",
+					User: "alice",
 					Path: "/some/script",
 				}, garden.ProcessIO{})
 				Expect(err).ToNot(HaveOccurred())
@@ -198,7 +197,7 @@ var _ = Describe("Linux containers", func() {
 
 			It("adds --pidfile argument in wsh", func() {
 				_, err := container.Run(garden.ProcessSpec{
-					User: "vcap",
+					User: "alice",
 					Path: "/some/script",
 				}, garden.ProcessIO{})
 				Expect(err).ToNot(HaveOccurred())
@@ -211,13 +210,13 @@ var _ = Describe("Linux containers", func() {
 
 		It("uses unique process IDs for each process", func() {
 			_, err := container.Run(garden.ProcessSpec{
-				User: "vcap",
+				User: "alice",
 				Path: "/some/script",
 			}, garden.ProcessIO{})
 			Expect(err).ToNot(HaveOccurred())
 
 			_, err = container.Run(garden.ProcessSpec{
-				User: "vcap",
+				User: "alice",
 				Path: "/some/script",
 			}, garden.ProcessIO{})
 			Expect(err).ToNot(HaveOccurred())
@@ -230,7 +229,7 @@ var _ = Describe("Linux containers", func() {
 
 		It("should return an error when an environment variable is malformed", func() {
 			_, err := container.Run(garden.ProcessSpec{
-				User: "vcap",
+				User: "alice",
 				Path: "/some/script",
 				Env:  []string{"a"},
 			}, garden.ProcessIO{})
@@ -261,7 +260,7 @@ var _ = Describe("Linux containers", func() {
 
 		It("runs the script with the environment variables from the run taking precedence over the container environment variables", func() {
 			_, err := container.Run(garden.ProcessSpec{
-				User: "vcap",
+				User: "alice",
 				Path: "/some/script",
 				Env: []string{
 					"env1=overridden",
@@ -274,7 +273,7 @@ var _ = Describe("Linux containers", func() {
 			Expect(ranCmd.Args).To(Equal([]string{
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
-				"--user", "vcap",
+				"--user", "alice",
 				"--env", "env1=overridden",
 				"--env", "env2=env2Value",
 				"/some/script",
@@ -283,7 +282,7 @@ var _ = Describe("Linux containers", func() {
 
 		It("runs the script with the working dir set if present", func() {
 			_, err := container.Run(garden.ProcessSpec{
-				User: "vcap",
+				User: "alice",
 				Path: "/some/script",
 				Dir:  "/some/dir",
 			}, garden.ProcessIO{})
@@ -294,7 +293,7 @@ var _ = Describe("Linux containers", func() {
 			Expect(ranCmd.Args).To(Equal([]string{
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
-				"--user", "vcap",
+				"--user", "alice",
 				"--env", "env1=env1Value",
 				"--env", "env2=env2Value",
 				"--dir", "/some/dir",
@@ -311,7 +310,7 @@ var _ = Describe("Linux containers", func() {
 			}
 
 			_, err := container.Run(garden.ProcessSpec{
-				User: "vcap",
+				User: "alice",
 				Path: "/some/script",
 				TTY:  ttySpec,
 			}, garden.ProcessIO{})
@@ -357,7 +356,7 @@ var _ = Describe("Linux containers", func() {
 				stderr := gbytes.NewBuffer()
 
 				process, err := container.Run(garden.ProcessSpec{
-					User: "vcap",
+					User: "alice",
 					Path: "/some/script",
 				}, garden.ProcessIO{
 					Stdout: stdout,
@@ -376,7 +375,7 @@ var _ = Describe("Linux containers", func() {
 
 		It("only sets the given rlimits", func() {
 			_, err := container.Run(garden.ProcessSpec{
-				User: "vcap",
+				User: "alice",
 				Path: "/some/script",
 				Limits: garden.ResourceLimits{
 					As:      uint64ptr(1),
@@ -398,7 +397,7 @@ var _ = Describe("Linux containers", func() {
 			Expect(ranCmd.Args).To(Equal([]string{
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
-				"--user", "vcap",
+				"--user", "alice",
 				"--env", "env1=env1Value",
 				"--env", "env2=env2Value",
 				"/some/script",

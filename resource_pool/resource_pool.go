@@ -34,8 +34,7 @@ import (
 )
 
 var (
-	ErrUnknownRootFSProvider     = errors.New("unknown rootfs provider")
-	vcapUid                  int = 10001
+	ErrUnknownRootFSProvider = errors.New("unknown rootfs provider")
 )
 
 //go:generate counterfeiter -o fake_filter_provider/FakeFilterProvider.go . FilterProvider
@@ -348,7 +347,6 @@ func (p *LinuxResourcePool) Restore(snapshot io.Reader) (linux_backend.LinuxCont
 		},
 
 		Resources: linux_backend.NewResources(
-			resources.UserUID,
 			resources.RootUID,
 			resources.Network,
 			resources.Bridge,
@@ -473,7 +471,7 @@ func (p *LinuxResourcePool) restoreContainerVersion(id string) (semver.Version, 
 }
 
 func (p *LinuxResourcePool) acquirePoolResources(spec garden.ContainerSpec, id string) (*linux_backend.Resources, error) {
-	resources := linux_backend.NewResources(0, 1, nil, "", nil, p.externalIP)
+	resources := linux_backend.NewResources(0, nil, "", nil, p.externalIP)
 
 	subnet, ip, err := parseNetworkSpec(spec.Network)
 	if err != nil {
@@ -494,13 +492,11 @@ func (p *LinuxResourcePool) acquirePoolResources(spec garden.ContainerSpec, id s
 
 func (p *LinuxResourcePool) acquireUID(resources *linux_backend.Resources, privileged bool) error {
 	if !privileged {
-		resources.UserUID = p.mappingList.Map(vcapUid)
 		resources.RootUID = p.mappingList.Map(0)
 		return nil
 	}
 
 	resources.RootUID = 0
-	resources.UserUID = vcapUid
 	return nil
 }
 
@@ -575,7 +571,6 @@ func (p *LinuxResourcePool) acquireSystemResources(id, handle, containerPath, ro
 		"external_ip":          p.externalIP.String(),
 		"container_iface_mtu":  fmt.Sprintf("%d", p.mtu),
 		"bridge_iface":         resources.Bridge,
-		"user_uid":             strconv.FormatUint(uint64(resources.UserUID), 10),
 		"root_uid":             strconv.FormatUint(uint64(resources.RootUID), 10),
 		"PATH":                 os.Getenv("PATH"),
 	}

@@ -69,7 +69,6 @@ var _ = Describe("Linux containers", func() {
 
 		_, subnet, err := net.ParseCIDR("2.3.4.0/30")
 		containerResources = linux_backend.NewResources(
-			1234,
 			1235,
 			&linux_backend.Network{
 				IP:     net.ParseIP("1.2.3.4"),
@@ -472,7 +471,7 @@ var _ = Describe("Linux containers", func() {
 		Context("when there's a trailing slash", func() {
 			It("compresses the directory's contents", func() {
 				_, err := container.StreamOut(garden.StreamOutSpec{
-					User: "vcap",
+					User: "alice",
 					Path: "/some/directory/dst/",
 				})
 				Expect(err).ToNot(HaveOccurred())
@@ -482,7 +481,7 @@ var _ = Describe("Linux containers", func() {
 						Path: containerDir + "/bin/nstar",
 						Args: []string{
 							"12345",
-							"vcap",
+							"alice",
 							"/some/directory/dst/",
 							".",
 						},

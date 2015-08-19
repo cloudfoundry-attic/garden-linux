@@ -80,7 +80,7 @@ var _ = Describe("A container", func() {
 	Context("with an invalid source directory", func() {
 		BeforeEach(func() {
 			srcPath = "/does-not-exist"
-			dstPath = "/home/vcap/should-not-be-created"
+			dstPath = "/home/alice/should-not-be-created"
 		})
 
 		It("should fail to be created", func() {
@@ -102,7 +102,7 @@ var _ = Describe("A container", func() {
 		Context("which is read-only", func() {
 			BeforeEach(func() {
 				bindMountMode = garden.BindMountModeRO
-				dstPath = "/home/vcap/readonly"
+				dstPath = "/home/alice/readonly"
 			})
 
 			Context("and with privileged=true", func() {
@@ -141,7 +141,7 @@ var _ = Describe("A container", func() {
 		Context("which is read-write", func() {
 			BeforeEach(func() {
 				bindMountMode = garden.BindMountModeRW
-				dstPath = "/home/vcap/readwrite"
+				dstPath = "/home/alice/readwrite"
 			})
 
 			Context("and with privileged=true", func() {
@@ -180,7 +180,7 @@ var _ = Describe("A container", func() {
 
 	Context("with a container origin bind-mount", func() {
 		BeforeEach(func() {
-			srcPath = "/home/vcap"
+			srcPath = "/home/alice"
 			bindMountOrigin = garden.BindMountOriginContainer
 		})
 
@@ -191,7 +191,7 @@ var _ = Describe("A container", func() {
 		Context("which is read-only", func() {
 			BeforeEach(func() {
 				bindMountMode = garden.BindMountModeRO
-				dstPath = "/home/vcap/readonly"
+				dstPath = "/home/alice/readonly"
 			})
 
 			Context("and with privileged=true", func() {
@@ -231,7 +231,7 @@ var _ = Describe("A container", func() {
 		Context("which is read-write", func() {
 			BeforeEach(func() {
 				bindMountMode = garden.BindMountModeRW
-				dstPath = "/home/vcap/readwrite"
+				dstPath = "/home/alice/readwrite"
 			})
 
 			Context("and with privileged=true", func() {
@@ -320,7 +320,7 @@ func checkFileAccess(container garden.Container, bindMountMode garden.BindMountM
 	if privReq {
 		user = "root"
 	} else {
-		user = "vcap"
+		user = "alice"
 	}
 
 	process, err := container.Run(garden.ProcessSpec{

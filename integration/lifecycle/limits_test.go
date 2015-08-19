@@ -62,7 +62,7 @@ var _ = Describe("Limits", func() {
 				Context("and it runs a process that exceeds the limit", func() {
 					It("does not kill the process", func() {
 						dd, err := container.Run(garden.ProcessSpec{
-							User: "vcap",
+							User: "alice",
 							Path: "dd",
 							Args: []string{"if=/dev/zero", "of=/tmp/some-file", "bs=1M", "count=6"},
 						}, garden.ProcessIO{})

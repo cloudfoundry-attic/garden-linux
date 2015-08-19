@@ -242,7 +242,6 @@ func (c *LinuxContainer) Snapshot(out io.Writer) error {
 		},
 
 		Resources: ResourcesSnapshot{
-			UserUID: c.Resources.UserUID,
 			RootUID: c.Resources.RootUID,
 			Network: c.Resources.Network,
 			Bridge:  c.Resources.Bridge,

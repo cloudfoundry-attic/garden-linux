@@ -392,7 +392,6 @@ var _ = Describe("Container pool", func() {
 								"network_host_ip=10.2.0.2",
 								"root_uid=700000",
 								"rootfs_path=/provided/rootfs/path",
-								"user_uid=710001",
 							},
 						},
 					))
@@ -421,7 +420,6 @@ var _ = Describe("Container pool", func() {
 							"network_host_ip=10.2.0.2",
 							"root_uid=0",
 							"rootfs_path=/provided/rootfs/path",
-							"user_uid=10001",
 						},
 					},
 				))
@@ -449,7 +447,6 @@ var _ = Describe("Container pool", func() {
 							"network_host_ip=10.2.0.2",
 							"root_uid=700000",
 							"rootfs_path=/provided/rootfs/path",
-							"user_uid=710001",
 						},
 					},
 				))
@@ -483,7 +480,6 @@ var _ = Describe("Container pool", func() {
 							"network_host_ip=10.3.0.6",
 							"root_uid=700000",
 							"rootfs_path=/provided/rootfs/path",
-							"user_uid=710001",
 						},
 					},
 				))
@@ -1098,7 +1094,6 @@ var _ = Describe("Container pool", func() {
 					},
 
 					Resources: linux_container.ResourcesSnapshot{
-						UserUID: 10000,
 						RootUID: rootUID,
 						Network: containerNetwork,
 						Bridge:  bridgeName,

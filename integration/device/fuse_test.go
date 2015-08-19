@@ -60,7 +60,7 @@ var _ = Describe("Fuse", func() {
 
 			Context("a non-privileged process", func() {
 				BeforeEach(func() {
-					user = "vcap"
+					user = "alice"
 				})
 
 				It("can mount a fuse filesystem", func() {

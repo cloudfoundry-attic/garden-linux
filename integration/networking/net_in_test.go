@@ -24,7 +24,7 @@ var _ = Describe("Net In", func() {
 
 	var listenInContainer = func(container garden.Container, containerPort uint32) error {
 		_, err := container.Run(garden.ProcessSpec{
-			User: "vcap",
+			User: "alice",
 			Path: "sh",
 			Args: []string{"-c", fmt.Sprintf("echo %d | nc -l %d", containerPort, containerPort)},
 		}, garden.ProcessIO{

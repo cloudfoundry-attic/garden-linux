@@ -84,7 +84,6 @@ func (n *Network) UnmarshalJSON(b []byte) error {
 }
 
 type Resources struct {
-	UserUID    int
 	RootUID    int
 	Network    *Network
 	Bridge     string
@@ -95,7 +94,6 @@ type Resources struct {
 }
 
 func NewResources(
-	useruid int,
 	rootuid int,
 	network *Network,
 	bridge string,
@@ -103,7 +101,6 @@ func NewResources(
 	externalIP net.IP,
 ) *Resources {
 	return &Resources{
-		UserUID:    useruid,
 		RootUID:    rootuid,
 		Bridge:     bridge,
 		Network:    network,

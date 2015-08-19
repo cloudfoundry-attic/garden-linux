@@ -105,9 +105,9 @@ var _ = Describe("Security", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			process, err := container.Run(garden.ProcessSpec{
-				User: "vcap",
+				User: "alice",
 				Path: "/bin/mkdir",
-				Args: []string{"/home/vcap/lawn"},
+				Args: []string{"/home/alice/lawn"},
 			}, garden.ProcessIO{
 				Stdout: GinkgoWriter,
 				Stderr: GinkgoWriter,
@@ -118,9 +118,9 @@ var _ = Describe("Security", func() {
 			Expect(exitStatus).To(Equal(0))
 
 			process, err = container.Run(garden.ProcessSpec{
-				User: "vcap",
+				User: "alice",
 				Path: "/bin/mkdir",
-				Args: []string{"/home/vcap/gnome"},
+				Args: []string{"/home/alice/gnome"},
 			}, garden.ProcessIO{
 				Stdout: GinkgoWriter,
 				Stderr: GinkgoWriter,
@@ -133,7 +133,7 @@ var _ = Describe("Security", func() {
 			process, err = container.Run(garden.ProcessSpec{
 				User: "root",
 				Path: "/bin/mount",
-				Args: []string{"--bind", "/home/vcap/lawn", "/home/vcap/gnome"},
+				Args: []string{"--bind", "/home/alice/lawn", "/home/alice/gnome"},
 			}, garden.ProcessIO{
 				Stdout: GinkgoWriter,
 				Stderr: GinkgoWriter,
@@ -341,7 +341,7 @@ var _ = Describe("Security", func() {
 			stderr := gbytes.NewBuffer()
 			process, err := container.Run(
 				garden.ProcessSpec{
-					User: "vcap",
+					User: "alice",
 					Path: "/hello",
 				},
 				garden.ProcessIO{
@@ -422,7 +422,7 @@ var _ = Describe("Security", func() {
 
 		runInContainer := func(container garden.Container, script string) garden.Process {
 			process, err := container.Run(garden.ProcessSpec{
-				User: "vcap",
+				User: "alice",
 				Path: "sh",
 				Args: []string{"-c", script},
 			}, garden.ProcessIO{
