@@ -20,6 +20,8 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/pivotal-golang/lager/lagertest"
 
+	"math"
+
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
@@ -277,7 +279,7 @@ var _ = Describe("Container pool", func() {
 		itCleansUpTheRootfs := func() {
 			It("cleans up the rootfs for the container", func() {
 				Expect(fakeRootfsRemover.CleanupRootFSCallCount()).To(Equal(1))
-				_, providedID, _, _ := defaultFakeRootFSProvider.ProvideRootFSArgsForCall(0)
+				_, providedID, _, _, _ := defaultFakeRootFSProvider.ProvideRootFSArgsForCall(0)
 				_, cleanedUpID := fakeRootfsRemover.CleanupRootFSArgsForCall(0)
 				Expect(cleanedUpID).To(Equal(providedID))
 			})
@@ -344,6 +346,26 @@ var _ = Describe("Container pool", func() {
 			Expect(fakeFilter.SetupArgsForCall(0)).To(Equal("test-handle"))
 		})
 
+		Describe("Disk limit", func() {
+			It("should create a rootfs provider with the container's disk quota", func() {
+				_, err := pool.Acquire(garden.ContainerSpec{Limits: garden.Limits{Disk: garden.DiskLimits{ByteHard: 98765}}})
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(defaultFakeRootFSProvider.ProvideRootFSCallCount()).To(Equal(1))
+				_, _, _, _, quota := defaultFakeRootFSProvider.ProvideRootFSArgsForCall(0)
+				Expect(quota).To(Equal(int64(98765)))
+			})
+
+			It("should default the rootfs provider's disk quota when the container's disk quota is not specified", func() {
+				_, err := pool.Acquire(garden.ContainerSpec{})
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(defaultFakeRootFSProvider.ProvideRootFSCallCount()).To(Equal(1))
+				_, _, _, _, quota := defaultFakeRootFSProvider.ProvideRootFSArgsForCall(0)
+				Expect(quota).To(Equal(int64(math.MaxInt64)))
+			})
+		})
+
 		Context("when setting up iptables fails", func() {
 			var err error
 			BeforeEach(func() {
@@ -367,7 +389,7 @@ var _ = Describe("Container pool", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(defaultFakeRootFSProvider.ProvideRootFSCallCount()).To(Equal(1))
-				_, _, _, namespace := defaultFakeRootFSProvider.ProvideRootFSArgsForCall(0)
+				_, _, _, namespace, _ := defaultFakeRootFSProvider.ProvideRootFSArgsForCall(0)
 				Expect(namespace).To(Equal(true))
 			})
 
@@ -653,7 +675,7 @@ var _ = Describe("Container pool", func() {
 				})
 				Expect(err).ToNot(HaveOccurred())
 
-				_, id, uri, _ := fakeRootFSProvider.ProvideRootFSArgsForCall(0)
+				_, id, uri, _, _ := fakeRootFSProvider.ProvideRootFSArgsForCall(0)
 				Expect(id).To(Equal(container.ID))
 				Expect(uri).To(Equal(&url.URL{
 					Scheme: "fake",

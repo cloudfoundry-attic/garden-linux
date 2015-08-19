@@ -3,6 +3,8 @@ package repository_fetcher
 import (
 	"encoding/json"
 
+	"io"
+
 	"github.com/docker/distribution/digest"
 	"github.com/docker/docker/image"
 	"github.com/docker/docker/registry"
@@ -36,6 +38,7 @@ func (fetcher *RemoteV2Fetcher) Fetch(request *FetchRequest) (*FetchResponse, er
 
 	var lastImg *image.Image
 
+	remainingQuota := request.MaxSize
 	for i := len(manifest.FSLayers) - 1; i >= 0; i-- {
 		hash, err := digest.ParseDigest(manifest.FSLayers[i].BlobSum)
 		if err != nil {
@@ -50,30 +53,38 @@ func (fetcher *RemoteV2Fetcher) Fetch(request *FetchRequest) (*FetchResponse, er
 			lastImg = img
 		}
 
-		if err := fetcher.fetchLayer(request, img, hash, auth); err != nil {
+		var size int64
+		if size, err = fetcher.fetchLayer(request, img, hash, auth, remainingQuota); err != nil {
 			return nil, err
+		}
+
+		remainingQuota = remainingQuota - size
+		if remainingQuota < 0 {
+			return nil, ErrQuotaExceeded
 		}
 	}
 
 	return &FetchResponse{ImageID: lastImg.ID}, nil
 }
 
-func (fetcher *RemoteV2Fetcher) fetchLayer(request *FetchRequest, img *image.Image, hash digest.Digest, auth *registry.RequestAuthorization) error {
+func (fetcher *RemoteV2Fetcher) fetchLayer(request *FetchRequest, img *image.Image, hash digest.Digest, auth *registry.RequestAuthorization, remaining int64) (int64, error) {
 	fetcher.GraphLock.Acquire(img.ID)
 	defer fetcher.GraphLock.Release(img.ID)
 
-	if !fetcher.Graph.Exists(img.ID) {
-		reader, _, err := request.Session.GetV2ImageBlobReader(request.Endpoint, request.RemotePath, hash, auth)
-		if err != nil {
-			return FetchError("GetV2ImageBlobReader", request.Endpoint.URL.Host, request.Path, err)
-		}
-		defer reader.Close()
-
-		err = fetcher.Graph.Register(img, reader)
-		if err != nil {
-			return FetchError("GraphRegister", request.Endpoint.URL.Host, request.Path, err)
-		}
+	if img, err := fetcher.Graph.Get(img.ID); err == nil {
+		return img.Size, nil
 	}
 
-	return nil
+	reader, _, err := request.Session.GetV2ImageBlobReader(request.Endpoint, request.RemotePath, hash, auth)
+	if err != nil {
+		return 0, FetchError("GetV2ImageBlobReader", request.Endpoint.URL.Host, request.Path, err)
+	}
+	defer reader.Close()
+
+	err = fetcher.Graph.Register(img, &io.LimitedReader{R: reader, N: remaining})
+	if err != nil {
+		return 0, FetchError("GraphRegister", request.Endpoint.URL.Host, request.Path, err)
+	}
+
+	return img.Size, nil
 }

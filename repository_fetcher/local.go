@@ -33,6 +33,7 @@ func (l *Local) Fetch(
 	logger lager.Logger,
 	repoURL *url.URL,
 	tag string,
+	_ int64,
 ) (string, process.Env, []string, error) {
 
 	path := repoURL.Path

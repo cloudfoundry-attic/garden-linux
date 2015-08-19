@@ -2,6 +2,7 @@ package repository_fetcher_test
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 
@@ -108,6 +109,7 @@ var _ = Describe("RemoteV1", func() {
 			Logger:   logger,
 			Path:     "some-repo",
 			Tag:      "some-tag",
+			MaxSize:  99999,
 		}
 
 		fetcher = &RemoteV1Fetcher{
@@ -143,6 +145,46 @@ var _ = Describe("RemoteV1", func() {
 			Expect(fetchResponse.Env).To(Equal(process.Env{"env1": "env1Value", "env2": "env2NewValue"}))
 			Expect(fetchResponse.Volumes).To(ConsistOf([]string{"/tmp", "/another"}))
 			Expect(fetchResponse.ImageID).To(Equal("id-1"))
+		})
+
+		Context("when the layers exceed the quota", func() {
+			BeforeEach(func() {
+				fetchRequest.MaxSize = 87
+			})
+
+			It("should return a quota exceeded error", func() {
+				called := 0
+				graph.WhenRegistering = func(image *image.Image, layer archive.ArchiveReader) error {
+					Expect(layer).To(BeAssignableToTypeOf(&io.LimitedReader{}))
+					image.Size = 44
+
+					if called == 0 {
+						Expect(layer.(*io.LimitedReader).N).To(Equal(int64(87)))
+					} else {
+						Expect(layer.(*io.LimitedReader).N).To(Equal(int64(87 - 44)))
+					}
+
+					called++
+
+					return nil
+				}
+
+				_, err := fetcher.Fetch(fetchRequest)
+				Expect(err).To(MatchError("quota exceeded"))
+			})
+
+			It("should not download further layers", func() {
+				registered := 0
+				graph.WhenRegistering = func(image *image.Image, layer archive.ArchiveReader) error {
+					image.Size = 44
+					registered++
+
+					return nil
+				}
+
+				fetcher.Fetch(fetchRequest)
+				Expect(registered).To(Equal(2))
+			})
 		})
 
 		Context("when the first endpoint fails", func() {
@@ -217,6 +259,19 @@ var _ = Describe("RemoteV1", func() {
 					}),
 				),
 			)
+		})
+
+		Context("and it is bigger than the quota", func() {
+			BeforeEach(func() {
+				fetchRequest.MaxSize = 12344
+			})
+
+			It("should return a quota exceeded error", func() {
+				graph.SetExists("layer-2", []byte(`{"id":"layer-2","size":12345,"parent":"parent-2","Config":{"env": ["env2=env2Value"]}}`))
+
+				_, err := fetcher.Fetch(fetchRequest)
+				Expect(err).To(MatchError("quota exceeded"))
+			})
 		})
 
 		It("is not added to the graph", func() {

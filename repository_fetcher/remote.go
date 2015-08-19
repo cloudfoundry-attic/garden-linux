@@ -65,6 +65,7 @@ func (d dockerImage) Vols() []string {
 type dockerLayer struct {
 	env  process.Env
 	vols []string
+	size int64
 }
 
 func NewRemote(provider RegistryProvider, graph Graph, fetchers map[registry.APIVersion]VersionedFetcher, pinger Pinger) RepositoryFetcher {
@@ -86,6 +87,7 @@ func (fetcher *DockerRepositoryFetcher) Fetch(
 	logger lager.Logger,
 	repoURL *url.URL,
 	tag string,
+	diskQuota int64,
 ) (string, process.Env, []string, error) {
 	errs := func(err error) (string, process.Env, []string, error) {
 		return "", nil, nil, err
@@ -132,6 +134,7 @@ func (fetcher *DockerRepositoryFetcher) Fetch(
 		Path:       path,
 		RemotePath: remotePath,
 		Tag:        tag,
+		MaxSize:    diskQuota,
 	}
 
 	if realFetcher, ok := fetcher.fetchers[endpoint.Version]; ok {

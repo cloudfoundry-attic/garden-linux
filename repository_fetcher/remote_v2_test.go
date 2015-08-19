@@ -17,6 +17,10 @@ import (
 	"github.com/docker/docker/registry"
 	"github.com/pivotal-golang/lager/lagertest"
 
+	"io"
+
+	"math"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/ghttp"
@@ -75,6 +79,7 @@ var _ = Describe("RemoteV2", func() {
 			Path:       "some-repo",
 			RemotePath: "some-repo",
 			Tag:        "some-tag",
+			MaxSize:    math.MaxInt64,
 		}
 
 		fetcher = &RemoteV2Fetcher{
@@ -118,13 +123,47 @@ var _ = Describe("RemoteV2", func() {
 			Expect(server.ReceivedRequests()).To(HaveLen(4))
 			Expect(layers).To(Equal(2))
 		})
+
+		It("returns a quota exceeded error if the layers exceed the quota", func() {
+			fetchRequest.MaxSize = 65
+			called := 0
+			graph.WhenRegistering = func(image *image.Image, layer archive.ArchiveReader) error {
+				Expect(layer).To(BeAssignableToTypeOf(&io.LimitedReader{}))
+				image.Size = 33
+
+				if called == 0 {
+					Expect(layer.(*io.LimitedReader).N).To(Equal(int64(65)))
+				} else {
+					Expect(layer.(*io.LimitedReader).N).To(Equal(int64(65 - 33)))
+				}
+
+				called++
+				return nil
+			}
+
+			_, err := fetcher.Fetch(fetchRequest)
+			Expect(err).To(MatchError("quota exceeded"))
+		})
 	})
 
 	Context("when a layer already exists", func() {
 		BeforeEach(func() {
 			graph.SetExists("banana-pie-1", []byte(`{"id": "banana-pie-1"}`))
-
 			setupSuccessfulV2Fetch(server, true)
+		})
+
+		Context("and it is larger than the quota", func() {
+			BeforeEach(func() {
+				fetchRequest.MaxSize = 43
+			})
+
+			It("returns a quota exceeded error", func() {
+				graph.SetExists("banana-pie-1", []byte(`{"id": "banana-pie-1", "size": 44}`))
+				setupSuccessfulV2Fetch(server, true)
+
+				_, err := fetcher.Fetch(fetchRequest)
+				Expect(err).To(MatchError("quota exceeded"))
+			})
 		})
 
 		It("is not added to the graph", func() {

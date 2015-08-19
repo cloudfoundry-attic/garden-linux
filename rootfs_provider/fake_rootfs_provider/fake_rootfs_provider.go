@@ -17,13 +17,14 @@ type FakeRootFSProvider struct {
 	nameReturns     struct {
 		result1 string
 	}
-	ProvideRootFSStub        func(logger lager.Logger, id string, rootfs *url.URL, namespaced bool) (mountpoint string, envvar process.Env, err error)
+	ProvideRootFSStub        func(logger lager.Logger, id string, rootfs *url.URL, namespaced bool, quota int64) (mountpoint string, envvar process.Env, err error)
 	provideRootFSMutex       sync.RWMutex
 	provideRootFSArgsForCall []struct {
 		logger     lager.Logger
 		id         string
 		rootfs     *url.URL
 		namespaced bool
+		quota      int64
 	}
 	provideRootFSReturns struct {
 		result1 string
@@ -56,17 +57,18 @@ func (fake *FakeRootFSProvider) NameReturns(result1 string) {
 	}{result1}
 }
 
-func (fake *FakeRootFSProvider) ProvideRootFS(logger lager.Logger, id string, rootfs *url.URL, namespaced bool) (mountpoint string, envvar process.Env, err error) {
+func (fake *FakeRootFSProvider) ProvideRootFS(logger lager.Logger, id string, rootfs *url.URL, namespaced bool, quota int64) (mountpoint string, envvar process.Env, err error) {
 	fake.provideRootFSMutex.Lock()
 	fake.provideRootFSArgsForCall = append(fake.provideRootFSArgsForCall, struct {
 		logger     lager.Logger
 		id         string
 		rootfs     *url.URL
 		namespaced bool
-	}{logger, id, rootfs, namespaced})
+		quota      int64
+	}{logger, id, rootfs, namespaced, quota})
 	fake.provideRootFSMutex.Unlock()
 	if fake.ProvideRootFSStub != nil {
-		return fake.ProvideRootFSStub(logger, id, rootfs, namespaced)
+		return fake.ProvideRootFSStub(logger, id, rootfs, namespaced, quota)
 	} else {
 		return fake.provideRootFSReturns.result1, fake.provideRootFSReturns.result2, fake.provideRootFSReturns.result3
 	}
@@ -78,10 +80,10 @@ func (fake *FakeRootFSProvider) ProvideRootFSCallCount() int {
 	return len(fake.provideRootFSArgsForCall)
 }
 
-func (fake *FakeRootFSProvider) ProvideRootFSArgsForCall(i int) (lager.Logger, string, *url.URL, bool) {
+func (fake *FakeRootFSProvider) ProvideRootFSArgsForCall(i int) (lager.Logger, string, *url.URL, bool, int64) {
 	fake.provideRootFSMutex.RLock()
 	defer fake.provideRootFSMutex.RUnlock()
-	return fake.provideRootFSArgsForCall[i].logger, fake.provideRootFSArgsForCall[i].id, fake.provideRootFSArgsForCall[i].rootfs, fake.provideRootFSArgsForCall[i].namespaced
+	return fake.provideRootFSArgsForCall[i].logger, fake.provideRootFSArgsForCall[i].id, fake.provideRootFSArgsForCall[i].rootfs, fake.provideRootFSArgsForCall[i].namespaced, fake.provideRootFSArgsForCall[i].quota
 }
 
 func (fake *FakeRootFSProvider) ProvideRootFSReturns(result1 string, result2 process.Env, result3 error) {

@@ -144,7 +144,7 @@ var _ = Describe("Local", func() {
 		It("returns the image id", func() {
 			fakeGraph.SetExists("foo_bar_baz", []byte("{}"))
 
-			id, _, _, err := fetcher.Fetch(logger, &url.URL{Path: "foo/bar/baz"}, "")
+			id, _, _, err := fetcher.Fetch(logger, &url.URL{Path: "foo/bar/baz"}, "", 0)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(id).To(Equal("foo_bar_baz"))
 		})
@@ -158,7 +158,7 @@ var _ = Describe("Local", func() {
 				It("should use the default", func() {
 					fakeGraph.SetExists("the_default_path", []byte("{}"))
 
-					id, _, _, err := fetcher.Fetch(logger, &url.URL{Path: ""}, "")
+					id, _, _, err := fetcher.Fetch(logger, &url.URL{Path: ""}, "", 0)
 					Expect(err).NotTo(HaveOccurred())
 					Expect(id).To(Equal("the_default_path"))
 				})
@@ -166,7 +166,7 @@ var _ = Describe("Local", func() {
 
 			Context("and a default was not specified", func() {
 				It("should throw an appropriate error", func() {
-					_, _, _, err := fetcher.Fetch(logger, &url.URL{Path: ""}, "")
+					_, _, _, err := fetcher.Fetch(logger, &url.URL{Path: ""}, "", 0)
 					Expect(err).To(MatchError("RootFSPath: is a required parameter, since no default rootfs was provided to the server. To provide a default rootfs, use the --rootfs flag on startup."))
 				})
 			})
@@ -197,7 +197,7 @@ var _ = Describe("Local", func() {
 			err := os.MkdirAll(dirPath, 0700)
 			Expect(err).NotTo(HaveOccurred())
 
-			_, _, _, err = fetcher.Fetch(logger, &url.URL{Path: dirPath}, "")
+			_, _, _, err = fetcher.Fetch(logger, &url.URL{Path: dirPath}, "", 0)
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(registeredImage).NotTo(BeNil())
@@ -209,7 +209,7 @@ var _ = Describe("Local", func() {
 				return errors.New("sold out")
 			}
 
-			_, _, _, err := fetcher.Fetch(logger, &url.URL{Path: tmpDir}, "")
+			_, _, _, err := fetcher.Fetch(logger, &url.URL{Path: tmpDir}, "", 0)
 			Expect(err).To(MatchError("repository_fetcher: fetch local rootfs: register rootfs: sold out"))
 		})
 
@@ -218,7 +218,7 @@ var _ = Describe("Local", func() {
 			err := os.MkdirAll(dirPath, 0700)
 			Expect(err).NotTo(HaveOccurred())
 
-			id, _, _, err := fetcher.Fetch(logger, &url.URL{Path: dirPath}, "")
+			id, _, _, err := fetcher.Fetch(logger, &url.URL{Path: dirPath}, "", 0)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(id).To(HaveSuffix("foo_bar_baz"))
 		})
@@ -241,7 +241,7 @@ var _ = Describe("Local", func() {
 			Expect(os.MkdirAll(path.Join(tmp, "a", "test"), 0700)).To(Succeed())
 			Expect(ioutil.WriteFile(path.Join(tmp, "a", "test", "file"), []byte(""), 0700)).To(Succeed())
 
-			_, _, _, err = fetcher.Fetch(logger, &url.URL{Path: tmp}, "")
+			_, _, _, err = fetcher.Fetch(logger, &url.URL{Path: tmp}, "", 0)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
@@ -272,7 +272,7 @@ var _ = Describe("Local", func() {
 				Expect(os.MkdirAll(path.Join(tmp, "a", "test"), 0700)).To(Succeed())
 				Expect(ioutil.WriteFile(path.Join(tmp, "a", "test", "file"), []byte(""), 0700)).To(Succeed())
 
-				_, _, _, err = fetcher.Fetch(logger, &url.URL{Path: symlinkDir}, "")
+				_, _, _, err = fetcher.Fetch(logger, &url.URL{Path: symlinkDir}, "", 0)
 				Expect(err).NotTo(HaveOccurred())
 			})
 		})
