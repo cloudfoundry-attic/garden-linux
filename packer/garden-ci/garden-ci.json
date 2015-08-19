@@ -4,9 +4,8 @@
     "os_version": "14.04.2",
     "os_type": "Ubuntu_64",
     "os_arch": "amd64",
-    "os_url": "http://releases.ubuntu.com/14.04/ubuntu-14.04.2-server-amd64.iso",
-    "os_md5_checksum": "83aabd8dcf1e8f469f3c72fff2375195",
-    "vm_name": "garden-ci.ubuntu.virtualbox",
+    "os_url": "http://releases.ubuntu.com/14.04/ubuntu-14.04.3-server-amd64.iso",
+    "os_md5_checksum": "9e5fecc94b3925bededed0fdca1bd417",
     "vm_hostname": "garden-ci-ubuntu"
   },
   "builders": [
@@ -118,7 +117,17 @@
     },
     {
       "type": "shell",
-      "inline": ["chmod 0777 /opt/warden/empty/hello"]
+      "inline": [
+        "chmod 0777 /opt/warden/empty/hello",
+        "mkdir -p /opt/warden/empty/etc",
+        "touch /opt/warden/empty/etc/passwd",
+        "touch /opt/warden/empty/etc/group",
+        "useradd -R /opt/warden/empty -U alice"
+      ]
+    },
+    {
+      "type": "shell",
+      "inline": ["useradd -R /opt/warden/empty -U alice"]
     },
     {
       "type": "shell",

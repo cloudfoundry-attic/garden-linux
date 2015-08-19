@@ -16,6 +16,10 @@
     {
       "type": "shell",
       "inline": "chmod 0644 /etc/seed"
+    },
+    {
+      "type": "shell",
+      "inline": "adduser -D alice"
     }
   ]
 }

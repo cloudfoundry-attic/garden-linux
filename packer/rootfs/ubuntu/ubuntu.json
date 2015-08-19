@@ -12,6 +12,10 @@
       "inline": [
          "apt-get update && apt-get -y install iptables quota && apt-get clean"
       ]
+   },
+   {
+      "type": "shell",
+      "inline": "useradd -m -U alice"
    }
  ]
 }

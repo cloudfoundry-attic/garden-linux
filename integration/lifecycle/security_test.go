@@ -343,6 +343,7 @@ var _ = Describe("Security", func() {
 				garden.ProcessSpec{
 					User: "alice",
 					Path: "/hello",
+					Dir:  "/",
 				},
 				garden.ProcessIO{
 					Stdout: stdout,

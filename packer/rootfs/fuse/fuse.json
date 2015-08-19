@@ -10,6 +10,10 @@
    {
       "type": "shell",
       "script": "rootfs/fuse/provision.sh"
+   },
+   {
+      "type": "shell",
+      "inline": "useradd -m -U alice"
    }
  ]
 }
