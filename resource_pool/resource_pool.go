@@ -21,6 +21,8 @@ import (
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/pivotal-golang/lager"
 
+	"math"
+
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
 	"github.com/cloudfoundry-incubator/garden-linux/logging"
@@ -254,7 +256,12 @@ func (p *LinuxResourcePool) Acquire(spec garden.ContainerSpec) (linux_backend.Li
 
 	handle := getHandle(spec.Handle, id)
 
-	containerRootFSPath, rootFSEnv, err := p.acquireSystemResources(id, handle, containerPath, spec.RootFSPath, resources, spec.BindMounts, pLog)
+	var quota int64 = int64(spec.Limits.Disk.ByteHard)
+	if quota == 0 {
+		quota = math.MaxInt64
+	}
+
+	containerRootFSPath, rootFSEnv, err := p.acquireSystemResources(id, handle, containerPath, spec.RootFSPath, resources, spec.BindMounts, quota, pLog)
 	if err != nil {
 		return linux_backend.LinuxContainerSpec{}, err
 	}
@@ -514,7 +521,7 @@ func (p *LinuxResourcePool) releasePoolResources(resources *linux_backend.Resour
 	}
 }
 
-func (p *LinuxResourcePool) acquireSystemResources(id, handle, containerPath, rootFSPath string, resources *linux_backend.Resources, bindMounts []garden.BindMount, pLog lager.Logger) (string, process.Env, error) {
+func (p *LinuxResourcePool) acquireSystemResources(id, handle, containerPath, rootFSPath string, resources *linux_backend.Resources, bindMounts []garden.BindMount, diskQuota int64, pLog lager.Logger) (string, process.Env, error) {
 	if err := os.MkdirAll(containerPath, 0755); err != nil {
 		return "", nil, fmt.Errorf("containerpool: creating container directory: %v", err)
 	}
@@ -535,7 +542,7 @@ func (p *LinuxResourcePool) acquireSystemResources(id, handle, containerPath, ro
 		return "", nil, ErrUnknownRootFSProvider
 	}
 
-	rootfsPath, rootFSEnvVars, err := provider.ProvideRootFS(pLog.Session("create-rootfs"), id, rootfsURL, resources.RootUID != 0)
+	rootfsPath, rootFSEnvVars, err := provider.ProvideRootFS(pLog.Session("create-rootfs"), id, rootfsURL, resources.RootUID != 0, diskQuota)
 	if err != nil {
 		pLog.Error("provide-rootfs-failed", err)
 		return "", nil, err

@@ -52,13 +52,13 @@ func (provider *dockerRootFSProvider) Name() string {
 	return provider.name
 }
 
-func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id string, url *url.URL, shouldNamespace bool) (string, process.Env, error) {
+func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id string, url *url.URL, shouldNamespace bool, quota int64) (string, process.Env, error) {
 	tag := "latest"
 	if len(url.Fragment) > 0 {
 		tag = url.Fragment
 	}
 
-	imageID, envvars, volumes, err := provider.repoFetcher.Fetch(logger, url, tag)
+	imageID, envvars, volumes, err := provider.repoFetcher.Fetch(logger, url, tag, quota)
 	if err != nil {
 		return "", nil, err
 	}

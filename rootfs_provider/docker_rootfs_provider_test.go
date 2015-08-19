@@ -67,9 +67,6 @@ var _ = Describe("DockerRootFSProvider", func() {
 		logger = lagertest.NewTestLogger("test")
 	})
 
-	Describe("Providing a namespaced", func() {
-	})
-
 	Describe("Name", func() {
 		It("returns correct name", func() {
 			Expect(provider.Name()).To(Equal(name))
@@ -87,6 +84,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 					"some-id",
 					parseURL("docker:///some-repository-name"),
 					false,
+					0,
 				)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -127,6 +125,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 						"some-id",
 						parseURL("docker:///some-repository-name"),
 						true,
+						0,
 					)
 					Expect(err).ToNot(HaveOccurred())
 
@@ -180,6 +179,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 						"some-id",
 						parseURL("docker:///some-repository-name"),
 						true,
+						0,
 					)
 					Expect(err).ToNot(HaveOccurred())
 
@@ -218,6 +218,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 					"some-id",
 					parseURL("docker:///some-repository-name"),
 					false,
+					0,
 				)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -226,6 +227,28 @@ var _ = Describe("DockerRootFSProvider", func() {
 						{"/some/graph/driver/mount/point", "/foo"},
 						{"/some/graph/driver/mount/point", "/bar"},
 					}))
+			})
+
+			Context("when a disk quota is specified", func() {
+				It("should fetch with the specified disk quota", func() {
+					_, _, err := provider.ProvideRootFS(
+						logger,
+						"some-id",
+						parseURL("docker:///some-repository-name"),
+						false,
+						987654,
+					)
+					Expect(err).ToNot(HaveOccurred())
+
+					fakeRepositoryFetcher.Fetched()
+					Expect(fakeRepositoryFetcher.Fetched()).To(ContainElement(
+						fake_repository_fetcher.FetchSpec{
+							Repository: "docker:///some-repository-name",
+							Tag:        "latest",
+							DiskQuota:  987654,
+						},
+					))
+				})
 			})
 
 			Context("when creating a volume fails", func() {
@@ -239,6 +262,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 						"some-id",
 						parseURL("docker:///some-repository-name"),
 						false,
+						0,
 					)
 					Expect(err).To(HaveOccurred())
 				})
@@ -252,6 +276,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 					"some-id",
 					parseURL("docker:///some-repository-name#some-tag"),
 					false,
+					0,
 				)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -271,6 +296,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 					"some-id",
 					parseURL("docker://some.host/some-repository-name"),
 					false,
+					0,
 				)
 				Expect(err).ToNot(HaveOccurred())
 
@@ -296,6 +322,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 					"some-id",
 					parseURL("docker:///some-repository-name"),
 					false,
+					0,
 				)
 				Expect(err).To(Equal(disaster))
 			})
@@ -313,6 +340,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 					"some-id",
 					parseURL("docker:///some-repository-name#some-tag"),
 					false,
+					0,
 				)
 				Expect(err).To(Equal(disaster))
 			})
@@ -331,6 +359,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 					"some-id",
 					parseURL("docker:///some-repository-name#some-tag"),
 					false,
+					0,
 				)
 				Expect(err).To(Equal(disaster))
 			})

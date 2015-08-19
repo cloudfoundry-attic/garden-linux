@@ -47,7 +47,7 @@ var _ = Describe("RepositoryFetcher", func() {
 	Describe("Fetch", func() {
 		Context("when the path is empty", func() {
 			It("returns an error", func() {
-				_, _, _, err := fetcher.Fetch(logger, &url.URL{Path: ""}, "some-tag")
+				_, _, _, err := fetcher.Fetch(logger, &url.URL{Path: ""}, "some-tag", 0)
 				Expect(err).To(Equal(ErrInvalidDockerURL))
 			})
 		})
@@ -57,7 +57,7 @@ var _ = Describe("RepositoryFetcher", func() {
 				parsedURL, err := url.Parse("some-scheme://some-registry:4444/some-repo")
 				Expect(err).ToNot(HaveOccurred())
 
-				fetcher.Fetch(logger, parsedURL, "some-tag")
+				fetcher.Fetch(logger, parsedURL, "some-tag", 0)
 
 				Expect(fakeRegistryProvider.ProvideRegistryCallCount()).To(Equal(1))
 				Expect(fakeRegistryProvider.ProvideRegistryArgsForCall(0)).To(Equal("some-registry:4444"))
@@ -68,7 +68,7 @@ var _ = Describe("RepositoryFetcher", func() {
 					parsedURL, err := url.Parse("some-scheme://some-registry:4444/some-repo")
 					Expect(err).ToNot(HaveOccurred())
 
-					_, _, _, err = fetcher.Fetch(logger, parsedURL, "some-tag")
+					_, _, _, err = fetcher.Fetch(logger, parsedURL, "some-tag", 0)
 					Expect(err).To(MatchError(ContainSubstring("repository_fetcher: ProvideRegistry: could not fetch image some-repo from registry some-registry:4444:")))
 				})
 			})
@@ -98,7 +98,7 @@ var _ = Describe("RepositoryFetcher", func() {
 				})
 
 				It("uses the correct fetcher to fetch", func() {
-					imageID, _, _, _ := fetcher.Fetch(logger, &url.URL{Path: "/foo/somePath"}, "someTag")
+					imageID, _, _, _ := fetcher.Fetch(logger, &url.URL{Path: "/foo/somePath"}, "someTag", 987)
 					Expect(imageID).To(Equal("some-image-id"))
 
 					Expect(v1Fetcher.FetchCallCount()).To(Equal(1))
@@ -107,16 +107,17 @@ var _ = Describe("RepositoryFetcher", func() {
 					Expect(v1Fetcher.FetchArgsForCall(0).Tag).To(Equal("someTag"))
 					Expect(v1Fetcher.FetchArgsForCall(0).Session).To(Equal(returnedSession))
 					Expect(v1Fetcher.FetchArgsForCall(0).Endpoint).To(Equal(returnedEndpoint))
+					Expect(v1Fetcher.FetchArgsForCall(0).MaxSize).To(Equal(int64(987)))
 				})
 
 				It("does not call the other fetcher", func() {
-					fetcher.Fetch(logger, &url.URL{Path: "/foo/somePath"}, "someTag")
+					fetcher.Fetch(logger, &url.URL{Path: "/foo/somePath"}, "someTag", 0)
 					Expect(v2Fetcher.FetchCallCount()).To(Equal(0))
 				})
 
 				Context("when the endpoint is not standalone", func() {
 					It("prepends library prefore the remote path if the path does not contain a /", func() {
-						fetcher.Fetch(logger, &url.URL{Path: "/somePath"}, "someTag")
+						fetcher.Fetch(logger, &url.URL{Path: "/somePath"}, "someTag", 0)
 						Expect(v1Fetcher.FetchArgsForCall(0).RemotePath).To(Equal("library/somePath"))
 					})
 				})
@@ -129,7 +130,7 @@ var _ = Describe("RepositoryFetcher", func() {
 					})
 
 					It("does not prepend library/ prefore the remote path if the path does not contain a /", func() {
-						fetcher.Fetch(logger, &url.URL{Path: "/somePath"}, "someTag")
+						fetcher.Fetch(logger, &url.URL{Path: "/somePath"}, "someTag", 0)
 						Expect(v1Fetcher.FetchArgsForCall(0).RemotePath).To(Equal("somePath"))
 					})
 				})
@@ -141,7 +142,7 @@ var _ = Describe("RepositoryFetcher", func() {
 				})
 
 				It("totally throws an error", func() {
-					_, _, _, err := fetcher.Fetch(logger, &url.URL{Path: "/bar"}, "tag")
+					_, _, _, err := fetcher.Fetch(logger, &url.URL{Path: "/bar"}, "tag", 0)
 					Expect(err).To(MatchError("unknown docker registry API version"))
 				})
 			})

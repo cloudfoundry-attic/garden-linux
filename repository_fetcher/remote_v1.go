@@ -1,7 +1,9 @@
 package repository_fetcher
 
 import (
+	"errors"
 	"fmt"
+	"io"
 	"strings"
 	"time"
 
@@ -14,6 +16,8 @@ type RemoteV1Fetcher struct {
 	Graph     Graph
 	GraphLock Lock
 }
+
+var ErrQuotaExceeded = errors.New("quota exceeded")
 
 func (fetcher *RemoteV1Fetcher) Fetch(request *FetchRequest) (*FetchResponse, error) {
 	request.Logger.Debug("docker-v1-fetch")
@@ -40,7 +44,8 @@ func (fetcher *RemoteV1Fetcher) Fetch(request *FetchRequest) (*FetchResponse, er
 		})
 
 		var image *dockerImage
-		image, err = fetcher.fetchFromEndpoint(request, endpointURL, imgID)
+		image, err = fetcher.fetchFromEndpoint(request, endpointURL, imgID, request.Logger)
+
 		if err == nil {
 			request.Logger.Debug("fetched", lager.Data{
 				"endpoint": endpointURL,
@@ -55,31 +60,41 @@ func (fetcher *RemoteV1Fetcher) Fetch(request *FetchRequest) (*FetchResponse, er
 				Env:     image.Env(),
 			}, nil
 		}
+
+		if err == ErrQuotaExceeded { // no point continuing
+			return nil, err
+		}
 	}
 
 	return nil, FetchError("fetchFromEndPoint", request.Endpoint.URL.Host, request.Path, fmt.Errorf("all endpoints failed: %v", err))
 }
 
-func (fetcher *RemoteV1Fetcher) fetchFromEndpoint(request *FetchRequest, endpointURL string, imgID string) (*dockerImage, error) {
+func (fetcher *RemoteV1Fetcher) fetchFromEndpoint(request *FetchRequest, endpointURL string, imgID string, logger lager.Logger) (*dockerImage, error) {
 	history, err := request.Session.GetRemoteHistory(imgID, endpointURL)
 	if err != nil {
 		return nil, err
 	}
 
 	var allLayers []*dockerLayer
+	remainingQuota := request.MaxSize
 	for i := len(history) - 1; i >= 0; i-- {
-		layer, err := fetcher.fetchLayer(request, endpointURL, history[i])
+		layer, err := fetcher.fetchLayer(request, endpointURL, history[i], remainingQuota, logger)
 		if err != nil {
 			return nil, err
 		}
 
 		allLayers = append(allLayers, layer)
+
+		remainingQuota = remainingQuota - layer.size
+		if remainingQuota < 0 {
+			return nil, ErrQuotaExceeded
+		}
 	}
 
 	return &dockerImage{allLayers}, nil
 }
 
-func (fetcher *RemoteV1Fetcher) fetchLayer(request *FetchRequest, endpointURL string, layerID string) (*dockerLayer, error) {
+func (fetcher *RemoteV1Fetcher) fetchLayer(request *FetchRequest, endpointURL string, layerID string, remaining int64, logger lager.Logger) (*dockerLayer, error) {
 	fetcher.GraphLock.Acquire(layerID)
 	defer fetcher.GraphLock.Release(layerID)
 
@@ -87,9 +102,10 @@ func (fetcher *RemoteV1Fetcher) fetchLayer(request *FetchRequest, endpointURL st
 	if err == nil {
 		request.Logger.Info("using-cached", lager.Data{
 			"layer": layerID,
+			"size":  img.Size,
 		})
 
-		return &dockerLayer{imgEnv(img, request.Logger), imgVolumes(img)}, nil
+		return &dockerLayer{imgEnv(img, request.Logger), imgVolumes(img), img.Size}, nil
 	}
 
 	imgJSON, imgSize, err := request.Session.GetRemoteImageJSON(layerID, endpointURL)
@@ -115,7 +131,7 @@ func (fetcher *RemoteV1Fetcher) fetchLayer(request *FetchRequest, endpointURL st
 		"layer": layerID,
 	})
 
-	err = fetcher.Graph.Register(img, layer)
+	err = fetcher.Graph.Register(img, &io.LimitedReader{R: layer, N: remaining})
 	if err != nil {
 		return nil, fmt.Errorf("register: %s", err)
 	}
@@ -124,32 +140,11 @@ func (fetcher *RemoteV1Fetcher) fetchLayer(request *FetchRequest, endpointURL st
 		"layer": layerID,
 		"took":  time.Since(started),
 		"vols":  imgVolumes(img),
+		"size":  img.Size,
 	})
 
-	return &dockerLayer{imgEnv(img, request.Logger), imgVolumes(img)}, nil
+	return &dockerLayer{imgEnv(img, request.Logger), imgVolumes(img), img.Size}, nil
 }
-
-//func (fetcher *RemoteV1Fetcher) fetching(layerID string) bool {
-//	fetcher.fetchingMutex.Lock()
-//
-//	fetching, found := fetcher.fetchingLayers[layerID]
-//	if !found {
-//		fetcher.fetchingLayers[layerID] = make(chan struct{})
-//		fetcher.fetchingMutex.Unlock()
-//		return true
-//	} else {
-//		fetcher.fetchingMutex.Unlock()
-//		<-fetching
-//		return false
-//	}
-//}
-//
-//func (fetcher *RemoteV1Fetcher) doneFetching(layerID string) {
-//	fetcher.fetchingMutex.Lock()
-//	close(fetcher.fetchingLayers[layerID])
-//	delete(fetcher.fetchingLayers, layerID)
-//	fetcher.fetchingMutex.Unlock()
-//}
 
 func imgEnv(img *image.Image, logger lager.Logger) process.Env {
 	if img.Config == nil {

@@ -50,7 +50,7 @@ type RemoteFetcher interface {
 }
 
 type RepositoryFetcher interface {
-	Fetch(logger lager.Logger, url *url.URL, tag string) (string, process.Env, []string, error)
+	Fetch(logger lager.Logger, url *url.URL, tag string, diskQuota int64) (string, process.Env, []string, error)
 }
 
 type FetchRequest struct {
@@ -60,6 +60,7 @@ type FetchRequest struct {
 	RemotePath string
 	Tag        string
 	Logger     lager.Logger
+	MaxSize    int64
 }
 
 type FetchResponse struct {
