@@ -118,12 +118,6 @@ var portPoolSize = flag.Uint(
 	"size of port pool used for mapped container ports",
 )
 
-var uidMappingOffset = flag.Int(
-	"uidMappingOffset",
-	600000,
-	"start of mapped UID range for unprivileged containers (the root user in an unprivileged container will have this host uid)",
-)
-
 var networkPool = flag.String("networkPool",
 	DefaultNetworkPool,
 	"Pool of dynamically allocated container subnets")
