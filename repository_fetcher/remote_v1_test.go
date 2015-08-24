@@ -2,7 +2,6 @@ package repository_fetcher_test
 
 import (
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net/http"
 
@@ -155,13 +154,13 @@ var _ = Describe("RemoteV1", func() {
 			It("should return a quota exceeded error", func() {
 				called := 0
 				graph.WhenRegistering = func(image *image.Image, layer archive.ArchiveReader) error {
-					Expect(layer).To(BeAssignableToTypeOf(&io.LimitedReader{}))
+					Expect(layer).To(BeAssignableToTypeOf(&QuotaedReader{}))
 					image.Size = 44
 
 					if called == 0 {
-						Expect(layer.(*io.LimitedReader).N).To(Equal(int64(87)))
+						Expect(layer.(*QuotaedReader).N).To(Equal(int64(87)))
 					} else {
-						Expect(layer.(*io.LimitedReader).N).To(Equal(int64(87 - 44)))
+						Expect(layer.(*QuotaedReader).N).To(Equal(int64(87 - 44)))
 					}
 
 					called++

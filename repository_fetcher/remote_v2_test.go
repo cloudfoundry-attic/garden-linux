@@ -17,8 +17,6 @@ import (
 	"github.com/docker/docker/registry"
 	"github.com/pivotal-golang/lager/lagertest"
 
-	"io"
-
 	"math"
 
 	. "github.com/onsi/ginkgo"
@@ -128,13 +126,13 @@ var _ = Describe("RemoteV2", func() {
 			fetchRequest.MaxSize = 65
 			called := 0
 			graph.WhenRegistering = func(image *image.Image, layer archive.ArchiveReader) error {
-				Expect(layer).To(BeAssignableToTypeOf(&io.LimitedReader{}))
+				Expect(layer).To(BeAssignableToTypeOf(&QuotaedReader{}))
 				image.Size = 33
 
 				if called == 0 {
-					Expect(layer.(*io.LimitedReader).N).To(Equal(int64(65)))
+					Expect(layer.(*QuotaedReader).N).To(Equal(int64(65)))
 				} else {
-					Expect(layer.(*io.LimitedReader).N).To(Equal(int64(65 - 33)))
+					Expect(layer.(*QuotaedReader).N).To(Equal(int64(65 - 33)))
 				}
 
 				called++

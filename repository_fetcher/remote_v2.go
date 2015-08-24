@@ -3,8 +3,6 @@ package repository_fetcher
 import (
 	"encoding/json"
 
-	"io"
-
 	"github.com/docker/distribution/digest"
 	"github.com/docker/docker/image"
 	"github.com/docker/docker/registry"
@@ -81,7 +79,7 @@ func (fetcher *RemoteV2Fetcher) fetchLayer(request *FetchRequest, img *image.Ima
 	}
 	defer reader.Close()
 
-	err = fetcher.Graph.Register(img, &io.LimitedReader{R: reader, N: remaining})
+	err = fetcher.Graph.Register(img, &QuotaedReader{R: reader, N: remaining})
 	if err != nil {
 		return 0, FetchError("GraphRegister", request.Endpoint.URL.Host, request.Path, err)
 	}

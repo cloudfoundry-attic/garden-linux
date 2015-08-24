@@ -1,9 +1,7 @@
 package repository_fetcher
 
 import (
-	"errors"
 	"fmt"
-	"io"
 	"strings"
 	"time"
 
@@ -16,8 +14,6 @@ type RemoteV1Fetcher struct {
 	Graph     Graph
 	GraphLock Lock
 }
-
-var ErrQuotaExceeded = errors.New("quota exceeded")
 
 func (fetcher *RemoteV1Fetcher) Fetch(request *FetchRequest) (*FetchResponse, error) {
 	request.Logger.Debug("docker-v1-fetch")
@@ -131,7 +127,7 @@ func (fetcher *RemoteV1Fetcher) fetchLayer(request *FetchRequest, endpointURL st
 		"layer": layerID,
 	})
 
-	err = fetcher.Graph.Register(img, &io.LimitedReader{R: layer, N: remaining})
+	err = fetcher.Graph.Register(img, &QuotaedReader{R: layer, N: remaining})
 	if err != nil {
 		return nil, fmt.Errorf("register: %s", err)
 	}
