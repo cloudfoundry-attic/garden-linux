@@ -53,7 +53,7 @@ var _ = Describe("Container pool", func() {
 		fakePortPool              *fake_port_pool.FakePortPool
 		defaultFakeRootFSProvider *fake_rootfs_provider.FakeRootFSProvider
 		fakeRootFSProvider        *fake_rootfs_provider.FakeRootFSProvider
-		fakeRootfsRemover         *fake_rootfs_provider.FakeRootFSRemover
+		fakeRootfsCleaner         *fake_rootfs_provider.FakeRootFSCleaner
 		fakeBridges               *fake_bridge_manager.FakeBridgeManager
 		fakeFilterProvider        *fake_filter_provider.FakeFilterProvider
 		fakeFilter                *fakes.FakeFilter
@@ -89,7 +89,7 @@ var _ = Describe("Container pool", func() {
 		fakeQuotaManager = new(fake_quota_manager.FakeQuotaManager)
 		fakePortPool = fake_port_pool.New(1000)
 		defaultFakeRootFSProvider = new(fake_rootfs_provider.FakeRootFSProvider)
-		fakeRootfsRemover = new(fake_rootfs_provider.FakeRootFSRemover)
+		fakeRootfsCleaner = new(fake_rootfs_provider.FakeRootFSCleaner)
 		fakeRootFSProvider = new(fake_rootfs_provider.FakeRootFSProvider)
 
 		defaultVersion = "1.0.0"
@@ -116,7 +116,7 @@ var _ = Describe("Container pool", func() {
 				"":     defaultFakeRootFSProvider,
 				"fake": fakeRootFSProvider,
 			},
-			fakeRootfsRemover,
+			fakeRootfsCleaner,
 			rootfs_provider.MappingList{
 				{
 					FromID: 0,
@@ -278,9 +278,9 @@ var _ = Describe("Container pool", func() {
 
 		itCleansUpTheRootfs := func() {
 			It("cleans up the rootfs for the container", func() {
-				Expect(fakeRootfsRemover.CleanupRootFSCallCount()).To(Equal(1))
+				Expect(fakeRootfsCleaner.CleanCallCount()).To(Equal(1))
 				_, providedID, _, _, _ := defaultFakeRootFSProvider.ProvideRootFSArgsForCall(0)
-				_, cleanedUpID := fakeRootfsRemover.CleanupRootFSArgsForCall(0)
+				_, cleanedUpID := fakeRootfsCleaner.CleanArgsForCall(0)
 				Expect(cleanedUpID).To(Equal(providedID))
 			})
 		}
@@ -827,8 +827,8 @@ var _ = Describe("Container pool", func() {
 			})
 
 			It("cleans up the rootfs", func() {
-				Expect(fakeRootfsRemover.CleanupRootFSCallCount()).To(Equal(1))
-				_, rootfsPath := fakeRootfsRemover.CleanupRootFSArgsForCall(0)
+				Expect(fakeRootfsCleaner.CleanCallCount()).To(Equal(1))
+				_, rootfsPath := fakeRootfsCleaner.CleanArgsForCall(0)
 				Expect(rootfsPath).To(Equal("the-rootfs"))
 			})
 
@@ -1373,9 +1373,9 @@ var _ = Describe("Container pool", func() {
 					err := pool.Prune(map[string]bool{})
 					Expect(err).ToNot(HaveOccurred())
 
-					Expect(fakeRootfsRemover.CleanupRootFSCallCount()).To(Equal(2))
-					_, id1 := fakeRootfsRemover.CleanupRootFSArgsForCall(0)
-					_, id2 := fakeRootfsRemover.CleanupRootFSArgsForCall(1)
+					Expect(fakeRootfsCleaner.CleanCallCount()).To(Equal(2))
+					_, id1 := fakeRootfsCleaner.CleanArgsForCall(0)
+					_, id2 := fakeRootfsCleaner.CleanArgsForCall(1)
 					Expect(id1).To(Equal("container-1"))
 					Expect(id2).To(Equal("container-2"))
 				})
@@ -1415,8 +1415,8 @@ var _ = Describe("Container pool", func() {
 					err := pool.Prune(map[string]bool{})
 					Expect(err).ToNot(HaveOccurred())
 
-					for i := 0; i < fakeRootfsRemover.CleanupRootFSCallCount(); i++ {
-						_, arg := fakeRootfsRemover.CleanupRootFSArgsForCall(i)
+					for i := 0; i < fakeRootfsCleaner.CleanCallCount(); i++ {
+						_, arg := fakeRootfsCleaner.CleanArgsForCall(i)
 						Expect(arg).ToNot(Equal("container-2"))
 					}
 				})
@@ -1435,9 +1435,9 @@ var _ = Describe("Container pool", func() {
 					err := pool.Prune(map[string]bool{})
 					Expect(err).ToNot(HaveOccurred())
 
-					Expect(fakeRootfsRemover.CleanupRootFSCallCount()).To(Equal(3))
-					_, id1 := fakeRootfsRemover.CleanupRootFSArgsForCall(0)
-					_, id3 := fakeRootfsRemover.CleanupRootFSArgsForCall(2)
+					Expect(fakeRootfsCleaner.CleanCallCount()).To(Equal(3))
+					_, id1 := fakeRootfsCleaner.CleanArgsForCall(0)
+					_, id3 := fakeRootfsCleaner.CleanArgsForCall(2)
 					Expect(id1).To(Equal("container-1"))
 					Expect(id3).To(Equal("container-4"))
 				})
@@ -1453,9 +1453,9 @@ var _ = Describe("Container pool", func() {
 					err := pool.Prune(map[string]bool{})
 					Expect(err).ToNot(HaveOccurred())
 
-					Expect(fakeRootfsRemover.CleanupRootFSCallCount()).To(Equal(2))
-					_, id1 := fakeRootfsRemover.CleanupRootFSArgsForCall(0)
-					_, id2 := fakeRootfsRemover.CleanupRootFSArgsForCall(1)
+					Expect(fakeRootfsCleaner.CleanCallCount()).To(Equal(2))
+					_, id1 := fakeRootfsCleaner.CleanArgsForCall(0)
+					_, id2 := fakeRootfsCleaner.CleanArgsForCall(1)
 					Expect(id1).To(Equal("container-1"))
 					Expect(id2).To(Equal("container-2"))
 				})
@@ -1469,8 +1469,8 @@ var _ = Describe("Container pool", func() {
 					It("ignores the error", func() {
 						err := pool.Prune(map[string]bool{})
 						Expect(err).ToNot(HaveOccurred())
-						for i := 0; i < fakeRootfsRemover.CleanupRootFSCallCount(); i++ {
-							_, arg := fakeRootfsRemover.CleanupRootFSArgsForCall(i)
+						for i := 0; i < fakeRootfsCleaner.CleanCallCount(); i++ {
+							_, arg := fakeRootfsCleaner.CleanArgsForCall(i)
 							Expect(arg).ToNot(Equal("container-2"))
 						}
 					})
@@ -1486,8 +1486,8 @@ var _ = Describe("Container pool", func() {
 						err := pool.Prune(map[string]bool{})
 						Expect(err).ToNot(HaveOccurred())
 
-						for i := 0; i < fakeRootfsRemover.CleanupRootFSCallCount(); i++ {
-							_, arg := fakeRootfsRemover.CleanupRootFSArgsForCall(i)
+						for i := 0; i < fakeRootfsCleaner.CleanCallCount(); i++ {
+							_, arg := fakeRootfsCleaner.CleanArgsForCall(i)
 							Expect(arg).ToNot(Equal("container-2"))
 						}
 					})
@@ -1498,7 +1498,7 @@ var _ = Describe("Container pool", func() {
 				disaster := errors.New("oh no!")
 
 				BeforeEach(func() {
-					fakeRootfsRemover.CleanupRootFSReturns(disaster)
+					fakeRootfsCleaner.CleanReturns(disaster)
 				})
 
 				It("ignores the error", func() {
@@ -1524,8 +1524,8 @@ var _ = Describe("Container pool", func() {
 					err := pool.Prune(map[string]bool{"container-2": true})
 					Expect(err).ToNot(HaveOccurred())
 
-					Expect(fakeRootfsRemover.CleanupRootFSCallCount()).To(Equal(1))
-					_, prunedId := fakeRootfsRemover.CleanupRootFSArgsForCall(0)
+					Expect(fakeRootfsCleaner.CleanCallCount()).To(Equal(1))
+					_, prunedId := fakeRootfsCleaner.CleanArgsForCall(0)
 					Expect(prunedId).ToNot(Equal("container-2"))
 				})
 
@@ -1555,7 +1555,7 @@ var _ = Describe("Container pool", func() {
 					Expect(err).ToNot(HaveOccurred())
 
 					By("and does not clean up the container's rootfs")
-					Expect(fakeRootfsRemover.CleanupRootFSCallCount()).To(Equal(0))
+					Expect(fakeRootfsCleaner.CleanCallCount()).To(Equal(0))
 				})
 			})
 
@@ -1654,8 +1654,8 @@ var _ = Describe("Container pool", func() {
 				err := pool.Release(container)
 				Expect(err).ToNot(HaveOccurred())
 
-				Expect(fakeRootfsRemover.CleanupRootFSCallCount()).To(Equal(1))
-				_, id := fakeRootfsRemover.CleanupRootFSArgsForCall(0)
+				Expect(fakeRootfsCleaner.CleanCallCount()).To(Equal(1))
+				_, id := fakeRootfsCleaner.CleanArgsForCall(0)
 				Expect(id).To(Equal(container.ID))
 			})
 
@@ -1663,7 +1663,7 @@ var _ = Describe("Container pool", func() {
 				disaster := errors.New("oh no!")
 
 				BeforeEach(func() {
-					fakeRootfsRemover.CleanupRootFSReturns(disaster)
+					fakeRootfsCleaner.CleanReturns(disaster)
 				})
 
 				It("returns the error", func() {
@@ -1715,7 +1715,7 @@ var _ = Describe("Container pool", func() {
 				err := pool.Release(container)
 				Expect(err).To(HaveOccurred())
 
-				Expect(fakeRootfsRemover.CleanupRootFSCallCount()).To(Equal(0))
+				Expect(fakeRootfsCleaner.CleanCallCount()).To(Equal(0))
 			})
 
 			It("does not release the container's ports", func() {

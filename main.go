@@ -324,9 +324,10 @@ func main() {
 	graphMountPoint := mountPoint(logger, *graphRoot)
 
 	driverName := graphDriver.String()
-	var rootFSRemover rootfs_provider.RootFSRemover = &rootfs_provider.VfsRootFSRemover{GraphDriver: graphDriver}
+	var rootFSRemover rootfs_provider.RootFSCleaner = &rootfs_provider.GraphCleaner{GraphDriver: graphDriver}
 	if driverName == "btrfs" {
-		rootFSRemover = &btrfs_cleanup.BtrfsRootFSRemover{
+		rootFSRemover = &btrfs_cleanup.BtrfsCleaner{
+			Delegate:        rootFSRemover,
 			Runner:          runner,
 			GraphDriver:     graphDriver,
 			BtrfsMountPoint: graphMountPoint,

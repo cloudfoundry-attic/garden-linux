@@ -64,7 +64,7 @@ type LinuxResourcePool struct {
 	allowNetworks []string
 
 	rootfsProviders map[string]rootfs_provider.RootFSProvider
-	rootfsRemover   rootfs_provider.RootFSRemover
+	rootfsRemover   rootfs_provider.RootFSCleaner
 	mappingList     rootfs_provider.MappingList
 
 	subnetPool SubnetPool
@@ -93,7 +93,7 @@ func New(
 	binPath, depotPath string,
 	sysconfig sysconfig.Config,
 	rootfsProviders map[string]rootfs_provider.RootFSProvider,
-	rootfsRemover rootfs_provider.RootFSRemover,
+	rootfsRemover rootfs_provider.RootFSCleaner,
 	mappingList rootfs_provider.MappingList,
 	externalIP net.IP,
 	mtu int,
@@ -551,7 +551,7 @@ func (p *LinuxResourcePool) acquireSystemResources(id, handle, containerPath, ro
 			"Bridge": resources.Bridge,
 		})
 
-		p.rootfsRemover.CleanupRootFS(pLog, rootfsPath)
+		p.rootfsRemover.Clean(pLog, rootfsPath)
 		return "", nil, err
 	}
 
@@ -561,7 +561,7 @@ func (p *LinuxResourcePool) acquireSystemResources(id, handle, containerPath, ro
 			"Bridge": resources.Bridge,
 		})
 
-		p.rootfsRemover.CleanupRootFS(pLog, rootfsPath)
+		p.rootfsRemover.Clean(pLog, rootfsPath)
 		return "", nil, err
 	}
 
@@ -670,7 +670,7 @@ func (p *LinuxResourcePool) releaseSystemResources(logger lager.Logger, id strin
 	}
 
 	if shouldCleanRootfs(string(rootfsProvider)) {
-		if err = p.rootfsRemover.CleanupRootFS(logger, id); err != nil {
+		if err = p.rootfsRemover.Clean(logger, id); err != nil {
 			return err
 		}
 	}

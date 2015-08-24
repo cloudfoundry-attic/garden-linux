@@ -10,21 +10,21 @@ import (
 	"github.com/pivotal-golang/lager/lagertest"
 )
 
-var _ = Describe("VfsRootfsRemover", func() {
+var _ = Describe("GraphRemover", func() {
 	var fakeGraphDriver *fake_graph_driver.FakeGraphDriver
-	var vsfRemover *rootfs_provider.VfsRootFSRemover
+	var remover *rootfs_provider.GraphCleaner
 	var logger *lagertest.TestLogger
 
 	BeforeEach(func() {
 		logger = lagertest.NewTestLogger("VfsRootfsRemover")
 		fakeGraphDriver = new(fake_graph_driver.FakeGraphDriver)
-		vsfRemover = &rootfs_provider.VfsRootFSRemover{
+		remover = &rootfs_provider.GraphCleaner{
 			GraphDriver: fakeGraphDriver,
 		}
 	})
 
 	It("removes the container from the rootfs graph", func() {
-		err := vsfRemover.CleanupRootFS(logger, "some-id")
+		err := remover.Clean(logger, "some-id")
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(fakeGraphDriver.PutCallCount()).To(Equal(1))
@@ -42,7 +42,7 @@ var _ = Describe("VfsRootfsRemover", func() {
 		})
 
 		It("returns the error", func() {
-			Expect(vsfRemover.CleanupRootFS(logger, "oi")).To(MatchError("oh no!"))
+			Expect(remover.Clean(logger, "oi")).To(MatchError("oh no!"))
 		})
 	})
 })

@@ -13,7 +13,7 @@ type RootFSProvider interface {
 	ProvideRootFS(logger lager.Logger, id string, rootfs *url.URL, namespaced bool, quota int64) (mountpoint string, envvar process.Env, err error)
 }
 
-//go:generate counterfeiter -o fake_rootfs_provider/fake_rootfs_remover.go . RootFSRemover
-type RootFSRemover interface {
-	CleanupRootFS(logger lager.Logger, id string) error
+//go:generate counterfeiter -o fake_rootfs_provider/fake_rootfs_cleaner.go . RootFSCleaner
+type RootFSCleaner interface {
+	Clean(logger lager.Logger, id string) error
 }

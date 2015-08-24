@@ -14,7 +14,9 @@ import (
 	"github.com/pivotal-golang/lager"
 )
 
-type BtrfsRootFSRemover struct {
+type BtrfsCleaner struct {
+	Delegate rootfs_provider.RootFSCleaner
+
 	Runner          command_runner.CommandRunner
 	GraphDriver     rootfs_provider.GraphDriver
 	BtrfsMountPoint string
@@ -23,9 +25,7 @@ type BtrfsRootFSRemover struct {
 	Logger lager.Logger
 }
 
-func (c *BtrfsRootFSRemover) CleanupRootFS(logger lager.Logger, id string) error {
-	c.GraphDriver.Put(id)
-
+func (c *BtrfsCleaner) Clean(logger lager.Logger, id string) error {
 	log := c.Logger.Session("clean-rootfs", lager.Data{"id": id})
 	log.Info("start")
 
@@ -44,10 +44,10 @@ func (c *BtrfsRootFSRemover) CleanupRootFS(logger lager.Logger, id string) error
 	}
 
 	defer log.Info("complete")
-	return c.GraphDriver.Remove(id)
+	return c.Delegate.Clean(logger, id)
 }
 
-func (c *BtrfsRootFSRemover) removeQgroup(log lager.Logger, layerPath string) error {
+func (c *BtrfsCleaner) removeQgroup(log lager.Logger, layerPath string) error {
 	log = log.Session("remove-qgroup")
 	log.Info("start")
 
@@ -74,7 +74,7 @@ func (c *BtrfsRootFSRemover) removeQgroup(log lager.Logger, layerPath string) er
 	return nil
 }
 
-func (c *BtrfsRootFSRemover) removeSubvols(log lager.Logger, layerPath string) error {
+func (c *BtrfsCleaner) removeSubvols(log lager.Logger, layerPath string) error {
 	runner := &logging.Runner{c.Runner, log}
 
 	listSubvolumesOutput, err := c.run(runner, exec.Command("btrfs", "subvolume", "list", c.BtrfsMountPoint))
@@ -115,7 +115,7 @@ func finalColumns(lines []string) []string {
 	return result
 }
 
-func (c *BtrfsRootFSRemover) run(runner command_runner.CommandRunner, cmd *exec.Cmd) (string, error) {
+func (c *BtrfsCleaner) run(runner command_runner.CommandRunner, cmd *exec.Cmd) (string, error) {
 	var buffer bytes.Buffer
 	cmd.Stdout = &buffer
 	if err := runner.Run(cmd); err != nil {
