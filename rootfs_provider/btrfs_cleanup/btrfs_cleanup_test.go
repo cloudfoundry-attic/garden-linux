@@ -45,7 +45,7 @@ var _ = Describe("BtrfsCleaner", func() {
 		graphDriver = new(fake_graph_driver.FakeGraphDriver)
 		delegate = new(fake_rootfs_provider.FakeRootFSCleaner)
 		cleaner = &btrfs_cleanup.BtrfsCleaner{
-			Delegate:        delegate,
+			Cleaner:         delegate,
 			Runner:          runner,
 			GraphDriver:     graphDriver,
 			BtrfsMountPoint: btrfsMountPoint,

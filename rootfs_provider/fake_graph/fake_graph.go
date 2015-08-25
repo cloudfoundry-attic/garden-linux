@@ -18,13 +18,12 @@ type FakeGraph struct {
 		result1 *image.Image
 		result2 error
 	}
-	IsParentStub        func(id string) bool
-	isParentMutex       sync.RWMutex
-	isParentArgsForCall []struct {
-		id string
-	}
-	isParentReturns struct {
-		result1 bool
+	ByParentStub        func() (map[string][]*image.Image, error)
+	byParentMutex       sync.RWMutex
+	byParentArgsForCall []struct{}
+	byParentReturns     struct {
+		result1 map[string][]*image.Image
+		result2 error
 	}
 }
 
@@ -61,36 +60,29 @@ func (fake *FakeGraph) GetReturns(result1 *image.Image, result2 error) {
 	}{result1, result2}
 }
 
-func (fake *FakeGraph) IsParent(id string) bool {
-	fake.isParentMutex.Lock()
-	fake.isParentArgsForCall = append(fake.isParentArgsForCall, struct {
-		id string
-	}{id})
-	fake.isParentMutex.Unlock()
-	if fake.IsParentStub != nil {
-		return fake.IsParentStub(id)
+func (fake *FakeGraph) ByParent() (map[string][]*image.Image, error) {
+	fake.byParentMutex.Lock()
+	fake.byParentArgsForCall = append(fake.byParentArgsForCall, struct{}{})
+	fake.byParentMutex.Unlock()
+	if fake.ByParentStub != nil {
+		return fake.ByParentStub()
 	} else {
-		return fake.isParentReturns.result1
+		return fake.byParentReturns.result1, fake.byParentReturns.result2
 	}
 }
 
-func (fake *FakeGraph) IsParentCallCount() int {
-	fake.isParentMutex.RLock()
-	defer fake.isParentMutex.RUnlock()
-	return len(fake.isParentArgsForCall)
+func (fake *FakeGraph) ByParentCallCount() int {
+	fake.byParentMutex.RLock()
+	defer fake.byParentMutex.RUnlock()
+	return len(fake.byParentArgsForCall)
 }
 
-func (fake *FakeGraph) IsParentArgsForCall(i int) string {
-	fake.isParentMutex.RLock()
-	defer fake.isParentMutex.RUnlock()
-	return fake.isParentArgsForCall[i].id
-}
-
-func (fake *FakeGraph) IsParentReturns(result1 bool) {
-	fake.IsParentStub = nil
-	fake.isParentReturns = struct {
-		result1 bool
-	}{result1}
+func (fake *FakeGraph) ByParentReturns(result1 map[string][]*image.Image, result2 error) {
+	fake.ByParentStub = nil
+	fake.byParentReturns = struct {
+		result1 map[string][]*image.Image
+		result2 error
+	}{result1, result2}
 }
 
 var _ rootfs_provider.Graph = new(FakeGraph)

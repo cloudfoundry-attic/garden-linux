@@ -1,10 +1,14 @@
 package rootfs_provider
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"net/url"
 	"sync"
 
 	"github.com/docker/docker/daemon/graphdriver"
+	"github.com/docker/docker/graph"
+	"github.com/docker/docker/image"
 	"github.com/pivotal-golang/clock"
 	"github.com/pivotal-golang/lager"
 
@@ -14,6 +18,7 @@ import (
 
 type dockerRootFSProvider struct {
 	name          string
+	graph         *graph.Graph
 	graphDriver   graphdriver.Driver
 	volumeCreator VolumeCreator
 	repoFetcher   repository_fetcher.RepositoryFetcher
@@ -32,7 +37,8 @@ type GraphDriver interface {
 func NewDocker(
 	name string,
 	repoFetcher repository_fetcher.RepositoryFetcher,
-	graphDriver GraphDriver,
+	graph *graph.Graph,
+	graphDriver graphdriver.Driver,
 	volumeCreator VolumeCreator,
 	namespacer Namespacer,
 	clock clock.Clock,
@@ -40,6 +46,7 @@ func NewDocker(
 	return &dockerRootFSProvider{
 		name:          name,
 		repoFetcher:   repoFetcher,
+		graph:         graph,
 		graphDriver:   graphDriver,
 		volumeCreator: volumeCreator,
 		namespacer:    namespacer,
@@ -72,7 +79,11 @@ func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id stri
 		}
 	}
 
-	err = provider.graphDriver.Create(id, imageID)
+	id = fmt.Sprintf("%x", sha256.Sum256([]byte(id)))
+	err = provider.graph.Register(&image.Image{
+		ID:     id,
+		Parent: imageID,
+	}, nil)
 	if err != nil {
 		return "", nil, err
 	}
@@ -93,6 +104,7 @@ func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id stri
 
 func (provider *dockerRootFSProvider) namespace(imageID string) (string, error) {
 	namespacedImageID := imageID + "@" + provider.namespacer.CacheKey()
+	namespacedImageID = fmt.Sprintf("%x", sha256.Sum256([]byte(namespacedImageID)))
 	if !provider.graphDriver.Exists(namespacedImageID) {
 		if err := provider.createNamespacedLayer(namespacedImageID, imageID); err != nil {
 			return "", err
@@ -117,7 +129,10 @@ func (provider *dockerRootFSProvider) createLayer(id, parentId string) (string, 
 		return "", err
 	}
 
-	if err := provider.graphDriver.Create(id, parentId); err != nil {
+	if err := provider.graph.Register(&image.Image{
+		ID:     id,
+		Parent: parentId,
+	}, nil); err != nil {
 		return errs(err)
 	}
 

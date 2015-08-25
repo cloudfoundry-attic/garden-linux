@@ -324,10 +324,10 @@ func main() {
 	graphMountPoint := mountPoint(logger, *graphRoot)
 
 	driverName := graphDriver.String()
-	var rootFSRemover rootfs_provider.RootFSCleaner = &rootfs_provider.GraphCleaner{GraphDriver: graphDriver}
+	var rootFSRemover rootfs_provider.RootFSCleaner = &rootfs_provider.GraphLayerCleaner{Graph: graph}
 	if driverName == "btrfs" {
 		rootFSRemover = &btrfs_cleanup.BtrfsCleaner{
-			Delegate:        rootFSRemover,
+			Cleaner:         rootFSRemover,
 			Runner:          runner,
 			GraphDriver:     graphDriver,
 			BtrfsMountPoint: graphMountPoint,
@@ -336,8 +336,10 @@ func main() {
 		}
 	}
 
+	rootFSRemover = &rootfs_provider.GraphCleaner{Graph: graph, Cleaner: rootFSRemover}
+
 	remoteRootFSProvider, err := rootfs_provider.NewDocker(fmt.Sprintf("docker-remote-%s", driverName),
-		repoFetcher, graphDriver, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock())
+		repoFetcher, graph, graphDriver, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock())
 	if err != nil {
 		logger.Fatal("failed-to-construct-docker-rootfs-provider", err)
 	}
@@ -347,7 +349,7 @@ func main() {
 			Graph:             graph,
 			DefaultRootFSPath: *rootFSPath,
 			IDer:              repository_fetcher.NewSHA256(),
-		}, graphDriver, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock())
+		}, graph, graphDriver, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock())
 	if err != nil {
 		logger.Fatal("failed-to-construct-warden-rootfs-provider", err)
 	}

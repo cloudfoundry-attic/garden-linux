@@ -9,7 +9,6 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 
 	"github.com/cloudfoundry-incubator/garden"
@@ -44,19 +43,7 @@ var _ = Describe("Rootfs container create parameter", func() {
 		}
 	})
 
-	PDescribe("CleanUp", func() {
-		var graphPath string
-
-		BeforeEach(func() {
-			graphPath = path.Join(os.TempDir(), fmt.Sprintf("graph-cleanup-test-%d", GinkgoParallelNode()))
-			Expect(os.MkdirAll(graphPath, 0600)).To(Succeed())
-			args = []string{"--graph", graphPath}
-		})
-
-		AfterEach(func() {
-			Expect(os.RemoveAll(graphPath)).To(Succeed())
-		})
-
+	Describe("CleanUp", func() {
 		Context("when container is deleted", func() {
 			It("is removed from the graph path", func() {
 				container, err := client.Create(garden.ContainerSpec{RootFSPath: ""})
@@ -66,7 +53,7 @@ var _ = Describe("Rootfs container create parameter", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				var size int
-				session, err := gexec.Start(exec.Command("du", "-d0", graphPath), GinkgoWriter, GinkgoWriter)
+				session, err := gexec.Start(exec.Command("sh", "-c", fmt.Sprintf(" du -d0 %s", client.GraphPath)), GinkgoWriter, GinkgoWriter)
 				Expect(err).ToNot(HaveOccurred())
 				Eventually(session).Should(gexec.Exit(0))
 

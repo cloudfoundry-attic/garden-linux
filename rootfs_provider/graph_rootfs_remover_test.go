@@ -12,6 +12,13 @@ import (
 	"github.com/pivotal-golang/lager/lagertest"
 )
 
+var _ = Describe("Using docker Graph as a rootfsprovider.Graph", func() {
+	Describe("IsParent", func() {
+		Context("when the layer is a member of the heads array", func() {
+		})
+	})
+})
+
 var _ = Describe("GraphRemover", func() {
 	var fakeGraphDriver *fake_graph_driver.FakeGraphDriver
 	var remover *rootfs_provider.GraphCleaner
@@ -37,18 +44,19 @@ var _ = Describe("GraphRemover", func() {
 			}, nil
 		}
 
-		fakeGraph.IsParentStub = func(id string) bool {
-			for _, value := range parents {
-				if value == id {
-					return true
-				}
+		fakeGraph.ByParentStub = func() (map[string][]*image.Image, error) {
+			r := make(map[string][]*image.Image)
+			for _, v := range parents {
+				r[v] = []*image.Image{}
 			}
-			return false
+			return r, nil
 		}
 
 		remover = &rootfs_provider.GraphCleaner{
-			Graph:       fakeGraph,
-			GraphDriver: fakeGraphDriver,
+			Graph: fakeGraph,
+			Cleaner: &rootfs_provider.GraphLayerCleaner{
+				GraphDriver: fakeGraphDriver,
+			},
 		}
 	})
 
@@ -172,16 +180,6 @@ var _ = Describe("GraphRemover", func() {
 				_, ok = parents["baby-layer"]
 				Expect(ok).To(BeTrue())
 			})
-		})
-	})
-
-	Context("when removing the container from the graph fails", func() {
-		JustBeforeEach(func() {
-			fakeGraphDriver.RemoveReturns(errors.New("oh no!"))
-		})
-
-		It("returns the error", func() {
-			Expect(remover.Clean(logger, "oi")).To(MatchError("oh no!"))
 		})
 	})
 })

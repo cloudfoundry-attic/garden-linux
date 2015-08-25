@@ -15,7 +15,7 @@ import (
 )
 
 type BtrfsCleaner struct {
-	Delegate rootfs_provider.RootFSCleaner
+	Cleaner rootfs_provider.RootFSCleaner
 
 	Runner          command_runner.CommandRunner
 	GraphDriver     rootfs_provider.GraphDriver
@@ -44,7 +44,7 @@ func (c *BtrfsCleaner) Clean(logger lager.Logger, id string) error {
 	}
 
 	defer log.Info("complete")
-	return c.Delegate.Clean(logger, id)
+	return c.Cleaner.Clean(logger, id)
 }
 
 func (c *BtrfsCleaner) removeQgroup(log lager.Logger, layerPath string) error {
