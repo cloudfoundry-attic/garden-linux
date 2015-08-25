@@ -104,9 +104,29 @@ var _ = Describe("GraphRemover", func() {
 		})
 	})
 
-	PContext("when graph fails", func() {
+	Context("when getting a layer fails", func() {
 		BeforeEach(func() {
-			//TODO: Implement these tests
+			fakeGraph.GetStub = func(id string) (*image.Image, error) {
+				return nil, errors.New("oh no!")
+			}
+		})
+
+		It("returns a error", func() {
+			Expect(remover.Clean(logger, "some-id")).To(MatchError("clean graph: oh no!"))
+			Expect(fakeGraphDriver.RemoveCallCount()).To(Equal(0))
+		})
+	})
+
+	Context("when removing layer fails", func() {
+		BeforeEach(func() {
+			fakeGraphDriver.RemoveStub = func(id string) error {
+				return errors.New("oh no!")
+			}
+		})
+
+		It("returns a error", func() {
+			Expect(remover.Clean(logger, "some-id")).To(MatchError("clean graph: oh no!"))
+			Expect(fakeGraphDriver.RemoveCallCount()).To(Equal(1))
 		})
 	})
 
