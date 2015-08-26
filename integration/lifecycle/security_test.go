@@ -318,25 +318,32 @@ var _ = Describe("Security", func() {
 	})
 
 	Context("with an empty rootfs", func() {
-		var emptyRootFSPath string
+		var (
+			rootFSPath string
+			container  garden.Container
+		)
 
 		BeforeEach(func() {
-			emptyRootFSPath = os.Getenv("GARDEN_EMPTY_TEST_ROOTFS")
-			if emptyRootFSPath == "" {
+			rootFSPath = os.Getenv("GARDEN_EMPTY_TEST_ROOTFS")
+			if rootFSPath == "" {
 				Skip("GARDEN_EMPTY_TEST_ROOTFS undefined")
 			}
 
 			client = startGarden()
 		})
 
-		It("runs a statically compiled executable in the container", func() {
-			container, err := client.Create(
+		JustBeforeEach(func() {
+			var err error
+
+			container, err = client.Create(
 				garden.ContainerSpec{
-					RootFSPath: emptyRootFSPath,
+					RootFSPath: rootFSPath,
 				},
 			)
 			Expect(err).ToNot(HaveOccurred())
+		})
 
+		It("runs a statically compiled executable in the container", func() {
 			stdout := gbytes.NewBuffer()
 			stderr := gbytes.NewBuffer()
 			process, err := container.Run(
@@ -358,6 +365,55 @@ var _ = Describe("Security", func() {
 
 			Expect(string(stdout.Contents())).To(Equal("hello from stdout"))
 			Expect(string(stderr.Contents())).To(Equal("hello from stderr"))
+		})
+
+		Context("that has a list command", func() {
+			BeforeEach(func() {
+				var err error
+
+				tempRootFSPath, err := ioutil.TempDir("", "")
+				Expect(err).ToNot(HaveOccurred())
+				cmd := exec.Command("bash", "-c", fmt.Sprintf("cp -R %s/* %s", rootFSPath, tempRootFSPath))
+				Expect(cmd.Run()).To(Succeed())
+				rootFSPath = tempRootFSPath
+
+				lsPath, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/integration/test-images/empty_ls")
+				Expect(err).ToNot(HaveOccurred())
+				cmd = exec.Command("cp", lsPath, path.Join(rootFSPath, "ls"))
+				Expect(cmd.Run()).To(Succeed())
+			})
+
+			AfterEach(func() {
+				os.RemoveAll(rootFSPath)
+			})
+
+			It("should only list known files and directories", func() {
+				stdout := gbytes.NewBuffer()
+				process, err := container.Run(
+					garden.ProcessSpec{
+						User: "alice",
+						Path: "/ls",
+						Dir:  "/",
+					},
+					garden.ProcessIO{
+						Stdout: stdout,
+						Stderr: GinkgoWriter,
+					},
+				)
+				Expect(err).ToNot(HaveOccurred())
+
+				exitStatus, err := process.Wait()
+				Expect(err).ToNot(HaveOccurred())
+				Expect(exitStatus).To(Equal(0))
+				Expect(string(stdout.Contents())).To(Equal(`dev
+etc
+hello
+ls
+proc
+sys
+tmp
+`))
+			})
 		})
 	})
 
