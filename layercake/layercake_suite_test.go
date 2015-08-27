@@ -1,4 +1,4 @@
-package btrfs_cleanup_test
+package layercake_test
 
 import (
 	. "github.com/onsi/ginkgo"
@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestBtrfsCleanup(t *testing.T) {
+func TestLayercake(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "BtrfsCleanup Suite")
+	RunSpecs(t, "Layercake Suite")
 }

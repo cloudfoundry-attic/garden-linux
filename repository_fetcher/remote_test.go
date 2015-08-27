@@ -7,17 +7,17 @@ import (
 	"github.com/docker/docker/registry"
 	"github.com/pivotal-golang/lager/lagertest"
 
+	"github.com/cloudfoundry-incubator/garden-linux/layercake/fake_cake"
 	. "github.com/cloudfoundry-incubator/garden-linux/repository_fetcher"
 	"github.com/cloudfoundry-incubator/garden-linux/repository_fetcher/fake_pinger"
 	"github.com/cloudfoundry-incubator/garden-linux/repository_fetcher/fake_versioned_fetcher"
 	"github.com/cloudfoundry-incubator/garden-linux/repository_fetcher/fakes"
-	"github.com/cloudfoundry-incubator/garden-linux/resource_pool/fake_graph"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("RepositoryFetcher", func() {
-	var graph *fake_graph.FakeGraph
+	var graph *fake_cake.FakeCake
 	var fetcher RepositoryFetcher
 	var logger *lagertest.TestLogger
 	var fakeRegistryProvider *fakes.FakeRegistryProvider
@@ -27,7 +27,7 @@ var _ = Describe("RepositoryFetcher", func() {
 	var pinger *fake_pinger.FakePinger
 
 	BeforeEach(func() {
-		graph = fake_graph.New()
+		graph = new(fake_cake.FakeCake)
 
 		v1Fetcher = new(fake_versioned_fetcher.FakeVersionedFetcher)
 		v2Fetcher = new(fake_versioned_fetcher.FakeVersionedFetcher)

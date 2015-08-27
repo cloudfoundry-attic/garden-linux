@@ -23,6 +23,7 @@ import (
 
 	"math"
 
+	"github.com/cloudfoundry-incubator/garden-linux/layercake"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
 	"github.com/cloudfoundry-incubator/garden-linux/logging"
@@ -52,6 +53,10 @@ type SubnetPool interface {
 	Capacity() int
 }
 
+type Remover interface {
+	Remove(id layercake.IDer) error
+}
+
 type LinuxResourcePool struct {
 	logger lager.Logger
 
@@ -64,7 +69,7 @@ type LinuxResourcePool struct {
 	allowNetworks []string
 
 	rootfsProviders map[string]rootfs_provider.RootFSProvider
-	rootfsRemover   rootfs_provider.RootFSRemover
+	rootfsRemover   Remover
 	mappingList     rootfs_provider.MappingList
 
 	subnetPool SubnetPool
@@ -93,7 +98,7 @@ func New(
 	binPath, depotPath string,
 	sysconfig sysconfig.Config,
 	rootfsProviders map[string]rootfs_provider.RootFSProvider,
-	rootfsRemover rootfs_provider.RootFSRemover,
+	rootfsRemover Remover,
 	mappingList rootfs_provider.MappingList,
 	externalIP net.IP,
 	mtu int,
@@ -551,7 +556,7 @@ func (p *LinuxResourcePool) acquireSystemResources(id, handle, containerPath, ro
 			"Bridge": resources.Bridge,
 		})
 
-		p.rootfsRemover.CleanupRootFS(pLog, rootfsPath)
+		p.rootfsRemover.Remove(layercake.ContainerID(rootfsPath))
 		return "", nil, err
 	}
 
@@ -561,7 +566,7 @@ func (p *LinuxResourcePool) acquireSystemResources(id, handle, containerPath, ro
 			"Bridge": resources.Bridge,
 		})
 
-		p.rootfsRemover.CleanupRootFS(pLog, rootfsPath)
+		p.rootfsRemover.Remove(layercake.ContainerID(rootfsPath))
 		return "", nil, err
 	}
 
@@ -670,7 +675,7 @@ func (p *LinuxResourcePool) releaseSystemResources(logger lager.Logger, id strin
 	}
 
 	if shouldCleanRootfs(string(rootfsProvider)) {
-		if err = p.rootfsRemover.CleanupRootFS(logger, id); err != nil {
+		if err = p.rootfsRemover.Remove(layercake.ContainerID(id)); err != nil {
 			return err
 		}
 	}
@@ -696,6 +701,7 @@ func shouldCleanRootfs(rootfsProvider string) bool {
 			return true
 		}
 	}
+
 	return false
 }
 

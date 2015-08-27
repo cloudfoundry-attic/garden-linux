@@ -5,13 +5,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cloudfoundry-incubator/garden-linux/layercake"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/docker/docker/image"
 	"github.com/pivotal-golang/lager"
 )
 
 type RemoteV1Fetcher struct {
-	Graph     Graph
+	Cake      layercake.Cake
 	GraphLock Lock
 }
 
@@ -94,8 +95,7 @@ func (fetcher *RemoteV1Fetcher) fetchLayer(request *FetchRequest, endpointURL st
 	fetcher.GraphLock.Acquire(layerID)
 	defer fetcher.GraphLock.Release(layerID)
 
-	img, err := fetcher.Graph.Get(layerID)
-	if err == nil {
+	if img, err := fetcher.Cake.Get(layercake.DockerImageID(layerID)); err == nil {
 		request.Logger.Info("using-cached", lager.Data{
 			"layer": layerID,
 			"size":  img.Size,
@@ -109,7 +109,7 @@ func (fetcher *RemoteV1Fetcher) fetchLayer(request *FetchRequest, endpointURL st
 		return nil, fmt.Errorf("get remote image JSON: %v", err)
 	}
 
-	img, err = image.NewImgJSON(imgJSON)
+	img, err := image.NewImgJSON(imgJSON)
 	if err != nil {
 		return nil, fmt.Errorf("new image JSON: %v", err)
 	}
@@ -127,7 +127,7 @@ func (fetcher *RemoteV1Fetcher) fetchLayer(request *FetchRequest, endpointURL st
 		"layer": layerID,
 	})
 
-	err = fetcher.Graph.Register(img, &QuotaedReader{R: layer, N: remaining})
+	err = fetcher.Cake.Register(img, &QuotaedReader{R: layer, N: remaining})
 	if err != nil {
 		return nil, fmt.Errorf("register: %s", err)
 	}

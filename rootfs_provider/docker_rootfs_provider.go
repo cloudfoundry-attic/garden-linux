@@ -4,17 +4,17 @@ import (
 	"net/url"
 	"sync"
 
-	"github.com/docker/docker/daemon/graphdriver"
 	"github.com/pivotal-golang/clock"
 	"github.com/pivotal-golang/lager"
 
+	"github.com/cloudfoundry-incubator/garden-linux/layercake"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/cloudfoundry-incubator/garden-linux/repository_fetcher"
 )
 
 type dockerRootFSProvider struct {
 	name          string
-	graphDriver   graphdriver.Driver
+	graph         Graph
 	volumeCreator VolumeCreator
 	repoFetcher   repository_fetcher.RepositoryFetcher
 	namespacer    Namespacer
@@ -24,15 +24,10 @@ type dockerRootFSProvider struct {
 	fallback RootFSProvider
 }
 
-//go:generate counterfeiter -o fake_graph_driver/fake_graph_driver.go . GraphDriver
-type GraphDriver interface {
-	graphdriver.Driver
-}
-
 func NewDocker(
 	name string,
 	repoFetcher repository_fetcher.RepositoryFetcher,
-	graphDriver GraphDriver,
+	graph Graph,
 	volumeCreator VolumeCreator,
 	namespacer Namespacer,
 	clock clock.Clock,
@@ -40,7 +35,7 @@ func NewDocker(
 	return &dockerRootFSProvider{
 		name:          name,
 		repoFetcher:   repoFetcher,
-		graphDriver:   graphDriver,
+		graph:         graph,
 		volumeCreator: volumeCreator,
 		namespacer:    namespacer,
 		clock:         clock,
@@ -58,11 +53,12 @@ func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id stri
 		tag = url.Fragment
 	}
 
-	imageID, envvars, volumes, err := provider.repoFetcher.Fetch(logger, url, tag, quota)
+	fetchedID, envvars, volumes, err := provider.repoFetcher.Fetch(logger, url, tag, quota)
 	if err != nil {
 		return "", nil, err
 	}
 
+	var imageID layercake.IDer = layercake.DockerImageID(fetchedID)
 	if shouldNamespace {
 		provider.mutex.Lock()
 		imageID, err = provider.namespace(imageID)
@@ -72,12 +68,13 @@ func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id stri
 		}
 	}
 
-	err = provider.graphDriver.Create(id, imageID)
+	containerID := layercake.ContainerID(id)
+	err = provider.graph.Create(containerID, imageID)
 	if err != nil {
 		return "", nil, err
 	}
 
-	rootPath, err := provider.graphDriver.Get(id, "")
+	rootPath, err := provider.graph.Path(containerID)
 	if err != nil {
 		return "", nil, err
 	}
@@ -91,18 +88,18 @@ func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id stri
 	return rootPath, envvars, nil
 }
 
-func (provider *dockerRootFSProvider) namespace(imageID string) (string, error) {
-	namespacedImageID := imageID + "@" + provider.namespacer.CacheKey()
-	if !provider.graphDriver.Exists(namespacedImageID) {
+func (provider *dockerRootFSProvider) namespace(imageID layercake.IDer) (layercake.IDer, error) {
+	namespacedImageID := layercake.ContainerID(imageID.ID() + "@" + provider.namespacer.CacheKey())
+	if _, err := provider.graph.Get(namespacedImageID); err != nil {
 		if err := provider.createNamespacedLayer(namespacedImageID, imageID); err != nil {
-			return "", err
+			return nil, err
 		}
 	}
 
 	return namespacedImageID, nil
 }
 
-func (provider *dockerRootFSProvider) createNamespacedLayer(id string, parentId string) error {
+func (provider *dockerRootFSProvider) createNamespacedLayer(id, parentId layercake.IDer) error {
 	var err error
 	var path string
 	if path, err = provider.createLayer(id, parentId); err != nil {
@@ -112,16 +109,16 @@ func (provider *dockerRootFSProvider) createNamespacedLayer(id string, parentId 
 	return provider.namespacer.Namespace(path)
 }
 
-func (provider *dockerRootFSProvider) createLayer(id, parentId string) (string, error) {
+func (provider *dockerRootFSProvider) createLayer(id, parentId layercake.IDer) (string, error) {
 	errs := func(err error) (string, error) {
 		return "", err
 	}
 
-	if err := provider.graphDriver.Create(id, parentId); err != nil {
+	if err := provider.graph.Create(id, parentId); err != nil {
 		return errs(err)
 	}
 
-	namespacedRootfs, err := provider.graphDriver.Get(id, "")
+	namespacedRootfs, err := provider.graph.Path(id)
 	if err != nil {
 		return errs(err)
 	}
