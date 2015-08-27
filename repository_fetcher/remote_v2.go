@@ -3,6 +3,7 @@ package repository_fetcher
 import (
 	"encoding/json"
 
+	"github.com/cloudfoundry-incubator/garden-linux/layercake"
 	"github.com/docker/distribution/digest"
 	"github.com/docker/docker/image"
 	"github.com/docker/docker/registry"
@@ -10,7 +11,7 @@ import (
 )
 
 type RemoteV2Fetcher struct {
-	Graph     Graph
+	Cake      layercake.Cake
 	GraphLock Lock
 }
 
@@ -69,7 +70,7 @@ func (fetcher *RemoteV2Fetcher) fetchLayer(request *FetchRequest, img *image.Ima
 	fetcher.GraphLock.Acquire(img.ID)
 	defer fetcher.GraphLock.Release(img.ID)
 
-	if img, err := fetcher.Graph.Get(img.ID); err == nil {
+	if img, err := fetcher.Cake.Get(layercake.DockerImageID(img.ID)); err == nil {
 		return img.Size, nil
 	}
 
@@ -79,7 +80,7 @@ func (fetcher *RemoteV2Fetcher) fetchLayer(request *FetchRequest, img *image.Ima
 	}
 	defer reader.Close()
 
-	err = fetcher.Graph.Register(img, &QuotaedReader{R: reader, N: remaining})
+	err = fetcher.Cake.Register(img, &QuotaedReader{R: reader, N: remaining})
 	if err != nil {
 		return 0, FetchError("GraphRegister", request.Endpoint.URL.Host, request.Path, err)
 	}

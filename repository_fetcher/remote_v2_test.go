@@ -6,9 +6,10 @@ import (
 	"io/ioutil"
 	"net/http"
 
+	"github.com/cloudfoundry-incubator/garden-linux/layercake"
+	"github.com/cloudfoundry-incubator/garden-linux/layercake/fake_cake"
 	. "github.com/cloudfoundry-incubator/garden-linux/repository_fetcher"
 	"github.com/cloudfoundry-incubator/garden-linux/repository_fetcher/fake_lock"
-	"github.com/cloudfoundry-incubator/garden-linux/resource_pool/fake_graph"
 	"github.com/docker/distribution/digest"
 	"github.com/docker/docker/cliconfig"
 	"github.com/docker/docker/image"
@@ -28,7 +29,7 @@ var _ = Describe("RemoteV2", func() {
 	var (
 		fetcher      *RemoteV2Fetcher
 		server       *ghttp.Server
-		graph        *fake_graph.FakeGraph
+		cake         *fake_cake.FakeCake
 		lock         *fake_lock.FakeLock
 		logger       *lagertest.TestLogger
 		fetchRequest *FetchRequest
@@ -37,7 +38,7 @@ var _ = Describe("RemoteV2", func() {
 	)
 
 	BeforeEach(func() {
-		graph = fake_graph.New()
+		cake = new(fake_cake.FakeCake)
 		lock = new(fake_lock.FakeLock)
 
 		logger = lagertest.NewTestLogger("test")
@@ -81,9 +82,11 @@ var _ = Describe("RemoteV2", func() {
 		}
 
 		fetcher = &RemoteV2Fetcher{
-			Graph:     graph,
+			Cake:      cake,
 			GraphLock: lock,
 		}
+
+		cake.GetReturns(nil, errors.New("no image"))
 	})
 
 	Context("when none of the layers already exist", func() {
@@ -94,7 +97,7 @@ var _ = Describe("RemoteV2", func() {
 		It("downloads all layers of the given tag of a repository and returns its image id", func() {
 			layers := 0
 
-			graph.WhenRegistering = func(image *image.Image, layer archive.ArchiveReader) error {
+			cake.RegisterStub = func(image *image.Image, layer archive.ArchiveReader) error {
 				Expect(image.ID).To(Equal(fmt.Sprintf("banana-pie-%d", layers+1)))
 				parent := ""
 				if layers > 0 {
@@ -125,7 +128,7 @@ var _ = Describe("RemoteV2", func() {
 		It("returns a quota exceeded error if the layers exceed the quota", func() {
 			fetchRequest.MaxSize = 65
 			called := 0
-			graph.WhenRegistering = func(image *image.Image, layer archive.ArchiveReader) error {
+			cake.RegisterStub = func(image *image.Image, layer archive.ArchiveReader) error {
 				Expect(layer).To(BeAssignableToTypeOf(&QuotaedReader{}))
 				image.Size = 33
 
@@ -146,7 +149,13 @@ var _ = Describe("RemoteV2", func() {
 
 	Context("when a layer already exists", func() {
 		BeforeEach(func() {
-			graph.SetExists("banana-pie-1", []byte(`{"id": "banana-pie-1"}`))
+			cake.GetStub = func(id layercake.IDer) (*image.Image, error) {
+				if id.ID() != "banana-pie-1" {
+					return nil, errors.New("no layer")
+				}
+
+				return &image.Image{ID: "banana-pie-1"}, nil
+			}
 			setupSuccessfulV2Fetch(server, true)
 		})
 
@@ -156,7 +165,10 @@ var _ = Describe("RemoteV2", func() {
 			})
 
 			It("returns a quota exceeded error", func() {
-				graph.SetExists("banana-pie-1", []byte(`{"id": "banana-pie-1", "size": 44}`))
+				cake.GetReturns(&image.Image{
+					ID:   "banana-pie-1",
+					Size: 44,
+				}, nil)
 				setupSuccessfulV2Fetch(server, true)
 
 				_, err := fetcher.Fetch(fetchRequest)
@@ -167,7 +179,7 @@ var _ = Describe("RemoteV2", func() {
 		It("is not added to the graph", func() {
 			layers := 0
 
-			graph.WhenRegistering = func(image *image.Image, layer archive.ArchiveReader) error {
+			cake.RegisterStub = func(image *image.Image, layer archive.ArchiveReader) error {
 				Expect(image.ID).To(Equal("banana-pie-2"))
 				Expect(image.Parent).To(Equal("banana-pie-1"))
 
@@ -301,7 +313,7 @@ var _ = Describe("RemoteV2", func() {
 		Context("when registering the layer with the graph fails", func() {
 			BeforeEach(func() {
 				setupSuccessfulV2Fetch(server, false)
-				graph.WhenRegistering = func(image *image.Image, layer archive.ArchiveReader) error {
+				cake.RegisterStub = func(image *image.Image, layer archive.ArchiveReader) error {
 					return errors.New("oh no!")
 				}
 			})

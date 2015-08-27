@@ -204,6 +204,7 @@ func (r *RunningGarden) cleanupSubvolumes() {
 	if err != nil {
 		r.logger.Fatal("listing-subvolumes-error", err)
 	}
+
 	for _, line := range strings.Split(string(subvolumesOutput), "\n") {
 		fields := strings.Fields(line)
 		if len(fields) < 1 {

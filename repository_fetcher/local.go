@@ -1,30 +1,27 @@
 package repository_fetcher
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/url"
 	"os"
 	"sync"
 
-	"time"
-
+	"github.com/cloudfoundry-incubator/garden-linux/layercake"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/docker/docker/image"
 	"github.com/docker/docker/pkg/archive"
 	"github.com/pivotal-golang/lager"
 )
 
-type IDer interface {
-	ID(path string) (string, error)
+type ContainerIDProvider interface {
+	ProvideID(path string) layercake.IDer
 }
 
 type Local struct {
-	Graph             Graph
+	Cake              layercake.Cake
 	DefaultRootFSPath string
-	IDer              IDer
+	IDProvider        ContainerIDProvider
 
 	mu sync.RWMutex
 }
@@ -50,10 +47,12 @@ func (l *Local) Fetch(
 }
 
 func (l *Local) fetch(path string) (string, error) {
-	id, err := l.IDer.ID(path)
+	path, err := resolve(path)
 	if err != nil {
-		return "", err
+		panic(err)
 	}
+
+	id := l.IDProvider.ProvideID(path)
 
 	// synchronize all downloads, we could optimize by only mutexing around each
 	// particular rootfs path, but in practice importing local rootfses is decently fast,
@@ -61,11 +60,9 @@ func (l *Local) fetch(path string) (string, error) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	if l.Graph.Exists(id) {
-		return id, nil // use cache
+	if _, err := l.Cake.Get(id); err == nil {
+		return id.ID(), nil // use cache
 	}
-
-	path, err = resolve(path)
 
 	tar, err := archive.Tar(path, archive.Uncompressed)
 	if err != nil {
@@ -73,11 +70,11 @@ func (l *Local) fetch(path string) (string, error) {
 	}
 	defer tar.Close()
 
-	if err := l.Graph.Register(&image.Image{ID: id}, tar); err != nil {
+	if err := l.Cake.Register(&image.Image{ID: id.ID()}, tar); err != nil {
 		return "", fmt.Errorf("repository_fetcher: fetch local rootfs: register rootfs: %v", err)
 	}
 
-	return id, nil
+	return id.ID(), nil
 }
 
 func resolve(path string) (string, error) {
@@ -94,32 +91,15 @@ func resolve(path string) (string, error) {
 	return path, nil
 }
 
-type KeyFunc func(string, time.Time) string
-
-type SHA256 struct {
-	KeyFunc KeyFunc
+type LayerIDProvider struct {
 }
 
-func NewSHA256() SHA256 {
-	return SHA256{
-		KeyFunc: func(key string, timestamp time.Time) string {
-			return fmt.Sprintf("%s-%d", key, timestamp)
-		},
-	}
-}
+func (LayerIDProvider) ProvideID(id string) layercake.IDer {
 
-func (s SHA256) ID(path string) (string, error) {
-	path, err := resolve(path)
+	info, err := os.Lstat(id)
 	if err != nil {
-		return "", err
+		return layercake.ContainerID(fmt.Sprintf("%s-file-doesn't-yet-exist", id))
 	}
 
-	info, err := os.Lstat(path)
-	if err != nil {
-		return "", fmt.Errorf("repository_fetcher: ID of %s: %s", path, err)
-	}
-
-	key := s.KeyFunc(path, info.ModTime())
-	digest := sha256.Sum256([]byte(key))
-	return hex.EncodeToString(digest[:]), nil
+	return layercake.ContainerID(fmt.Sprintf("%s-%d", id, info.ModTime().UnixNano()))
 }

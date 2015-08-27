@@ -4,11 +4,13 @@ import (
 	"errors"
 	"time"
 
+	"github.com/cloudfoundry-incubator/garden-linux/layercake"
+	"github.com/cloudfoundry-incubator/garden-linux/layercake/fake_cake"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/cloudfoundry-incubator/garden-linux/repository_fetcher/fake_repository_fetcher"
 	. "github.com/cloudfoundry-incubator/garden-linux/rootfs_provider"
-	"github.com/cloudfoundry-incubator/garden-linux/rootfs_provider/fake_graph_driver"
 	"github.com/cloudfoundry-incubator/garden-linux/rootfs_provider/fake_namespacer"
+	"github.com/docker/docker/image"
 	"github.com/pivotal-golang/clock/fakeclock"
 	"github.com/pivotal-golang/lager/lagertest"
 
@@ -34,7 +36,7 @@ func (f *FakeVolumeCreator) Create(path, v string) error {
 var _ = Describe("DockerRootFSProvider", func() {
 	var (
 		fakeRepositoryFetcher *fake_repository_fetcher.FakeRepositoryFetcher
-		fakeGraphDriver       *fake_graph_driver.FakeGraphDriver
+		fakeCake              *fake_cake.FakeCake
 		fakeNamespacer        *fake_namespacer.FakeNamespacer
 		fakeVolumeCreator     *FakeVolumeCreator
 		fakeClock             *fakeclock.FakeClock
@@ -47,7 +49,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 
 	BeforeEach(func() {
 		fakeRepositoryFetcher = fake_repository_fetcher.New()
-		fakeGraphDriver = &fake_graph_driver.FakeGraphDriver{}
+		fakeCake = new(fake_cake.FakeCake)
 		fakeVolumeCreator = &FakeVolumeCreator{}
 		fakeNamespacer = &fake_namespacer.FakeNamespacer{}
 		fakeClock = fakeclock.NewFakeClock(time.Now())
@@ -57,7 +59,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 		provider, err = NewDocker(
 			name,
 			fakeRepositoryFetcher,
-			fakeGraphDriver,
+			fakeCake,
 			fakeVolumeCreator,
 			fakeNamespacer,
 			fakeClock,
@@ -77,7 +79,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 		Context("when the namespace parameter is false", func() {
 			It("fetches it and creates a graph entry with it as the parent", func() {
 				fakeRepositoryFetcher.FetchResult = "some-image-id"
-				fakeGraphDriver.GetReturns("/some/graph/driver/mount/point", nil)
+				fakeCake.PathReturns("/some/graph/driver/mount/point", nil)
 
 				mountpoint, envvars, err := provider.ProvideRootFS(
 					logger,
@@ -88,10 +90,10 @@ var _ = Describe("DockerRootFSProvider", func() {
 				)
 				Expect(err).ToNot(HaveOccurred())
 
-				Expect(fakeGraphDriver.CreateCallCount()).To(Equal(1))
-				id, parent := fakeGraphDriver.CreateArgsForCall(0)
-				Expect(id).To(Equal("some-id"))
-				Expect(parent).To(Equal("some-image-id"))
+				Expect(fakeCake.CreateCallCount()).To(Equal(1))
+				id, parent := fakeCake.CreateArgsForCall(0)
+				Expect(id).To(Equal(layercake.ContainerID("some-id")))
+				Expect(parent).To(Equal(layercake.DockerImageID("some-image-id")))
 
 				Expect(fakeRepositoryFetcher.Fetched()).To(ContainElement(
 					fake_repository_fetcher.FetchSpec{
@@ -112,10 +114,14 @@ var _ = Describe("DockerRootFSProvider", func() {
 
 		Context("when the namespace parameter is true", func() {
 			Context("and the image has not been translated yet", func() {
+				BeforeEach(func() {
+					fakeCake.GetReturns(nil, errors.New("no image here"))
+				})
+
 				It("fetches it, namespaces it, and creates a graph entry with it as the parent", func() {
 					fakeRepositoryFetcher.FetchResult = "some-image-id"
-					fakeGraphDriver.GetStub = func(id, label string) (string, error) {
-						return "/mount/point/" + id, nil
+					fakeCake.PathStub = func(id layercake.IDer) (string, error) {
+						return "/mount/point/" + id.ID(), nil
 					}
 
 					fakeNamespacer.CacheKeyReturns("jam")
@@ -136,20 +142,20 @@ var _ = Describe("DockerRootFSProvider", func() {
 						},
 					))
 
-					Expect(fakeGraphDriver.CreateCallCount()).To(Equal(2))
-					id, parent := fakeGraphDriver.CreateArgsForCall(0)
-					Expect(id).To(Equal("some-image-id@jam"))
-					Expect(parent).To(Equal("some-image-id"))
+					Expect(fakeCake.CreateCallCount()).To(Equal(2))
+					id, parent := fakeCake.CreateArgsForCall(0)
+					Expect(id).To(Equal(layercake.ContainerID("some-image-id@jam")))
+					Expect(parent).To(Equal(layercake.DockerImageID("some-image-id")))
 
-					id, parent = fakeGraphDriver.CreateArgsForCall(1)
-					Expect(id).To(Equal("some-id"))
-					Expect(parent).To(Equal("some-image-id@jam"))
+					id, parent = fakeCake.CreateArgsForCall(1)
+					Expect(id).To(Equal(layercake.ContainerID("some-id")))
+					Expect(parent).To(Equal(layercake.ContainerID("some-image-id@jam")))
 
 					Expect(fakeNamespacer.NamespaceCallCount()).To(Equal(1))
 					dst := fakeNamespacer.NamespaceArgsForCall(0)
-					Expect(dst).To(Equal("/mount/point/some-image-id@jam"))
+					Expect(dst).To(Equal("/mount/point/" + layercake.ContainerID("some-image-id@jam").ID()))
 
-					Expect(mountpoint).To(Equal("/mount/point/some-id"))
+					Expect(mountpoint).To(Equal("/mount/point/" + layercake.ContainerID("some-id").ID()))
 					Expect(envvars).To(Equal(
 						process.Env{
 							"env1": "env1Value",
@@ -162,15 +168,20 @@ var _ = Describe("DockerRootFSProvider", func() {
 			Context("and the image has already been translated", func() {
 				BeforeEach(func() {
 					fakeRepositoryFetcher.FetchResult = "some-image-id"
-					fakeGraphDriver.GetStub = func(id, label string) (string, error) {
-						return "/mount/point/" + id, nil
+					fakeCake.PathStub = func(id layercake.IDer) (string, error) {
+						return "/mount/point/" + id.ID(), nil
 					}
 
 					fakeNamespacer.CacheKeyReturns("sandwich")
 
-					fakeGraphDriver.ExistsStub = func(id string) bool {
-						return id == "some-image-id@sandwich"
+					fakeCake.GetStub = func(id layercake.IDer) (*image.Image, error) {
+						if id == layercake.ContainerID("some-image-id@sandwich") {
+							return &image.Image{}, nil
+						}
+
+						return nil, errors.New("hello")
 					}
+
 				})
 
 				It("reuses the translated layer", func() {
@@ -190,14 +201,14 @@ var _ = Describe("DockerRootFSProvider", func() {
 						},
 					))
 
-					Expect(fakeGraphDriver.CreateCallCount()).To(Equal(1))
-					id, parent := fakeGraphDriver.CreateArgsForCall(0)
-					Expect(id).To(Equal("some-id"))
-					Expect(parent).To(Equal("some-image-id@sandwich"))
+					Expect(fakeCake.CreateCallCount()).To(Equal(1))
+					id, parent := fakeCake.CreateArgsForCall(0)
+					Expect(id).To(Equal(layercake.ContainerID("some-id")))
+					Expect(parent).To(Equal(layercake.ContainerID("some-image-id@sandwich")))
 
 					Expect(fakeNamespacer.NamespaceCallCount()).To(Equal(0))
 
-					Expect(mountpoint).To(Equal("/mount/point/some-id"))
+					Expect(mountpoint).To(Equal("/mount/point/" + layercake.ContainerID("some-id").ID()))
 					Expect(envvars).To(Equal(
 						process.Env{
 							"env1": "env1Value",
@@ -211,7 +222,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 		Context("when the image has associated VOLUMEs", func() {
 			It("creates empty directories for all volumes", func() {
 				fakeRepositoryFetcher.FetchResult = "some-image-id"
-				fakeGraphDriver.GetReturns("/some/graph/driver/mount/point", nil)
+				fakeCake.PathReturns("/some/graph/driver/mount/point", nil)
 
 				_, _, err := provider.ProvideRootFS(
 					logger,
@@ -254,7 +265,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 			Context("when creating a volume fails", func() {
 				It("returns an error", func() {
 					fakeRepositoryFetcher.FetchResult = "some-image-id"
-					fakeGraphDriver.GetReturns("/some/graph/driver/mount/point", nil)
+					fakeCake.PathReturns("/some/graph/driver/mount/point", nil)
 					fakeVolumeCreator.CreateError = errors.New("o nooo")
 
 					_, _, err := provider.ProvideRootFS(
@@ -332,7 +343,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 			disaster := errors.New("oh no!")
 
 			BeforeEach(func() {
-				fakeGraphDriver.CreateReturns(disaster)
+				fakeCake.CreateReturns(disaster)
 			})
 
 			It("returns the error", func() {
@@ -350,7 +361,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 			disaster := errors.New("oh no!")
 
 			BeforeEach(func() {
-				fakeGraphDriver.GetReturns("", disaster)
+				fakeCake.PathReturns("", disaster)
 			})
 
 			It("returns the error", func() {

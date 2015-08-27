@@ -28,6 +28,7 @@ import (
 	"github.com/cloudfoundry-incubator/cf-lager"
 	"github.com/cloudfoundry-incubator/garden-linux/container_repository"
 	"github.com/cloudfoundry-incubator/garden-linux/debug"
+	"github.com/cloudfoundry-incubator/garden-linux/layercake"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/bandwidth_manager"
@@ -43,7 +44,6 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/repository_fetcher"
 	"github.com/cloudfoundry-incubator/garden-linux/resource_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/rootfs_provider"
-	"github.com/cloudfoundry-incubator/garden-linux/rootfs_provider/btrfs_cleanup"
 	"github.com/cloudfoundry-incubator/garden-linux/sysconfig"
 	"github.com/cloudfoundry-incubator/garden-linux/sysinfo"
 	"github.com/cloudfoundry-incubator/garden/server"
@@ -267,14 +267,31 @@ func main() {
 		logger.Fatal("failed-to-create-graph-directory", err)
 	}
 
-	graphDriver, err := graphdriver.New(*graphRoot, nil)
+	dockerGraphDriver, err := graphdriver.New(*graphRoot, nil)
 	if err != nil {
 		logger.Fatal("failed-to-construct-graph-driver", err)
 	}
 
-	graph, err := graph.NewGraph(*graphRoot, graphDriver)
+	dockerGraph, err := graph.NewGraph(*graphRoot, dockerGraphDriver)
 	if err != nil {
 		logger.Fatal("failed-to-construct-graph", err)
+	}
+
+	graphMountPoint := mountPoint(logger, *graphRoot)
+
+	var cake layercake.Cake = &layercake.Docker{
+		Graph:  dockerGraph,
+		Driver: dockerGraphDriver,
+	}
+
+	if cake.DriverName() == "btrfs" {
+		cake = &layercake.BtrfsCleaningCake{
+			Cake:            cake,
+			Runner:          runner,
+			BtrfsMountPoint: graphMountPoint,
+			RemoveAll:       os.RemoveAll,
+			Logger:          logger.Session("btrfs-cleanup"),
+		}
 	}
 
 	lock := repository_fetcher.NewGraphLock()
@@ -284,14 +301,14 @@ func main() {
 				*dockerRegistry,
 				strings.Split(*insecureRegistries, ","),
 			),
-			graph,
+			cake,
 			map[registry.APIVersion]repository_fetcher.VersionedFetcher{
 				registry.APIVersion1: &repository_fetcher.RemoteV1Fetcher{
-					Graph:     graph,
+					Cake:      cake,
 					GraphLock: lock,
 				},
 				registry.APIVersion2: &repository_fetcher.RemoteV2Fetcher{
-					Graph:     graph,
+					Cake:      cake,
 					GraphLock: lock,
 				},
 			},
@@ -321,32 +338,18 @@ func main() {
 		),
 	}
 
-	graphMountPoint := mountPoint(logger, *graphRoot)
-
-	driverName := graphDriver.String()
-	var rootFSRemover rootfs_provider.RootFSRemover = &rootfs_provider.VfsRootFSRemover{GraphDriver: graphDriver}
-	if driverName == "btrfs" {
-		rootFSRemover = &btrfs_cleanup.BtrfsRootFSRemover{
-			Runner:          runner,
-			GraphDriver:     graphDriver,
-			BtrfsMountPoint: graphMountPoint,
-			RemoveAll:       os.RemoveAll,
-			Logger:          logger.Session("btrfs-cleanup"),
-		}
-	}
-
-	remoteRootFSProvider, err := rootfs_provider.NewDocker(fmt.Sprintf("docker-remote-%s", driverName),
-		repoFetcher, graphDriver, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock())
+	remoteRootFSProvider, err := rootfs_provider.NewDocker(fmt.Sprintf("docker-remote-%s", cake.DriverName()),
+		repoFetcher, cake, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock())
 	if err != nil {
 		logger.Fatal("failed-to-construct-docker-rootfs-provider", err)
 	}
 
-	localRootFSProvider, err := rootfs_provider.NewDocker(fmt.Sprintf("docker-local-%s", driverName),
+	localRootFSProvider, err := rootfs_provider.NewDocker(fmt.Sprintf("docker-local-%s", cake.DriverName()),
 		&repository_fetcher.Local{
-			Graph:             graph,
+			Cake:              cake,
 			DefaultRootFSPath: *rootFSPath,
-			IDer:              repository_fetcher.NewSHA256(),
-		}, graphDriver, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock())
+			IDProvider:        repository_fetcher.LayerIDProvider{},
+		}, cake, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock())
 	if err != nil {
 		logger.Fatal("failed-to-construct-warden-rootfs-provider", err)
 	}
@@ -399,7 +402,7 @@ func main() {
 		*depotPath,
 		config,
 		rootFSProviders,
-		rootFSRemover,
+		cake,
 		mappingList,
 		parsedExternalIP,
 		*mtu,

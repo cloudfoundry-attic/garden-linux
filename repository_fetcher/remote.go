@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/cloudfoundry-incubator/garden"
+	"github.com/cloudfoundry-incubator/garden-linux/layercake"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/docker/docker/registry"
 	"github.com/pivotal-golang/lager"
@@ -34,7 +35,7 @@ type DockerRepositoryFetcher struct {
 
 	registryProvider RegistryProvider
 	pinger           Pinger
-	graph            Graph
+	graph            layercake.Cake
 
 	fetchingLayers map[string]chan struct{}
 	fetchingMutex  *sync.Mutex
@@ -68,12 +69,12 @@ type dockerLayer struct {
 	size int64
 }
 
-func NewRemote(provider RegistryProvider, graph Graph, fetchers map[registry.APIVersion]VersionedFetcher, pinger Pinger) RepositoryFetcher {
+func NewRemote(provider RegistryProvider, cake layercake.Cake, fetchers map[registry.APIVersion]VersionedFetcher, pinger Pinger) RepositoryFetcher {
 	return &DockerRepositoryFetcher{
 		fetchers:         fetchers,
 		registryProvider: provider,
 		pinger:           pinger,
-		graph:            graph,
+		graph:            cake,
 		fetchingLayers:   map[string]chan struct{}{},
 		fetchingMutex:    new(sync.Mutex),
 	}

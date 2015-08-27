@@ -7,8 +7,6 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/docker/distribution/digest"
-	"github.com/docker/docker/image"
-	"github.com/docker/docker/pkg/archive"
 	"github.com/docker/docker/registry"
 	"github.com/pivotal-golang/lager"
 )
@@ -36,13 +34,6 @@ type Registry interface {
 	// v2 methods
 	GetV2ImageManifest(ep *registry.Endpoint, imageName, tagName string, auth *registry.RequestAuthorization) (digest.Digest, []byte, error)
 	GetV2ImageBlobReader(ep *registry.Endpoint, imageName string, dgst digest.Digest, auth *registry.RequestAuthorization) (io.ReadCloser, int64, error)
-}
-
-// apes docker's *graph.Graph
-type Graph interface {
-	Get(name string) (*image.Image, error)
-	Exists(imageID string) bool
-	Register(image *image.Image, layer archive.ArchiveReader) error
 }
 
 type RemoteFetcher interface {

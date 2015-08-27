@@ -2,19 +2,16 @@ package repository_fetcher_test
 
 import (
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"net/url"
 	"os"
 	"path"
-	"path/filepath"
 	"strings"
 	"time"
 
-	"strconv"
-
+	"github.com/cloudfoundry-incubator/garden-linux/layercake"
+	"github.com/cloudfoundry-incubator/garden-linux/layercake/fake_cake"
 	"github.com/cloudfoundry-incubator/garden-linux/repository_fetcher"
-	"github.com/cloudfoundry-incubator/garden-linux/resource_pool/fake_graph"
 	"github.com/docker/docker/image"
 	"github.com/docker/docker/pkg/archive"
 	. "github.com/onsi/ginkgo"
@@ -23,144 +20,113 @@ import (
 	"github.com/pivotal-golang/lager/lagertest"
 )
 
-var _ = Describe("SHA256", func() {
-	var path string
+var _ = Describe("LayerIDProvider", func() {
+	var path1, path2 string
 	var accessTime time.Time
-	var ider repository_fetcher.SHA256
-	const pathHash = "ebdc0142afda840dcdd3968ca21c62b1cdbcbc4044e6771b016fe166791ca18a"
+	var idp repository_fetcher.LayerIDProvider
+	var modifiedTime time.Time
 
 	BeforeEach(func() {
-		path = filepath.Join("/tmp", "sha-test", strconv.Itoa(GinkgoParallelNode()))
 		var err error
-		err = os.MkdirAll(path, 0777)
+		path1, err = ioutil.TempDir("", "sha-test")
 		Expect(err).NotTo(HaveOccurred())
+		path2, err = ioutil.TempDir("", "sha-test-changed")
+		Expect(err).NotTo(HaveOccurred())
+
 		accessTime = time.Date(1994, time.January, 10, 20, 30, 30, 0, time.UTC)
-		modifiedTime := time.Date(1966, time.February, 8, 3, 43, 2, 0, time.UTC)
-		Expect(os.Chtimes(path, accessTime, modifiedTime)).To(Succeed())
+		modifiedTime = time.Date(1966, time.February, 8, 3, 43, 2, 0, time.UTC)
+		Expect(os.Chtimes(path1, accessTime, modifiedTime)).To(Succeed())
+		Expect(os.Chtimes(path2, accessTime, modifiedTime)).To(Succeed())
 
-		ider = repository_fetcher.SHA256{
-			KeyFunc: func(path string, timestamp time.Time) string {
-				year := timestamp.Year()
-				switch year {
-				case 1975:
-					return "Beckham"
-				case 1966:
-					return "Stoichkov"
-				}
-
-				Fail(fmt.Sprintf("Unexpected year: %d", year))
-				return ""
-			},
-		}
+		idp = repository_fetcher.LayerIDProvider{}
 	})
 
 	AfterEach(func() {
-		if path != "" {
-			Expect(os.RemoveAll(path)).To(Succeed())
+		if path1 != "" {
+			Expect(os.RemoveAll(path1)).To(Succeed())
+		}
+		if path2 != "" {
+			Expect(os.RemoveAll(path2)).To(Succeed())
 		}
 	})
 
-	It("returns the hex-converted SHA256 sum of the path", func() {
-		hash, err := ider.ID(path)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(hash).To(Equal(pathHash))
+	It("consistently returns the same ID when neither modification time nor path have changed", func() {
+		Expect(idp.ProvideID(path1)).To(Equal(idp.ProvideID(path1)))
 	})
 
-	Context("when the modified time changes", func() {
-		const newPathHash = "77e34fc5be0fc17fea6c22dfbb04440bebca41862d0de4b6da0f64396156d0f6"
-
-		BeforeEach(func() {
-			Expect(newPathHash).NotTo(Equal(pathHash))
-			modifiedTime := time.Date(1975, time.May, 2, 3, 43, 2, 0, time.UTC)
-			os.Chtimes(path, accessTime, modifiedTime)
-		})
-
-		It("returns a distinct hash", func() {
-			hash, err := ider.ID(path)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(hash).To(Equal(newPathHash))
-		})
+	It("returns a different ID if the path changes", func() {
+		Expect(idp.ProvideID(path1)).NotTo(Equal(idp.ProvideID(path2)))
 	})
 
-	It("returns a string of length 64", func() { // docker verifies this
-		hash, err := ider.ID(path)
-		Expect(err).NotTo(HaveOccurred())
-		Expect(hash).To(HaveLen(64))
-	})
-
-	Context("when using a symlink", func() {
-		var symlink string
-		BeforeEach(func() {
-			symlink = filepath.Join("/tmp", fmt.Sprintf("sha-test-symlink-%d", GinkgoParallelNode()))
-			Expect(os.Symlink(path, symlink)).To(Succeed())
-		})
-
-		AfterEach(func() {
-			if symlink != "" {
-				Expect(os.Remove(symlink)).To(Succeed())
-			}
-		})
-
-		It("returns the hash of the target directory", func() {
-			hash, err := ider.ID(symlink)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(hash).To(Equal(pathHash))
-		})
+	It("returns a different ID if the modification time changes", func() {
+		beforeID := idp.ProvideID(path1)
+		Expect(os.Chtimes(path1, accessTime, modifiedTime.Add(time.Second*1))).To(Succeed())
+		Expect(idp.ProvideID(path1)).NotTo(Equal(beforeID))
 	})
 
 	Context("when path does not exist", func() {
 		BeforeEach(func() {
-			path = "/some/dummy/path/that/does/not/exist"
+			path1 = "/some/dummy/path/that/does/not/exist"
 		})
 
-		It("returns an error", func() {
-			_, err := ider.ID(path)
-			Expect(err).To(MatchError("repository_fetcher: stat file: lstat /some/dummy/path/that/does/not/exist: no such file or directory"))
-		})
 	})
 })
 
 var _ = Describe("Local", func() {
 	var fetcher *repository_fetcher.Local
-	var fakeGraph *fake_graph.FakeGraph
+	var fakeCake *fake_cake.FakeCake
 	var defaultRootFSPath string
 	var logger lager.Logger
 
 	BeforeEach(func() {
 		logger = lagertest.NewTestLogger("local")
-		fakeGraph = fake_graph.New()
+		fakeCake = new(fake_cake.FakeCake)
 		defaultRootFSPath = ""
+
+		// default to not containing an image
+		fakeCake.GetReturns(nil, errors.New("no image"))
 	})
 
 	JustBeforeEach(func() {
 		fetcher = &repository_fetcher.Local{
-			Graph:             fakeGraph,
-			IDer:              UnderscoreIDer{},
+			Cake:              fakeCake,
+			IDProvider:        UnderscoreIDer{},
 			DefaultRootFSPath: defaultRootFSPath,
 		}
 	})
 
 	Context("when the image already exists in the graph", func() {
 		It("returns the image id", func() {
-			fakeGraph.SetExists("foo_bar_baz", []byte("{}"))
+			fakeCake.GetReturns(&image.Image{}, nil)
 
-			id, _, _, err := fetcher.Fetch(logger, &url.URL{Path: "foo/bar/baz"}, "", 0)
+			rootFSPath, err := ioutil.TempDir("", "testdir")
 			Expect(err).NotTo(HaveOccurred())
-			Expect(id).To(Equal("foo_bar_baz"))
+
+			rootFSPath = path.Join(rootFSPath, "foo_bar_baz")
+			Expect(os.MkdirAll(rootFSPath, 0600)).To(Succeed())
+
+			id, _, _, err := fetcher.Fetch(logger, &url.URL{Path: rootFSPath}, "", 0)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(id).To(HaveSuffix("foo_bar_baz"))
 		})
 
 		Context("when the path is empty", func() {
 			Context("and a default was specified", func() {
 				BeforeEach(func() {
-					defaultRootFSPath = "the/default/path"
+					var err error
+					defaultRootFSPath, err = ioutil.TempDir("", "default-path")
+					Expect(err).NotTo(HaveOccurred())
+
+					defaultRootFSPath = path.Join(defaultRootFSPath, "the_default_path")
+					Expect(os.MkdirAll(defaultRootFSPath, 0600)).To(Succeed())
 				})
 
 				It("should use the default", func() {
-					fakeGraph.SetExists("the_default_path", []byte("{}"))
+					fakeCake.GetReturns(&image.Image{}, nil)
 
 					id, _, _, err := fetcher.Fetch(logger, &url.URL{Path: ""}, "", 0)
 					Expect(err).NotTo(HaveOccurred())
-					Expect(id).To(Equal("the_default_path"))
+					Expect(id).To(HaveSuffix("the_default_path"))
 				})
 			})
 
@@ -188,7 +154,7 @@ var _ = Describe("Local", func() {
 
 		It("registers the image in the graph", func() {
 			var registeredImage *image.Image
-			fakeGraph.WhenRegistering = func(image *image.Image, layer archive.ArchiveReader) error {
+			fakeCake.RegisterStub = func(image *image.Image, layer archive.ArchiveReader) error {
 				registeredImage = image
 				return nil
 			}
@@ -205,7 +171,7 @@ var _ = Describe("Local", func() {
 		})
 
 		It("returns a wrapped error if registering fails", func() {
-			fakeGraph.WhenRegistering = func(image *image.Image, layer archive.ArchiveReader) error {
+			fakeCake.RegisterStub = func(image *image.Image, layer archive.ArchiveReader) error {
 				return errors.New("sold out")
 			}
 
@@ -224,7 +190,7 @@ var _ = Describe("Local", func() {
 		})
 
 		It("registers the image with the correct layer data", func() {
-			fakeGraph.WhenRegistering = func(image *image.Image, layer archive.ArchiveReader) error {
+			fakeCake.RegisterStub = func(image *image.Image, layer archive.ArchiveReader) error {
 				tmp, err := ioutil.TempDir("", "")
 				Expect(err).NotTo(HaveOccurred())
 				defer os.RemoveAll(tmp)
@@ -247,7 +213,7 @@ var _ = Describe("Local", func() {
 
 		Context("when the path is a symlink", func() {
 			It("registers the image with the correct layer data", func() {
-				fakeGraph.WhenRegistering = func(image *image.Image, layer archive.ArchiveReader) error {
+				fakeCake.RegisterStub = func(image *image.Image, layer archive.ArchiveReader) error {
 					tmp, err := ioutil.TempDir("", "")
 					Expect(err).NotTo(HaveOccurred())
 					defer os.RemoveAll(tmp)
@@ -281,6 +247,6 @@ var _ = Describe("Local", func() {
 
 type UnderscoreIDer struct{}
 
-func (UnderscoreIDer) ID(path string) (string, error) {
-	return strings.Replace(path, "/", "_", -1), nil
+func (UnderscoreIDer) ProvideID(path string) layercake.IDer {
+	return layercake.DockerImageID(strings.Replace(path, "/", "_", -1))
 }
