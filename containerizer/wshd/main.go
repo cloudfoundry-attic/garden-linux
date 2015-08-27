@@ -7,7 +7,6 @@ import (
 	"path"
 	"path/filepath"
 	"runtime"
-	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
@@ -79,19 +78,6 @@ func main() {
 		&containerizer.FuncStep{
 			(&container_daemon.RlimitsManager{}).Init,
 		},
-		&containerizer.FuncStep{system.Mount{
-			Type:       system.Bind,
-			Flags:      syscall.MS_BIND,
-			SourcePath: filepath.Join(binPath, "initd"),
-			TargetPath: filepath.Join(*rootFsPath, "sbin", "initd"),
-		}.Mount},
-		&containerizer.FuncStep{system.Mount{
-			Type:       system.Bind,
-			Data:       "remount,ro,bind",
-			Flags:      syscall.MS_BIND,
-			SourcePath: filepath.Join(binPath, "initd"),
-			TargetPath: filepath.Join(*rootFsPath, "sbin", "initd"),
-		}.Mount},
 	}}
 
 	maxUID := sysinfo.Min(sysinfo.MustGetMaxValidUID(), sysinfo.MustGetMaxValidGID())

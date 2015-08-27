@@ -16,6 +16,10 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/network"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	sys "github.com/cloudfoundry-incubator/garden-linux/system"
+	"github.com/docker/docker/pkg/reexec"
+
+	// for rexec.Register("initd")
+	_ "github.com/cloudfoundry-incubator/garden-linux/container_daemon/initd"
 )
 
 func init() {
@@ -25,6 +29,10 @@ func init() {
 // initc initializes a newly created container and then execs to become
 // the init process
 func main() {
+	if reexec.Init() {
+		return
+	}
+
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Fprintf(os.Stderr, "initc: panicked: %s\n", r)
@@ -119,7 +127,9 @@ func main() {
 	syscall.RawSyscall(syscall.SYS_FCNTL, uintptr(4), syscall.F_SETFD, 0)
 	syscall.RawSyscall(syscall.SYS_FCNTL, uintptr(5), syscall.F_SETFD, 0)
 
-	syscall.Exec("/sbin/initd", []string{*title, fmt.Sprintf("-dropCapabilities=%t", dropCapabilities)}, os.Environ())
+	if err := syscall.Exec("/proc/self/exe", []string{"initd", fmt.Sprintf("-dropCapabilities=%t", dropCapabilities), fmt.Sprintf("-title=\"%s\"", *title)}, os.Environ()); err != nil {
+		fail(fmt.Sprintf("failed to reexec: %s", err), 3)
+	}
 }
 
 func fail(err string, code int) {

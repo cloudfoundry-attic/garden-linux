@@ -36,65 +36,19 @@ var _ = Describe("Security", func() {
 			Eventually(ps).Should(gexec.Exit(0))
 
 			lsof, err := gexec.Start(
-				exec.Command("lsof", "-p", strings.TrimSpace(string(ps.Out.Contents()))),
+				// List all files
+				exec.Command(
+					"lsof", "-a",
+					// open by a specific process id (initd)
+					"-p", strings.TrimSpace(string(ps.Out.Contents())),
+					//	AND their FDs are not txt or mem
+					"-d", "^txt,^mem",
+					//	AND they are found in the host mount namespace
+					"/",
+				),
 				GinkgoWriter, GinkgoWriter)
-
 			Eventually(lsof).Should(gexec.Exit(0))
-			Expect(lsof).NotTo(gbytes.Say(container.Handle()))
-		})
-	})
-
-	Describe("Binary planting attacks", func() {
-		var (
-			container           garden.Container
-			privilegedContainer bool
-		)
-
-		JustBeforeEach(func() {
-			var err error
-			client = startGarden()
-			container, err = client.Create(garden.ContainerSpec{Privileged: privilegedContainer})
-			Expect(err).ToNot(HaveOccurred())
-		})
-
-		Context("on an unprivileged container", func() {
-			BeforeEach(func() {
-				privilegedContainer = false
-			})
-
-			It("should not allow planting initd in a container", func() {
-				process, err := container.Run(garden.ProcessSpec{
-					User: "root",
-					Path: "cp",
-					Args: []string{"/bin/echo", "/sbin/initd"},
-				},
-					garden.ProcessIO{
-						Stdout: GinkgoWriter,
-						Stderr: GinkgoWriter,
-					})
-
-				Expect(err).NotTo(HaveOccurred())
-				exitStatus, err := process.Wait()
-				Expect(err).ToNot(HaveOccurred())
-				Expect(exitStatus).ToNot(Equal(0))
-			})
-
-			It("fails to unmount the initd bind mount", func() {
-				process, err := container.Run(garden.ProcessSpec{
-					User: "root",
-					Path: "umount",
-					Args: []string{"/sbin/initd"},
-				},
-					garden.ProcessIO{
-						Stdout: GinkgoWriter,
-						Stderr: GinkgoWriter,
-					})
-
-				Expect(err).NotTo(HaveOccurred())
-				exitStatus, err := process.Wait()
-				Expect(err).ToNot(HaveOccurred())
-				Expect(exitStatus).ToNot(Equal(0))
-			})
+			Expect(lsof).To(gbytes.Say(""))
 		})
 	})
 

@@ -1,4 +1,4 @@
-package main
+package initd
 
 import (
 	"flag"
@@ -18,13 +18,13 @@ import (
 	_ "github.com/cloudfoundry-incubator/garden-linux/container_daemon/proc_starter"
 )
 
+func init() {
+	reexec.Register("initd", start)
+}
+
 // initd listens on a socket, spawns requested processes and reaps their
 // exit statuses.
-func main() {
-	if reexec.Init() {
-		return
-	}
-
+func start() {
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Fprintf(os.Stderr, "initd: panicked: %s\n", r)
@@ -32,6 +32,7 @@ func main() {
 		}
 	}()
 
+	flag.String("title", "", "")
 	dropCaps := flag.Bool("dropCapabilities", false, "drop capabilities before running processes")
 	flag.Parse()
 
@@ -55,7 +56,7 @@ func main() {
 			Rlimits: &container_daemon.RlimitsManager{},
 			Reexec: container_daemon.CommandFunc(func(args ...string) *exec.Cmd {
 				return &exec.Cmd{
-					Path: "/sbin/initd",
+					Path: "/proc/self/exe",
 					Args: args,
 				}
 			}),
