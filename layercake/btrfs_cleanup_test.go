@@ -27,15 +27,12 @@ var _ = Describe("BtrfsCleaningCake", func() {
 		graphDriverErr   error
 
 		removedDirectories []string
-
-		logger *lagertest.TestLogger
 	)
 
 	BeforeEach(func() {
 		graphDriverErr = nil
 		listSubVolumeErr = nil
 		removedDirectories = []string{}
-		logger = lagertest.NewTestLogger("btrfs-rootfs-remover")
 
 		runner = fake_command_runner.New()
 		fakeCake = new(fake_cake.FakeCake)
