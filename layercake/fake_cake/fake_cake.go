@@ -16,11 +16,11 @@ type FakeCake struct {
 	driverNameReturns     struct {
 		result1 string
 	}
-	CreateStub        func(containerID, imageID layercake.IDer) error
+	CreateStub        func(containerID, imageID layercake.ID) error
 	createMutex       sync.RWMutex
 	createArgsForCall []struct {
-		containerID layercake.IDer
-		imageID     layercake.IDer
+		containerID layercake.ID
+		imageID     layercake.ID
 	}
 	createReturns struct {
 		result1 error
@@ -34,27 +34,27 @@ type FakeCake struct {
 	registerReturns struct {
 		result1 error
 	}
-	GetStub        func(id layercake.IDer) (*image.Image, error)
+	GetStub        func(id layercake.ID) (*image.Image, error)
 	getMutex       sync.RWMutex
 	getArgsForCall []struct {
-		id layercake.IDer
+		id layercake.ID
 	}
 	getReturns struct {
 		result1 *image.Image
 		result2 error
 	}
-	RemoveStub        func(id layercake.IDer) error
+	RemoveStub        func(id layercake.ID) error
 	removeMutex       sync.RWMutex
 	removeArgsForCall []struct {
-		id layercake.IDer
+		id layercake.ID
 	}
 	removeReturns struct {
 		result1 error
 	}
-	PathStub        func(id layercake.IDer) (string, error)
+	PathStub        func(id layercake.ID) (string, error)
 	pathMutex       sync.RWMutex
 	pathArgsForCall []struct {
-		id layercake.IDer
+		id layercake.ID
 	}
 	pathReturns struct {
 		result1 string
@@ -86,11 +86,11 @@ func (fake *FakeCake) DriverNameReturns(result1 string) {
 	}{result1}
 }
 
-func (fake *FakeCake) Create(containerID layercake.IDer, imageID layercake.IDer) error {
+func (fake *FakeCake) Create(containerID layercake.ID, imageID layercake.ID) error {
 	fake.createMutex.Lock()
 	fake.createArgsForCall = append(fake.createArgsForCall, struct {
-		containerID layercake.IDer
-		imageID     layercake.IDer
+		containerID layercake.ID
+		imageID     layercake.ID
 	}{containerID, imageID})
 	fake.createMutex.Unlock()
 	if fake.CreateStub != nil {
@@ -106,7 +106,7 @@ func (fake *FakeCake) CreateCallCount() int {
 	return len(fake.createArgsForCall)
 }
 
-func (fake *FakeCake) CreateArgsForCall(i int) (layercake.IDer, layercake.IDer) {
+func (fake *FakeCake) CreateArgsForCall(i int) (layercake.ID, layercake.ID) {
 	fake.createMutex.RLock()
 	defer fake.createMutex.RUnlock()
 	return fake.createArgsForCall[i].containerID, fake.createArgsForCall[i].imageID
@@ -152,10 +152,10 @@ func (fake *FakeCake) RegisterReturns(result1 error) {
 	}{result1}
 }
 
-func (fake *FakeCake) Get(id layercake.IDer) (*image.Image, error) {
+func (fake *FakeCake) Get(id layercake.ID) (*image.Image, error) {
 	fake.getMutex.Lock()
 	fake.getArgsForCall = append(fake.getArgsForCall, struct {
-		id layercake.IDer
+		id layercake.ID
 	}{id})
 	fake.getMutex.Unlock()
 	if fake.GetStub != nil {
@@ -171,7 +171,7 @@ func (fake *FakeCake) GetCallCount() int {
 	return len(fake.getArgsForCall)
 }
 
-func (fake *FakeCake) GetArgsForCall(i int) layercake.IDer {
+func (fake *FakeCake) GetArgsForCall(i int) layercake.ID {
 	fake.getMutex.RLock()
 	defer fake.getMutex.RUnlock()
 	return fake.getArgsForCall[i].id
@@ -185,10 +185,10 @@ func (fake *FakeCake) GetReturns(result1 *image.Image, result2 error) {
 	}{result1, result2}
 }
 
-func (fake *FakeCake) Remove(id layercake.IDer) error {
+func (fake *FakeCake) Remove(id layercake.ID) error {
 	fake.removeMutex.Lock()
 	fake.removeArgsForCall = append(fake.removeArgsForCall, struct {
-		id layercake.IDer
+		id layercake.ID
 	}{id})
 	fake.removeMutex.Unlock()
 	if fake.RemoveStub != nil {
@@ -204,7 +204,7 @@ func (fake *FakeCake) RemoveCallCount() int {
 	return len(fake.removeArgsForCall)
 }
 
-func (fake *FakeCake) RemoveArgsForCall(i int) layercake.IDer {
+func (fake *FakeCake) RemoveArgsForCall(i int) layercake.ID {
 	fake.removeMutex.RLock()
 	defer fake.removeMutex.RUnlock()
 	return fake.removeArgsForCall[i].id
@@ -217,10 +217,10 @@ func (fake *FakeCake) RemoveReturns(result1 error) {
 	}{result1}
 }
 
-func (fake *FakeCake) Path(id layercake.IDer) (string, error) {
+func (fake *FakeCake) Path(id layercake.ID) (string, error) {
 	fake.pathMutex.Lock()
 	fake.pathArgsForCall = append(fake.pathArgsForCall, struct {
-		id layercake.IDer
+		id layercake.ID
 	}{id})
 	fake.pathMutex.Unlock()
 	if fake.PathStub != nil {
@@ -236,7 +236,7 @@ func (fake *FakeCake) PathCallCount() int {
 	return len(fake.pathArgsForCall)
 }
 
-func (fake *FakeCake) PathArgsForCall(i int) layercake.IDer {
+func (fake *FakeCake) PathArgsForCall(i int) layercake.ID {
 	fake.pathMutex.RLock()
 	defer fake.pathMutex.RUnlock()
 	return fake.pathArgsForCall[i].id

@@ -23,7 +23,7 @@ type BtrfsCleaningCake struct {
 	Logger lager.Logger
 }
 
-func (c *BtrfsCleaningCake) Remove(id IDer) error {
+func (c *BtrfsCleaningCake) Remove(id ID) error {
 	log := c.Logger.Session("clean-rootfs", lager.Data{"id": id})
 	log.Info("start")
 

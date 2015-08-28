@@ -15,7 +15,7 @@ import (
 )
 
 type ContainerIDProvider interface {
-	ProvideID(path string) layercake.IDer
+	ProvideID(path string) layercake.ID
 }
 
 type Local struct {
@@ -61,7 +61,7 @@ func (l *Local) fetch(path string) (string, error) {
 	defer l.mu.Unlock()
 
 	if _, err := l.Cake.Get(id); err == nil {
-		return id.ID(), nil // use cache
+		return id.GraphID(), nil // use cache
 	}
 
 	tar, err := archive.Tar(path, archive.Uncompressed)
@@ -70,11 +70,11 @@ func (l *Local) fetch(path string) (string, error) {
 	}
 	defer tar.Close()
 
-	if err := l.Cake.Register(&image.Image{ID: id.ID()}, tar); err != nil {
+	if err := l.Cake.Register(&image.Image{ID: id.GraphID()}, tar); err != nil {
 		return "", fmt.Errorf("repository_fetcher: fetch local rootfs: register rootfs: %v", err)
 	}
 
-	return id.ID(), nil
+	return id.GraphID(), nil
 }
 
 func resolve(path string) (string, error) {
@@ -94,7 +94,7 @@ func resolve(path string) (string, error) {
 type LayerIDProvider struct {
 }
 
-func (LayerIDProvider) ProvideID(id string) layercake.IDer {
+func (LayerIDProvider) ProvideID(id string) layercake.ID {
 
 	info, err := os.Lstat(id)
 	if err != nil {

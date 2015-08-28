@@ -120,8 +120,8 @@ var _ = Describe("DockerRootFSProvider", func() {
 
 				It("fetches it, namespaces it, and creates a graph entry with it as the parent", func() {
 					fakeRepositoryFetcher.FetchResult = "some-image-id"
-					fakeCake.PathStub = func(id layercake.IDer) (string, error) {
-						return "/mount/point/" + id.ID(), nil
+					fakeCake.PathStub = func(id layercake.ID) (string, error) {
+						return "/mount/point/" + id.GraphID(), nil
 					}
 
 					fakeNamespacer.CacheKeyReturns("jam")
@@ -153,9 +153,9 @@ var _ = Describe("DockerRootFSProvider", func() {
 
 					Expect(fakeNamespacer.NamespaceCallCount()).To(Equal(1))
 					dst := fakeNamespacer.NamespaceArgsForCall(0)
-					Expect(dst).To(Equal("/mount/point/" + layercake.ContainerID("some-image-id@jam").ID()))
+					Expect(dst).To(Equal("/mount/point/" + layercake.ContainerID("some-image-id@jam").GraphID()))
 
-					Expect(mountpoint).To(Equal("/mount/point/" + layercake.ContainerID("some-id").ID()))
+					Expect(mountpoint).To(Equal("/mount/point/" + layercake.ContainerID("some-id").GraphID()))
 					Expect(envvars).To(Equal(
 						process.Env{
 							"env1": "env1Value",
@@ -168,13 +168,13 @@ var _ = Describe("DockerRootFSProvider", func() {
 			Context("and the image has already been translated", func() {
 				BeforeEach(func() {
 					fakeRepositoryFetcher.FetchResult = "some-image-id"
-					fakeCake.PathStub = func(id layercake.IDer) (string, error) {
-						return "/mount/point/" + id.ID(), nil
+					fakeCake.PathStub = func(id layercake.ID) (string, error) {
+						return "/mount/point/" + id.GraphID(), nil
 					}
 
 					fakeNamespacer.CacheKeyReturns("sandwich")
 
-					fakeCake.GetStub = func(id layercake.IDer) (*image.Image, error) {
+					fakeCake.GetStub = func(id layercake.ID) (*image.Image, error) {
 						if id == layercake.ContainerID("some-image-id@sandwich") {
 							return &image.Image{}, nil
 						}
@@ -208,7 +208,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 
 					Expect(fakeNamespacer.NamespaceCallCount()).To(Equal(0))
 
-					Expect(mountpoint).To(Equal("/mount/point/" + layercake.ContainerID("some-id").ID()))
+					Expect(mountpoint).To(Equal("/mount/point/" + layercake.ContainerID("some-id").GraphID()))
 					Expect(envvars).To(Equal(
 						process.Env{
 							"env1": "env1Value",

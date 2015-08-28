@@ -247,6 +247,6 @@ var _ = Describe("Local", func() {
 
 type UnderscoreIDer struct{}
 
-func (UnderscoreIDer) ProvideID(path string) layercake.IDer {
+func (UnderscoreIDer) ProvideID(path string) layercake.ID {
 	return layercake.DockerImageID(strings.Replace(path, "/", "_", -1))
 }

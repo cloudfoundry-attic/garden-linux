@@ -149,8 +149,8 @@ var _ = Describe("RemoteV2", func() {
 
 	Context("when a layer already exists", func() {
 		BeforeEach(func() {
-			cake.GetStub = func(id layercake.IDer) (*image.Image, error) {
-				if id.ID() != "banana-pie-1" {
+			cake.GetStub = func(id layercake.ID) (*image.Image, error) {
+				if id.GraphID() != "banana-pie-1" {
 					return nil, errors.New("no layer")
 				}
 

@@ -9,20 +9,20 @@ import (
 )
 
 type FakeRemover struct {
-	RemoveStub        func(id layercake.IDer) error
+	RemoveStub        func(id layercake.ID) error
 	removeMutex       sync.RWMutex
 	removeArgsForCall []struct {
-		id layercake.IDer
+		id layercake.ID
 	}
 	removeReturns struct {
 		result1 error
 	}
 }
 
-func (fake *FakeRemover) Remove(id layercake.IDer) error {
+func (fake *FakeRemover) Remove(id layercake.ID) error {
 	fake.removeMutex.Lock()
 	fake.removeArgsForCall = append(fake.removeArgsForCall, struct {
-		id layercake.IDer
+		id layercake.ID
 	}{id})
 	fake.removeMutex.Unlock()
 	if fake.RemoveStub != nil {
@@ -38,7 +38,7 @@ func (fake *FakeRemover) RemoveCallCount() int {
 	return len(fake.removeArgsForCall)
 }
 
-func (fake *FakeRemover) RemoveArgsForCall(i int) layercake.IDer {
+func (fake *FakeRemover) RemoveArgsForCall(i int) layercake.ID {
 	fake.removeMutex.RLock()
 	defer fake.removeMutex.RUnlock()
 	return fake.removeArgsForCall[i].id

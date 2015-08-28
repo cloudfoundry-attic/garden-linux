@@ -56,8 +56,8 @@ var _ = Describe("BtrfsCleaningCake", func() {
 			return listSubVolumeErr
 		})
 
-		fakeCake.PathStub = func(id layercake.IDer) (string, error) {
-			return "/absolute/btrfs_mount/relative/path/to/" + id.ID(), graphDriverErr
+		fakeCake.PathStub = func(id layercake.ID) (string, error) {
+			return "/absolute/btrfs_mount/relative/path/to/" + id.GraphID(), graphDriverErr
 		}
 	})
 
@@ -70,7 +70,7 @@ var _ = Describe("BtrfsCleaningCake", func() {
 			Expect(cleaner.Remove(layerId)).To(Succeed())
 			Expect(runner).NotTo(HaveExecutedSerially(fake_command_runner.CommandSpec{
 				Path: "btrfs",
-				Args: []string{"subvolume", "delete", "/path/to/" + layerId.ID()},
+				Args: []string{"subvolume", "delete", "/path/to/" + layerId.GraphID()},
 			}))
 		})
 
@@ -82,14 +82,14 @@ var _ = Describe("BtrfsCleaningCake", func() {
 
 	Context("when there is a subvolume for the layer, but it does not contain nested subvolumes", func() {
 		BeforeEach(func() {
-			listSubvolumesOutput = "ID 257 gen 9 top level 5 path relative/path/to/" + layerId.ID() + "\n"
+			listSubvolumesOutput = "ID 257 gen 9 top level 5 path relative/path/to/" + layerId.GraphID() + "\n"
 		})
 
 		It("does not invoke subvolume delete", func() {
 			Expect(cleaner.Remove(layerId)).To(Succeed())
 			Expect(runner).NotTo(HaveExecutedSerially(fake_command_runner.CommandSpec{
 				Path: "btrfs",
-				Args: []string{"subvolume", "delete", "/absolute/btrfs_mount/relative/path/to/" + layerId.ID()},
+				Args: []string{"subvolume", "delete", "/absolute/btrfs_mount/relative/path/to/" + layerId.GraphID()},
 			}))
 		})
 
@@ -100,14 +100,14 @@ var _ = Describe("BtrfsCleaningCake", func() {
 	})
 
 	Context("when there is a subvolume for the layer, and it contains nested subvolumes", func() {
-		subvolume1 := fmt.Sprintf("%s/relative/path/to/%s/subvolume1", btrfsMountPoint, layerId.ID())
-		subvolume2 := fmt.Sprintf("%s/relative/path/to/%s/subvolume2", btrfsMountPoint, layerId.ID())
+		subvolume1 := fmt.Sprintf("%s/relative/path/to/%s/subvolume1", btrfsMountPoint, layerId.GraphID())
+		subvolume2 := fmt.Sprintf("%s/relative/path/to/%s/subvolume2", btrfsMountPoint, layerId.GraphID())
 
 		BeforeEach(func() {
 			listSubvolumesOutput = fmt.Sprintf(`ID 257 gen 9 top level 5 path relative/path/to/%s
 ID 258 gen 9 top level 257 path relative/path/to/%s/subvolume1
 ID 259 gen 9 top level 257 path relative/path/to/%s/subvolume2
-`, layerId.ID(), layerId.ID(), layerId.ID())
+`, layerId.GraphID(), layerId.GraphID(), layerId.GraphID())
 		})
 
 		It("deletes the subvolume", func() {
@@ -139,7 +139,7 @@ ID 259 gen 9 top level 257 path relative/path/to/%s/subvolume2
 				listSubvolumesOutput = fmt.Sprintf(`ID 257 gen 9 top level 5 path relative/path/to/%s
 ID 258 gen 9 top level 257 path relative/path/to/%s/subvolume1
 ID 259 gen 9 top level 257 path relative/path/to/%s/subvolume1/subsubvol1
-`, layerId.ID(), layerId.ID(), layerId.ID())
+`, layerId.GraphID(), layerId.GraphID(), layerId.GraphID())
 			})
 
 			It("deletes the subvolumes deepest-first", func() {
@@ -159,7 +159,7 @@ ID 259 gen 9 top level 257 path relative/path/to/%s/subvolume1/subsubvol1
 		BeforeEach(func() {
 			runner.WhenRunning(fake_command_runner.CommandSpec{
 				Path: "btrfs",
-				Args: []string{"qgroup", "show", "-f", "/absolute/btrfs_mount/relative/path/to/" + layerId.ID()},
+				Args: []string{"qgroup", "show", "-f", "/absolute/btrfs_mount/relative/path/to/" + layerId.GraphID()},
 			}, func(cmd *exec.Cmd) error {
 				_, err := cmd.Stdout.Write([]byte(`qgroupid rfer  excl
 -------- ----  ----

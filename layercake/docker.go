@@ -20,11 +20,11 @@ func (d *Docker) DriverName() string {
 	return d.Driver.String()
 }
 
-func (d *Docker) Create(containerID IDer, imageID IDer) error {
+func (d *Docker) Create(containerID ID, imageID ID) error {
 	return d.Register(
 		&image.Image{
-			ID:     containerID.ID(),
-			Parent: imageID.ID(),
+			ID:     containerID.GraphID(),
+			Parent: imageID.GraphID(),
 		}, nil)
 }
 
@@ -32,30 +32,30 @@ func (d *Docker) Register(image *image.Image, layer archive.ArchiveReader) error
 	return d.Graph.Register(image, layer)
 }
 
-func (d *Docker) Get(id IDer) (*image.Image, error) {
-	return d.Graph.Get(id.ID())
+func (d *Docker) Get(id ID) (*image.Image, error) {
+	return d.Graph.Get(id.GraphID())
 }
 
-func (d *Docker) Remove(id IDer) error {
-	return d.Graph.Delete(id.ID())
+func (d *Docker) Remove(id ID) error {
+	return d.Graph.Delete(id.GraphID())
 }
 
-func (d *Docker) Path(id IDer) (string, error) {
-	return d.Driver.Get(id.ID(), "")
+func (d *Docker) Path(id ID) (string, error) {
+	return d.Driver.Get(id.GraphID(), "")
 }
 
-type IDer interface {
-	ID() string
+type ID interface {
+	GraphID() string
 }
 
 type ContainerID string
 type DockerImageID string
 
-func (c ContainerID) ID() string {
+func (c ContainerID) GraphID() string {
 	return shaID(string(c))
 }
 
-func (d DockerImageID) ID() string {
+func (d DockerImageID) GraphID() string {
 	return string(d)
 }
 

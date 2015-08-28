@@ -58,7 +58,7 @@ func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id stri
 		return "", nil, err
 	}
 
-	var imageID layercake.IDer = layercake.DockerImageID(fetchedID)
+	var imageID layercake.ID = layercake.DockerImageID(fetchedID)
 	if shouldNamespace {
 		provider.mutex.Lock()
 		imageID, err = provider.namespace(imageID)
@@ -88,8 +88,8 @@ func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id stri
 	return rootPath, envvars, nil
 }
 
-func (provider *dockerRootFSProvider) namespace(imageID layercake.IDer) (layercake.IDer, error) {
-	namespacedImageID := layercake.ContainerID(imageID.ID() + "@" + provider.namespacer.CacheKey())
+func (provider *dockerRootFSProvider) namespace(imageID layercake.ID) (layercake.ID, error) {
+	namespacedImageID := layercake.ContainerID(imageID.GraphID() + "@" + provider.namespacer.CacheKey())
 	if _, err := provider.graph.Get(namespacedImageID); err != nil {
 		if err := provider.createNamespacedLayer(namespacedImageID, imageID); err != nil {
 			return nil, err
@@ -99,7 +99,7 @@ func (provider *dockerRootFSProvider) namespace(imageID layercake.IDer) (layerca
 	return namespacedImageID, nil
 }
 
-func (provider *dockerRootFSProvider) createNamespacedLayer(id, parentId layercake.IDer) error {
+func (provider *dockerRootFSProvider) createNamespacedLayer(id, parentId layercake.ID) error {
 	var err error
 	var path string
 	if path, err = provider.createLayer(id, parentId); err != nil {
@@ -109,7 +109,7 @@ func (provider *dockerRootFSProvider) createNamespacedLayer(id, parentId layerca
 	return provider.namespacer.Namespace(path)
 }
 
-func (provider *dockerRootFSProvider) createLayer(id, parentId layercake.IDer) (string, error) {
+func (provider *dockerRootFSProvider) createLayer(id, parentId layercake.ID) (string, error) {
 	errs := func(err error) (string, error) {
 		return "", err
 	}

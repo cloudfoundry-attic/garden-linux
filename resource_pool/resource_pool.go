@@ -54,7 +54,7 @@ type SubnetPool interface {
 }
 
 type Remover interface {
-	Remove(id layercake.IDer) error
+	Remove(id layercake.ID) error
 }
 
 type LinuxResourcePool struct {
