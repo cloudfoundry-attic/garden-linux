@@ -14,7 +14,6 @@ type RootFSProvider interface {
 	ProvideRootFS(logger lager.Logger, id string, rootfs *url.URL, namespaced bool, quota int64) (mountpoint string, envvar process.Env, err error)
 }
 
-//go:generate counterfeiter -o fake_graph/fake_graph.go . Graph
 type Graph interface {
 	layercake.Cake
 }
