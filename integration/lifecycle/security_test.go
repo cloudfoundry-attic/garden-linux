@@ -23,7 +23,7 @@ import (
 
 var _ = Describe("Security", func() {
 	Describe("PID namespace", func() {
-		It("does not keep any host files open", func() {
+		FIt("does not keep any host files open", func() {
 			client = startGarden()
 			container, err := client.Create(garden.ContainerSpec{})
 			Expect(err).ToNot(HaveOccurred())
