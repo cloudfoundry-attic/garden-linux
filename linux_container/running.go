@@ -16,7 +16,7 @@ func (c *LinuxContainer) Run(spec garden.ProcessSpec, processIO garden.ProcessIO
 	sockPath := path.Join(c.ContainerPath, "run", "wshd.sock")
 
 	if spec.User == "" {
-		c.logger.Error("linux_container: Run:", fmt.Errorf("linux_container: Run: A User for the process to run as must be specified. ProcessSpec: %+v", spec))
+		c.logger.Error("linux_container: Run:", errors.New("linux_container: Run: A User for the process to run as must be specified."))
 		return nil, errors.New("A User for the process to run as must be specified.")
 	}
 
@@ -26,11 +26,6 @@ func (c *LinuxContainer) Run(spec garden.ProcessSpec, processIO garden.ProcessIO
 	if err != nil {
 		return nil, err
 	}
-
-	c.logger.Session("run").Debug("calculate-environment", lager.Data{
-		"container-env": c.Env,
-		"run-env":       specEnv,
-	})
 
 	procEnv, err := process.NewEnv(c.Env)
 	if err != nil {

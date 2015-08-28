@@ -27,6 +27,22 @@ var GraphRoot = os.Getenv("GARDEN_TEST_GRAPHPATH")
 var BinPath = "../../linux_backend/bin"
 var GardenBin = "../../out/garden-linux"
 
+type RunnerCreator interface {
+	Create(cmd *exec.Cmd) ifrit.Runner
+}
+
+type GinkgomonCreator struct{}
+
+func (c *GinkgomonCreator) Create(cmd *exec.Cmd) ifrit.Runner {
+	return &ginkgomon.Runner{
+		Name:              "garden-linux",
+		Command:           cmd,
+		AnsiColorCode:     "31m",
+		StartCheck:        "garden-linux.started",
+		StartCheckTimeout: 30 * time.Second,
+	}
+}
+
 type RunningGarden struct {
 	client.Client
 	process ifrit.Process
@@ -40,12 +56,16 @@ type RunningGarden struct {
 	logger lager.Logger
 }
 
-func Start(argv ...string) *RunningGarden {
+func StartWithRunnerCreator(creator RunnerCreator, argv ...string) *RunningGarden {
 	gardenAddr := fmt.Sprintf("/tmp/garden_%d.sock", GinkgoParallelNode())
-	return start("unix", gardenAddr, argv...)
+	return start(creator, "unix", gardenAddr, argv...)
 }
 
-func start(network, addr string, argv ...string) *RunningGarden {
+func Start(argv ...string) *RunningGarden {
+	return StartWithRunnerCreator(&GinkgomonCreator{}, argv...)
+}
+
+func start(creator RunnerCreator, network, addr string, argv ...string) *RunningGarden {
 	tmpDir := filepath.Join(
 		os.TempDir(),
 		fmt.Sprintf("test-garden-%d", ginkgo.GinkgoParallelNode()),
@@ -67,13 +87,7 @@ func start(network, addr string, argv ...string) *RunningGarden {
 	}
 
 	c := cmd(tmpDir, graphPath, network, addr, GardenBin, BinPath, RootFSPath, argv...)
-	r.process = ifrit.Invoke(&ginkgomon.Runner{
-		Name:              "garden-linux",
-		Command:           c,
-		AnsiColorCode:     "31m",
-		StartCheck:        "garden-linux.started",
-		StartCheckTimeout: 30 * time.Second,
-	})
+	r.process = ifrit.Invoke(creator.Create(c))
 	r.Pid = c.Process.Pid
 
 	return r
