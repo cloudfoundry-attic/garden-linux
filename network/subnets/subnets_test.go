@@ -105,7 +105,7 @@ var _ = Describe("Subnet Pool", func() {
 						It("returns the same subnet and IP if the IP is inside the subnet", func() {
 							_, static := networkParms("11.0.0.0/8")
 
-							ip := net.ParseIP("11.0.0.1")
+							ip := net.ParseIP("11.0.0.2")
 							network, err := subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.StaticIPSelector{ip})
 							Expect(err).ToNot(HaveOccurred())
 
@@ -116,7 +116,7 @@ var _ = Describe("Subnet Pool", func() {
 						It("does not allow the same IP to be requested twice", func() {
 							_, static := networkParms("11.0.0.0/8")
 
-							ip := net.ParseIP("11.0.0.1")
+							ip := net.ParseIP("11.0.0.2")
 							_, err := subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.StaticIPSelector{ip})
 							Expect(err).ToNot(HaveOccurred())
 
@@ -128,13 +128,13 @@ var _ = Describe("Subnet Pool", func() {
 						It("allows two IPs to be serially requested in the same subnet", func() {
 							_, static := networkParms("11.0.0.0/8")
 
-							ip := net.ParseIP("11.0.0.1")
+							ip := net.ParseIP("11.0.0.2")
 							network, err := subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.StaticIPSelector{ip})
 							Expect(err).ToNot(HaveOccurred())
 							Expect(network.Subnet).To(Equal(static))
 							Expect(network.IP).To(Equal(ip))
 
-							ip2 := net.ParseIP("11.0.0.2")
+							ip2 := net.ParseIP("11.0.0.3")
 
 							_, static = networkParms("11.0.0.0/8") // make sure we get a new pointer
 							network2, err := subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.StaticIPSelector{ip2})
@@ -146,7 +146,7 @@ var _ = Describe("Subnet Pool", func() {
 						It("when an IP is allocated from a subnet but released in between, it should be treated as new both times", func() {
 							_, static := networkParms("11.0.0.0/8")
 
-							ip := net.ParseIP("11.0.0.1")
+							ip := net.ParseIP("11.0.0.2")
 							network, err := subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.StaticIPSelector{ip})
 							Expect(err).ToNot(HaveOccurred())
 							Expect(network.Subnet).To(Equal(static))
@@ -165,23 +165,23 @@ var _ = Describe("Subnet Pool", func() {
 						It("prevents dynamic allocation of the same IP", func() {
 							_, static := networkParms("11.0.0.0/8")
 
-							ip := net.ParseIP("11.0.0.2")
+							ip := net.ParseIP("11.0.0.3")
 							_, err := subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.StaticIPSelector{ip})
 							Expect(err).ToNot(HaveOccurred())
 
 							network, err := subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.DynamicIPSelector)
 							Expect(err).ToNot(HaveOccurred())
-							Expect(network.IP.String()).To(Equal("11.0.0.1"))
+							Expect(network.IP.String()).To(Equal("11.0.0.2"))
 
 							network, err = subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.DynamicIPSelector)
 							Expect(err).ToNot(HaveOccurred())
-							Expect(network.IP.String()).To(Equal("11.0.0.3"))
+							Expect(network.IP.String()).To(Equal("11.0.0.4"))
 						})
 
 						Describe("errors", func() {
 							It("fails if a static subnet is requested specifying an IP address which clashes with the gateway IP address", func() {
 								_, static := networkParms("11.0.0.0/8")
-								gateway := net.ParseIP("11.255.255.254")
+								gateway := net.ParseIP("11.0.0.1")
 								_, err := subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.StaticIPSelector{gateway})
 								Expect(err).To(MatchError(subnets.ErrIPEqualsGateway))
 							})
@@ -209,7 +209,7 @@ var _ = Describe("Subnet Pool", func() {
 							network, err := subnetpool.Acquire(subnets.StaticSubnetSelector{static}, subnets.DynamicIPSelector)
 							Expect(err).ToNot(HaveOccurred())
 
-							Expect(network.IP.String()).To(Equal("11.0.0.1"))
+							Expect(network.IP.String()).To(Equal("11.0.0.2"))
 						})
 
 						It("returns distinct IPs", func() {
@@ -653,11 +653,11 @@ var _ = Describe("Subnet Pool", func() {
 					err := subnetpool.Remove(&linux_backend.Network{static, net.ParseIP("10.2.3.1")})
 					Expect(err).ToNot(HaveOccurred())
 
-					network, err := subnetpool.Acquire(subnets.DynamicSubnetSelector, subnets.StaticIPSelector{net.ParseIP("10.2.3.1")})
+					network, err := subnetpool.Acquire(subnets.DynamicSubnetSelector, subnets.StaticIPSelector{net.ParseIP("10.2.3.2")})
 					Expect(err).ToNot(HaveOccurred())
 					Expect(network.Subnet.String()).To(Equal("10.2.3.0/30"))
 
-					_, err = subnetpool.Acquire(subnets.DynamicSubnetSelector, subnets.StaticIPSelector{net.ParseIP("10.2.3.1")})
+					_, err = subnetpool.Acquire(subnets.DynamicSubnetSelector, subnets.StaticIPSelector{net.ParseIP("10.2.3.2")})
 					Expect(err).To(Equal(subnets.ErrInsufficientSubnets))
 				})
 			})
@@ -675,9 +675,15 @@ func subnetPool(networkString string) *net.IPNet {
 func networkParms(networkString string) (net.IP, *net.IPNet) {
 	containerIP, subnet, err := net.ParseCIDR(networkString)
 	Expect(err).ToNot(HaveOccurred())
+	gatewayIP := nextIP(subnet.IP)
+
 	if containerIP.Equal(subnet.IP) {
 		containerIP = nextIP(containerIP)
 	}
+	if containerIP.Equal(gatewayIP) {
+		containerIP = nextIP(containerIP)
+	}
+
 	return containerIP, subnet
 }
 

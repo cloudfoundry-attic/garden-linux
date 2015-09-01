@@ -27,7 +27,7 @@ var _ = Describe("Networking recovery", func() {
 			ctr2, err = client.Create(garden.ContainerSpec{Network: containerNetwork})
 			Expect(err).ToNot(HaveOccurred())
 
-			bridgeEvidence = fmt.Sprintf("inet 10.%d.0.254/24 scope global w%db-", GinkgoParallelNode(), GinkgoParallelNode())
+			bridgeEvidence = fmt.Sprintf("inet 10.%d.0.1/24 scope global w%db-", GinkgoParallelNode(), GinkgoParallelNode())
 			cmd := exec.Command("ip", "a")
 			Expect(cmd.CombinedOutput()).To(ContainSubstring(bridgeEvidence))
 		})

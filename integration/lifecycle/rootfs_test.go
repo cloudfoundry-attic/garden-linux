@@ -141,7 +141,7 @@ var _ = Describe("Rootfs container create parameter", func() {
 					v2             bool
 				)
 
-				dockerRegistryIP := "10.0.0.1"
+				dockerRegistryIP := "10.0.0.2"
 				dockerRegistryPort := "5000"
 
 				BeforeEach(func() {

@@ -134,10 +134,7 @@ func (m *pool) Capacity() int {
 
 // Returns the gateway IP of a given subnet, which is always the maximum valid IP
 func GatewayIP(subnet *net.IPNet) net.IP {
-	m := max(subnet)
-	m[len(m)-1]--
-
-	return m
+	return next(subnet.IP)
 }
 
 // Returns the network IP of a subnet.

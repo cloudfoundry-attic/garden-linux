@@ -71,7 +71,7 @@ var _ = Describe("Container pool", func() {
 
 		var err error
 		containerNetwork = &linux_backend.Network{}
-		containerNetwork.IP, containerNetwork.Subnet, err = net.ParseCIDR("10.2.0.1/30")
+		containerNetwork.IP, containerNetwork.Subnet, err = net.ParseCIDR("10.2.0.2/30")
 		Expect(err).ToNot(HaveOccurred())
 		fakeSubnetPool.AcquireReturns(containerNetwork, nil)
 
@@ -412,8 +412,8 @@ var _ = Describe("Container pool", func() {
 								"id=" + container.ID,
 								"network_cidr=10.2.0.0/30",
 								"network_cidr_suffix=30",
-								"network_container_ip=10.2.0.1",
-								"network_host_ip=10.2.0.2",
+								"network_container_ip=10.2.0.2",
+								"network_host_ip=10.2.0.1",
 								"root_uid=700000",
 								"rootfs_path=/provided/rootfs/path",
 							},
@@ -440,8 +440,8 @@ var _ = Describe("Container pool", func() {
 							"id=" + container.ID,
 							"network_cidr=10.2.0.0/30",
 							"network_cidr_suffix=30",
-							"network_container_ip=10.2.0.1",
-							"network_host_ip=10.2.0.2",
+							"network_container_ip=10.2.0.2",
+							"network_host_ip=10.2.0.1",
 							"root_uid=0",
 							"rootfs_path=/provided/rootfs/path",
 						},
@@ -467,8 +467,8 @@ var _ = Describe("Container pool", func() {
 							"id=" + container.ID,
 							"network_cidr=10.2.0.0/30",
 							"network_cidr_suffix=30",
-							"network_container_ip=10.2.0.1",
-							"network_host_ip=10.2.0.2",
+							"network_container_ip=10.2.0.2",
+							"network_host_ip=10.2.0.1",
 							"root_uid=700000",
 							"rootfs_path=/provided/rootfs/path",
 						},
@@ -501,7 +501,7 @@ var _ = Describe("Container pool", func() {
 							"network_cidr=10.3.0.0/29",
 							"network_cidr_suffix=29",
 							"network_container_ip=10.3.0.2",
-							"network_host_ip=10.3.0.6",
+							"network_host_ip=10.3.0.1",
 							"root_uid=700000",
 							"rootfs_path=/provided/rootfs/path",
 						},

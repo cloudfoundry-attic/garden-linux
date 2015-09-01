@@ -797,7 +797,7 @@ var _ = Describe("Linux containers", func() {
 			info, err := container.Info()
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(info.HostIP).To(Equal("2.3.4.2"))
+			Expect(info.HostIP).To(Equal("2.3.4.1"))
 			Expect(info.ContainerIP).To(Equal("1.2.3.4"))
 		})
 

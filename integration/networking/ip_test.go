@@ -87,7 +87,16 @@ var _ = Describe("IP settings", func() {
 				Expect(err).ToNot(HaveOccurred())
 				Expect(rc).To(Equal(0))
 
-				Expect(stdout.Contents()).To(ContainSubstring(fmt.Sprintf(" inet addr:10.%d.0.1 ", GinkgoParallelNode())))
+				Expect(stdout.Contents()).To(ContainSubstring(fmt.Sprintf(" inet addr:10.%d.0.2 ", GinkgoParallelNode())))
+			})
+		})
+
+		Describe("container's info", func() {
+			It("has the correct host IP address", func() {
+				info, err := container1.Info()
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(info.HostIP).To(Equal(fmt.Sprintf("10.%d.0.1", GinkgoParallelNode())))
 			})
 		})
 	})

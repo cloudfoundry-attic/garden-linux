@@ -374,13 +374,13 @@ tmp
 	Describe("Denying access to network ranges", func() {
 		var (
 			blockedListener   garden.Container
-			blockedListenerIP string = fmt.Sprintf("11.0.%d.1", GinkgoParallelNode())
+			blockedListenerIP string = fmt.Sprintf("11.0.%d.2", GinkgoParallelNode())
 
 			unblockedListener   garden.Container
-			unblockedListenerIP string = fmt.Sprintf("11.1.%d.1", GinkgoParallelNode())
+			unblockedListenerIP string = fmt.Sprintf("11.1.%d.2", GinkgoParallelNode())
 
 			allowedListener   garden.Container
-			allowedListenerIP string = fmt.Sprintf("11.2.%d.1", GinkgoParallelNode())
+			allowedListenerIP string = fmt.Sprintf("11.2.%d.2", GinkgoParallelNode())
 
 			sender garden.Container
 		)

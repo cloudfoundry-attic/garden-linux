@@ -41,7 +41,7 @@ var _ = Describe("BridgeNamePool", func() {
 				Expect(fakeBuilder.CreatedBridges).To(ContainElement(createParams{
 					name:   name,
 					subnet: subnet1,
-					ip:     net.ParseIP("1.2.3.6"),
+					ip:     net.ParseIP("1.2.3.5").To4(),
 				}))
 			})
 
