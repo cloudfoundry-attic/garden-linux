@@ -63,18 +63,42 @@ func (l *LogRunnerCreator) Create(cmd *exec.Cmd) ifrit.Runner {
 }
 
 var _ = Describe("Logging", func() {
+	var container garden.Container
+	var containerSpec garden.ContainerSpec
+	var stdout *gbytes.Buffer
+
+	BeforeEach(func() {
+		containerSpec = garden.ContainerSpec{}
+	})
+
+	JustBeforeEach(func() {
+		var err error
+		stdout = gbytes.NewBuffer()
+
+		creator := &LogRunnerCreator{
+			Stdout: stdout,
+			Stderr: io.MultiWriter(stdout, GinkgoWriter),
+		}
+		client = startGardenWithRunnerCreator(creator)
+		container, err = client.Create(containerSpec)
+		Expect(err).ToNot(HaveOccurred())
+	})
+
+	Context("when container is created", func() {
+		BeforeEach(func() {
+			containerSpec = garden.ContainerSpec{
+				Env: []string{"PASSWORD=MY_SECRET"},
+			}
+		})
+
+		It("should not log any environment variables", func() {
+			Expect(stdout).ToNot(gbytes.Say("PASSWORD"))
+			Expect(stdout).ToNot(gbytes.Say("MY_SECRET"))
+		})
+	})
+
 	Context("when container spawn a new process", func() {
 		It("should not log any environment variables and command line arguments", func() {
-			stdout := gbytes.NewBuffer()
-
-			creator := &LogRunnerCreator{
-				Stdout: stdout,
-				Stderr: io.MultiWriter(stdout, GinkgoWriter),
-			}
-			client = startGardenWithRunnerCreator(creator)
-			container, err := client.Create(garden.ContainerSpec{})
-			Expect(err).ToNot(HaveOccurred())
-
 			process, err := container.Run(garden.ProcessSpec{
 				User: "alice",
 				Path: "echo",
@@ -95,4 +119,5 @@ var _ = Describe("Logging", func() {
 			Expect(stdout).ToNot(gbytes.Say("banana"))
 		})
 	})
+
 })

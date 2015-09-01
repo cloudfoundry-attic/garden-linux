@@ -280,7 +280,6 @@ func (p *LinuxResourcePool) Acquire(spec garden.ContainerSpec) (linux_backend.Li
 
 	pLog.Debug("calculate-environment", lager.Data{
 		"rootfs-env": rootFSEnv,
-		"create-env": specEnv,
 	})
 
 	spec.Env = rootFSEnv.Merge(specEnv).Array()
