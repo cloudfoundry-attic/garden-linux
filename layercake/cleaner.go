@@ -51,7 +51,8 @@ func (g *OvenCleaner) Remove(id ID) error {
 	}
 
 	if leaf, err := g.Cake.IsLeaf(DockerImageID(img.Parent)); err == nil && leaf {
-		return g.Remove(DockerImageID(img.Parent))
+		// Commented until #102455044 is delivered
+		//return g.Remove(DockerImageID(img.Parent))
 	}
 
 	return nil
