@@ -8,6 +8,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden-linux/layercake"
 	"github.com/cloudfoundry-incubator/garden-linux/layercake/fake_cake"
+	"github.com/cloudfoundry-incubator/garden-linux/layercake/fake_retainer"
 	. "github.com/cloudfoundry-incubator/garden-linux/repository_fetcher"
 	"github.com/cloudfoundry-incubator/garden-linux/repository_fetcher/fake_lock"
 	"github.com/docker/distribution/digest"
@@ -33,6 +34,7 @@ var _ = Describe("RemoteV2", func() {
 		lock         *fake_lock.FakeLock
 		logger       *lagertest.TestLogger
 		fetchRequest *FetchRequest
+		retainer     *fake_retainer.FakeRetainer
 
 		registryAddr string
 	)
@@ -81,12 +83,49 @@ var _ = Describe("RemoteV2", func() {
 			MaxSize:    math.MaxInt64,
 		}
 
+		retainer = new(fake_retainer.FakeRetainer)
 		fetcher = &RemoteV2Fetcher{
 			Cake:      cake,
+			Retainer:  retainer,
 			GraphLock: lock,
 		}
 
 		cake.GetReturns(nil, errors.New("no image"))
+	})
+
+	It("retains the layers before getting them, to ensure they are not deleted after we decide to use cache", func() {
+		setupSuccessfulV2Fetch(server, false)
+
+		retained := make(map[layercake.ID]bool)
+		cake.GetStub = func(id layercake.ID) (*image.Image, error) {
+			Expect(retained).To(HaveKey(id))
+			return nil, errors.New("no layer")
+		}
+
+		retainer.RetainStub = func(id layercake.ID) {
+			retained[id] = true
+		}
+
+		fetcher.Fetch(fetchRequest)
+	})
+
+	It("releases all the layers after fetching", func() {
+		setupSuccessfulV2Fetch(server, false)
+
+		released := make(map[layercake.ID]bool)
+		retainer.ReleaseStub = func(id layercake.ID) {
+			released[id] = true
+		}
+
+		cake.GetStub = func(id layercake.ID) (*image.Image, error) {
+			Expect(released).To(BeEmpty())
+			return nil, errors.New("no layer")
+		}
+
+		fetcher.Fetch(fetchRequest)
+
+		Expect(released).To(HaveKey(layercake.DockerImageID("banana-pie-1")))
+		Expect(released).To(HaveKey(layercake.DockerImageID("banana-pie-2")))
 	})
 
 	Context("when none of the layers already exist", func() {

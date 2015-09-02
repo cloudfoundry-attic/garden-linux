@@ -63,13 +63,6 @@ var _ = Describe("LayerIDProvider", func() {
 		Expect(os.Chtimes(path1, accessTime, modifiedTime.Add(time.Second*1))).To(Succeed())
 		Expect(idp.ProvideID(path1)).NotTo(Equal(beforeID))
 	})
-
-	Context("when path does not exist", func() {
-		BeforeEach(func() {
-			path1 = "/some/dummy/path/that/does/not/exist"
-		})
-
-	})
 })
 
 var _ = Describe("Local", func() {
@@ -240,6 +233,18 @@ var _ = Describe("Local", func() {
 
 				_, _, _, err = fetcher.Fetch(logger, &url.URL{Path: symlinkDir}, "", 0)
 				Expect(err).NotTo(HaveOccurred())
+			})
+		})
+
+		Context("when the path does not exist", func() {
+			It("returns a reasonable error", func() {
+				_, _, _, err := fetcher.Fetch(logger, &url.URL{Path: "does-not-exist"}, "", 0)
+				Expect(err).To(HaveOccurred())
+			})
+
+			It("doesn't try to register anything in the graph", func() {
+				fetcher.Fetch(logger, &url.URL{Path: "does-not-exist"}, "", 0)
+				Expect(fakeCake.RegisterCallCount()).To(Equal(0))
 			})
 		})
 	})

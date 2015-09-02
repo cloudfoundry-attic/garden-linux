@@ -294,7 +294,14 @@ func main() {
 		}
 	}
 
-	lock := repository_fetcher.NewGraphLock()
+	retainer := layercake.NewRetainer()
+	cake = &layercake.OvenCleaner{
+		Cake:     cake,
+		Retainer: retainer,
+		Logger:   logger.Session("oven-cleaner"),
+	}
+
+	lock := repository_fetcher.NewFetchLock()
 	repoFetcher := repository_fetcher.Retryable{
 		repository_fetcher.NewRemote(
 			repository_fetcher.NewRepositoryProvider(
@@ -305,10 +312,12 @@ func main() {
 			map[registry.APIVersion]repository_fetcher.VersionedFetcher{
 				registry.APIVersion1: &repository_fetcher.RemoteV1Fetcher{
 					Cake:      cake,
+					Retainer:  retainer,
 					GraphLock: lock,
 				},
 				registry.APIVersion2: &repository_fetcher.RemoteV2Fetcher{
 					Cake:      cake,
+					Retainer:  retainer,
 					GraphLock: lock,
 				},
 			},

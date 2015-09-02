@@ -25,32 +25,32 @@ func init() {
 }
 
 var _ = Describe("Docker", func() {
+	var (
+		root string
+		cake *layercake.Docker
+	)
+
+	BeforeEach(func() {
+		var err error
+		root, err = ioutil.TempDir("", "cakeroot")
+		Expect(err).NotTo(HaveOccurred())
+
+		driver, err := graphdriver.New(root, nil)
+		Expect(err).NotTo(HaveOccurred())
+
+		graph, err := graph.NewGraph(root, driver)
+		Expect(err).NotTo(HaveOccurred())
+
+		cake = &layercake.Docker{
+			Graph:  graph,
+			Driver: driver,
+		}
+	})
+
 	Describe("Register", func() {
-		var (
-			root string
-			cake *layercake.Docker
-		)
-
-		BeforeEach(func() {
-			var err error
-			root, err = ioutil.TempDir("", "cakeroot")
-			Expect(err).NotTo(HaveOccurred())
-
-			driver, err := graphdriver.New(root, nil)
-			Expect(err).NotTo(HaveOccurred())
-
-			graph, err := graph.NewGraph(root, driver)
-			Expect(err).NotTo(HaveOccurred())
-
-			cake = &layercake.Docker{
-				Graph:  graph,
-				Driver: driver,
-			}
-		})
-
 		Context("after registering a layer", func() {
-			var id layercake.IDer
-			var parent layercake.IDer
+			var id layercake.ID
+			var parent layercake.ID
 
 			BeforeEach(func() {
 				id = layercake.ContainerID("")
@@ -71,8 +71,8 @@ var _ = Describe("Docker", func() {
 				It("can get back the image", func() {
 					img, err := cake.Get(id)
 					Expect(err).NotTo(HaveOccurred())
-					Expect(img.ID).To(Equal(id.ID()))
-					Expect(img.Parent).To(Equal(parent.ID()))
+					Expect(img.ID).To(Equal(id.GraphID()))
+					Expect(img.Parent).To(Equal(parent.GraphID()))
 				})
 			}
 
@@ -80,8 +80,8 @@ var _ = Describe("Docker", func() {
 				JustBeforeEach(func() {
 					id = layercake.DockerImageID("70d8f0edf5c9008eb61c7c52c458e7e0a831649dbb238b93dde0854faae314a8")
 					registerImageLayer(cake, &image.Image{
-						ID:     id.ID(),
-						Parent: parent.ID(),
+						ID:     id.GraphID(),
+						Parent: parent.GraphID(),
 					})
 				})
 
@@ -92,7 +92,7 @@ var _ = Describe("Docker", func() {
 						p, err := cake.Path(id)
 						Expect(err).NotTo(HaveOccurred())
 
-						Expect(path.Join(p, id.ID())).To(BeAnExistingFile())
+						Expect(path.Join(p, id.GraphID())).To(BeAnExistingFile())
 					})
 
 					It("can be deleted", func() {
@@ -109,7 +109,7 @@ var _ = Describe("Docker", func() {
 					BeforeEach(func() {
 						parent = layercake.DockerImageID("07d8fe0df5c9008eb16c7c52c548e7e0a831649dbb238b93dde0854faae3148a")
 						registerImageLayer(cake, &image.Image{
-							ID:     parent.ID(),
+							ID:     parent.GraphID(),
 							Parent: "",
 						})
 					})
@@ -120,14 +120,14 @@ var _ = Describe("Docker", func() {
 						p, err := cake.Path(id)
 						Expect(err).NotTo(HaveOccurred())
 
-						Expect(path.Join(p, parent.ID())).To(BeAnExistingFile())
+						Expect(path.Join(p, parent.GraphID())).To(BeAnExistingFile())
 					})
 
 					It("can read the files in the image", func() {
 						p, err := cake.Path(id)
 						Expect(err).NotTo(HaveOccurred())
 
-						Expect(path.Join(p, id.ID())).To(BeAnExistingFile())
+						Expect(path.Join(p, id.GraphID())).To(BeAnExistingFile())
 					})
 				})
 			})
@@ -137,7 +137,7 @@ var _ = Describe("Docker", func() {
 					BeforeEach(func() {
 						parent = layercake.DockerImageID("70d8f0edf5c9008eb61c7c52c458e7e0a831649dbb238b93dde0854faae314a8")
 						registerImageLayer(cake, &image.Image{
-							ID:     parent.ID(),
+							ID:     parent.GraphID(),
 							Parent: "",
 						})
 
@@ -151,15 +151,47 @@ var _ = Describe("Docker", func() {
 						p, err := cake.Path(id)
 						Expect(err).NotTo(HaveOccurred())
 
-						Expect(path.Join(p, parent.ID())).To(BeAnExistingFile())
+						Expect(path.Join(p, parent.GraphID())).To(BeAnExistingFile())
 					})
 				})
 			})
 		})
 	})
+
+	Describe("IsLeaf", func() {
+		BeforeEach(func() {
+			createContainerLayer(cake, layercake.ContainerID("def"), layercake.DockerImageID(""))
+			createContainerLayer(cake, layercake.ContainerID("abc"), layercake.ContainerID("def"))
+			createContainerLayer(cake, layercake.ContainerID("child2"), layercake.ContainerID("def"))
+		})
+
+		Context("when an image has no children", func() {
+			It("is a leaf", func() {
+				Expect(cake.IsLeaf(layercake.ContainerID("abc"))).To(Equal(true))
+			})
+		})
+
+		Context("when an image has children", func() {
+			It("is not a leaf", func() {
+				Expect(cake.IsLeaf(layercake.ContainerID("def"))).To(Equal(false))
+			})
+		})
+
+		Context("when an image's final child is removed", func() {
+			It("is becomes a leaf", func() {
+				Expect(cake.IsLeaf(layercake.ContainerID("def"))).To(Equal(false))
+
+				Expect(cake.Remove(layercake.ContainerID("abc"))).To(Succeed())
+				Expect(cake.IsLeaf(layercake.ContainerID("def"))).To(Equal(false))
+
+				Expect(cake.Remove(layercake.ContainerID("child2"))).To(Succeed())
+				Expect(cake.IsLeaf(layercake.ContainerID("def"))).To(Equal(true))
+			})
+		})
+	})
 })
 
-func createContainerLayer(cake *layercake.Docker, id, parent layercake.IDer) {
+func createContainerLayer(cake *layercake.Docker, id, parent layercake.ID) {
 	Expect(cake.Create(id, parent)).To(Succeed())
 }
 

@@ -14,10 +14,10 @@ import (
 )
 
 var _ = Describe("Graph Lock", func() {
-	var lock *repository_fetcher.GraphLock
+	var lock *repository_fetcher.FetchLock
 
 	BeforeEach(func() {
-		lock = repository_fetcher.NewGraphLock()
+		lock = repository_fetcher.NewFetchLock()
 	})
 
 	Describe("Acquire", func() {
@@ -29,7 +29,7 @@ var _ = Describe("Graph Lock", func() {
 			It("waits for the lock to be released", func() {
 				gotLock := make(chan struct{}, 1)
 
-				go func(lock *repository_fetcher.GraphLock, gotLock chan struct{}) {
+				go func(lock *repository_fetcher.FetchLock, gotLock chan struct{}) {
 					go GinkgoRecover()
 					lock.Acquire("some-key")
 					close(gotLock)
@@ -61,7 +61,7 @@ var _ = Describe("Graph Lock", func() {
 					keyI := int(math.Abs(rand.NormFloat64())*100) % len(keysPool)
 					key := keysPool[keyI]
 
-					go func(lock *repository_fetcher.GraphLock, key string, wg *sync.WaitGroup) {
+					go func(lock *repository_fetcher.FetchLock, key string, wg *sync.WaitGroup) {
 						lock.Acquire(key)
 						runtime.Gosched()
 						lock.Release(key)

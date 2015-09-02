@@ -4,6 +4,7 @@ package layercake
 import (
 	"crypto/sha256"
 	"fmt"
+	"time"
 
 	"github.com/docker/docker/daemon/graphdriver"
 	"github.com/docker/docker/graph"
@@ -44,12 +45,28 @@ func (d *Docker) Path(id ID) (string, error) {
 	return d.Driver.Get(id.GraphID(), "")
 }
 
-type ID interface {
-	GraphID() string
+func (d *Docker) IsLeaf(id ID) (bool, error) {
+	heads, err := d.Graph.Heads()
+	if err != nil {
+		return false, err
+	}
+
+	_, ok := heads[id.GraphID()]
+	return ok, nil
 }
 
 type ContainerID string
 type DockerImageID string
+
+type LocalImageID struct {
+	Path         string
+	ModifiedTime time.Time
+}
+
+type NamespacedLayerID struct {
+	LayerID  string
+	CacheKey string
+}
 
 func (c ContainerID) GraphID() string {
 	return shaID(string(c))
@@ -57,6 +74,14 @@ func (c ContainerID) GraphID() string {
 
 func (d DockerImageID) GraphID() string {
 	return string(d)
+}
+
+func (c LocalImageID) GraphID() string {
+	return shaID(fmt.Sprintf("%s-%d", c.Path, c.ModifiedTime))
+}
+
+func (n NamespacedLayerID) GraphID() string {
+	return shaID(n.LayerID + "@" + n.CacheKey)
 }
 
 func shaID(id string) string {

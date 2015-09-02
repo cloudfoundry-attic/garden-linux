@@ -12,6 +12,7 @@ import (
 
 type RemoteV2Fetcher struct {
 	Cake      layercake.Cake
+	Retainer  layercake.Retainer
 	GraphLock Lock
 }
 
@@ -51,6 +52,9 @@ func (fetcher *RemoteV2Fetcher) Fetch(request *FetchRequest) (*FetchResponse, er
 		if i == 0 {
 			lastImg = img
 		}
+
+		fetcher.Retainer.Retain(layercake.DockerImageID(img.ID))
+		defer fetcher.Retainer.Release(layercake.DockerImageID(img.ID))
 
 		var size int64
 		if size, err = fetcher.fetchLayer(request, img, hash, auth, remainingQuota); err != nil {

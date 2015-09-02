@@ -51,7 +51,7 @@ type RunningGarden struct {
 
 	tmpdir    string
 	GraphRoot string
-	graphPath string
+	GraphPath string
 
 	logger lager.Logger
 }
@@ -79,7 +79,7 @@ func start(creator RunnerCreator, network, addr string, argv ...string) *Running
 
 	r := &RunningGarden{
 		GraphRoot: GraphRoot,
-		graphPath: graphPath,
+		GraphPath: graphPath,
 		tmpdir:    tmpDir,
 		logger:    lagertest.NewTestLogger("garden-runner"),
 
@@ -193,7 +193,7 @@ func cmd(tmpdir, graphPath, network, addr, bin, binPath, RootFSPath string, argv
 }
 
 func (r *RunningGarden) Cleanup() {
-	if err := os.RemoveAll(r.graphPath); err != nil {
+	if err := os.RemoveAll(r.GraphPath); err != nil {
 		r.logger.Error("remove graph", err)
 	}
 
@@ -232,15 +232,15 @@ func (r *RunningGarden) cleanupSubvolumes() {
 		}
 		subvolumeAbsolutePath := subvolumePath[idx:]
 
-		if strings.Contains(subvolumeAbsolutePath, r.graphPath) {
+		if strings.Contains(subvolumeAbsolutePath, r.GraphPath) {
 			if b, err := exec.Command("btrfs", "subvolume", "delete", subvolumeAbsolutePath).CombinedOutput(); err != nil {
 				r.logger.Fatal(fmt.Sprintf("deleting-subvolume: %s", string(b)), err)
 			}
 		}
 	}
 
-	if err := os.RemoveAll(r.graphPath); err != nil {
-		r.logger.Error("remove graph again", err)
+	if err := os.RemoveAll(r.GraphPath); err != nil {
+		r.logger.Error("remove-graph-again", err)
 	}
 }
 

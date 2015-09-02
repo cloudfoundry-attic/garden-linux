@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/cloudfoundry-incubator/garden-linux/layercake"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
@@ -49,7 +50,7 @@ func (l *Local) Fetch(
 func (l *Local) fetch(path string) (string, error) {
 	path, err := resolve(path)
 	if err != nil {
-		panic(err)
+		return "", err
 	}
 
 	id := l.IDProvider.ProvideID(path)
@@ -95,11 +96,10 @@ type LayerIDProvider struct {
 }
 
 func (LayerIDProvider) ProvideID(id string) layercake.ID {
-
 	info, err := os.Lstat(id)
 	if err != nil {
-		return layercake.ContainerID(fmt.Sprintf("%s-file-doesn't-yet-exist", id))
+		return layercake.LocalImageID{id, time.Time{}}
 	}
 
-	return layercake.ContainerID(fmt.Sprintf("%s-%d", id, info.ModTime().UnixNano()))
+	return layercake.LocalImageID{id, info.ModTime()}
 }

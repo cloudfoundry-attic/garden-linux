@@ -8,6 +8,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden-linux/layercake"
 	"github.com/cloudfoundry-incubator/garden-linux/layercake/fake_cake"
+	"github.com/cloudfoundry-incubator/garden-linux/layercake/fake_retainer"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	. "github.com/cloudfoundry-incubator/garden-linux/repository_fetcher"
 	"github.com/cloudfoundry-incubator/garden-linux/repository_fetcher/fake_lock"
@@ -34,6 +35,7 @@ var _ = Describe("RemoteV1", func() {
 		lock            *fake_lock.FakeLock
 		logger          *lagertest.TestLogger
 		fetchRequest    *FetchRequest
+		retainer        *fake_retainer.FakeRetainer
 
 		registryAddr string
 	)
@@ -114,12 +116,52 @@ var _ = Describe("RemoteV1", func() {
 			MaxSize:  99999,
 		}
 
+		retainer = new(fake_retainer.FakeRetainer)
 		fetcher = &RemoteV1Fetcher{
 			Cake:      cake,
+			Retainer:  retainer,
 			GraphLock: lock,
 		}
 
 		cake.GetReturns(&image.Image{}, nil)
+	})
+
+	It("retains all the layers before starting", func() {
+		setupSuccessfulFetch(endpoint1Server)
+
+		retained := make(map[layercake.ID]bool)
+		cake.GetStub = func(id layercake.ID) (*image.Image, error) {
+			Expect(retained).To(HaveKey(layercake.DockerImageID("layer-1")))
+			Expect(retained).To(HaveKey(layercake.DockerImageID("layer-2")))
+			Expect(retained).To(HaveKey(layercake.DockerImageID("layer-3")))
+			return nil, errors.New("no layer")
+		}
+
+		retainer.RetainStub = func(id layercake.ID) {
+			retained[id] = true
+		}
+
+		fetcher.Fetch(fetchRequest)
+	})
+
+	It("releases all the layers after fetching", func() {
+		setupSuccessfulFetch(endpoint1Server)
+
+		released := make(map[layercake.ID]bool)
+		retainer.ReleaseStub = func(id layercake.ID) {
+			released[id] = true
+		}
+
+		cake.GetStub = func(id layercake.ID) (*image.Image, error) {
+			Expect(released).To(BeEmpty())
+			return nil, errors.New("no layer")
+		}
+
+		fetcher.Fetch(fetchRequest)
+
+		Expect(released).To(HaveKey(layercake.DockerImageID("layer-1")))
+		Expect(released).To(HaveKey(layercake.DockerImageID("layer-2")))
+		Expect(released).To(HaveKey(layercake.DockerImageID("layer-3")))
 	})
 
 	Context("when none of the layers already exist", func() {
