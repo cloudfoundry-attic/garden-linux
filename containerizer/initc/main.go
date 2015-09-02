@@ -60,7 +60,7 @@ func main() {
 		Writer: syncWriter,
 	}
 
-	if err := sync.Wait(time.Second * 5); err != nil {
+	if err := sync.Wait(2 * time.Minute); err != nil {
 		fail(fmt.Sprintf("initc: wait for host: %s", err), 8)
 	}
 

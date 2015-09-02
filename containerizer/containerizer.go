@@ -13,7 +13,7 @@ import (
 	"github.com/cloudfoundry/gunk/command_runner"
 )
 
-var timeout = time.Second * 15
+var timeout = 2 * time.Minute
 
 //go:generate counterfeiter -o fake_rlimits_initializer/FakeRlimitsInitializer.go . RlimitsInitializer
 type RlimitsInitializer interface {
