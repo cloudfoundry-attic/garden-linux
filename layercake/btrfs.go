@@ -86,13 +86,14 @@ func (c *BtrfsCleaningCake) removeSubvols(log lager.Logger, layerPath string) er
 	for _, subvolume := range subvols {
 		subvolumeAbsPath := filepath.Join(c.BtrfsMountPoint, subvolume)
 
-		if strings.Contains(subvolumeAbsPath, layerPath) && subvolumeAbsPath != layerPath {
+		if strings.Index(subvolumeAbsPath, layerPath) == 0 && subvolumeAbsPath != layerPath {
+			log.Info("removing-subvol", lager.Data{"layerPath": layerPath, "subvolumeAbsPath": subvolumeAbsPath})
+
 			c.RemoveAll(subvolumeAbsPath)
 
 			if _, err := c.run(runner, exec.Command("btrfs", "subvolume", "delete", subvolumeAbsPath)); err != nil {
 				return err
 			}
-
 		}
 	}
 

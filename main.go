@@ -294,6 +294,11 @@ func main() {
 		}
 	}
 
+	cake = &layercake.OvenCleaner{
+		Cake:   cake,
+		Logger: logger.Session("oven-cleaner"),
+	}
+
 	lock := repository_fetcher.NewGraphLock()
 	repoFetcher := repository_fetcher.Retryable{
 		repository_fetcher.NewRemote(

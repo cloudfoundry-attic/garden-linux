@@ -44,8 +44,14 @@ func (d *Docker) Path(id ID) (string, error) {
 	return d.Driver.Get(id.GraphID(), "")
 }
 
-type ID interface {
-	GraphID() string
+func (d *Docker) IsLeaf(id ID) (bool, error) {
+	heads, err := d.Graph.Heads()
+	if err != nil {
+		return false, err
+	}
+
+	_, ok := heads[id.GraphID()]
+	return ok, nil
 }
 
 type ContainerID string

@@ -60,6 +60,15 @@ type FakeCake struct {
 		result1 string
 		result2 error
 	}
+	IsLeafStub        func(id layercake.ID) (bool, error)
+	isLeafMutex       sync.RWMutex
+	isLeafArgsForCall []struct {
+		id layercake.ID
+	}
+	isLeafReturns struct {
+		result1 bool
+		result2 error
+	}
 }
 
 func (fake *FakeCake) DriverName() string {
@@ -246,6 +255,39 @@ func (fake *FakeCake) PathReturns(result1 string, result2 error) {
 	fake.PathStub = nil
 	fake.pathReturns = struct {
 		result1 string
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeCake) IsLeaf(id layercake.ID) (bool, error) {
+	fake.isLeafMutex.Lock()
+	fake.isLeafArgsForCall = append(fake.isLeafArgsForCall, struct {
+		id layercake.ID
+	}{id})
+	fake.isLeafMutex.Unlock()
+	if fake.IsLeafStub != nil {
+		return fake.IsLeafStub(id)
+	} else {
+		return fake.isLeafReturns.result1, fake.isLeafReturns.result2
+	}
+}
+
+func (fake *FakeCake) IsLeafCallCount() int {
+	fake.isLeafMutex.RLock()
+	defer fake.isLeafMutex.RUnlock()
+	return len(fake.isLeafArgsForCall)
+}
+
+func (fake *FakeCake) IsLeafArgsForCall(i int) layercake.ID {
+	fake.isLeafMutex.RLock()
+	defer fake.isLeafMutex.RUnlock()
+	return fake.isLeafArgsForCall[i].id
+}
+
+func (fake *FakeCake) IsLeafReturns(result1 bool, result2 error) {
+	fake.IsLeafStub = nil
+	fake.isLeafReturns = struct {
+		result1 bool
 		result2 error
 	}{result1, result2}
 }

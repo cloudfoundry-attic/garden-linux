@@ -76,7 +76,7 @@ var _ = Describe("Logging", func() {
 		stdout = gbytes.NewBuffer()
 
 		creator := &LogRunnerCreator{
-			Stdout: stdout,
+			Stdout: io.MultiWriter(stdout, GinkgoWriter),
 			Stderr: io.MultiWriter(stdout, GinkgoWriter),
 		}
 		client = startGardenWithRunnerCreator(creator)

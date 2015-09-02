@@ -232,6 +232,11 @@ func (r *RunningGarden) cleanupSubvolumes() {
 		}
 		subvolumeAbsolutePath := subvolumePath[idx:]
 
+		r.logger.Debug("contains", lager.Data{
+			"abs":   subvolumeAbsolutePath,
+			"graph": r.graphPath,
+		})
+
 		if strings.Contains(subvolumeAbsolutePath, r.graphPath) {
 			if b, err := exec.Command("btrfs", "subvolume", "delete", subvolumeAbsolutePath).CombinedOutput(); err != nil {
 				r.logger.Fatal(fmt.Sprintf("deleting-subvolume: %s", string(b)), err)
@@ -240,7 +245,7 @@ func (r *RunningGarden) cleanupSubvolumes() {
 	}
 
 	if err := os.RemoveAll(r.graphPath); err != nil {
-		r.logger.Error("remove graph again", err)
+		r.logger.Error("remove-graph-again", err)
 	}
 }
 
