@@ -43,8 +43,7 @@ var _ = Describe("Rootfs container create parameter", func() {
 		}
 	})
 
-	// Temporarily pended until #102455044 is delivered to avoid slow tests
-	PDescribe("Garbage Collection", func() {
+	Describe("Garbage Collection", func() {
 		Context("when container is deleted", func() {
 			It("the graph path is emptied", func() {
 				container, err := client.Create(garden.ContainerSpec{RootFSPath: ""})

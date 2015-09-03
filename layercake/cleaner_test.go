@@ -2,6 +2,8 @@ package layercake_test
 
 import (
 	"errors"
+	"fmt"
+	"reflect"
 
 	"github.com/cloudfoundry-incubator/garden-linux/layercake"
 	"github.com/cloudfoundry-incubator/garden-linux/layercake/fake_cake"
@@ -12,8 +14,7 @@ import (
 	"github.com/pivotal-golang/lager/lagertest"
 )
 
-// Pended until #102455044 is delivered
-var _ = PDescribe("Oven cleaner", func() {
+var _ = Describe("Oven cleaner", func() {
 	var gc *layercake.OvenCleaner
 	var fakeCake *fake_cake.FakeCake
 	var fakeRetainer *fake_retainer.FakeRetainer
