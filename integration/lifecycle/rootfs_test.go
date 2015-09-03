@@ -159,14 +159,15 @@ var _ = Describe("Rootfs container create parameter", func() {
 
 			Context("which is insecure", func() {
 				var (
-					dockerRegistry garden.Container
-					v2             bool
+					dockerRegistry     garden.Container
+					v2                 bool
+					dockerRegistryIP   string
+					dockerRegistryPort string
 				)
 
-				dockerRegistryIP := "10.0.0.2"
-				dockerRegistryPort := "5000"
-
 				BeforeEach(func() {
+					dockerRegistryIP = "10.0.0.2"
+					dockerRegistryPort = "5000"
 					v2 = false
 				})
 
@@ -228,6 +229,25 @@ var _ = Describe("Rootfs container create parameter", func() {
 								})
 								Expect(err).ToNot(HaveOccurred())
 							})
+						})
+					})
+
+					Context("when the registry is in a CIDR", func() {
+						BeforeEach(func() {
+							dockerRegistryPort = "80"
+
+							args = append(
+								args,
+								"-insecureDockerRegistryList",
+								fmt.Sprintf("%s/24", dockerRegistryIP),
+							)
+						})
+
+						It("creates the container successfully ", func() {
+							_, err := client.Create(garden.ContainerSpec{
+								RootFSPath: fmt.Sprintf("docker://%s/busybox", dockerRegistryIP),
+							})
+							Expect(err).ToNot(HaveOccurred())
 						})
 					})
 

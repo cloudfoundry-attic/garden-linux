@@ -2,6 +2,7 @@ package repository_fetcher
 
 import (
 	"fmt"
+	"net"
 	"strings"
 
 	"github.com/docker/docker/cliconfig"
@@ -60,12 +61,30 @@ func NewRepositoryProvider(defaultHostname string, insecureRegistries []string) 
 	return &registryProvider{DefaultHostname: defaultHostname, InsecureRegistries: insecureRegistries}
 }
 
-// #DRY
 func contains(list []string, element string) bool {
 	for _, e := range list {
 		if e == element {
 			return true
 		}
+
+		if checkCIDR(e, element) {
+			return true
+		}
 	}
+
+	return false
+}
+
+func checkCIDR(entry, element string) bool {
+	_, network, err := net.ParseCIDR(entry)
+	if err != nil {
+		return false
+	}
+
+	ip := net.ParseIP(element)
+	if network.Contains(ip) {
+		return true
+	}
+
 	return false
 }

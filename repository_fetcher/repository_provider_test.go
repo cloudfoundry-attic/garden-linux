@@ -75,6 +75,33 @@ var _ = Describe("RepositoryProvider", func() {
 
 				Expect(receivedIndexSecure).To(Equal(false))
 			})
+
+			Context("and the list is using an IP", func() {
+				It("returns that the registry is insecure", func() {
+					provider := NewRepositoryProvider("", []string{"100.100.100.0/24", "103.100.100.15"})
+					provider.ProvideRegistry("103.100.100.15")
+
+					Expect(receivedIndexSecure).To(Equal(false))
+				})
+			})
+
+			Context("and the list is using CIDR addresses", func() {
+				It("returns that the registry is insecure", func() {
+					provider := NewRepositoryProvider("", []string{"100.100.100.0/24", "103.100.100.0/24"})
+					provider.ProvideRegistry("100.100.100.155")
+
+					Expect(receivedIndexSecure).To(Equal(false))
+				})
+			})
+
+			Context("and the list is using CIDR addresses and hostnames", func() {
+				It("returns that the registry is insecure", func() {
+					provider := NewRepositoryProvider("", []string{"100.100.100.0/24", "103.100.100.0/24", "hostname1"})
+					provider.ProvideRegistry("hostname1")
+
+					Expect(receivedIndexSecure).To(Equal(false))
+				})
+			})
 		})
 
 		Context("and the requested endpoint is not in the list", func() {
@@ -83,6 +110,15 @@ var _ = Describe("RepositoryProvider", func() {
 				provider.ProvideRegistry("the-registry-host:44")
 
 				Expect(receivedIndexSecure).To(Equal(true))
+			})
+
+			Context("and the list is using CIDR addresses", func() {
+				It("returns that the registry is secure", func() {
+					provider := NewRepositoryProvider("", []string{"100.100.100.0/24", "103.100.100.0/24"})
+					provider.ProvideRegistry("100.100.95.155")
+
+					Expect(receivedIndexSecure).To(Equal(true))
+				})
 			})
 		})
 	})
