@@ -47,6 +47,7 @@ func (provider *dockerRootFSProvider) Name() string {
 	return provider.name
 }
 
+//TODO Maybe here's a better place than in the fetcher to tie together the URLs and the sha-names in PersistentImages?
 func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id string, url *url.URL, shouldNamespace bool, quota int64) (string, process.Env, error) {
 	tag := "latest"
 	if len(url.Fragment) > 0 {

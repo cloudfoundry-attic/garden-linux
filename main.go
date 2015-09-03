@@ -197,6 +197,12 @@ var maxContainers = flag.Uint(
 	0,
 	"Maximum number of containers that can be created")
 
+var persistentImages = flag.String(
+	"persistentImages",
+	"",
+	"comma-separated list of docker registries and image paths which should never be garbage-collected.",
+)
+
 func main() {
 	if reexec.Init() {
 		return
@@ -282,6 +288,8 @@ func main() {
 	var cake layercake.Cake = &layercake.Docker{
 		Graph:  dockerGraph,
 		Driver: dockerGraphDriver,
+		//TODO is this in the wrong place? Should it be populated by a fetcher?
+		PersistentImageURLs: strings.Split(*persistentImages, ","),
 	}
 
 	if cake.DriverName() == "btrfs" {

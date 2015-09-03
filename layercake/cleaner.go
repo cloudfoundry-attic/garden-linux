@@ -24,6 +24,7 @@ func (g *OvenCleaner) Get(id ID) (*image.Image, error) {
 	return g.Cake.Get(id)
 }
 
+//TODO don't remove if IsIDPersistent(id)
 func (g *OvenCleaner) Remove(id ID) error {
 	g.l(id).Lock()
 	defer g.l(id).Unlock()

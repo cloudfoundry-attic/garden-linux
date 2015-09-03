@@ -60,6 +60,57 @@ var _ = Describe("Rootfs container create parameter", func() {
 				fmt.Sscanf(string(session.Out.Contents()), "%d", &size)
 				Expect(size).To(Equal(0))
 			})
+
+			FContext("when there is a docker image in the whitelist", func() {
+				var tmpGraphDir string
+				BeforeEach(func() {
+					var err error
+					tmpGraphDir, err = ioutil.TempDir("", "garden-test-graphdir")
+					Expect(err).NotTo(HaveOccurred())
+
+					args = append(args, "--persistentImages=docker:///cloudfoundry/garden-busybox", "--graph="+tmpGraphDir)
+				})
+
+				It("the graph path is emptied, except for the whitelist", func() {
+					container, err := client.Create(garden.ContainerSpec{RootFSPath: "docker:///cloudfoundry/garden-busybox"})
+					Expect(err).ToNot(HaveOccurred())
+
+					var oldNumDirs int
+					session, err := gexec.Start(exec.Command("sh", "-c", fmt.Sprintf(" ls -1 %s | wc -l ", client.GraphPath)), GinkgoWriter, GinkgoWriter)
+					Expect(err).ToNot(HaveOccurred())
+					Eventually(session).Should(gexec.Exit(0))
+
+					fmt.Sscanf(string(session.Out.Contents()), "%d", &oldNumDirs)
+
+					err = client.Destroy(container.Handle())
+					Expect(err).ToNot(HaveOccurred())
+
+					var newNumDirs int
+					session, err = gexec.Start(exec.Command("sh", "-c", fmt.Sprintf(" ls -1 %s | wc -l ", client.GraphPath)), GinkgoWriter, GinkgoWriter)
+					Expect(err).ToNot(HaveOccurred())
+					Eventually(session).Should(gexec.Exit(0))
+
+					fmt.Sscanf(string(session.Out.Contents()), "%d", &newNumDirs)
+					Expect(newNumDirs).To(Equal(oldNumDirs - 1))
+
+					var size int
+					session, err = gexec.Start(exec.Command("sh", "-c", fmt.Sprintf(" du -d0 %s", client.GraphPath)), GinkgoWriter, GinkgoWriter)
+					Expect(err).ToNot(HaveOccurred())
+					Eventually(session).Should(gexec.Exit(0))
+
+					fmt.Sscanf(string(session.Out.Contents()), "%d", &size)
+					Expect(size).To(BeNumerically(">", 0))
+				})
+			})
+
+			PContext("when there is a local image in the whitelist", func() {
+				BeforeEach(func() {
+					args = append(args, "--persistantImages=/path/to/our/local/image")
+				})
+
+				It("the graph path is emptied, except for the whitelist", func() {
+				})
+			})
 		})
 	})
 

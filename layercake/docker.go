@@ -13,8 +13,10 @@ import (
 )
 
 type Docker struct {
-	Graph  *graph.Graph
-	Driver graphdriver.Driver
+	Graph               *graph.Graph
+	Driver              graphdriver.Driver
+	PersistentImageURLs []string
+	PersistentImageIDs  []ID
 }
 
 func (d *Docker) DriverName() string {

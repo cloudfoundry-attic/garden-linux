@@ -18,4 +18,7 @@ type Cake interface {
 	Remove(id ID) error
 	Path(id ID) (string, error)
 	IsLeaf(id ID) (bool, error)
+	AddPersistentID(id ID)
+	IsURLPersistent(url string) bool
+	IsIDPersistent(id ID) bool
 }

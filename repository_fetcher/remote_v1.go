@@ -17,6 +17,7 @@ type RemoteV1Fetcher struct {
 	GraphLock Lock
 }
 
+//TODO make this tell the `Cake`'s PersistentImages about the sha-name of the image it fetches iff request.RemotePath is in the `Cake`'s user-friendly PersistentImages list.
 func (fetcher *RemoteV1Fetcher) Fetch(request *FetchRequest) (*FetchResponse, error) {
 	request.Logger.Debug("docker-v1-fetch")
 
