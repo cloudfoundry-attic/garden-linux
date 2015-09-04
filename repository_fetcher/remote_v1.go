@@ -17,32 +17,41 @@ type RemoteV1Fetcher struct {
 	GraphLock Lock
 }
 
-func (fetcher *RemoteV1Fetcher) Fetch(request *FetchRequest) (*FetchResponse, error) {
+func (fetcher *RemoteV1Fetcher) fetchImageMetadata(request *FetchRequest) (string, []string, error) {
 	request.Logger.Debug("docker-v1-fetch")
 
 	repoData, err := request.Session.GetRepositoryData(request.Path)
 	if err != nil {
-		return nil, FetchError("GetRepositoryData", request.Endpoint.URL.Host, request.Path, err)
+		return "", nil, FetchError("GetRepositoryData", request.Endpoint.URL.Host, request.Path, err)
 	}
 
 	tagsList, err := request.Session.GetRemoteTags(repoData.Endpoints, request.Path)
 	if err != nil {
-		return nil, FetchError("GetRemoteTags", request.Endpoint.URL.Host, request.Path, err)
+		return "", nil, FetchError("GetRemoteTags", request.Endpoint.URL.Host, request.Path, err)
 	}
 
 	imgID, ok := tagsList[request.Tag]
 	if !ok {
-		return nil, FetchError("looking up tag", request.Endpoint.URL.Host, request.Path, fmt.Errorf("unknown tag: %v", request.Tag))
+		return "", nil, FetchError("looking up tag", request.Endpoint.URL.Host, request.Path, fmt.Errorf("unknown tag: %v", request.Tag))
 	}
 
-	for _, endpointURL := range repoData.Endpoints {
+	return imgID, repoData.Endpoints, nil
+}
+
+func (fetcher *RemoteV1Fetcher) Fetch(request *FetchRequest) (*FetchResponse, error) {
+	imgID, endpoints, err := fetcher.fetchImageMetadata(request)
+
+	if err != nil {
+		return nil, err
+	}
+
+	for _, endpointURL := range endpoints {
 		request.Logger.Debug("trying", lager.Data{
 			"endpoint": endpointURL,
 			"image":    imgID,
 		})
 
-		var image *dockerImage
-		image, err = fetcher.fetchFromEndpoint(request, endpointURL, imgID, request.Logger)
+		image, err := fetcher.fetchFromEndpoint(request, endpointURL, imgID, request.Logger)
 
 		if err == nil {
 			request.Logger.Debug("fetched", lager.Data{
