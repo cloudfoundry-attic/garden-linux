@@ -17,6 +17,15 @@ type FakeVersionedFetcher struct {
 		result1 *repository_fetcher.FetchResponse
 		result2 error
 	}
+	FetchImageIDStub        func(*repository_fetcher.FetchRequest) (string, error)
+	fetchImageIDMutex       sync.RWMutex
+	fetchImageIDArgsForCall []struct {
+		arg1 *repository_fetcher.FetchRequest
+	}
+	fetchImageIDReturns struct {
+		result1 string
+		result2 error
+	}
 }
 
 func (fake *FakeVersionedFetcher) Fetch(arg1 *repository_fetcher.FetchRequest) (*repository_fetcher.FetchResponse, error) {
@@ -48,6 +57,39 @@ func (fake *FakeVersionedFetcher) FetchReturns(result1 *repository_fetcher.Fetch
 	fake.FetchStub = nil
 	fake.fetchReturns = struct {
 		result1 *repository_fetcher.FetchResponse
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeVersionedFetcher) FetchImageID(arg1 *repository_fetcher.FetchRequest) (string, error) {
+	fake.fetchImageIDMutex.Lock()
+	fake.fetchImageIDArgsForCall = append(fake.fetchImageIDArgsForCall, struct {
+		arg1 *repository_fetcher.FetchRequest
+	}{arg1})
+	fake.fetchImageIDMutex.Unlock()
+	if fake.FetchImageIDStub != nil {
+		return fake.FetchImageIDStub(arg1)
+	} else {
+		return fake.fetchImageIDReturns.result1, fake.fetchImageIDReturns.result2
+	}
+}
+
+func (fake *FakeVersionedFetcher) FetchImageIDCallCount() int {
+	fake.fetchImageIDMutex.RLock()
+	defer fake.fetchImageIDMutex.RUnlock()
+	return len(fake.fetchImageIDArgsForCall)
+}
+
+func (fake *FakeVersionedFetcher) FetchImageIDArgsForCall(i int) *repository_fetcher.FetchRequest {
+	fake.fetchImageIDMutex.RLock()
+	defer fake.fetchImageIDMutex.RUnlock()
+	return fake.fetchImageIDArgsForCall[i].arg1
+}
+
+func (fake *FakeVersionedFetcher) FetchImageIDReturns(result1 string, result2 error) {
+	fake.FetchImageIDStub = nil
+	fake.fetchImageIDReturns = struct {
+		result1 string
 		result2 error
 	}{result1, result2}
 }

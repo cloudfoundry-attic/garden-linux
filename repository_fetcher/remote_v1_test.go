@@ -126,140 +126,302 @@ var _ = Describe("RemoteV1", func() {
 		cake.GetReturns(&image.Image{}, nil)
 	})
 
-	It("retains all the layers before starting", func() {
-		setupSuccessfulFetch(endpoint1Server)
-
-		retained := make(map[layercake.ID]bool)
-		cake.GetStub = func(id layercake.ID) (*image.Image, error) {
-			Expect(retained).To(HaveKey(layercake.DockerImageID("layer-1")))
-			Expect(retained).To(HaveKey(layercake.DockerImageID("layer-2")))
-			Expect(retained).To(HaveKey(layercake.DockerImageID("layer-3")))
-			return nil, errors.New("no layer")
-		}
-
-		retainer.RetainStub = func(id layercake.ID) {
-			retained[id] = true
-		}
-
-		fetcher.Fetch(fetchRequest)
-	})
-
-	It("releases all the layers after fetching", func() {
-		setupSuccessfulFetch(endpoint1Server)
-
-		released := make(map[layercake.ID]bool)
-		retainer.ReleaseStub = func(id layercake.ID) {
-			released[id] = true
-		}
-
-		cake.GetStub = func(id layercake.ID) (*image.Image, error) {
-			Expect(released).To(BeEmpty())
-			return nil, errors.New("no layer")
-		}
-
-		fetcher.Fetch(fetchRequest)
-
-		Expect(released).To(HaveKey(layercake.DockerImageID("layer-1")))
-		Expect(released).To(HaveKey(layercake.DockerImageID("layer-2")))
-		Expect(released).To(HaveKey(layercake.DockerImageID("layer-3")))
-	})
-
-	Context("when none of the layers already exist", func() {
-		BeforeEach(func() {
-			setupSuccessfulFetch(endpoint1Server)
-			cake.GetReturns(nil, errors.New("no layer"))
+	Describe("FetchImageID", func() {
+		It("returns image ID", func() {
+			imgID, err := fetcher.FetchImageID(fetchRequest)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(imgID).To(Equal("id-1"))
 		})
 
-		It("downloads all layers of the given tag of a repository and returns its image id", func() {
-			expectedLayerNum := 3
+		Context("when fails to fetch image id", func() {
+			BeforeEach(func() {
+				server.SetHandler(0, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+					w.WriteHeader(500)
+				}))
+			})
 
-			cake.RegisterStub = func(image *image.Image, layer archive.ArchiveReader) error {
-				Expect(image.ID).To(Equal(fmt.Sprintf("layer-%d", expectedLayerNum)))
-				Expect(image.Parent).To(Equal(fmt.Sprintf("parent-%d", expectedLayerNum)))
+			It("should return an error", func() {
+				_, err := fetcher.FetchImageID(fetchRequest)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("Status 500 trying to pull repository some-repo"))
+			})
+		})
+	})
 
-				layerData, err := ioutil.ReadAll(layer)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(string(layerData)).To(Equal(fmt.Sprintf("layer-%d-data", expectedLayerNum)))
+	Describe("Fetch", func() {
+		It("retains all the layers before starting", func() {
+			setupSuccessfulFetch(endpoint1Server)
 
-				expectedLayerNum--
-
-				return nil
+			retained := make(map[layercake.ID]bool)
+			cake.GetStub = func(id layercake.ID) (*image.Image, error) {
+				Expect(retained).To(HaveKey(layercake.DockerImageID("layer-1")))
+				Expect(retained).To(HaveKey(layercake.DockerImageID("layer-2")))
+				Expect(retained).To(HaveKey(layercake.DockerImageID("layer-3")))
+				return nil, errors.New("no layer")
 			}
 
-			fetchResponse, err := fetcher.Fetch(fetchRequest)
+			retainer.RetainStub = func(id layercake.ID) {
+				retained[id] = true
+			}
 
-			Expect(err).ToNot(HaveOccurred())
-			Expect(fetchResponse.Env).To(Equal(process.Env{"env1": "env1Value", "env2": "env2NewValue"}))
-			Expect(fetchResponse.Volumes).To(ConsistOf([]string{"/tmp", "/another"}))
-			Expect(fetchResponse.ImageID).To(Equal("id-1"))
+			fetcher.Fetch(fetchRequest)
 		})
 
-		Context("when the layers exceed the quota", func() {
+		It("releases all the layers after fetching", func() {
+			setupSuccessfulFetch(endpoint1Server)
+
+			released := make(map[layercake.ID]bool)
+			retainer.ReleaseStub = func(id layercake.ID) {
+				released[id] = true
+			}
+
+			cake.GetStub = func(id layercake.ID) (*image.Image, error) {
+				Expect(released).To(BeEmpty())
+				return nil, errors.New("no layer")
+			}
+
+			fetcher.Fetch(fetchRequest)
+
+			Expect(released).To(HaveKey(layercake.DockerImageID("layer-1")))
+			Expect(released).To(HaveKey(layercake.DockerImageID("layer-2")))
+			Expect(released).To(HaveKey(layercake.DockerImageID("layer-3")))
+		})
+
+		Context("when none of the layers already exist", func() {
 			BeforeEach(func() {
-				fetchRequest.MaxSize = 87
+				setupSuccessfulFetch(endpoint1Server)
+				cake.GetReturns(nil, errors.New("no layer"))
 			})
 
-			It("should return a quota exceeded error", func() {
-				called := 0
-				cake.RegisterStub = func(image *image.Image, layer archive.ArchiveReader) error {
-					Expect(layer).To(BeAssignableToTypeOf(&QuotaedReader{}))
-					image.Size = 44
+			It("downloads all layers of the given tag of a repository and returns its image id", func() {
+				expectedLayerNum := 3
 
-					if called == 0 {
-						Expect(layer.(*QuotaedReader).N).To(Equal(int64(87)))
-					} else {
-						Expect(layer.(*QuotaedReader).N).To(Equal(int64(87 - 44)))
+				cake.RegisterStub = func(image *image.Image, layer archive.ArchiveReader) error {
+					Expect(image.ID).To(Equal(fmt.Sprintf("layer-%d", expectedLayerNum)))
+					Expect(image.Parent).To(Equal(fmt.Sprintf("parent-%d", expectedLayerNum)))
+
+					layerData, err := ioutil.ReadAll(layer)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(string(layerData)).To(Equal(fmt.Sprintf("layer-%d-data", expectedLayerNum)))
+
+					expectedLayerNum--
+
+					return nil
+				}
+
+				fetchResponse, err := fetcher.Fetch(fetchRequest)
+
+				Expect(err).ToNot(HaveOccurred())
+				Expect(fetchResponse.Env).To(Equal(process.Env{"env1": "env1Value", "env2": "env2NewValue"}))
+				Expect(fetchResponse.Volumes).To(ConsistOf([]string{"/tmp", "/another"}))
+				Expect(fetchResponse.ImageID).To(Equal("id-1"))
+			})
+
+			Context("when the layers exceed the quota", func() {
+				BeforeEach(func() {
+					fetchRequest.MaxSize = 87
+				})
+
+				It("should return a quota exceeded error", func() {
+					called := 0
+					cake.RegisterStub = func(image *image.Image, layer archive.ArchiveReader) error {
+						Expect(layer).To(BeAssignableToTypeOf(&QuotaedReader{}))
+						image.Size = 44
+
+						if called == 0 {
+							Expect(layer.(*QuotaedReader).N).To(Equal(int64(87)))
+						} else {
+							Expect(layer.(*QuotaedReader).N).To(Equal(int64(87 - 44)))
+						}
+
+						called++
+
+						return nil
 					}
 
-					called++
+					_, err := fetcher.Fetch(fetchRequest)
+					Expect(err).To(MatchError("quota exceeded"))
+				})
 
-					return nil
-				}
+				It("should not download further layers", func() {
+					registered := 0
+					cake.RegisterStub = func(image *image.Image, layer archive.ArchiveReader) error {
+						image.Size = 44
+						registered++
 
-				_, err := fetcher.Fetch(fetchRequest)
-				Expect(err).To(MatchError("quota exceeded"))
+						return nil
+					}
+
+					fetcher.Fetch(fetchRequest)
+					Expect(registered).To(Equal(2))
+				})
 			})
 
-			It("should not download further layers", func() {
-				registered := 0
-				cake.RegisterStub = func(image *image.Image, layer archive.ArchiveReader) error {
-					image.Size = 44
-					registered++
+			Context("when the first endpoint fails", func() {
+				BeforeEach(func() {
+					endpoint1Server.SetHandler(1, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+						w.WriteHeader(500)
+					}))
 
-					return nil
-				}
+					endpoint2Server.AppendHandlers(
+						ghttp.CombineHandlers(
+							ghttp.VerifyRequest("GET", "/v1/images/id-1/ancestry"),
+							http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+								w.Write([]byte(`["layer-1", "layer-2", "layer-3"]`))
+							}),
+						),
+					)
 
-				fetcher.Fetch(fetchRequest)
-				Expect(registered).To(Equal(2))
+					setupSuccessfulFetch(endpoint2Server)
+				})
+
+				It("retries with the next endpoint", func() {
+					fetchResponse, err := fetcher.Fetch(fetchRequest)
+
+					Expect(err).ToNot(HaveOccurred())
+					Expect(fetchResponse.ImageID).To(Equal("id-1"))
+				})
+
+				Context("and the rest also fail", func() {
+					BeforeEach(func() {
+						endpoint2Server.SetHandler(0, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+							w.WriteHeader(500)
+						}))
+					})
+
+					It("returns an error", func() {
+						_, err := fetcher.Fetch(fetchRequest)
+						Expect(err).To(MatchError(ContainSubstring("repository_fetcher: fetchFromEndPoint: could not fetch image some-repo from registry %s: all endpoints failed:", registryAddr)))
+					})
+				})
 			})
 		})
 
-		Context("when the first endpoint fails", func() {
+		Context("when a layer already exists", func() {
 			BeforeEach(func() {
-				endpoint1Server.SetHandler(1, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				cake.GetStub = func(id layercake.ID) (*image.Image, error) {
+					if id.GraphID() == "layer-2" {
+						return &image.Image{
+							Parent: "parent-2",
+							Config: &runconfig.Config{
+								Env: []string{"env2=env2Value"},
+							},
+						}, nil
+					}
+
+					return &image.Image{}, nil
+				}
+
+				endpoint1Server.AppendHandlers(
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("GET", "/v1/images/layer-3/json"),
+						http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+							w.Header().Add("X-Docker-Size", "123")
+							w.Write([]byte(`{"id":"layer-3","parent":"parent-3"}`))
+						}),
+					),
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("GET", "/v1/images/layer-3/layer"),
+						http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+							w.Write([]byte(`layer-3-data`))
+						}),
+					),
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("GET", "/v1/images/layer-1/json"),
+						http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+							w.Header().Add("X-Docker-Size", "789")
+							w.Write([]byte(`{"id":"layer-1","parent":"parent-1"}`))
+						}),
+					),
+					ghttp.CombineHandlers(
+						ghttp.VerifyRequest("GET", "/v1/images/layer-1/layer"),
+						http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+							w.Write([]byte(`layer-1-data`))
+						}),
+					),
+				)
+			})
+
+			Context("and it is bigger than the quota", func() {
+				BeforeEach(func() {
+					fetchRequest.MaxSize = 12344
+				})
+
+				It("should return a quota exceeded error", func() {
+					cake.GetReturns(&image.Image{Size: 12345}, nil)
+
+					_, err := fetcher.Fetch(fetchRequest)
+					Expect(err).To(MatchError("quota exceeded"))
+				})
+			})
+
+			It("is not added to the graph", func() {
+				expectedLayerNum := 3
+
+				cake.RegisterStub = func(image *image.Image, layer archive.ArchiveReader) error {
+					Expect(image.ID).To(Equal(fmt.Sprintf("layer-%d", expectedLayerNum)))
+					Expect(image.Parent).To(Equal(fmt.Sprintf("parent-%d", expectedLayerNum)))
+
+					layerData, err := ioutil.ReadAll(layer)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(string(layerData)).To(Equal(fmt.Sprintf("layer-%d-data", expectedLayerNum)))
+
+					expectedLayerNum--
+
+					// skip 2 as it already exists as part of setup
+					expectedLayerNum--
+
+					return nil
+				}
+
+				fetchResponse, err := fetcher.Fetch(fetchRequest)
+
+				Expect(err).ToNot(HaveOccurred())
+				Expect(fetchResponse.Env).To(Equal(process.Env{"env2": "env2Value"}))
+				Expect(fetchResponse.ImageID).To(Equal("id-1"))
+			})
+		})
+
+		Context("when fetching repository data fails", func() {
+			BeforeEach(func() {
+				server.SetHandler(0, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+					w.WriteHeader(500)
+				}))
+			})
+
+			It("returns an error", func() {
+				_, err := fetcher.Fetch(fetchRequest)
+				Expect(err).To(MatchError(ContainSubstring("repository_fetcher: GetRepositoryData: could not fetch image some-repo from registry %s:", registryAddr)))
+			})
+		})
+
+		Context("when fetching the remote tags fails", func() {
+			BeforeEach(func() {
+				endpoint1Server.SetHandler(0, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 					w.WriteHeader(500)
 				}))
 
 				endpoint2Server.AppendHandlers(
 					ghttp.CombineHandlers(
-						ghttp.VerifyRequest("GET", "/v1/images/id-1/ancestry"),
+						ghttp.VerifyRequest("GET", "/v1/repositories/library/some-repo/tags"),
 						http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-							w.Write([]byte(`["layer-1", "layer-2", "layer-3"]`))
+							w.Write([]byte(`{
+							"some-tag": "id-1",
+							"some-other-tag": "id-2"
+						}`))
 						}),
 					),
 				)
 
-				setupSuccessfulFetch(endpoint2Server)
+				setupSuccessfulFetch(endpoint1Server)
 			})
 
-			It("retries with the next endpoint", func() {
-				fetchResponse, err := fetcher.Fetch(fetchRequest)
-
+			It("tries the next endpoint", func() {
+				_, err := fetcher.Fetch(fetchRequest)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(fetchResponse.ImageID).To(Equal("id-1"))
 			})
 
-			Context("and the rest also fail", func() {
+			Context("on all endpoints", func() {
 				BeforeEach(func() {
 					endpoint2Server.SetHandler(0, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 						w.WriteHeader(500)
@@ -268,146 +430,8 @@ var _ = Describe("RemoteV1", func() {
 
 				It("returns an error", func() {
 					_, err := fetcher.Fetch(fetchRequest)
-					Expect(err).To(MatchError(ContainSubstring("repository_fetcher: fetchFromEndPoint: could not fetch image some-repo from registry %s: all endpoints failed:", registryAddr)))
+					Expect(err).To(MatchError(ContainSubstring("repository_fetcher: GetRemoteTags: could not fetch image some-repo from registry %s:", registryAddr)))
 				})
-			})
-		})
-	})
-
-	Context("when a layer already exists", func() {
-		BeforeEach(func() {
-			cake.GetStub = func(id layercake.ID) (*image.Image, error) {
-				if id.GraphID() == "layer-2" {
-					return &image.Image{
-						Parent: "parent-2",
-						Config: &runconfig.Config{
-							Env: []string{"env2=env2Value"},
-						},
-					}, nil
-				}
-
-				return &image.Image{}, nil
-			}
-
-			endpoint1Server.AppendHandlers(
-				ghttp.CombineHandlers(
-					ghttp.VerifyRequest("GET", "/v1/images/layer-3/json"),
-					http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-						w.Header().Add("X-Docker-Size", "123")
-						w.Write([]byte(`{"id":"layer-3","parent":"parent-3"}`))
-					}),
-				),
-				ghttp.CombineHandlers(
-					ghttp.VerifyRequest("GET", "/v1/images/layer-3/layer"),
-					http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-						w.Write([]byte(`layer-3-data`))
-					}),
-				),
-				ghttp.CombineHandlers(
-					ghttp.VerifyRequest("GET", "/v1/images/layer-1/json"),
-					http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-						w.Header().Add("X-Docker-Size", "789")
-						w.Write([]byte(`{"id":"layer-1","parent":"parent-1"}`))
-					}),
-				),
-				ghttp.CombineHandlers(
-					ghttp.VerifyRequest("GET", "/v1/images/layer-1/layer"),
-					http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-						w.Write([]byte(`layer-1-data`))
-					}),
-				),
-			)
-		})
-
-		Context("and it is bigger than the quota", func() {
-			BeforeEach(func() {
-				fetchRequest.MaxSize = 12344
-			})
-
-			It("should return a quota exceeded error", func() {
-				cake.GetReturns(&image.Image{Size: 12345}, nil)
-
-				_, err := fetcher.Fetch(fetchRequest)
-				Expect(err).To(MatchError("quota exceeded"))
-			})
-		})
-
-		It("is not added to the graph", func() {
-			expectedLayerNum := 3
-
-			cake.RegisterStub = func(image *image.Image, layer archive.ArchiveReader) error {
-				Expect(image.ID).To(Equal(fmt.Sprintf("layer-%d", expectedLayerNum)))
-				Expect(image.Parent).To(Equal(fmt.Sprintf("parent-%d", expectedLayerNum)))
-
-				layerData, err := ioutil.ReadAll(layer)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(string(layerData)).To(Equal(fmt.Sprintf("layer-%d-data", expectedLayerNum)))
-
-				expectedLayerNum--
-
-				// skip 2 as it already exists as part of setup
-				expectedLayerNum--
-
-				return nil
-			}
-
-			fetchResponse, err := fetcher.Fetch(fetchRequest)
-
-			Expect(err).ToNot(HaveOccurred())
-			Expect(fetchResponse.Env).To(Equal(process.Env{"env2": "env2Value"}))
-			Expect(fetchResponse.ImageID).To(Equal("id-1"))
-		})
-	})
-
-	Context("when fetching repository data fails", func() {
-		BeforeEach(func() {
-			server.SetHandler(0, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-				w.WriteHeader(500)
-			}))
-		})
-
-		It("returns an error", func() {
-			_, err := fetcher.Fetch(fetchRequest)
-			Expect(err).To(MatchError(ContainSubstring("repository_fetcher: GetRepositoryData: could not fetch image some-repo from registry %s:", registryAddr)))
-		})
-	})
-
-	Context("when fetching the remote tags fails", func() {
-		BeforeEach(func() {
-			endpoint1Server.SetHandler(0, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-				w.WriteHeader(500)
-			}))
-
-			endpoint2Server.AppendHandlers(
-				ghttp.CombineHandlers(
-					ghttp.VerifyRequest("GET", "/v1/repositories/library/some-repo/tags"),
-					http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-						w.Write([]byte(`{
-							"some-tag": "id-1",
-							"some-other-tag": "id-2"
-						}`))
-					}),
-				),
-			)
-
-			setupSuccessfulFetch(endpoint1Server)
-		})
-
-		It("tries the next endpoint", func() {
-			_, err := fetcher.Fetch(fetchRequest)
-			Expect(err).ToNot(HaveOccurred())
-		})
-
-		Context("on all endpoints", func() {
-			BeforeEach(func() {
-				endpoint2Server.SetHandler(0, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-					w.WriteHeader(500)
-				}))
-			})
-
-			It("returns an error", func() {
-				_, err := fetcher.Fetch(fetchRequest)
-				Expect(err).To(MatchError(ContainSubstring("repository_fetcher: GetRemoteTags: could not fetch image some-repo from registry %s:", registryAddr)))
 			})
 		})
 	})

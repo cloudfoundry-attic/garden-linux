@@ -4,11 +4,9 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"strings"
 	"sync"
 
 	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/layercake"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/docker/docker/registry"
 	"github.com/pivotal-golang/lager"
@@ -17,26 +15,17 @@ import (
 //go:generate counterfeiter -o fake_versioned_fetcher/fake_versioned_fetcher.go . VersionedFetcher
 type VersionedFetcher interface {
 	Fetch(*FetchRequest) (*FetchResponse, error)
+	FetchImageID(*FetchRequest) (string, error)
 }
 
-//go:generate counterfeiter -o fake_pinger/fake_pinger.go . Pinger
-type Pinger interface {
-	Ping(*registry.Endpoint) (registry.RegistryInfo, error)
-}
-
-type EndpointPinger struct{}
-
-func (EndpointPinger) Ping(e *registry.Endpoint) (registry.RegistryInfo, error) {
-	return e.Ping()
+//go:generate counterfeiter -o fake_fetch_request_creator/fake_fetch_request_creator.go . FetchRequestCreator
+type FetchRequestCreator interface {
+	CreateFetchRequest(logger lager.Logger, repoURL *url.URL, tag string, diskQuota int64) (*FetchRequest, error)
 }
 
 type DockerRepositoryFetcher struct {
-	fetchers map[registry.APIVersion]VersionedFetcher
-
-	registryProvider RegistryProvider
-	pinger           Pinger
-	graph            layercake.Cake
-
+	requestCreator FetchRequestCreator
+	fetchers       map[registry.APIVersion]VersionedFetcher
 	fetchingLayers map[string]chan struct{}
 	fetchingMutex  *sync.Mutex
 }
@@ -69,14 +58,12 @@ type dockerLayer struct {
 	size int64
 }
 
-func NewRemote(provider RegistryProvider, cake layercake.Cake, fetchers map[registry.APIVersion]VersionedFetcher, pinger Pinger) RepositoryFetcher {
+func NewRemote(requestCreator FetchRequestCreator, fetchers map[registry.APIVersion]VersionedFetcher) RepositoryFetcher {
 	return &DockerRepositoryFetcher{
-		fetchers:         fetchers,
-		registryProvider: provider,
-		pinger:           pinger,
-		graph:            cake,
-		fetchingLayers:   map[string]chan struct{}{},
-		fetchingMutex:    new(sync.Mutex),
+		fetchers:       fetchers,
+		requestCreator: requestCreator,
+		fetchingLayers: map[string]chan struct{}{},
+		fetchingMutex:  new(sync.Mutex),
 	}
 }
 
@@ -84,61 +71,17 @@ func FetchError(context, registry, reponame string, err error) error {
 	return garden.NewServiceUnavailableError(fmt.Sprintf("repository_fetcher: %s: could not fetch image %s from registry %s: %s", context, reponame, registry, err))
 }
 
-func (fetcher *DockerRepositoryFetcher) Fetch(
-	logger lager.Logger,
-	repoURL *url.URL,
-	tag string,
-	diskQuota int64,
-) (string, process.Env, []string, error) {
+func (fetcher *DockerRepositoryFetcher) Fetch(logger lager.Logger, repoURL *url.URL, tag string, diskQuota int64) (string, process.Env, []string, error) {
 	errs := func(err error) (string, process.Env, []string, error) {
 		return "", nil, nil, err
 	}
 
-	fLog := logger.Session("fetch", lager.Data{
-		"repo": repoURL,
-		"tag":  tag,
-	})
-
-	fLog.Debug("fetching")
-
-	if len(repoURL.Path) == 0 {
-		return errs(ErrInvalidDockerURL)
-	}
-
-	path := repoURL.Path[1:]
-
-	r, endpoint, err := fetcher.registryProvider.ProvideRegistry(repoURL.Host)
+	fetchRequest, err := fetcher.requestCreator.CreateFetchRequest(logger, repoURL, tag, diskQuota)
 	if err != nil {
-		logger.Error("failed-to-construct-registry-endpoint", err)
-		return errs(FetchError("ProvideRegistry", repoURL.Host, path, err))
-	}
-
-	var regInfo registry.RegistryInfo
-	if regInfo, err = fetcher.pinger.Ping(endpoint); err == nil {
-		logger.Debug("pinged-registry", lager.Data{
-			"info":             regInfo,
-			"endpoint-version": endpoint.Version,
-		})
-	} else {
 		return errs(err)
 	}
 
-	remotePath := path
-	if !regInfo.Standalone && strings.IndexRune(remotePath, '/') == -1 {
-		remotePath = "library/" + remotePath
-	}
-
-	fetchRequest := &FetchRequest{
-		Session:    r,
-		Endpoint:   endpoint,
-		Logger:     fLog,
-		Path:       path,
-		RemotePath: remotePath,
-		Tag:        tag,
-		MaxSize:    diskQuota,
-	}
-
-	if realFetcher, ok := fetcher.fetchers[endpoint.Version]; ok {
+	if realFetcher, ok := fetcher.fetchers[fetchRequest.Endpoint.Version]; ok {
 		response, err := realFetcher.Fetch(fetchRequest)
 		if err != nil {
 			return errs(err)

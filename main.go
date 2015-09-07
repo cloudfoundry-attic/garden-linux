@@ -301,14 +301,18 @@ func main() {
 		Logger:   logger.Session("oven-cleaner"),
 	}
 
+	requestCreator := &repository_fetcher.RemoteFetchRequestCreator{
+		RegistryProvider: repository_fetcher.NewRepositoryProvider(
+			*dockerRegistry,
+			strings.Split(*insecureRegistries, ","),
+		),
+		Pinger: repository_fetcher.EndpointPinger{},
+	}
+
 	lock := repository_fetcher.NewFetchLock()
 	repoFetcher := repository_fetcher.Retryable{
 		repository_fetcher.NewRemote(
-			repository_fetcher.NewRepositoryProvider(
-				*dockerRegistry,
-				strings.Split(*insecureRegistries, ","),
-			),
-			cake,
+			requestCreator,
 			map[registry.APIVersion]repository_fetcher.VersionedFetcher{
 				registry.APIVersion1: &repository_fetcher.RemoteV1Fetcher{
 					Cake:      cake,
@@ -321,7 +325,6 @@ func main() {
 					GraphLock: lock,
 				},
 			},
-			repository_fetcher.EndpointPinger{},
 		),
 	}
 
