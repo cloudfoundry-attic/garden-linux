@@ -18,6 +18,7 @@ import (
 	"github.com/docker/docker/pkg/transport"
 	"github.com/docker/docker/registry"
 	"github.com/docker/docker/runconfig"
+	"github.com/pivotal-golang/lager"
 	"github.com/pivotal-golang/lager/lagertest"
 
 	. "github.com/onsi/ginkgo"
@@ -44,83 +45,14 @@ var _ = Describe("RemoteV1", func() {
 		cake = new(fake_cake.FakeCake)
 		lock = new(fake_lock.FakeLock)
 		logger = lagertest.NewTestLogger("test")
-		server = ghttp.NewServer()
-
-		server.RouteToHandler(
-			"GET", "/v1/_ping", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-				w.Header().Set("X-Docker-Registry-Version", "v1")
-				w.Header().Add("X-Docker-Registry-Standalone", "true")
-				w.Write([]byte(`{"standalone": true, "version": "v1"}`))
-			}),
-		)
-		server.RouteToHandler(
-			"GET", "/v2/", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-				w.WriteHeader(404)
-			}),
-		)
-		server.AppendHandlers(
-			ghttp.CombineHandlers(
-				ghttp.VerifyRequest("GET", "/v1/repositories/some-repo/images"),
-				http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-					w.Header().Set("X-Docker-Token", "token-1,token-2")
-					w.Header().Add("X-Docker-Endpoints", endpoint1Server.HTTPTestServer.Listener.Addr().String())
-					w.Header().Add("X-Docker-Endpoints", endpoint2Server.HTTPTestServer.Listener.Addr().String())
-					w.Write([]byte(`[
-							{"id": "id-1", "checksum": "sha-1"},
-							{"id": "id-2", "checksum": "sha-2"}
-						]`))
-				}),
-			),
-		)
-
-		endpoint1Server = ghttp.NewServer()
-		endpoint2Server = ghttp.NewServer()
-		endpoint1Server.AppendHandlers(
-			ghttp.CombineHandlers(
-				ghttp.VerifyRequest("GET", "/v1/repositories/library/some-repo/tags"),
-				http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-					w.Write([]byte(`{
-							"some-tag": "id-1",
-							"some-other-tag": "id-2"
-						}`))
-				}),
-			),
-			ghttp.CombineHandlers(
-				ghttp.VerifyRequest("GET", "/v1/images/id-1/ancestry"),
-				http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-					w.Write([]byte(`["layer-1", "layer-2", "layer-3"]`))
-				}),
-			),
-		)
-
-		registryAddr = server.HTTPTestServer.Listener.Addr().String()
-		endpoint, err := registry.NewEndpoint(&registry.IndexInfo{
-			Name:   registryAddr,
-			Secure: false,
-		}, nil)
-		Expect(err).ToNot(HaveOccurred())
-
-		tr := transport.NewTransport(
-			registry.NewTransport(registry.ReceiveTimeout, endpoint.IsSecure),
-		)
-
-		session, err := registry.NewSession(registry.HTTPClient(tr), &cliconfig.AuthConfig{}, endpoint)
-		Expect(err).ToNot(HaveOccurred())
-
-		fetchRequest = &FetchRequest{
-			Session:  session,
-			Endpoint: endpoint,
-			Logger:   logger,
-			Path:     "some-repo",
-			Tag:      "some-tag",
-			MaxSize:  99999,
-		}
+		server, endpoint1Server, endpoint2Server, registryAddr, fetchRequest = createFakeHTTPV1RegistryServer(logger)
 
 		retainer = new(fake_retainer.FakeRetainer)
 		fetcher = &RemoteV1Fetcher{
-			Cake:      cake,
-			Retainer:  retainer,
-			GraphLock: lock,
+			Cake:             cake,
+			MetadataProvider: &ImageV1MetadataProvider{},
+			Retainer:         retainer,
+			GraphLock:        lock,
 		}
 
 		cake.GetReturns(&image.Image{}, nil)
@@ -479,4 +411,78 @@ func setupSuccessfulFetch(server *ghttp.Server) {
 			}),
 		),
 	)
+}
+
+func createFakeHTTPV1RegistryServer(logger lager.Logger) (*ghttp.Server, *ghttp.Server, *ghttp.Server, string, *FetchRequest) {
+	server := ghttp.NewServer()
+	endpoint1Server := ghttp.NewServer()
+	endpoint2Server := ghttp.NewServer()
+
+	server.RouteToHandler(
+		"GET", "/v1/_ping", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			w.Header().Set("X-Docker-Registry-Version", "v1")
+			w.Header().Add("X-Docker-Registry-Standalone", "true")
+			w.Write([]byte(`{"standalone": true, "version": "v1"}`))
+		}),
+	)
+	server.RouteToHandler(
+		"GET", "/v2/", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			w.WriteHeader(404)
+		}),
+	)
+	server.AppendHandlers(
+		ghttp.CombineHandlers(
+			ghttp.VerifyRequest("GET", "/v1/repositories/some-repo/images"),
+			http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				w.Header().Set("X-Docker-Token", "token-1,token-2")
+				w.Header().Add("X-Docker-Endpoints", endpoint1Server.HTTPTestServer.Listener.Addr().String())
+				w.Header().Add("X-Docker-Endpoints", endpoint2Server.HTTPTestServer.Listener.Addr().String())
+				w.Write([]byte(`[
+							{"id": "id-1", "checksum": "sha-1"},
+							{"id": "id-2", "checksum": "sha-2"}
+						]`))
+			}),
+		),
+	)
+
+	endpoint1Server.AppendHandlers(
+		ghttp.CombineHandlers(
+			ghttp.VerifyRequest("GET", "/v1/repositories/library/some-repo/tags"),
+			http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				w.Write([]byte(`{
+							"some-tag": "id-1",
+							"some-other-tag": "id-2"
+						}`))
+			}),
+		),
+		ghttp.CombineHandlers(
+			ghttp.VerifyRequest("GET", "/v1/images/id-1/ancestry"),
+			http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+				w.Write([]byte(`["layer-1", "layer-2", "layer-3"]`))
+			}),
+		),
+	)
+
+	registryAddr := server.HTTPTestServer.Listener.Addr().String()
+	endpoint, err := registry.NewEndpoint(&registry.IndexInfo{
+		Name:   registryAddr,
+		Secure: false,
+	}, nil)
+	Expect(err).ToNot(HaveOccurred())
+
+	tr := transport.NewTransport(
+		registry.NewTransport(registry.ReceiveTimeout, endpoint.IsSecure),
+	)
+
+	session, err := registry.NewSession(registry.HTTPClient(tr), &cliconfig.AuthConfig{}, endpoint)
+	Expect(err).ToNot(HaveOccurred())
+
+	return server, endpoint1Server, endpoint2Server, registryAddr, &FetchRequest{
+		Session:  session,
+		Endpoint: endpoint,
+		Logger:   logger,
+		Path:     "some-repo",
+		Tag:      "some-tag",
+		MaxSize:  99999,
+	}
 }

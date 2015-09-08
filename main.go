@@ -315,9 +315,10 @@ func main() {
 			requestCreator,
 			map[registry.APIVersion]repository_fetcher.VersionedFetcher{
 				registry.APIVersion1: &repository_fetcher.RemoteV1Fetcher{
-					Cake:      cake,
-					Retainer:  retainer,
-					GraphLock: lock,
+					Cake:             cake,
+					Retainer:         retainer,
+					MetadataProvider: &repository_fetcher.ImageV1MetadataProvider{},
+					GraphLock:        lock,
 				},
 				registry.APIVersion2: &repository_fetcher.RemoteV2Fetcher{
 					Cake:      cake,

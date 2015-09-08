@@ -11,19 +11,25 @@ import (
 	"github.com/pivotal-golang/lager"
 )
 
-type imageV1Metadata struct {
+//go:generate counterfeiter -o fake_remote_v1_metadata_provider/fake_remote_v1_metadata_provider.go . RemoteV1MetadataProvider
+type RemoteV1MetadataProvider interface {
+	ProvideMetadata(*FetchRequest) (*ImageV1Metadata, error)
+}
+
+type ImageV1Metadata struct {
 	ImageID   string
 	Endpoints []string
 }
 
 type RemoteV1Fetcher struct {
-	Cake      layercake.Cake
-	Retainer  layercake.Retainer
-	GraphLock Lock
+	Cake             layercake.Cake
+	Retainer         layercake.Retainer
+	MetadataProvider RemoteV1MetadataProvider
+	GraphLock        Lock
 }
 
 func (fetcher *RemoteV1Fetcher) FetchImageID(request *FetchRequest) (string, error) {
-	metadata, err := fetcher.fetchMetadata(request)
+	metadata, err := fetcher.MetadataProvider.ProvideMetadata(request)
 	if err != nil {
 		return "", err
 	}
@@ -31,7 +37,7 @@ func (fetcher *RemoteV1Fetcher) FetchImageID(request *FetchRequest) (string, err
 }
 
 func (fetcher *RemoteV1Fetcher) Fetch(request *FetchRequest) (*FetchResponse, error) {
-	metadata, err := fetcher.fetchMetadata(request)
+	metadata, err := fetcher.MetadataProvider.ProvideMetadata(request)
 	if err != nil {
 		return nil, err
 	}
@@ -65,29 +71,6 @@ func (fetcher *RemoteV1Fetcher) Fetch(request *FetchRequest) (*FetchResponse, er
 	}
 
 	return nil, FetchError("fetchFromEndPoint", request.Endpoint.URL.Host, request.Path, fmt.Errorf("all endpoints failed: %v", err))
-}
-
-func (fetcher *RemoteV1Fetcher) fetchMetadata(request *FetchRequest) (*imageV1Metadata, error) {
-	request.Logger.Debug("docker-v1-fetch")
-
-	repoData, err := request.Session.GetRepositoryData(request.Path)
-	if err != nil {
-		return nil, FetchError("GetRepositoryData", request.Endpoint.URL.Host, request.Path, err)
-	}
-
-	tagsList, err := request.Session.GetRemoteTags(repoData.Endpoints, request.Path)
-	if err != nil {
-		return nil, FetchError("GetRemoteTags", request.Endpoint.URL.Host, request.Path, err)
-	}
-
-	imgID, ok := tagsList[request.Tag]
-	if !ok {
-		return nil, FetchError("looking up tag", request.Endpoint.URL.Host, request.Path, fmt.Errorf("unknown tag: %v", request.Tag))
-	}
-
-	return &imageV1Metadata{
-		ImageID:   imgID,
-		Endpoints: repoData.Endpoints}, nil
 }
 
 func (fetcher *RemoteV1Fetcher) fetchFromEndpoint(request *FetchRequest, endpointURL string, imgID string, logger lager.Logger) (*dockerImage, error) {
