@@ -88,12 +88,20 @@ var _ = Describe("Logging", func() {
 		BeforeEach(func() {
 			containerSpec = garden.ContainerSpec{
 				Env: []string{"PASSWORD=MY_SECRET"},
+				Properties: garden.Properties{
+					"super": "banana",
+				},
 			}
 		})
 
 		It("should not log any environment variables", func() {
 			Expect(stdout).ToNot(gbytes.Say("PASSWORD"))
 			Expect(stdout).ToNot(gbytes.Say("MY_SECRET"))
+		})
+
+		It("should not log any properties", func() {
+			Expect(stdout).ToNot(gbytes.Say("super"))
+			Expect(stdout).ToNot(gbytes.Say("banana"))
 		})
 	})
 
@@ -120,4 +128,29 @@ var _ = Describe("Logging", func() {
 		})
 	})
 
+	Context("when working with properties", func() {
+		BeforeEach(func() {
+			containerSpec = garden.ContainerSpec{
+				Properties: garden.Properties{
+					"super": "banana",
+				},
+			}
+		})
+
+		It("should not log the properties when we are getting them", func() {
+			_, err := container.Properties()
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(stdout).ToNot(gbytes.Say("super"))
+			Expect(stdout).ToNot(gbytes.Say("banana"))
+		})
+
+		It("should not log the properties when we are setting them", func() {
+			err := container.SetProperty("super", "banana")
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(stdout).ToNot(gbytes.Say("super"))
+			Expect(stdout).ToNot(gbytes.Say("banana"))
+		})
+	})
 })
