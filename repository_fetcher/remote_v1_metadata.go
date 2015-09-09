@@ -1,8 +1,20 @@
 package repository_fetcher
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/cloudfoundry-incubator/garden-linux/layercake"
+)
 
 type ImageV1MetadataProvider struct{}
+
+func (provider *ImageV1MetadataProvider) ProvideImageID(request *FetchRequest) (layercake.ID, error) {
+	metadata, err := provider.ProvideMetadata(request)
+	if err != nil {
+		return nil, err
+	}
+	return layercake.DockerImageID(metadata.ImageID), nil
+}
 
 func (provider *ImageV1MetadataProvider) ProvideMetadata(request *FetchRequest) (*ImageV1Metadata, error) {
 	request.Logger.Debug("docker-v1-fetch")

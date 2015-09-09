@@ -11,6 +11,14 @@ import (
 
 type ImageV2MetadataProvider struct{}
 
+func (provider *ImageV2MetadataProvider) ProvideImageID(request *FetchRequest) (string, error) {
+	metadata, err := provider.ProvideMetadata(request)
+	if err != nil {
+		return "", err
+	}
+	return metadata.Images[0].ID, nil
+}
+
 func (provider *ImageV2MetadataProvider) ProvideMetadata(request *FetchRequest) (*ImageV2Metadata, error) {
 	request.Logger.Debug("docker-v2-fetch", lager.Data{
 		"request": request,

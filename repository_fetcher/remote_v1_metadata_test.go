@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/cloudfoundry-incubator/garden-linux/layercake"
 	. "github.com/cloudfoundry-incubator/garden-linux/repository_fetcher"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -82,6 +83,28 @@ var _ = Describe("RemoteV1Metadata", func() {
 			It("returns an error", func() {
 				_, err := provider.ProvideMetadata(fetchRequest)
 				Expect(err).To(MatchError(ContainSubstring("repository_fetcher: GetRemoteTags: could not fetch image some-repo from registry %s:", registryAddr)))
+			})
+		})
+	})
+
+	Describe("ProvideImageID", func() {
+		It("returns image ID", func() {
+			imgID, err := provider.ProvideImageID(fetchRequest)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(imgID).To(Equal(layercake.DockerImageID("id-1")))
+		})
+
+		Context("when fails to fetch image id", func() {
+			BeforeEach(func() {
+				server.SetHandler(0, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+					w.WriteHeader(500)
+				}))
+			})
+
+			It("should return an error", func() {
+				_, err := provider.ProvideImageID(fetchRequest)
+				Expect(err).To(HaveOccurred())
+				Expect(err.Error()).To(ContainSubstring("Status 500 trying to pull repository some-repo"))
 			})
 		})
 	})

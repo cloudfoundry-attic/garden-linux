@@ -25,14 +25,6 @@ type RemoteV2Fetcher struct {
 	GraphLock        Lock
 }
 
-func (fetcher *RemoteV2Fetcher) FetchImageID(request *FetchRequest) (string, error) {
-	metadata, err := fetcher.MetadataProvider.ProvideMetadata(request)
-	if err != nil {
-		return "", err
-	}
-	return metadata.Images[0].ID, nil
-}
-
 func (fetcher *RemoteV2Fetcher) Fetch(request *FetchRequest) (*FetchResponse, error) {
 	metadata, err := fetcher.MetadataProvider.ProvideMetadata(request)
 	if err != nil {

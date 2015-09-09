@@ -58,39 +58,6 @@ var _ = Describe("RemoteV2", func() {
 		cake.GetReturns(nil, errors.New("no image"))
 	})
 
-	Describe("FetchImageID", func() {
-		Context("when succeeds", func() {
-			BeforeEach(func() {
-				setupSuccessfulV2Fetch(server, false)
-			})
-
-			It("returns image ID", func() {
-				imgID, err := fetcher.FetchImageID(fetchRequest)
-				Expect(err).NotTo(HaveOccurred())
-				Expect(imgID).To(Equal("banana-pie-2"))
-			})
-		})
-
-		Context("when fails to fetch image id", func() {
-			BeforeEach(func() {
-				server.AppendHandlers(
-					ghttp.CombineHandlers(
-						ghttp.VerifyRequest("GET", "/v2/some-repo/manifests/some-tag"),
-						http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-							w.WriteHeader(500)
-						}),
-					),
-				)
-			})
-
-			It("should return an error", func() {
-				_, err := fetcher.FetchImageID(fetchRequest)
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("Server error: 500 trying to fetch for some-repo:some-tag"))
-			})
-		})
-	})
-
 	Describe("Fetch", func() {
 		It("retains the layers before getting them, to ensure they are not deleted after we decide to use cache", func() {
 			setupSuccessfulV2Fetch(server, false)

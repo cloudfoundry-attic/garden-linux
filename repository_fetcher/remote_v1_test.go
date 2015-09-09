@@ -58,28 +58,6 @@ var _ = Describe("RemoteV1", func() {
 		cake.GetReturns(&image.Image{}, nil)
 	})
 
-	Describe("FetchImageID", func() {
-		It("returns image ID", func() {
-			imgID, err := fetcher.FetchImageID(fetchRequest)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(imgID).To(Equal("id-1"))
-		})
-
-		Context("when fails to fetch image id", func() {
-			BeforeEach(func() {
-				server.SetHandler(0, http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-					w.WriteHeader(500)
-				}))
-			})
-
-			It("should return an error", func() {
-				_, err := fetcher.FetchImageID(fetchRequest)
-				Expect(err).To(HaveOccurred())
-				Expect(err.Error()).To(ContainSubstring("Status 500 trying to pull repository some-repo"))
-			})
-		})
-	})
-
 	Describe("Fetch", func() {
 		It("retains all the layers before starting", func() {
 			setupSuccessfulFetch(endpoint1Server)

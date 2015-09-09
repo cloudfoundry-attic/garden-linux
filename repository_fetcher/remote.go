@@ -15,7 +15,6 @@ import (
 //go:generate counterfeiter -o fake_versioned_fetcher/fake_versioned_fetcher.go . VersionedFetcher
 type VersionedFetcher interface {
 	Fetch(*FetchRequest) (*FetchResponse, error)
-	FetchImageID(*FetchRequest) (string, error)
 }
 
 //go:generate counterfeiter -o fake_fetch_request_creator/fake_fetch_request_creator.go . FetchRequestCreator
