@@ -15,6 +15,7 @@ import (
 	"github.com/pivotal-golang/lager"
 )
 
+//go:generate counterfeiter -o fake_container_id_provider/FakeContainerIDProvider.go . ContainerIDProvider
 type ContainerIDProvider interface {
 	ProvideID(path string) layercake.ID
 }
