@@ -17,6 +17,7 @@ import (
 	"github.com/docker/docker/pkg/archive"
 	"github.com/docker/docker/pkg/transport"
 	"github.com/docker/docker/registry"
+	"github.com/pivotal-golang/lager"
 	"github.com/pivotal-golang/lager/lagertest"
 
 	"math"
@@ -44,50 +45,14 @@ var _ = Describe("RemoteV2", func() {
 		lock = new(fake_lock.FakeLock)
 
 		logger = lagertest.NewTestLogger("test")
-
-		server = ghttp.NewServer()
-		server.RouteToHandler(
-			"GET", "/v2/",
-			http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-				w.Header().Set("Docker-Distribution-API-Version", "registry/2.0")
-				w.Write([]byte(`{}`))
-			}),
-		)
-		server.RouteToHandler(
-			"GET", "/v1/_ping",
-			http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-				w.WriteHeader(404)
-			}),
-		)
-
-		registryAddr = server.HTTPTestServer.Listener.Addr().String()
-		endpoint, err := registry.NewEndpoint(&registry.IndexInfo{
-			Name:   registryAddr,
-			Secure: false,
-		}, nil)
-		Expect(err).ToNot(HaveOccurred())
-
-		tr := transport.NewTransport(
-			registry.NewTransport(registry.ReceiveTimeout, endpoint.IsSecure),
-		)
-		session, err := registry.NewSession(registry.HTTPClient(tr), &cliconfig.AuthConfig{}, endpoint)
-		Expect(err).ToNot(HaveOccurred())
-
-		fetchRequest = &FetchRequest{
-			Session:    session,
-			Endpoint:   endpoint,
-			Logger:     logger,
-			Path:       "some-repo",
-			RemotePath: "some-repo",
-			Tag:        "some-tag",
-			MaxSize:    math.MaxInt64,
-		}
+		server, registryAddr, fetchRequest = createFakeHTTPV2RegistryServer(logger)
 
 		retainer = new(fake_retainer.FakeRetainer)
 		fetcher = &RemoteV2Fetcher{
-			Cake:      cake,
-			Retainer:  retainer,
-			GraphLock: lock,
+			Cake:             cake,
+			Retainer:         retainer,
+			MetadataProvider: &ImageV2MetadataProvider{},
+			GraphLock:        lock,
 		}
 
 		cake.GetReturns(nil, errors.New("no image"))
@@ -456,4 +421,45 @@ func setupSuccessfulV2Fetch(server *ghttp.Server, layer1Cached bool) {
 			}),
 		),
 	)
+}
+
+func createFakeHTTPV2RegistryServer(logger lager.Logger) (*ghttp.Server, string, *FetchRequest) {
+	server := ghttp.NewServer()
+	server.RouteToHandler(
+		"GET", "/v2/",
+		http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			w.Header().Set("Docker-Distribution-API-Version", "registry/2.0")
+			w.Write([]byte(`{}`))
+		}),
+	)
+	server.RouteToHandler(
+		"GET", "/v1/_ping",
+		http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			w.WriteHeader(404)
+		}),
+	)
+
+	registryAddr := server.HTTPTestServer.Listener.Addr().String()
+	endpoint, err := registry.NewEndpoint(&registry.IndexInfo{
+		Name:   registryAddr,
+		Secure: false,
+	}, nil)
+	Expect(err).ToNot(HaveOccurred())
+
+	tr := transport.NewTransport(
+		registry.NewTransport(registry.ReceiveTimeout, endpoint.IsSecure),
+	)
+	session, err := registry.NewSession(registry.HTTPClient(tr), &cliconfig.AuthConfig{}, endpoint)
+	Expect(err).ToNot(HaveOccurred())
+
+	return server, registryAddr, &FetchRequest{
+		Session:    session,
+		Endpoint:   endpoint,
+		Logger:     logger,
+		Path:       "some-repo",
+		RemotePath: "some-repo",
+		Tag:        "some-tag",
+		MaxSize:    math.MaxInt64,
+	}
+
 }

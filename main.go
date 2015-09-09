@@ -321,9 +321,10 @@ func main() {
 					GraphLock:        lock,
 				},
 				registry.APIVersion2: &repository_fetcher.RemoteV2Fetcher{
-					Cake:      cake,
-					Retainer:  retainer,
-					GraphLock: lock,
+					Cake:             cake,
+					Retainer:         retainer,
+					MetadataProvider: &repository_fetcher.ImageV2MetadataProvider{},
+					GraphLock:        lock,
 				},
 			},
 		),
