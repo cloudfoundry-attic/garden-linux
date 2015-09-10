@@ -301,6 +301,25 @@ func main() {
 		Logger:   logger.Session("oven-cleaner"),
 	}
 
+	persistentIDList := []string{
+		"91e54dfb11794fad694460162bf0cb0a4fa710cfa3f60979c177d920813e267c",
+		"3b686050ddb7d0815496ec6de493efa61c483717ba72ab2d87779523bba1b3b7",
+		"f93163ef4e067cc2782ea296c07250acac753cda4b81390f5d668391dd235264",
+		"eb17e770d4360fb7adb57819b5a0114d6611916891666432e7c135fd5cfcc0cb",
+		"e7f627f951f836a805aa095a2528d29e81ca0c91799095578914db018237031e",
+		"ba07876ebe1471d4f2bb821678c4851ace129d54d7d7a47c3cc91bd6a0845379",
+		"6d4946999d4fb403f40e151ecbd13cb866da125431eb1df0cdfd4dc72674e3c6",
+		"01d5f5b61877f62d0a381a6a8cd9fe7c294dd133623f3921a64a7f55c7e9ee69",
+		"8c2e06607696bd4afb3d03b687e361cc43cf8ec1a4a725bc96e39f05ba97dd55",
+		"62b0518a3d96d0af19a84058f2192ef91361031c30189421d1e0734f25c99e94",
+		"38c3823b92781c67218d1acb697548162aba7ef0a71f2cfeadf40a44a10be97f",
+	}
+
+	for rawID := range persistentIDList {
+		id := layercake.DockerImageID(rawID)
+		retainer.Retain(id)
+	}
+
 	requestCreator := &repository_fetcher.RemoteFetchRequestCreator{
 		RegistryProvider: repository_fetcher.NewRepositoryProvider(
 			*dockerRegistry,
