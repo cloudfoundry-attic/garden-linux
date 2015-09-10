@@ -36,11 +36,6 @@ type RemoteIDProvider struct {
 }
 
 func (provider *RemoteIDProvider) ProvideID(rawURL string) (layercake.ID, error) {
-	registryProviderV1, ok := provider.Providers[registry.APIVersion1]
-	if !ok {
-		return nil, fmt.Errorf("could not find registryProvider for APIVersion1")
-	}
-
 	rootfsURL, err := url.Parse(rawURL)
 	if err != nil {
 		return nil, err
@@ -51,7 +46,14 @@ func (provider *RemoteIDProvider) ProvideID(rawURL string) (layercake.ID, error)
 		return nil, err
 	}
 
-	imageID, err := registryProviderV1.ProvideImageID(request)
+	APIVersion := request.Endpoint.Version
+
+	registryProvider, ok := provider.Providers[APIVersion]
+	if !ok {
+		return nil, fmt.Errorf("could not find registryProvider for %d", APIVersion)
+	}
+
+	imageID, err := registryProvider.ProvideImageID(request)
 	if err != nil {
 		return nil, err
 	}

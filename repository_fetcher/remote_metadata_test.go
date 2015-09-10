@@ -120,9 +120,12 @@ var _ = Describe("RemoteMetadata", func() {
 			provider           *RemoteIDProvider
 			apiVersion         registry.APIVersion
 			fakeFetchRequest   *FetchRequest
+
+			imagePath string
+			imageID   layercake.DockerImageID
 		)
 
-		BeforeEach(func() {
+		JustBeforeEach(func() {
 			registryProviderV1 = new(fake_remote_image_id_provider.FakeRemoteImageIDProvider)
 			registryProviderV2 = new(fake_remote_image_id_provider.FakeRemoteImageIDProvider)
 
@@ -142,19 +145,17 @@ var _ = Describe("RemoteMetadata", func() {
 		})
 
 		Context("when request is for V1 registry", func() {
-			var (
-				imagePath string
-				imageID   layercake.DockerImageID
-			)
-
 			BeforeEach(func() {
 				apiVersion = registry.APIVersion1
+			})
+
+			JustBeforeEach(func() {
 				imagePath = "/path/to/image/id"
 				imageID = layercake.DockerImageID("docker-image-id-1")
 				registryProviderV1.ProvideImageIDReturns(imageID, nil)
 			})
 
-			It("should return image ID", func() {
+			It("should return the version 1 image ID", func() {
 				id, err := provider.ProvideID(imagePath)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(id).To(Equal(imageID))
@@ -164,6 +165,30 @@ var _ = Describe("RemoteMetadata", func() {
 
 				Expect(fetchRequest).To(Equal(fakeFetchRequest))
 			})
+		})
+
+		Context("when request is for a V2 registry", func() {
+			BeforeEach(func() {
+				apiVersion = registry.APIVersion2
+			})
+
+			JustBeforeEach(func() {
+				imagePath = "/path/to/image/id"
+				imageID = layercake.DockerImageID("docker-image-id-2")
+				registryProviderV2.ProvideImageIDReturns(imageID, nil)
+			})
+
+			It("should return the version 2 image ID", func() {
+				id, err := provider.ProvideID(imagePath)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(id).To(Equal(imageID))
+
+				Expect(registryProviderV2.ProvideImageIDCallCount()).To(Equal(1))
+				fetchRequest := registryProviderV2.ProvideImageIDArgsForCall(0)
+
+				Expect(fetchRequest).To(Equal(fakeFetchRequest))
+			})
+
 		})
 
 		Context("when invalid path is provided", func() {
