@@ -7,6 +7,9 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/layercake"
 	. "github.com/cloudfoundry-incubator/garden-linux/repository_fetcher"
 	"github.com/cloudfoundry-incubator/garden-linux/repository_fetcher/fake_container_id_provider"
+	"github.com/cloudfoundry-incubator/garden-linux/repository_fetcher/fake_fetch_request_creator"
+	"github.com/cloudfoundry-incubator/garden-linux/repository_fetcher/fake_remote_image_id_provider"
+	"github.com/docker/docker/registry"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -98,6 +101,68 @@ var _ = Describe("RemoteMetadata", func() {
 				id, err := provider.ProvideID(path)
 				Expect(err).To(MatchError(fmt.Sprintf("IDProvider could not be found for %s", path)))
 				Expect(id).To(BeNil())
+			})
+		})
+
+		Context("when invalid path is provided", func() {
+			It("returns an error", func() {
+				_, err := provider.ProvideID("\\+ %g\\g")
+				Expect(err).To(HaveOccurred())
+			})
+		})
+	})
+
+	Describe("RemoteIDProvider", func() {
+		var (
+			fakeRequestCreator *fake_fetch_request_creator.FakeFetchRequestCreator
+			registryProviderV1 *fake_remote_image_id_provider.FakeRemoteImageIDProvider
+			registryProviderV2 *fake_remote_image_id_provider.FakeRemoteImageIDProvider
+			provider           *RemoteIDProvider
+			apiVersion         registry.APIVersion
+			fakeFetchRequest   *FetchRequest
+		)
+
+		BeforeEach(func() {
+			registryProviderV1 = new(fake_remote_image_id_provider.FakeRemoteImageIDProvider)
+			registryProviderV2 = new(fake_remote_image_id_provider.FakeRemoteImageIDProvider)
+
+			fakeRequestCreator = new(fake_fetch_request_creator.FakeFetchRequestCreator)
+			fakeFetchRequest = &FetchRequest{
+				Endpoint: &registry.Endpoint{Version: apiVersion},
+			}
+			fakeRequestCreator.CreateFetchRequestReturns(fakeFetchRequest, nil)
+
+			provider = &RemoteIDProvider{
+				RequestCreator: fakeRequestCreator,
+				Providers: map[registry.APIVersion]RemoteImageIDProvider{
+					registry.APIVersion1: registryProviderV1,
+					registry.APIVersion2: registryProviderV2,
+				},
+			}
+		})
+
+		Context("when request is for V1 registry", func() {
+			var (
+				imagePath string
+				imageID   layercake.DockerImageID
+			)
+
+			BeforeEach(func() {
+				apiVersion = registry.APIVersion1
+				imagePath = "/path/to/image/id"
+				imageID = layercake.DockerImageID("docker-image-id-1")
+				registryProviderV1.ProvideImageIDReturns(imageID, nil)
+			})
+
+			It("should return image ID", func() {
+				id, err := provider.ProvideID(imagePath)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(id).To(Equal(imageID))
+
+				Expect(registryProviderV1.ProvideImageIDCallCount()).To(Equal(1))
+				fetchRequest := registryProviderV1.ProvideImageIDArgsForCall(0)
+
+				Expect(fetchRequest).To(Equal(fakeFetchRequest))
 			})
 		})
 

@@ -5,7 +5,13 @@ import (
 	"net/url"
 
 	"github.com/cloudfoundry-incubator/garden-linux/layercake"
+	"github.com/docker/docker/registry"
 )
+
+//go:generate counterfeiter -o fake_remote_image_id_provider/FakeRemoteImageIDProvider.go . RemoteImageIDProvider
+type RemoteImageIDProvider interface {
+	ProvideImageID(request *FetchRequest) (layercake.ID, error)
+}
 
 type ImageIDProvider struct {
 	Providers map[string]ContainerIDProvider
@@ -22,4 +28,33 @@ func (provider *ImageIDProvider) ProvideID(path string) (layercake.ID, error) {
 		return nil, fmt.Errorf("IDProvider could not be found for %s", path)
 	}
 	return containerProvider.ProvideID(path), nil
+}
+
+type RemoteIDProvider struct {
+	RequestCreator FetchRequestCreator
+	Providers      map[registry.APIVersion]RemoteImageIDProvider
+}
+
+func (provider *RemoteIDProvider) ProvideID(rawURL string) (layercake.ID, error) {
+	registryProviderV1, ok := provider.Providers[registry.APIVersion1]
+	if !ok {
+		return nil, fmt.Errorf("could not find registryProvider for APIVersion1")
+	}
+
+	rootfsURL, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, err
+	}
+
+	request, err := provider.RequestCreator.CreateFetchRequest(nil, rootfsURL, rootfsURL.Fragment, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	imageID, err := registryProviderV1.ProvideImageID(request)
+	if err != nil {
+		return nil, err
+	}
+
+	return imageID, nil
 }
