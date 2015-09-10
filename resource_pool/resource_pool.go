@@ -278,10 +278,6 @@ func (p *LinuxResourcePool) Acquire(spec garden.ContainerSpec) (linux_backend.Li
 		return linux_backend.LinuxContainerSpec{}, err
 	}
 
-	pLog.Debug("calculate-environment", lager.Data{
-		"rootfs-env": rootFSEnv,
-	})
-
 	spec.Env = rootFSEnv.Merge(specEnv).Array()
 	spec.Handle = handle
 
@@ -307,8 +303,6 @@ func (p *LinuxResourcePool) Restore(snapshot io.Reader) (linux_backend.LinuxCont
 	}
 
 	id := containerSnapshot.ID
-	// containerRootFSPath := containerSnapshot.RootFSPath
-
 	rLog := p.logger.Session("restore", lager.Data{
 		"id": id,
 	})

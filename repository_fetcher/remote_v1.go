@@ -46,7 +46,6 @@ func (fetcher *RemoteV1Fetcher) Fetch(request *FetchRequest) (*FetchResponse, er
 			request.Logger.Debug("fetched", lager.Data{
 				"endpoint": endpointURL,
 				"image":    imgID,
-				"env":      image.Env(),
 				"volumes":  image.Vols(),
 			})
 

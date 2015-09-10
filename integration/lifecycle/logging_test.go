@@ -103,6 +103,16 @@ var _ = Describe("Logging", func() {
 			Expect(stdout).ToNot(gbytes.Say("super"))
 			Expect(stdout).ToNot(gbytes.Say("banana"))
 		})
+
+		Context("from a docker url", func() {
+			BeforeEach(func() {
+				containerSpec.RootFSPath = "docker:///cloudfoundry/with-volume"
+			})
+
+			It("should not log any environment variables", func() {
+				Expect(stdout).ToNot(gbytes.Say("test-from-dockerfile"))
+			})
+		})
 	})
 
 	Context("when container spawn a new process", func() {
