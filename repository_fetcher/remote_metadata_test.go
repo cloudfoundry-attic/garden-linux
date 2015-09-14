@@ -118,39 +118,33 @@ var _ = Describe("RemoteMetadata", func() {
 			registryProviderV1 *fake_remote_image_id_provider.FakeRemoteImageIDProvider
 			registryProviderV2 *fake_remote_image_id_provider.FakeRemoteImageIDProvider
 			provider           *RemoteIDProvider
-			apiVersion         registry.APIVersion
 			fakeFetchRequest   *FetchRequest
 
-			imagePath string
+			imagePath string = "/path/to/image/id"
 			imageID   layercake.DockerImageID
 		)
 
-		JustBeforeEach(func() {
+		BeforeEach(func() {
 			registryProviderV1 = new(fake_remote_image_id_provider.FakeRemoteImageIDProvider)
 			registryProviderV2 = new(fake_remote_image_id_provider.FakeRemoteImageIDProvider)
-
 			fakeRequestCreator = new(fake_fetch_request_creator.FakeFetchRequestCreator)
-			fakeFetchRequest = &FetchRequest{
-				Endpoint: &registry.Endpoint{Version: apiVersion},
-			}
-			fakeRequestCreator.CreateFetchRequestReturns(fakeFetchRequest, nil)
-
-			provider = &RemoteIDProvider{
-				RequestCreator: fakeRequestCreator,
-				Providers: map[registry.APIVersion]RemoteImageIDProvider{
-					registry.APIVersion1: registryProviderV1,
-					registry.APIVersion2: registryProviderV2,
-				},
-			}
 		})
 
 		Context("when request is for V1 registry", func() {
 			BeforeEach(func() {
-				apiVersion = registry.APIVersion1
-			})
+				fakeFetchRequest = &FetchRequest{
+					Endpoint: &registry.Endpoint{Version: registry.APIVersion1},
+				}
+				fakeRequestCreator.CreateFetchRequestReturns(fakeFetchRequest, nil)
 
-			JustBeforeEach(func() {
-				imagePath = "/path/to/image/id"
+				provider = &RemoteIDProvider{
+					RequestCreator: fakeRequestCreator,
+					Providers: map[registry.APIVersion]RemoteImageIDProvider{
+						registry.APIVersion1: registryProviderV1,
+						registry.APIVersion2: registryProviderV2,
+					},
+				}
+
 				imageID = layercake.DockerImageID("docker-image-id-1")
 				registryProviderV1.ProvideImageIDReturns(imageID, nil)
 			})
@@ -169,11 +163,19 @@ var _ = Describe("RemoteMetadata", func() {
 
 		Context("when request is for a V2 registry", func() {
 			BeforeEach(func() {
-				apiVersion = registry.APIVersion2
-			})
+				fakeFetchRequest = &FetchRequest{
+					Endpoint: &registry.Endpoint{Version: registry.APIVersion2},
+				}
+				fakeRequestCreator.CreateFetchRequestReturns(fakeFetchRequest, nil)
 
-			JustBeforeEach(func() {
-				imagePath = "/path/to/image/id"
+				provider = &RemoteIDProvider{
+					RequestCreator: fakeRequestCreator,
+					Providers: map[registry.APIVersion]RemoteImageIDProvider{
+						registry.APIVersion1: registryProviderV1,
+						registry.APIVersion2: registryProviderV2,
+					},
+				}
+
 				imageID = layercake.DockerImageID("docker-image-id-2")
 				registryProviderV2.ProvideImageIDReturns(imageID, nil)
 			})
@@ -188,7 +190,6 @@ var _ = Describe("RemoteMetadata", func() {
 
 				Expect(fetchRequest).To(Equal(fakeFetchRequest))
 			})
-
 		})
 
 		Context("when invalid path is provided", func() {
