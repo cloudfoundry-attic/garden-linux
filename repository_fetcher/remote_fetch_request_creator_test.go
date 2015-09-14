@@ -6,7 +6,7 @@ import (
 
 	. "github.com/cloudfoundry-incubator/garden-linux/repository_fetcher"
 	"github.com/cloudfoundry-incubator/garden-linux/repository_fetcher/fake_pinger"
-	"github.com/cloudfoundry-incubator/garden-linux/repository_fetcher/fakes"
+	"github.com/cloudfoundry-incubator/garden-linux/repository_fetcher/fake_registry_provider"
 	"github.com/docker/docker/registry"
 	"github.com/pivotal-golang/lager/lagertest"
 
@@ -19,12 +19,12 @@ var _ = Describe("RemoteFetchRequestCreator", func() {
 		logger *lagertest.TestLogger
 
 		creator              *RemoteFetchRequestCreator
-		fakeRegistryProvider *fakes.FakeRegistryProvider
+		fakeRegistryProvider *fake_registry_provider.FakeRegistryProvider
 		fakeEndpointPinger   *fake_pinger.FakePinger
 	)
 
 	BeforeEach(func() {
-		fakeRegistryProvider = new(fakes.FakeRegistryProvider)
+		fakeRegistryProvider = new(fake_registry_provider.FakeRegistryProvider)
 		fakeEndpointPinger = new(fake_pinger.FakePinger)
 		logger = lagertest.NewTestLogger("test")
 

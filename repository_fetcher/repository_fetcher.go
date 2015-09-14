@@ -11,7 +11,7 @@ import (
 	"github.com/pivotal-golang/lager"
 )
 
-//go:generate counterfeiter . RegistryProvider
+//go:generate counterfeiter -o fake_registry_provider/fake_registry_provider.go . RegistryProvider
 type RegistryProvider interface {
 	ProvideRegistry(hostname string) (*registry.Session, *registry.Endpoint, error)
 }
