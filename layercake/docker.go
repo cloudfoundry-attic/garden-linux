@@ -6,19 +6,17 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/docker/docker/daemon/graphdriver"
 	"github.com/docker/docker/graph"
 	"github.com/docker/docker/image"
 	"github.com/docker/docker/pkg/archive"
 )
 
 type Docker struct {
-	Graph  *graph.Graph
-	Driver graphdriver.Driver
+	Graph *graph.Graph
 }
 
 func (d *Docker) DriverName() string {
-	return d.Driver.String()
+	return d.Graph.Driver().String()
 }
 
 func (d *Docker) Create(containerID ID, imageID ID) error {
@@ -42,7 +40,7 @@ func (d *Docker) Remove(id ID) error {
 }
 
 func (d *Docker) Path(id ID) (string, error) {
-	return d.Driver.Get(id.GraphID(), "")
+	return d.Graph.Driver().Get(id.GraphID(), "")
 }
 
 func (d *Docker) IsLeaf(id ID) (bool, error) {

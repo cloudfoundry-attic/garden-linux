@@ -280,8 +280,7 @@ func main() {
 	graphMountPoint := mountPoint(logger, *graphRoot)
 
 	var cake layercake.Cake = &layercake.Docker{
-		Graph:  dockerGraph,
-		Driver: dockerGraphDriver,
+		Graph: dockerGraph,
 	}
 
 	if cake.DriverName() == "btrfs" {
