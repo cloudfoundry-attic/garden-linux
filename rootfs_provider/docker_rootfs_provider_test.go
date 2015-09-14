@@ -97,8 +97,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 
 				Expect(fakeRepositoryFetcher.Fetched()).To(ContainElement(
 					fake_repository_fetcher.FetchSpec{
-						Repository: "docker:///some-repository-name",
-						Tag:        "latest",
+						URL: parseURL("docker:///some-repository-name#latest"),
 					},
 				))
 
@@ -137,8 +136,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 
 					Expect(fakeRepositoryFetcher.Fetched()).To(ContainElement(
 						fake_repository_fetcher.FetchSpec{
-							Repository: "docker:///some-repository-name",
-							Tag:        "latest",
+							URL: parseURL("docker:///some-repository-name#latest"),
 						},
 					))
 
@@ -184,7 +182,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 
 				})
 
-				It("reuses the translated layer", func() {
+				It("fetches the image, but reuses the translated layer", func() {
 					mountpoint, envvars, err := provider.ProvideRootFS(
 						logger,
 						"some-id",
@@ -196,8 +194,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 
 					Expect(fakeRepositoryFetcher.Fetched()).To(ContainElement(
 						fake_repository_fetcher.FetchSpec{
-							Repository: "docker:///some-repository-name",
-							Tag:        "latest",
+							URL: parseURL("docker:///some-repository-name#latest"),
 						},
 					))
 
@@ -254,9 +251,8 @@ var _ = Describe("DockerRootFSProvider", func() {
 					fakeRepositoryFetcher.Fetched()
 					Expect(fakeRepositoryFetcher.Fetched()).To(ContainElement(
 						fake_repository_fetcher.FetchSpec{
-							Repository: "docker:///some-repository-name",
-							Tag:        "latest",
-							DiskQuota:  987654,
+							URL:       parseURL("docker:///some-repository-name#latest"),
+							DiskQuota: 987654,
 						},
 					))
 				})
@@ -293,8 +289,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 
 				Expect(fakeRepositoryFetcher.Fetched()).To(ContainElement(
 					fake_repository_fetcher.FetchSpec{
-						Repository: "docker:///some-repository-name#some-tag",
-						Tag:        "some-tag",
+						URL: parseURL("docker:///some-repository-name#some-tag"),
 					},
 				))
 			})
@@ -313,8 +308,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 
 				Expect(fakeRepositoryFetcher.Fetched()).To(ContainElement(
 					fake_repository_fetcher.FetchSpec{
-						Repository: "docker://some.host/some-repository-name",
-						Tag:        "latest",
+						URL: parseURL("docker://some.host/some-repository-name#latest"),
 					},
 				))
 			})

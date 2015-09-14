@@ -41,7 +41,7 @@ func (provider *RemoteIDProvider) ProvideID(rawURL string) (layercake.ID, error)
 		return nil, err
 	}
 
-	request, err := provider.RequestCreator.CreateFetchRequest(nil, rootfsURL, rootfsURL.Fragment, 0)
+	request, err := provider.RequestCreator.CreateFetchRequest(nil, rootfsURL, 0)
 	if err != nil {
 		return nil, err
 	}

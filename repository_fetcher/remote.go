@@ -19,7 +19,7 @@ type VersionedFetcher interface {
 
 //go:generate counterfeiter -o fake_fetch_request_creator/fake_fetch_request_creator.go . FetchRequestCreator
 type FetchRequestCreator interface {
-	CreateFetchRequest(logger lager.Logger, repoURL *url.URL, tag string, diskQuota int64) (*FetchRequest, error)
+	CreateFetchRequest(logger lager.Logger, repoURL *url.URL, diskQuota int64) (*FetchRequest, error)
 }
 
 type DockerRepositoryFetcher struct {
@@ -70,12 +70,12 @@ func FetchError(context, registry, reponame string, err error) error {
 	return garden.NewServiceUnavailableError(fmt.Sprintf("repository_fetcher: %s: could not fetch image %s from registry %s: %s", context, reponame, registry, err))
 }
 
-func (fetcher *DockerRepositoryFetcher) Fetch(logger lager.Logger, repoURL *url.URL, tag string, diskQuota int64) (string, process.Env, []string, error) {
+func (fetcher *DockerRepositoryFetcher) Fetch(logger lager.Logger, repoURL *url.URL, diskQuota int64) (string, process.Env, []string, error) {
 	errs := func(err error) (string, process.Env, []string, error) {
 		return "", nil, nil, err
 	}
 
-	fetchRequest, err := fetcher.requestCreator.CreateFetchRequest(logger, repoURL, tag, diskQuota)
+	fetchRequest, err := fetcher.requestCreator.CreateFetchRequest(logger, repoURL, diskQuota)
 	if err != nil {
 		return errs(err)
 	}

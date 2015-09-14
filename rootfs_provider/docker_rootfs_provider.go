@@ -48,12 +48,11 @@ func (provider *dockerRootFSProvider) Name() string {
 }
 
 func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id string, url *url.URL, shouldNamespace bool, quota int64) (string, process.Env, error) {
-	tag := "latest"
-	if len(url.Fragment) > 0 {
-		tag = url.Fragment
+	if len(url.Fragment) == 0 {
+		url.Fragment = "latest"
 	}
 
-	fetchedID, envvars, volumes, err := provider.repoFetcher.Fetch(logger, url, tag, quota)
+	fetchedID, envvars, volumes, err := provider.repoFetcher.Fetch(logger, url, quota)
 	if err != nil {
 		return "", nil, err
 	}

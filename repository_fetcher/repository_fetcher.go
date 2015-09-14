@@ -41,7 +41,7 @@ type RemoteFetcher interface {
 }
 
 type RepositoryFetcher interface {
-	Fetch(logger lager.Logger, url *url.URL, tag string, diskQuota int64) (string, process.Env, []string, error)
+	Fetch(logger lager.Logger, url *url.URL, diskQuota int64) (string, process.Env, []string, error)
 }
 
 type FetchRequest struct {

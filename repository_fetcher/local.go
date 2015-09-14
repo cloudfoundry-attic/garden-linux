@@ -28,13 +28,7 @@ type Local struct {
 	mu sync.RWMutex
 }
 
-func (l *Local) Fetch(
-	logger lager.Logger,
-	repoURL *url.URL,
-	tag string,
-	_ int64,
-) (string, process.Env, []string, error) {
-
+func (l *Local) Fetch(logger lager.Logger, repoURL *url.URL, _ int64) (string, process.Env, []string, error) {
 	path := repoURL.Path
 	if len(path) == 0 {
 		path = l.DefaultRootFSPath

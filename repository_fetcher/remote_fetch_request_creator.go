@@ -24,10 +24,10 @@ type RemoteFetchRequestCreator struct {
 	Pinger           Pinger
 }
 
-func (creator *RemoteFetchRequestCreator) CreateFetchRequest(logger lager.Logger, repoURL *url.URL, tag string, diskQuota int64) (*FetchRequest, error) {
+func (creator *RemoteFetchRequestCreator) CreateFetchRequest(logger lager.Logger, repoURL *url.URL, diskQuota int64) (*FetchRequest, error) {
 	fLog := logger.Session("fetch", lager.Data{
 		"repo": repoURL,
-		"tag":  tag,
+		"tag":  repoURL.Fragment,
 	})
 
 	fLog.Debug("fetching")
@@ -63,7 +63,7 @@ func (creator *RemoteFetchRequestCreator) CreateFetchRequest(logger lager.Logger
 		Logger:     fLog,
 		Path:       path,
 		RemotePath: remotePath,
-		Tag:        tag,
+		Tag:        repoURL.Fragment,
 		MaxSize:    diskQuota,
 	}, nil
 }

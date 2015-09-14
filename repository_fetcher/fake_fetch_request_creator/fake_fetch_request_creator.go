@@ -10,12 +10,11 @@ import (
 )
 
 type FakeFetchRequestCreator struct {
-	CreateFetchRequestStub        func(logger lager.Logger, repoURL *url.URL, tag string, diskQuota int64) (*repository_fetcher.FetchRequest, error)
+	CreateFetchRequestStub        func(logger lager.Logger, repoURL *url.URL, diskQuota int64) (*repository_fetcher.FetchRequest, error)
 	createFetchRequestMutex       sync.RWMutex
 	createFetchRequestArgsForCall []struct {
 		logger    lager.Logger
 		repoURL   *url.URL
-		tag       string
 		diskQuota int64
 	}
 	createFetchRequestReturns struct {
@@ -24,17 +23,16 @@ type FakeFetchRequestCreator struct {
 	}
 }
 
-func (fake *FakeFetchRequestCreator) CreateFetchRequest(logger lager.Logger, repoURL *url.URL, tag string, diskQuota int64) (*repository_fetcher.FetchRequest, error) {
+func (fake *FakeFetchRequestCreator) CreateFetchRequest(logger lager.Logger, repoURL *url.URL, diskQuota int64) (*repository_fetcher.FetchRequest, error) {
 	fake.createFetchRequestMutex.Lock()
 	fake.createFetchRequestArgsForCall = append(fake.createFetchRequestArgsForCall, struct {
 		logger    lager.Logger
 		repoURL   *url.URL
-		tag       string
 		diskQuota int64
-	}{logger, repoURL, tag, diskQuota})
+	}{logger, repoURL, diskQuota})
 	fake.createFetchRequestMutex.Unlock()
 	if fake.CreateFetchRequestStub != nil {
-		return fake.CreateFetchRequestStub(logger, repoURL, tag, diskQuota)
+		return fake.CreateFetchRequestStub(logger, repoURL, diskQuota)
 	} else {
 		return fake.createFetchRequestReturns.result1, fake.createFetchRequestReturns.result2
 	}
@@ -46,10 +44,10 @@ func (fake *FakeFetchRequestCreator) CreateFetchRequestCallCount() int {
 	return len(fake.createFetchRequestArgsForCall)
 }
 
-func (fake *FakeFetchRequestCreator) CreateFetchRequestArgsForCall(i int) (lager.Logger, *url.URL, string, int64) {
+func (fake *FakeFetchRequestCreator) CreateFetchRequestArgsForCall(i int) (lager.Logger, *url.URL, int64) {
 	fake.createFetchRequestMutex.RLock()
 	defer fake.createFetchRequestMutex.RUnlock()
-	return fake.createFetchRequestArgsForCall[i].logger, fake.createFetchRequestArgsForCall[i].repoURL, fake.createFetchRequestArgsForCall[i].tag, fake.createFetchRequestArgsForCall[i].diskQuota
+	return fake.createFetchRequestArgsForCall[i].logger, fake.createFetchRequestArgsForCall[i].repoURL, fake.createFetchRequestArgsForCall[i].diskQuota
 }
 
 func (fake *FakeFetchRequestCreator) CreateFetchRequestReturns(result1 *repository_fetcher.FetchRequest, result2 error) {
