@@ -5,7 +5,6 @@ import (
 	"net/url"
 
 	"github.com/docker/docker/registry"
-	"github.com/pivotal-golang/lager"
 	"github.com/pivotal-golang/lager/lagertest"
 
 	. "github.com/cloudfoundry-incubator/garden-linux/repository_fetcher"
@@ -48,7 +47,7 @@ var _ = Describe("RepositoryFetcher", func() {
 		returnedSession = &registry.Session{}
 		returnedEndpoint = &registry.Endpoint{Version: apiversion}
 
-		fakeRequestCreator.CreateFetchRequestStub = func(logger lager.Logger, repoURL *url.URL, diskQuota int64) (*FetchRequest, error) {
+		fakeRequestCreator.CreateFetchRequestStub = func(repoURL *url.URL, diskQuota int64) (*FetchRequest, error) {
 			return &FetchRequest{
 				Session:    returnedSession,
 				Endpoint:   returnedEndpoint,
@@ -69,8 +68,7 @@ var _ = Describe("RepositoryFetcher", func() {
 				fetcher.Fetch(logger, parsedURL, 0)
 
 				Expect(fakeRequestCreator.CreateFetchRequestCallCount()).To(Equal(1))
-				log, imageUrl, imageQuota := fakeRequestCreator.CreateFetchRequestArgsForCall(0)
-				Expect(log).To(Equal(logger))
+				imageUrl, imageQuota := fakeRequestCreator.CreateFetchRequestArgsForCall(0)
 				Expect(imageUrl).To(Equal(parsedURL))
 				Expect(imageQuota).To(Equal(int64(0)))
 			})

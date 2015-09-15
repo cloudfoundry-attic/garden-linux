@@ -22,10 +22,11 @@ func (EndpointPinger) Ping(e *registry.Endpoint) (registry.RegistryInfo, error) 
 type RemoteFetchRequestCreator struct {
 	RegistryProvider RegistryProvider
 	Pinger           Pinger
+	Logger           lager.Logger
 }
 
-func (creator *RemoteFetchRequestCreator) CreateFetchRequest(logger lager.Logger, repoURL *url.URL, diskQuota int64) (*FetchRequest, error) {
-	fLog := logger.Session("fetch", lager.Data{
+func (creator *RemoteFetchRequestCreator) CreateFetchRequest(repoURL *url.URL, diskQuota int64) (*FetchRequest, error) {
+	fLog := creator.Logger.Session("fetch", lager.Data{
 		"repo": repoURL,
 		"tag":  repoURL.Fragment,
 	})
@@ -41,12 +42,12 @@ func (creator *RemoteFetchRequestCreator) CreateFetchRequest(logger lager.Logger
 
 	r, endpoint, err := creator.RegistryProvider.ProvideRegistry(repoURL.Host)
 	if err != nil {
-		logger.Error("failed-to-construct-registry-endpoint", err)
+		creator.Logger.Error("failed-to-construct-registry-endpoint", err)
 		return nil, FetchError("RemoteFetchRequestCreator", repoURL.Host, path, err)
 	}
 
 	if regInfo, err := creator.Pinger.Ping(endpoint); err == nil {
-		logger.Debug("pinged-registry", lager.Data{
+		creator.Logger.Debug("pinged-registry", lager.Data{
 			"info":             regInfo,
 			"endpoint-version": endpoint.Version,
 		})

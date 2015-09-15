@@ -19,7 +19,7 @@ type VersionedFetcher interface {
 
 //go:generate counterfeiter -o fake_fetch_request_creator/fake_fetch_request_creator.go . FetchRequestCreator
 type FetchRequestCreator interface {
-	CreateFetchRequest(logger lager.Logger, repoURL *url.URL, diskQuota int64) (*FetchRequest, error)
+	CreateFetchRequest(repoURL *url.URL, diskQuota int64) (*FetchRequest, error)
 }
 
 type DockerRepositoryFetcher struct {
@@ -75,7 +75,7 @@ func (fetcher *DockerRepositoryFetcher) Fetch(logger lager.Logger, repoURL *url.
 		return "", nil, nil, err
 	}
 
-	fetchRequest, err := fetcher.requestCreator.CreateFetchRequest(logger, repoURL, diskQuota)
+	fetchRequest, err := fetcher.requestCreator.CreateFetchRequest(repoURL, diskQuota)
 	if err != nil {
 		return errs(err)
 	}
