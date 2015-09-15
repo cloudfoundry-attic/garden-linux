@@ -4,7 +4,10 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
+	"os/exec"
 	"path"
+	"strconv"
+	"strings"
 	"syscall"
 
 	linkpkg "github.com/cloudfoundry-incubator/garden-linux/iodaemon/link"
@@ -107,6 +110,26 @@ var _ = Describe("Link", func() {
 				stderrW.Write([]byte("Hello stderr banana"))
 				Eventually(stderr).Should(gbytes.Say("Hello stderr banana"))
 			})
+
+			It("should set close on exec for all new file descriptors", func() {
+				initialNumFdsWithoutCloseOnExec := numFdsWithoutCloseOnExec()
+				_, err := linkpkg.Create(unixSockerPath, stdout, stderr)
+				Expect(err).ToNot(HaveOccurred())
+
+				finalNumFdsWithoutCloseOnExec := numFdsWithoutCloseOnExec()
+				Expect(finalNumFdsWithoutCloseOnExec).To(Equal(initialNumFdsWithoutCloseOnExec))
+			})
 		})
 	})
 })
+
+func numFdsWithoutCloseOnExec() int {
+	sleepCmd := exec.Command("sleep", "1")
+	Expect(sleepCmd.Start()).To(Succeed())
+	pid := sleepCmd.Process.Pid
+
+	out, err := exec.Command("lsof", "-p", strconv.Itoa(pid)).Output()
+	Expect(err).ToNot(HaveOccurred())
+
+	return strings.Count(string(out), "\n")
+}

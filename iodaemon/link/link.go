@@ -54,6 +54,10 @@ func Create(socketPath string, stdout io.Writer, stderr io.Writer) (*Link, error
 		return nil, fmt.Errorf("invalid number of fds; need 3, got %d", len(fds))
 	}
 
+	for _, fd := range fds {
+		syscall.CloseOnExec(fd)
+	}
+
 	lstdout := os.NewFile(uintptr(fds[0]), "stdout")
 	lstderr := os.NewFile(uintptr(fds[1]), "stderr")
 	lstatus := os.NewFile(uintptr(fds[2]), "status")
