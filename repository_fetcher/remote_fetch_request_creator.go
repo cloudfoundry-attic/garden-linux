@@ -26,6 +26,10 @@ type RemoteFetchRequestCreator struct {
 }
 
 func (creator *RemoteFetchRequestCreator) CreateFetchRequest(repoURL *url.URL, diskQuota int64) (*FetchRequest, error) {
+	if repoURL.Fragment == "" {
+		repoURL.Fragment = "latest"
+	}
+
 	fLog := creator.Logger.Session("fetch", lager.Data{
 		"repo": repoURL,
 		"tag":  repoURL.Fragment,

@@ -93,6 +93,15 @@ var _ = Describe("RemoteFetchRequestCreator", func() {
 			}, nil)
 		})
 
+		Context("and the tag is not provided", func() {
+			It("should use latest as tag", func() {
+				fetchRequest, err := creator.CreateFetchRequest(&url.URL{Path: "/somePath"}, 0)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(fetchRequest.Tag).To(Equal("latest"))
+			})
+		})
+
 		Context("when the endpoint is not standalone", func() {
 			BeforeEach(func() {
 				isStandalone = false
