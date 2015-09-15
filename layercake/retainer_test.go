@@ -1,10 +1,7 @@
 package layercake_test
 
 import (
-	"errors"
-
 	"github.com/cloudfoundry-incubator/garden-linux/layercake"
-	"github.com/cloudfoundry-incubator/garden-linux/layercake/fake_id_provider"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -62,36 +59,6 @@ var _ = Describe("retainer", func() {
 					Expect(retainer.IsHeld(id)).To(BeTrue())
 				})
 			})
-		})
-	})
-
-	Describe("RetainByImagePath", func() {
-		var idProvider *fake_id_provider.FakeIDProvider
-
-		BeforeEach(func() {
-			idProvider = new(fake_id_provider.FakeIDProvider)
-			idProvider.ProvideIDReturns(layercake.DockerImageID("ABCDE"), nil)
-		})
-
-		It("retains the id of the image", func() {
-			retainer.RetainByImagePath(idProvider, "some-path")
-			Expect(retainer.IsHeld(layercake.DockerImageID("ABCDE"))).To(Equal(true))
-		})
-
-		Context("when the IDProvider fails", func() {
-			BeforeEach(func() {
-				idProvider.ProvideIDReturns(layercake.DockerImageID("ABCDE"), errors.New("IDProvider fails"))
-			})
-
-			It("does not retain the id of the image", func() {
-				retainer.RetainByImagePath(idProvider, "some-path")
-				Expect(retainer.IsHeld(layercake.DockerImageID("ABCDE"))).To(Equal(false))
-			})
-
-			It("returns an error", func() {
-				Expect(retainer.RetainByImagePath(idProvider, "some-path")).ToNot(Succeed())
-			})
-
 		})
 	})
 })

@@ -50,7 +50,7 @@ var _ = Describe("RemoteMetadata", func() {
 			BeforeEach(func() {
 				imagePath = "/my/local/path"
 				imageID = &layercake.LocalImageID{Path: "id-1", ModifiedTime: time.Now()}
-				fakeProvider.ProvideIDReturns(imageID, nil)
+				fakeProvider.ProvideIDReturns(imageID)
 			})
 
 			It("returns image ID", func() {
@@ -77,7 +77,7 @@ var _ = Describe("RemoteMetadata", func() {
 				imageID = layercake.DockerImageID("docker-id-1")
 
 				dockerProvider = new(fake_container_id_provider.FakeContainerIDProvider)
-				dockerProvider.ProvideIDReturns(imageID, nil)
+				dockerProvider.ProvideIDReturns(imageID)
 
 				registeredProviders["docker"] = dockerProvider
 			})

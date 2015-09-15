@@ -315,26 +315,19 @@ func main() {
 		Logger: logger,
 	}
 
-	imageIdProvider := &repository_fetcher.ImageIDProvider{
-		Providers: map[string]repository_fetcher.ContainerIDProvider{
-			"": &repository_fetcher.LayerIDProvider{},
-			"docker": &repository_fetcher.RemoteIDProvider{
-				RequestCreator: requestCreator,
-				Providers: map[registry.APIVersion]repository_fetcher.RemoteImageIDProvider{
-					registry.APIVersion1: &repository_fetcher.ImageV1MetadataProvider{},
-					registry.APIVersion2: &repository_fetcher.ImageV2MetadataProvider{},
-				},
+	imageRetainer := &repository_fetcher.ImageRetainer{
+		GraphRetainer:             retainer,
+		DirectoryRootfsIDProvider: repository_fetcher.LayerIDProvider{},
+		DockerImageIDFetcher: &repository_fetcher.RemoteIDProvider{
+			RequestCreator: requestCreator,
+			Providers: map[registry.APIVersion]repository_fetcher.RemoteImageIDProvider{
+				registry.APIVersion1: &repository_fetcher.ImageV1MetadataProvider{},
+				registry.APIVersion2: &repository_fetcher.ImageV2MetadataProvider{},
 			},
 		},
 	}
 
-	paths := strings.Split(*persistentImageList, ",")
-	for _, path := range paths {
-		err := retainer.RetainByImagePath(imageIdProvider, path)
-		if err != nil {
-			logger.Error("failed-to-convert-persistent-path-to-id", err)
-		}
-	}
+	imageRetainer.Retain(strings.Split(*persistentImageList, ","))
 
 	lock := repository_fetcher.NewFetchLock()
 	repoFetcher := repository_fetcher.Retryable{

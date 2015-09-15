@@ -13,29 +13,12 @@ type RemoteImageIDProvider interface {
 	ProvideImageID(request *FetchRequest) (layercake.ID, error)
 }
 
-type ImageIDProvider struct {
-	Providers map[string]ContainerIDProvider
-}
-
-func (provider *ImageIDProvider) ProvideID(path string) (layercake.ID, error) {
-	rootfsURL, err := url.Parse(path)
-	if err != nil {
-		return nil, err
-	}
-
-	containerProvider, ok := provider.Providers[rootfsURL.Scheme]
-	if !ok {
-		return nil, fmt.Errorf("IDProvider could not be found for %s", path)
-	}
-	return containerProvider.ProvideID(path)
-}
-
 type RemoteIDProvider struct {
 	RequestCreator FetchRequestCreator
 	Providers      map[registry.APIVersion]RemoteImageIDProvider
 }
 
-func (provider *RemoteIDProvider) ProvideID(rawURL string) (layercake.ID, error) {
+func (provider *RemoteIDProvider) FetchID(rawURL string) (layercake.ID, error) {
 	rootfsURL, err := url.Parse(rawURL)
 	if err != nil {
 		return nil, err

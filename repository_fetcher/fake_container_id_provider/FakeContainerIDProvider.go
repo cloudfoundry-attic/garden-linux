@@ -9,18 +9,17 @@ import (
 )
 
 type FakeContainerIDProvider struct {
-	ProvideIDStub        func(path string) (layercake.ID, error)
+	ProvideIDStub        func(path string) layercake.ID
 	provideIDMutex       sync.RWMutex
 	provideIDArgsForCall []struct {
 		path string
 	}
 	provideIDReturns struct {
 		result1 layercake.ID
-		result2 error
 	}
 }
 
-func (fake *FakeContainerIDProvider) ProvideID(path string) (layercake.ID, error) {
+func (fake *FakeContainerIDProvider) ProvideID(path string) layercake.ID {
 	fake.provideIDMutex.Lock()
 	fake.provideIDArgsForCall = append(fake.provideIDArgsForCall, struct {
 		path string
@@ -29,7 +28,7 @@ func (fake *FakeContainerIDProvider) ProvideID(path string) (layercake.ID, error
 	if fake.ProvideIDStub != nil {
 		return fake.ProvideIDStub(path)
 	} else {
-		return fake.provideIDReturns.result1, fake.provideIDReturns.result2
+		return fake.provideIDReturns.result1
 	}
 }
 
@@ -45,12 +44,11 @@ func (fake *FakeContainerIDProvider) ProvideIDArgsForCall(i int) string {
 	return fake.provideIDArgsForCall[i].path
 }
 
-func (fake *FakeContainerIDProvider) ProvideIDReturns(result1 layercake.ID, result2 error) {
+func (fake *FakeContainerIDProvider) ProvideIDReturns(result1 layercake.ID) {
 	fake.ProvideIDStub = nil
 	fake.provideIDReturns = struct {
 		result1 layercake.ID
-		result2 error
-	}{result1, result2}
+	}{result1}
 }
 
 var _ repository_fetcher.ContainerIDProvider = new(FakeContainerIDProvider)

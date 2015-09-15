@@ -17,7 +17,7 @@ import (
 
 //go:generate counterfeiter -o fake_container_id_provider/FakeContainerIDProvider.go . ContainerIDProvider
 type ContainerIDProvider interface {
-	ProvideID(path string) (layercake.ID, error)
+	ProvideID(path string) layercake.ID
 }
 
 type Local struct {
@@ -48,10 +48,7 @@ func (l *Local) fetch(path string) (string, error) {
 		return "", err
 	}
 
-	id, err := l.IDProvider.ProvideID(path)
-	if err != nil {
-		return "", err
-	}
+	id := l.IDProvider.ProvideID(path)
 
 	// synchronize all downloads, we could optimize by only mutexing around each
 	// particular rootfs path, but in practice importing local rootfses is decently fast,
@@ -93,11 +90,11 @@ func resolve(path string) (string, error) {
 type LayerIDProvider struct {
 }
 
-func (LayerIDProvider) ProvideID(id string) (layercake.ID, error) {
+func (LayerIDProvider) ProvideID(id string) layercake.ID {
 	info, err := os.Lstat(id)
 	if err != nil {
-		return layercake.LocalImageID{id, time.Time{}}, nil
+		return layercake.LocalImageID{id, time.Time{}}
 	}
 
-	return layercake.LocalImageID{id, info.ModTime()}, nil
+	return layercake.LocalImageID{id, info.ModTime()}
 }
