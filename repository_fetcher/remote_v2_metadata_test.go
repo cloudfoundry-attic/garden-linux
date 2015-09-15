@@ -3,6 +3,7 @@ package repository_fetcher_test
 import (
 	"net/http"
 
+	"github.com/cloudfoundry-incubator/garden-linux/layercake"
 	. "github.com/cloudfoundry-incubator/garden-linux/repository_fetcher"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -83,7 +84,7 @@ var _ = Describe("RemoteV2Metadata", func() {
 			It("returns image ID", func() {
 				imgID, err := provider.ProvideImageID(fetchRequest)
 				Expect(err).NotTo(HaveOccurred())
-				Expect(imgID).To(Equal("banana-pie-2"))
+				Expect(imgID).To(Equal(layercake.DockerImageID("banana-pie-2")))
 			})
 		})
 

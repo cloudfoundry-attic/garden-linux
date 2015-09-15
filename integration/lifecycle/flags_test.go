@@ -2,8 +2,11 @@ package lifecycle_test
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"path"
 
+	"github.com/cloudfoundry-incubator/garden"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -84,6 +87,85 @@ var _ = Describe("Garden startup flags", func() {
 
 			_, err = http.Get(fmt.Sprintf("http://%s/log-level -X PUT -d fatal", debugAddr))
 			Expect(err).ToNot(HaveOccurred())
+		})
+	})
+
+	Describe("--persistentImageList", func() {
+		var layersPath string
+
+		Context("when set", func() {
+			BeforeEach(func() {
+				client = startGarden("--persistentImageList", "docker:///busybox,docker:///ubuntu,docker://banana/bananatest")
+				layersPath = path.Join(client.GraphPath, "btrfs", "subvolumes")
+			})
+
+			Context("and destroying a container that uses a rootfs from the whitelist", func() {
+				var imageLayersAmt int
+
+				BeforeEach(func() {
+					container, err := client.Create(garden.ContainerSpec{
+						RootFSPath: "docker:///busybox",
+						Privileged: true, // avoid having the @namespaced layer
+					})
+					Expect(err).ToNot(HaveOccurred())
+
+					files, err := ioutil.ReadDir(layersPath)
+					Expect(err).ToNot(HaveOccurred())
+					imageLayersAmt = len(files) - 1
+
+					Expect(client.Destroy(container.Handle())).To(Succeed())
+				})
+
+				It("keeps the rootfs", func() {
+					files, err := ioutil.ReadDir(layersPath)
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(files).To(HaveLen(imageLayersAmt))
+				})
+			})
+
+			Context("and destroying a container that uses a rootfs that is not in the whitelist", func() {
+				BeforeEach(func() {
+					container, err := client.Create(garden.ContainerSpec{
+						RootFSPath: "docker:///cloudfoundry/garden-busybox",
+					})
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(client.Destroy(container.Handle())).To(Succeed())
+				})
+
+				It("deletes the rootfs", func() {
+					files, err := ioutil.ReadDir(layersPath)
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(files).To(HaveLen(0))
+				})
+			})
+		})
+
+		Context("when it is not set", func() {
+			BeforeEach(func() {
+				client = startGarden()
+				layersPath = path.Join(client.GraphPath, "btrfs", "subvolumes")
+			})
+
+			Context("and destroying a container", func() {
+				BeforeEach(func() {
+					container, err := client.Create(garden.ContainerSpec{
+						RootFSPath: "docker:///busybox",
+					})
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(client.Destroy(container.Handle())).To(Succeed())
+				})
+
+				It("deletes the rootfs", func() {
+					files, err := ioutil.ReadDir(layersPath)
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(files).To(HaveLen(0))
+				})
+			})
 		})
 	})
 })

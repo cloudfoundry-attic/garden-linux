@@ -2,10 +2,16 @@ package layercake
 
 import "sync"
 
+//go:generate counterfeiter -o fake_id_provider/fake_id_provider.go . IDProvider
+type IDProvider interface {
+	ProvideID(path string) (ID, error)
+}
+
 //go:generate counterfeiter -o fake_retainer/fake_retainer.go . Retainer
 type Retainer interface {
 	Retain(id ID)
 	Release(id ID)
+	RetainByImagePath(idProvider IDProvider, path string) error
 	IsHeld(id ID) bool
 }
 
@@ -25,6 +31,16 @@ func (r *retainer) Retain(id ID) {
 	defer r.mu.Unlock()
 
 	r.images[id.GraphID()]++
+}
+
+func (r *retainer) RetainByImagePath(idProvider IDProvider, path string) error {
+	id, err := idProvider.ProvideID(path)
+	if err != nil {
+		return err
+	}
+
+	r.Retain(id)
+	return nil
 }
 
 func (r *retainer) Release(id ID) {

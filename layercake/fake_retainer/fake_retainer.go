@@ -18,6 +18,15 @@ type FakeRetainer struct {
 	releaseArgsForCall []struct {
 		id layercake.ID
 	}
+	RetainByImagePathStub        func(idProvider layercake.IDProvider, path string) error
+	retainByImagePathMutex       sync.RWMutex
+	retainByImagePathArgsForCall []struct {
+		idProvider layercake.IDProvider
+		path       string
+	}
+	retainByImagePathReturns struct {
+		result1 error
+	}
 	IsHeldStub        func(id layercake.ID) bool
 	isHeldMutex       sync.RWMutex
 	isHeldArgsForCall []struct {
@@ -72,6 +81,39 @@ func (fake *FakeRetainer) ReleaseArgsForCall(i int) layercake.ID {
 	fake.releaseMutex.RLock()
 	defer fake.releaseMutex.RUnlock()
 	return fake.releaseArgsForCall[i].id
+}
+
+func (fake *FakeRetainer) RetainByImagePath(idProvider layercake.IDProvider, path string) error {
+	fake.retainByImagePathMutex.Lock()
+	fake.retainByImagePathArgsForCall = append(fake.retainByImagePathArgsForCall, struct {
+		idProvider layercake.IDProvider
+		path       string
+	}{idProvider, path})
+	fake.retainByImagePathMutex.Unlock()
+	if fake.RetainByImagePathStub != nil {
+		return fake.RetainByImagePathStub(idProvider, path)
+	} else {
+		return fake.retainByImagePathReturns.result1
+	}
+}
+
+func (fake *FakeRetainer) RetainByImagePathCallCount() int {
+	fake.retainByImagePathMutex.RLock()
+	defer fake.retainByImagePathMutex.RUnlock()
+	return len(fake.retainByImagePathArgsForCall)
+}
+
+func (fake *FakeRetainer) RetainByImagePathArgsForCall(i int) (layercake.IDProvider, string) {
+	fake.retainByImagePathMutex.RLock()
+	defer fake.retainByImagePathMutex.RUnlock()
+	return fake.retainByImagePathArgsForCall[i].idProvider, fake.retainByImagePathArgsForCall[i].path
+}
+
+func (fake *FakeRetainer) RetainByImagePathReturns(result1 error) {
+	fake.RetainByImagePathStub = nil
+	fake.retainByImagePathReturns = struct {
+		result1 error
+	}{result1}
 }
 
 func (fake *FakeRetainer) IsHeld(id layercake.ID) bool {

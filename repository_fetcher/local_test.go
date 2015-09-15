@@ -51,30 +51,39 @@ var _ = Describe("LayerIDProvider", func() {
 	})
 
 	It("consistently returns the same ID when neither modification time nor path have changed", func() {
-		Expect(idp.ProvideID(path1)).To(Equal(idp.ProvideID(path1)))
+		id, err := idp.ProvideID(path1)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(idp.ProvideID(path1)).To(Equal(id))
 	})
 
 	It("returns a different ID if the path changes", func() {
-		Expect(idp.ProvideID(path1)).NotTo(Equal(idp.ProvideID(path2)))
+		id, err := idp.ProvideID(path2)
+		Expect(err).ToNot(HaveOccurred())
+		Expect(idp.ProvideID(path1)).NotTo(Equal(id))
 	})
 
 	It("returns a different ID if the modification time changes", func() {
-		beforeID := idp.ProvideID(path1)
+		beforeID, err := idp.ProvideID(path1)
+		Expect(err).ToNot(HaveOccurred())
 		Expect(os.Chtimes(path1, accessTime, modifiedTime.Add(time.Second*1))).To(Succeed())
 		Expect(idp.ProvideID(path1)).NotTo(Equal(beforeID))
 	})
 })
 
 var _ = Describe("Local", func() {
-	var fetcher *repository_fetcher.Local
-	var fakeCake *fake_cake.FakeCake
-	var defaultRootFSPath string
-	var logger lager.Logger
+	var (
+		fetcher           *repository_fetcher.Local
+		fakeCake          *fake_cake.FakeCake
+		defaultRootFSPath string
+		logger            lager.Logger
+		idProvider        UnderscoreIDer
+	)
 
 	BeforeEach(func() {
 		logger = lagertest.NewTestLogger("local")
 		fakeCake = new(fake_cake.FakeCake)
 		defaultRootFSPath = ""
+		idProvider = UnderscoreIDer{}
 
 		// default to not containing an image
 		fakeCake.GetReturns(nil, errors.New("no image"))
@@ -83,7 +92,7 @@ var _ = Describe("Local", func() {
 	JustBeforeEach(func() {
 		fetcher = &repository_fetcher.Local{
 			Cake:              fakeCake,
-			IDProvider:        UnderscoreIDer{},
+			IDProvider:        idProvider,
 			DefaultRootFSPath: defaultRootFSPath,
 		}
 	})
@@ -237,7 +246,7 @@ var _ = Describe("Local", func() {
 		})
 
 		Context("when the path does not exist", func() {
-			It("returns a reasonable error", func() {
+			It("returns an error", func() {
 				_, _, _, err := fetcher.Fetch(logger, &url.URL{Path: "does-not-exist"}, 0)
 				Expect(err).To(HaveOccurred())
 			})
@@ -247,11 +256,28 @@ var _ = Describe("Local", func() {
 				Expect(fakeCake.RegisterCallCount()).To(Equal(0))
 			})
 		})
+
+		Context("when the id provider fails", func() {
+			BeforeEach(func() {
+				idProvider.Error = errors.New("this is an error")
+			})
+
+			It("returns an error", func() {
+				_, _, _, err := fetcher.Fetch(logger, &url.URL{Path: "some-path"}, 0)
+				Expect(err).To(HaveOccurred())
+			})
+		})
 	})
 })
 
-type UnderscoreIDer struct{}
+type UnderscoreIDer struct {
+	Error error
+}
 
-func (UnderscoreIDer) ProvideID(path string) layercake.ID {
-	return layercake.DockerImageID(strings.Replace(path, "/", "_", -1))
+func (u UnderscoreIDer) ProvideID(path string) (layercake.ID, error) {
+	if u.Error != nil {
+		return nil, u.Error
+	}
+
+	return layercake.DockerImageID(strings.Replace(path, "/", "_", -1)), nil
 }

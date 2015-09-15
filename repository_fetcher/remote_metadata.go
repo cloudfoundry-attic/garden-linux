@@ -27,7 +27,7 @@ func (provider *ImageIDProvider) ProvideID(path string) (layercake.ID, error) {
 	if !ok {
 		return nil, fmt.Errorf("IDProvider could not be found for %s", path)
 	}
-	return containerProvider.ProvideID(path), nil
+	return containerProvider.ProvideID(path)
 }
 
 type RemoteIDProvider struct {

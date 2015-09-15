@@ -3,6 +3,7 @@ package repository_fetcher
 import (
 	"encoding/json"
 
+	"github.com/cloudfoundry-incubator/garden-linux/layercake"
 	"github.com/docker/distribution/digest"
 	"github.com/docker/docker/image"
 	"github.com/docker/docker/registry"
@@ -11,12 +12,12 @@ import (
 
 type ImageV2MetadataProvider struct{}
 
-func (provider *ImageV2MetadataProvider) ProvideImageID(request *FetchRequest) (string, error) {
+func (provider *ImageV2MetadataProvider) ProvideImageID(request *FetchRequest) (layercake.ID, error) {
 	metadata, err := provider.ProvideMetadata(request)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-	return metadata.Images[0].ID, nil
+	return layercake.DockerImageID(metadata.Images[0].ID), nil
 }
 
 func (provider *ImageV2MetadataProvider) ProvideMetadata(request *FetchRequest) (*ImageV2Metadata, error) {
