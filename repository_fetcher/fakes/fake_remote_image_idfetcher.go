@@ -2,6 +2,7 @@
 package fakes
 
 import (
+	"net/url"
 	"sync"
 
 	"github.com/cloudfoundry-incubator/garden-linux/layercake"
@@ -9,10 +10,10 @@ import (
 )
 
 type FakeRemoteImageIDFetcher struct {
-	FetchIDStub        func(url string) (layercake.ID, error)
+	FetchIDStub        func(u *url.URL) (layercake.ID, error)
 	fetchIDMutex       sync.RWMutex
 	fetchIDArgsForCall []struct {
-		url string
+		u *url.URL
 	}
 	fetchIDReturns struct {
 		result1 layercake.ID
@@ -20,14 +21,14 @@ type FakeRemoteImageIDFetcher struct {
 	}
 }
 
-func (fake *FakeRemoteImageIDFetcher) FetchID(url string) (layercake.ID, error) {
+func (fake *FakeRemoteImageIDFetcher) FetchID(u *url.URL) (layercake.ID, error) {
 	fake.fetchIDMutex.Lock()
 	fake.fetchIDArgsForCall = append(fake.fetchIDArgsForCall, struct {
-		url string
-	}{url})
+		u *url.URL
+	}{u})
 	fake.fetchIDMutex.Unlock()
 	if fake.FetchIDStub != nil {
-		return fake.FetchIDStub(url)
+		return fake.FetchIDStub(u)
 	} else {
 		return fake.fetchIDReturns.result1, fake.fetchIDReturns.result2
 	}
@@ -39,10 +40,10 @@ func (fake *FakeRemoteImageIDFetcher) FetchIDCallCount() int {
 	return len(fake.fetchIDArgsForCall)
 }
 
-func (fake *FakeRemoteImageIDFetcher) FetchIDArgsForCall(i int) string {
+func (fake *FakeRemoteImageIDFetcher) FetchIDArgsForCall(i int) *url.URL {
 	fake.fetchIDMutex.RLock()
 	defer fake.fetchIDMutex.RUnlock()
-	return fake.fetchIDArgsForCall[i].url
+	return fake.fetchIDArgsForCall[i].u
 }
 
 func (fake *FakeRemoteImageIDFetcher) FetchIDReturns(result1 layercake.ID, result2 error) {

@@ -9,10 +9,8 @@ import (
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden-linux/layercake"
-	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/docker/docker/image"
 	"github.com/docker/docker/pkg/archive"
-	"github.com/pivotal-golang/lager"
 )
 
 //go:generate counterfeiter -o fake_container_id_provider/FakeContainerIDProvider.go . ContainerIDProvider
@@ -22,24 +20,28 @@ type ContainerIDProvider interface {
 
 type Local struct {
 	Cake              layercake.Cake
+	Retainer          layercake.Retainer
 	DefaultRootFSPath string
 	IDProvider        ContainerIDProvider
 
 	mu sync.RWMutex
 }
 
-func (l *Local) Fetch(logger lager.Logger, repoURL *url.URL, _ int64) (string, process.Env, []string, error) {
+func (l *Local) Fetch(repoURL *url.URL, _ int64) (*Image, error) {
 	path := repoURL.Path
 	if len(path) == 0 {
 		path = l.DefaultRootFSPath
 	}
 
 	if len(path) == 0 {
-		return "", nil, nil, errors.New("RootFSPath: is a required parameter, since no default rootfs was provided to the server. To provide a default rootfs, use the --rootfs flag on startup.")
+		return nil, errors.New("RootFSPath: is a required parameter, since no default rootfs was provided to the server. To provide a default rootfs, use the --rootfs flag on startup.")
 	}
 
 	id, err := l.fetch(path)
-	return id, nil, nil, err
+	return &Image{
+		ImageID:  id,
+		LayerIDs: []string{id},
+	}, err
 }
 
 func (l *Local) fetch(path string) (string, error) {
@@ -65,6 +67,8 @@ func (l *Local) fetch(path string) (string, error) {
 		return "", fmt.Errorf("repository_fetcher: fetch local rootfs: untar rootfs: %v", err)
 	}
 	defer tar.Close()
+
+	l.Retainer.Retain(id)
 
 	if err := l.Cake.Register(&image.Image{ID: id.GraphID()}, tar); err != nil {
 		return "", fmt.Errorf("repository_fetcher: fetch local rootfs: register rootfs: %v", err)

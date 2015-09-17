@@ -37,11 +37,11 @@ type Registry interface {
 }
 
 type RemoteFetcher interface {
-	Fetch(request *FetchRequest) (*FetchResponse, error)
+	Fetch(request *FetchRequest) (*Image, error)
 }
 
 type RepositoryFetcher interface {
-	Fetch(logger lager.Logger, url *url.URL, diskQuota int64) (string, process.Env, []string, error)
+	Fetch(url *url.URL, diskQuota int64) (*Image, error)
 }
 
 type FetchRequest struct {
@@ -54,10 +54,11 @@ type FetchRequest struct {
 	MaxSize    int64
 }
 
-type FetchResponse struct {
-	ImageID string
-	Env     process.Env
-	Volumes []string
+type Image struct {
+	ImageID  string
+	Env      process.Env
+	Volumes  []string
+	LayerIDs []string
 }
 
 var ErrInvalidDockerURL = errors.New("invalid docker url")

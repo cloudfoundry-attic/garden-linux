@@ -49,10 +49,9 @@ var _ = Describe("RemoteV1", func() {
 
 		retainer = new(fake_retainer.FakeRetainer)
 		fetcher = &RemoteV1Fetcher{
-			Cake:             cake,
-			MetadataProvider: &ImageV1MetadataProvider{},
-			Retainer:         retainer,
-			GraphLock:        lock,
+			Cake:      cake,
+			Retainer:  retainer,
+			GraphLock: lock,
 		}
 
 		cake.GetReturns(&image.Image{}, nil)
@@ -77,24 +76,16 @@ var _ = Describe("RemoteV1", func() {
 			fetcher.Fetch(fetchRequest)
 		})
 
-		It("releases all the layers after fetching", func() {
+		It("returns the layer ids", func() {
 			setupSuccessfulFetch(endpoint1Server)
 
-			released := make(map[layercake.ID]bool)
-			retainer.ReleaseStub = func(id layercake.ID) {
-				released[id] = true
-			}
-
-			cake.GetStub = func(id layercake.ID) (*image.Image, error) {
-				Expect(released).To(BeEmpty())
-				return nil, errors.New("no layer")
-			}
-
-			fetcher.Fetch(fetchRequest)
-
-			Expect(released).To(HaveKey(layercake.DockerImageID("layer-1")))
-			Expect(released).To(HaveKey(layercake.DockerImageID("layer-2")))
-			Expect(released).To(HaveKey(layercake.DockerImageID("layer-3")))
+			response, err := fetcher.Fetch(fetchRequest)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(response.LayerIDs).To(ConsistOf(
+				"layer-1",
+				"layer-2",
+				"layer-3",
+			))
 		})
 
 		Context("when none of the layers already exist", func() {

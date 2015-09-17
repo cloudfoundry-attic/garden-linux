@@ -306,49 +306,39 @@ func main() {
 		Logger:   logger.Session("oven-cleaner"),
 	}
 
-	requestCreator := &repository_fetcher.RemoteFetchRequestCreator{
-		RegistryProvider: repository_fetcher.NewRepositoryProvider(
-			*dockerRegistry,
-			strings.Split(*insecureRegistries, ","),
-		),
-		Pinger: repository_fetcher.EndpointPinger{},
-		Logger: logger,
+	lock := repository_fetcher.NewFetchLock()
+	fetchers := map[registry.APIVersion]repository_fetcher.VersionedFetcher{
+		registry.APIVersion1: &repository_fetcher.RemoteV1Fetcher{
+			Cake:      cake,
+			Retainer:  retainer,
+			GraphLock: lock,
+		},
+		registry.APIVersion2: &repository_fetcher.RemoteV2Fetcher{
+			Cake:      cake,
+			Retainer:  retainer,
+			GraphLock: lock,
+		},
+	}
+
+	repoFetcher := &repository_fetcher.CompositeFetcher{
+		Fetchers: fetchers,
+		RequestCreator: &repository_fetcher.RemoteFetchRequestCreator{
+			RegistryProvider: repository_fetcher.NewRepositoryProvider(
+				*dockerRegistry,
+				strings.Split(*insecureRegistries, ","),
+			),
+			Pinger: repository_fetcher.EndpointPinger{},
+			Logger: logger.Session("remote-fetch-request-creator"),
+		},
 	}
 
 	imageRetainer := &repository_fetcher.ImageRetainer{
 		GraphRetainer:             retainer,
 		DirectoryRootfsIDProvider: repository_fetcher.LayerIDProvider{},
-		DockerImageIDFetcher: &repository_fetcher.RemoteIDProvider{
-			RequestCreator: requestCreator,
-			Providers: map[registry.APIVersion]repository_fetcher.RemoteImageIDProvider{
-				registry.APIVersion1: &repository_fetcher.ImageV1MetadataProvider{},
-				registry.APIVersion2: &repository_fetcher.ImageV2MetadataProvider{},
-			},
-		},
+		DockerImageIDFetcher:      repoFetcher,
 	}
 
 	imageRetainer.Retain(strings.Split(*persistentImageList, ","))
-
-	lock := repository_fetcher.NewFetchLock()
-	repoFetcher := repository_fetcher.Retryable{
-		repository_fetcher.NewRemote(
-			requestCreator,
-			map[registry.APIVersion]repository_fetcher.VersionedFetcher{
-				registry.APIVersion1: &repository_fetcher.RemoteV1Fetcher{
-					Cake:             cake,
-					Retainer:         retainer,
-					MetadataProvider: &repository_fetcher.ImageV1MetadataProvider{},
-					GraphLock:        lock,
-				},
-				registry.APIVersion2: &repository_fetcher.RemoteV2Fetcher{
-					Cake:             cake,
-					Retainer:         retainer,
-					MetadataProvider: &repository_fetcher.ImageV2MetadataProvider{},
-					GraphLock:        lock,
-				},
-			},
-		),
-	}
 
 	maxId := sysinfo.Min(sysinfo.MustGetMaxValidUID(), sysinfo.MustGetMaxValidGID())
 	mappingList := rootfs_provider.MappingList{
@@ -373,7 +363,7 @@ func main() {
 	}
 
 	remoteRootFSProvider, err := rootfs_provider.NewDocker(fmt.Sprintf("docker-remote-%s", cake.DriverName()),
-		repoFetcher, cake, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock())
+		&repository_fetcher.Retryable{Logger: logger.Session("retryable-fetcher"), RepositoryFetcher: repoFetcher}, cake, retainer, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock())
 	if err != nil {
 		logger.Fatal("failed-to-construct-docker-rootfs-provider", err)
 	}
@@ -383,7 +373,8 @@ func main() {
 			Cake:              cake,
 			DefaultRootFSPath: *rootFSPath,
 			IDProvider:        repository_fetcher.LayerIDProvider{},
-		}, cake, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock())
+			Retainer:          retainer,
+		}, cake, retainer, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock())
 	if err != nil {
 		logger.Fatal("failed-to-construct-warden-rootfs-provider", err)
 	}

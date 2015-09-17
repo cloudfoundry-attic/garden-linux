@@ -4,17 +4,17 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
-	"sync"
 
 	"github.com/cloudfoundry-incubator/garden"
+	"github.com/cloudfoundry-incubator/garden-linux/layercake"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/docker/docker/registry"
-	"github.com/pivotal-golang/lager"
 )
 
 //go:generate counterfeiter -o fake_versioned_fetcher/fake_versioned_fetcher.go . VersionedFetcher
 type VersionedFetcher interface {
-	Fetch(*FetchRequest) (*FetchResponse, error)
+	Fetch(*FetchRequest) (*Image, error)
+	FetchID(*FetchRequest) (layercake.ID, error)
 }
 
 //go:generate counterfeiter -o fake_fetch_request_creator/fake_fetch_request_creator.go . FetchRequestCreator
@@ -22,11 +22,37 @@ type FetchRequestCreator interface {
 	CreateFetchRequest(repoURL *url.URL, diskQuota int64) (*FetchRequest, error)
 }
 
-type DockerRepositoryFetcher struct {
-	requestCreator FetchRequestCreator
-	fetchers       map[registry.APIVersion]VersionedFetcher
-	fetchingLayers map[string]chan struct{}
-	fetchingMutex  *sync.Mutex
+type CompositeFetcher struct {
+	Fetchers       map[registry.APIVersion]VersionedFetcher
+	RequestCreator FetchRequestCreator
+}
+
+func (f *CompositeFetcher) Fetch(repoURL *url.URL, diskQuota int64) (*Image, error) {
+	req, err := f.RequestCreator.CreateFetchRequest(repoURL, diskQuota)
+	if err != nil {
+		return nil, err
+	}
+
+	fetcher, ok := f.Fetchers[req.Endpoint.Version]
+	if !ok {
+		return nil, errors.New("repository_fetcher: fetching and image: incompatible endpoint version")
+	}
+
+	return fetcher.Fetch(req)
+}
+
+func (f *CompositeFetcher) FetchID(repoURL *url.URL) (layercake.ID, error) {
+	req, err := f.RequestCreator.CreateFetchRequest(repoURL, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	fetcher, ok := f.Fetchers[req.Endpoint.Version]
+	if !ok {
+		return nil, errors.New("repository_fetcher: fetching and image id: incompatible endpoint version")
+	}
+
+	return fetcher.FetchID(req)
 }
 
 type dockerImage struct {
@@ -57,37 +83,6 @@ type dockerLayer struct {
 	size int64
 }
 
-func NewRemote(requestCreator FetchRequestCreator, fetchers map[registry.APIVersion]VersionedFetcher) RepositoryFetcher {
-	return &DockerRepositoryFetcher{
-		fetchers:       fetchers,
-		requestCreator: requestCreator,
-		fetchingLayers: map[string]chan struct{}{},
-		fetchingMutex:  new(sync.Mutex),
-	}
-}
-
 func FetchError(context, registry, reponame string, err error) error {
 	return garden.NewServiceUnavailableError(fmt.Sprintf("repository_fetcher: %s: could not fetch image %s from registry %s: %s", context, reponame, registry, err))
-}
-
-func (fetcher *DockerRepositoryFetcher) Fetch(logger lager.Logger, repoURL *url.URL, diskQuota int64) (string, process.Env, []string, error) {
-	errs := func(err error) (string, process.Env, []string, error) {
-		return "", nil, nil, err
-	}
-
-	fetchRequest, err := fetcher.requestCreator.CreateFetchRequest(repoURL, diskQuota)
-	if err != nil {
-		return errs(err)
-	}
-
-	if realFetcher, ok := fetcher.fetchers[fetchRequest.Endpoint.Version]; ok {
-		response, err := realFetcher.Fetch(fetchRequest)
-		if err != nil {
-			return errs(err)
-		}
-
-		return response.ImageID, response.Env, response.Volumes, nil
-	}
-
-	return errs(errors.New("unknown docker registry API version"))
 }

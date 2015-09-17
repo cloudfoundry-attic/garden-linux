@@ -5,13 +5,15 @@ import (
 	"sync"
 
 	"github.com/cloudfoundry-incubator/garden-linux/process"
-	"github.com/pivotal-golang/lager"
+	"github.com/cloudfoundry-incubator/garden-linux/repository_fetcher"
 )
 
 type FakeRepositoryFetcher struct {
-	fetched     []FetchSpec
-	FetchResult string
-	FetchError  error
+	fetched []FetchSpec
+
+	FetchResult   string
+	FetchError    error
+	FetchedLayers []string
 
 	mutex *sync.RWMutex
 }
@@ -27,9 +29,9 @@ func New() *FakeRepositoryFetcher {
 	}
 }
 
-func (fetcher *FakeRepositoryFetcher) Fetch(logger lager.Logger, imageUrl *url.URL, quota int64) (string, process.Env, []string, error) {
+func (fetcher *FakeRepositoryFetcher) Fetch(imageUrl *url.URL, quota int64) (*repository_fetcher.Image, error) {
 	if fetcher.FetchError != nil {
-		return "", nil, nil, fetcher.FetchError
+		return nil, fetcher.FetchError
 	}
 
 	fetcher.mutex.Lock()
@@ -37,7 +39,11 @@ func (fetcher *FakeRepositoryFetcher) Fetch(logger lager.Logger, imageUrl *url.U
 	fetcher.mutex.Unlock()
 	envvars := process.Env{"env1": "env1Value", "env2": "env2Value"}
 	volumes := []string{"/foo", "/bar"}
-	return fetcher.FetchResult, envvars, volumes, nil
+
+	id := fetcher.FetchResult
+	return &repository_fetcher.Image{
+		id, envvars, volumes, fetcher.FetchedLayers,
+	}, nil
 }
 
 func (fetcher *FakeRepositoryFetcher) Fetched() []FetchSpec {

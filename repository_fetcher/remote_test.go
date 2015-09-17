@@ -1,131 +1,107 @@
 package repository_fetcher_test
 
 import (
-	"errors"
 	"net/url"
-
-	"github.com/docker/docker/registry"
-	"github.com/pivotal-golang/lager/lagertest"
 
 	. "github.com/cloudfoundry-incubator/garden-linux/repository_fetcher"
 	"github.com/cloudfoundry-incubator/garden-linux/repository_fetcher/fake_fetch_request_creator"
 	"github.com/cloudfoundry-incubator/garden-linux/repository_fetcher/fake_versioned_fetcher"
+	"github.com/docker/docker/registry"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("RepositoryFetcher", func() {
+var _ = Describe("FetcherFactory", func() {
 	var (
-		fakeRequestCreator *fake_fetch_request_creator.FakeFetchRequestCreator
-		fetcher            RepositoryFetcher
-		logger             *lagertest.TestLogger
-
-		v1Fetcher *fake_versioned_fetcher.FakeVersionedFetcher
-		v2Fetcher *fake_versioned_fetcher.FakeVersionedFetcher
-
-		returnedSession  *registry.Session
-		returnedEndpoint *registry.Endpoint
-		apiversion       registry.APIVersion
+		fakeV1Fetcher, fakeV2Fetcher *fake_versioned_fetcher.FakeVersionedFetcher
+		fakeRequestCreator           *fake_fetch_request_creator.FakeFetchRequestCreator
+		factory                      *CompositeFetcher
+		req                          *FetchRequest
 	)
 
 	BeforeEach(func() {
+		fakeV1Fetcher = new(fake_versioned_fetcher.FakeVersionedFetcher)
+		fakeV2Fetcher = new(fake_versioned_fetcher.FakeVersionedFetcher)
 		fakeRequestCreator = new(fake_fetch_request_creator.FakeFetchRequestCreator)
-		v1Fetcher = new(fake_versioned_fetcher.FakeVersionedFetcher)
-		v1Fetcher.FetchReturns(&FetchResponse{ImageID: "some-image-id"}, nil)
 
-		v2Fetcher = new(fake_versioned_fetcher.FakeVersionedFetcher)
-		fetchers := map[registry.APIVersion]VersionedFetcher{
-			registry.APIVersion1: v1Fetcher,
-			registry.APIVersion2: v2Fetcher,
-		}
-
-		fetcher = NewRemote(fakeRequestCreator, fetchers)
-		logger = lagertest.NewTestLogger("test")
-	})
-
-	JustBeforeEach(func() {
-		returnedSession = &registry.Session{}
-		returnedEndpoint = &registry.Endpoint{Version: apiversion}
-
-		fakeRequestCreator.CreateFetchRequestStub = func(repoURL *url.URL, diskQuota int64) (*FetchRequest, error) {
-			return &FetchRequest{
-				Session:    returnedSession,
-				Endpoint:   returnedEndpoint,
-				Path:       repoURL.Path,
-				RemotePath: repoURL.Path,
-				Tag:        repoURL.Fragment,
-				MaxSize:    diskQuota,
-			}, nil
+		factory = &CompositeFetcher{
+			RequestCreator: fakeRequestCreator,
+			Fetchers: map[registry.APIVersion]VersionedFetcher{
+				registry.APIVersion1: fakeV1Fetcher,
+				registry.APIVersion2: fakeV2Fetcher,
+			},
 		}
 	})
 
-	Describe("Fetch", func() {
-		Describe("create a correct fetch request", func() {
-			It("creates a fetch request to the registry provider based on the host and port of the repo url", func() {
-				parsedURL, err := url.Parse("some-scheme://some-registry:4444/some-repo#some-tag")
-				Expect(err).ToNot(HaveOccurred())
+	Context("with a V1 endpoint", func() {
+		BeforeEach(func() {
+			req = &FetchRequest{
+				Endpoint: &registry.Endpoint{Version: registry.APIVersion1},
+			}
 
-				fetcher.Fetch(logger, parsedURL, 0)
-
-				Expect(fakeRequestCreator.CreateFetchRequestCallCount()).To(Equal(1))
-				imageUrl, imageQuota := fakeRequestCreator.CreateFetchRequestArgsForCall(0)
-				Expect(imageUrl).To(Equal(parsedURL))
-				Expect(imageQuota).To(Equal(int64(0)))
-			})
-
-			Context("when retrieving a session from the registry provider errors", func() {
-				JustBeforeEach(func() {
-					fakeRequestCreator.CreateFetchRequestReturns(nil, errors.New("oh no"))
-				})
-
-				It("returns the error, suitably wrapped", func() {
-					parsedURL, err := url.Parse("some-scheme://some-registry:4444/some-repo#some-tag")
-					Expect(err).ToNot(HaveOccurred())
-
-					_, _, _, err = fetcher.Fetch(logger, parsedURL, 0)
-					Expect(err).To(MatchError(ContainSubstring("oh no")))
-				})
-			})
+			fakeRequestCreator.CreateFetchRequestReturns(req, nil)
 		})
 
-		Describe("Fetching", func() {
-			Context("when the version is known", func() {
-				BeforeEach(func() {
-					apiversion = registry.APIVersion1
-				})
+		It("passes the arguments to the request creator", func() {
+			factory.Fetch(&url.URL{Path: "cake"}, 24)
+			Expect(fakeRequestCreator.CreateFetchRequestCallCount()).To(Equal(1))
 
-				It("uses the correct fetcher to fetch", func() {
-					imageID, _, _, _ := fetcher.Fetch(logger, &url.URL{Path: "/foo/somePath", Fragment: "someTag"}, 987)
-					Expect(imageID).To(Equal("some-image-id"))
+			url, quota := fakeRequestCreator.CreateFetchRequestArgsForCall(0)
+			Expect(url.Path).To(Equal("cake"))
+			Expect(quota).To(BeEquivalentTo(24))
+		})
 
-					Expect(v1Fetcher.FetchCallCount()).To(Equal(1))
+		It("uses a v1 image fetcher", func() {
+			factory.Fetch(&url.URL{}, 12)
+			Expect(fakeV1Fetcher.FetchCallCount()).To(Equal(1))
+			Expect(fakeV1Fetcher.FetchArgsForCall(0)).To(Equal(req))
+		})
 
-					fetchRequest := v1Fetcher.FetchArgsForCall(0)
+		It("uses a v1 image id fetcher", func() {
+			req := &FetchRequest{
+				Endpoint: &registry.Endpoint{Version: registry.APIVersion1},
+			}
 
-					Expect(fetchRequest.Path).To(Equal("/foo/somePath"))
-					Expect(fetchRequest.RemotePath).To(Equal("/foo/somePath"))
-					Expect(fetchRequest.Tag).To(Equal("someTag"))
-					Expect(fetchRequest.Session).To(Equal(returnedSession))
-					Expect(fetchRequest.Endpoint).To(Equal(returnedEndpoint))
-					Expect(fetchRequest.MaxSize).To(Equal(int64(987)))
-				})
+			factory.FetchID(&url.URL{})
+			Expect(fakeV1Fetcher.FetchIDCallCount()).To(Equal(1))
+			Expect(fakeV1Fetcher.FetchIDArgsForCall(0)).To(Equal(req))
+		})
+	})
 
-				It("does not call the other fetcher", func() {
-					fetcher.Fetch(logger, &url.URL{Path: "/foo/somePath"}, 0)
-					Expect(v2Fetcher.FetchCallCount()).To(Equal(0))
-				})
-			})
+	Context("with a V2 endpoint", func() {
+		BeforeEach(func() {
+			req = &FetchRequest{
+				Endpoint: &registry.Endpoint{Version: registry.APIVersion2},
+			}
 
-			Context("When the version is unknown", func() {
-				BeforeEach(func() {
-					apiversion = registry.APIVersion(42)
-				})
+			fakeRequestCreator.CreateFetchRequestReturns(req, nil)
+		})
 
-				It("totally throws an error", func() {
-					_, _, _, err := fetcher.Fetch(logger, &url.URL{Path: "/bar"}, 0)
-					Expect(err).To(MatchError("unknown docker registry API version"))
-				})
-			})
+		It("uses a v2 image fetcher", func() {
+			factory.Fetch(&url.URL{}, 12)
+			Expect(fakeV2Fetcher.FetchCallCount()).To(Equal(1))
+			Expect(fakeV2Fetcher.FetchArgsForCall(0)).To(Equal(req))
+		})
+	})
+
+	Context("with an unknown api version", func() {
+		BeforeEach(func() {
+			req = &FetchRequest{
+				Endpoint: &registry.Endpoint{Version: registry.APIVersionUnknown},
+			}
+
+			fakeRequestCreator.CreateFetchRequestReturns(req, nil)
+		})
+
+		It("returns an error while fetching an image", func() {
+			_, err := factory.Fetch(&url.URL{}, 12)
+			Expect(err).To(HaveOccurred())
+		})
+
+		It("returns an error while fecthing an image id", func() {
+			_, err := factory.FetchID(&url.URL{})
+			Expect(err).To(HaveOccurred())
 		})
 	})
 })

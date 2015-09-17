@@ -1,6 +1,7 @@
 package repository_fetcher_test
 
 import (
+	"net/url"
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden-linux/layercake"
@@ -30,8 +31,8 @@ var _ = Describe("ImageRetainer", func() {
 			return layercake.LocalImageID{id, time.Time{}}
 		}
 
-		fakeRemoteImageIDProvider.FetchIDStub = func(id string) (layercake.ID, error) {
-			return layercake.DockerImageID("/fetched/" + id), nil
+		fakeRemoteImageIDProvider.FetchIDStub = func(id *url.URL) (layercake.ID, error) {
+			return layercake.DockerImageID("/fetched/" + id.Path), nil
 		}
 
 		imageRetainer = &repository_fetcher.ImageRetainer{
@@ -60,7 +61,7 @@ var _ = Describe("ImageRetainer", func() {
 				})
 
 				Expect(fakeGraphRetainer.RetainCallCount()).To(Equal(1))
-				Expect(fakeGraphRetainer.RetainArgsForCall(0)).To(Equal(layercake.DockerImageID("/fetched/docker://foo/bar/baz")))
+				Expect(fakeGraphRetainer.RetainArgsForCall(0)).To(Equal(layercake.DockerImageID("/fetched//bar/baz")))
 			})
 		})
 	})

@@ -6,6 +6,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden-linux/layercake"
 	"github.com/cloudfoundry-incubator/garden-linux/layercake/fake_cake"
+	"github.com/cloudfoundry-incubator/garden-linux/layercake/fake_retainer"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/cloudfoundry-incubator/garden-linux/repository_fetcher/fake_repository_fetcher"
 	. "github.com/cloudfoundry-incubator/garden-linux/rootfs_provider"
@@ -35,9 +36,10 @@ func (f *FakeVolumeCreator) Create(path, v string) error {
 
 var _ = Describe("DockerRootFSProvider", func() {
 	var (
-		fakeRepositoryFetcher *fake_repository_fetcher.FakeRepositoryFetcher
 		fakeCake              *fake_cake.FakeCake
+		fakeRetainer          *fake_retainer.FakeRetainer
 		fakeNamespacer        *fake_namespacer.FakeNamespacer
+		fakeRepositoryFetcher *fake_repository_fetcher.FakeRepositoryFetcher
 		fakeVolumeCreator     *FakeVolumeCreator
 		fakeClock             *fakeclock.FakeClock
 		name                  string
@@ -50,6 +52,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 	BeforeEach(func() {
 		fakeRepositoryFetcher = fake_repository_fetcher.New()
 		fakeCake = new(fake_cake.FakeCake)
+		fakeRetainer = new(fake_retainer.FakeRetainer)
 		fakeVolumeCreator = &FakeVolumeCreator{}
 		fakeNamespacer = &fake_namespacer.FakeNamespacer{}
 		fakeClock = fakeclock.NewFakeClock(time.Now())
@@ -60,6 +63,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 			name,
 			fakeRepositoryFetcher,
 			fakeCake,
+			fakeRetainer,
 			fakeVolumeCreator,
 			fakeNamespacer,
 			fakeClock,
@@ -76,6 +80,29 @@ var _ = Describe("DockerRootFSProvider", func() {
 	})
 
 	Describe("ProvideRootFS", func() {
+		Describe("Retaining the image to avoid garbage collection", func() {
+			It("releases the fetched layers", func() {
+				fakeRepositoryFetcher.FetchedLayers = []string{"layer1", "layer2"}
+				_, _, err := provider.ProvideRootFS(logger, "some-id", parseURL("docker:///some-repository-name"), false, 0)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(fakeRetainer.ReleaseCallCount()).To(Equal(2))
+				Expect(fakeRetainer.ReleaseArgsForCall(1)).To(Equal(layercake.DockerImageID("layer1")))
+				Expect(fakeRetainer.ReleaseArgsForCall(0)).To(Equal(layercake.DockerImageID("layer2")))
+			})
+
+			It("does not release the fetched image until the rootfs is created (to avoid it being garbage collected)", func() {
+				fakeCake.CreateStub = func(containerID, parentImageID layercake.ID) error {
+					Expect(fakeRetainer.RetainCallCount()).To(Equal(0))
+					return nil
+				}
+
+				fakeRepositoryFetcher.FetchResult = "some-image-id"
+				_, _, err := provider.ProvideRootFS(logger, "some-id", parseURL("docker:///some-repository-name"), false, 0)
+				Expect(err).ToNot(HaveOccurred())
+			})
+		})
+
 		Context("when the namespace parameter is false", func() {
 			It("fetches it and creates a graph entry with it as the parent", func() {
 				fakeRepositoryFetcher.FetchResult = "some-image-id"
@@ -112,6 +139,31 @@ var _ = Describe("DockerRootFSProvider", func() {
 		})
 
 		Context("when the namespace parameter is true", func() {
+			It("retains the namespace layer before checking if it exists (to avoid it being garbage collected when we're going to use it)", func() {
+				fakeNamespacer.CacheKeyReturns("jam")
+				fakeRepositoryFetcher.FetchResult = "some-image-id"
+				fakeCake.GetStub = func(ID layercake.ID) (*image.Image, error) {
+					Expect(fakeRetainer.RetainCallCount()).To(Equal(1))
+					Expect(fakeRetainer.RetainArgsForCall(0)).To(Equal(layercake.NamespacedLayerID{"some-image-id", "jam"}))
+					return nil, nil
+				}
+
+				provider.ProvideRootFS(logger, "some-id", parseURL("docker:///some-repository-name"), true, 0)
+			})
+
+			It("releases the namespace layer, but only after the container is created", func() {
+				fakeCake.CreateStub = func(id, parentID layercake.ID) error {
+					Expect(fakeRetainer.ReleaseCallCount()).To(Equal(0))
+					return nil
+				}
+
+				fakeNamespacer.CacheKeyReturns("jam")
+				fakeRepositoryFetcher.FetchResult = "some-image-id"
+				provider.ProvideRootFS(logger, "some-id", parseURL("docker:///some-repository-name"), true, 0)
+				Expect(fakeRetainer.ReleaseCallCount()).To(Equal(1))
+				Expect(fakeRetainer.ReleaseArgsForCall(0)).To(Equal(layercake.NamespacedLayerID{"some-image-id", "jam"}))
+			})
+
 			Context("and the image has not been translated yet", func() {
 				BeforeEach(func() {
 					fakeCake.GetReturns(nil, errors.New("no image here"))

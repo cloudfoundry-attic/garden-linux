@@ -11,13 +11,12 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden-linux/layercake"
 	"github.com/cloudfoundry-incubator/garden-linux/layercake/fake_cake"
+	"github.com/cloudfoundry-incubator/garden-linux/layercake/fake_retainer"
 	"github.com/cloudfoundry-incubator/garden-linux/repository_fetcher"
 	"github.com/docker/docker/image"
 	"github.com/docker/docker/pkg/archive"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/pivotal-golang/lager"
-	"github.com/pivotal-golang/lager/lagertest"
 )
 
 var _ = Describe("LayerIDProvider", func() {
@@ -71,14 +70,14 @@ var _ = Describe("Local", func() {
 	var (
 		fetcher           *repository_fetcher.Local
 		fakeCake          *fake_cake.FakeCake
+		fakeRetainer      *fake_retainer.FakeRetainer
 		defaultRootFSPath string
-		logger            lager.Logger
 		idProvider        UnderscoreIDer
 	)
 
 	BeforeEach(func() {
-		logger = lagertest.NewTestLogger("local")
 		fakeCake = new(fake_cake.FakeCake)
+		fakeRetainer = new(fake_retainer.FakeRetainer)
 		defaultRootFSPath = ""
 		idProvider = UnderscoreIDer{}
 
@@ -89,6 +88,7 @@ var _ = Describe("Local", func() {
 	JustBeforeEach(func() {
 		fetcher = &repository_fetcher.Local{
 			Cake:              fakeCake,
+			Retainer:          fakeRetainer,
 			IDProvider:        idProvider,
 			DefaultRootFSPath: defaultRootFSPath,
 		}
@@ -104,9 +104,9 @@ var _ = Describe("Local", func() {
 			rootFSPath = path.Join(rootFSPath, "foo_bar_baz")
 			Expect(os.MkdirAll(rootFSPath, 0600)).To(Succeed())
 
-			id, _, _, err := fetcher.Fetch(logger, &url.URL{Path: rootFSPath}, 0)
+			response, err := fetcher.Fetch(&url.URL{Path: rootFSPath}, 0)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(id).To(HaveSuffix("foo_bar_baz"))
+			Expect(response.ImageID).To(HaveSuffix("foo_bar_baz"))
 		})
 
 		Context("when the path is empty", func() {
@@ -123,15 +123,15 @@ var _ = Describe("Local", func() {
 				It("should use the default", func() {
 					fakeCake.GetReturns(&image.Image{}, nil)
 
-					id, _, _, err := fetcher.Fetch(logger, &url.URL{Path: ""}, 0)
+					response, err := fetcher.Fetch(&url.URL{Path: ""}, 0)
 					Expect(err).NotTo(HaveOccurred())
-					Expect(id).To(HaveSuffix("the_default_path"))
+					Expect(response.ImageID).To(HaveSuffix("the_default_path"))
 				})
 			})
 
 			Context("and a default was not specified", func() {
 				It("should throw an appropriate error", func() {
-					_, _, _, err := fetcher.Fetch(logger, &url.URL{Path: ""}, 0)
+					_, err := fetcher.Fetch(&url.URL{Path: ""}, 0)
 					Expect(err).To(MatchError("RootFSPath: is a required parameter, since no default rootfs was provided to the server. To provide a default rootfs, use the --rootfs flag on startup."))
 				})
 			})
@@ -151,6 +151,21 @@ var _ = Describe("Local", func() {
 			os.RemoveAll(tmpDir)
 		})
 
+		// retains the image to ensure it is not garbage collected afterwards
+		It("retains the image before registering it in the graph", func() {
+			fakeCake.RegisterStub = func(image *image.Image, layer archive.ArchiveReader) error {
+				Expect(fakeRetainer.RetainCallCount()).To(Equal(1))
+				Expect(fakeRetainer.RetainArgsForCall(0)).To(BeEquivalentTo(image.ID))
+				return nil
+			}
+
+			tmp, err := ioutil.TempDir("", "")
+			Expect(err).NotTo(HaveOccurred())
+			defer os.RemoveAll(tmp)
+
+			fetcher.Fetch(&url.URL{Path: tmp}, 0)
+		})
+
 		It("registers the image in the graph", func() {
 			var registeredImage *image.Image
 			fakeCake.RegisterStub = func(image *image.Image, layer archive.ArchiveReader) error {
@@ -162,30 +177,11 @@ var _ = Describe("Local", func() {
 			err := os.MkdirAll(dirPath, 0700)
 			Expect(err).NotTo(HaveOccurred())
 
-			_, _, _, err = fetcher.Fetch(logger, &url.URL{Path: dirPath}, 0)
+			_, err = fetcher.Fetch(&url.URL{Path: dirPath}, 0)
 			Expect(err).NotTo(HaveOccurred())
 
 			Expect(registeredImage).NotTo(BeNil())
 			Expect(registeredImage.ID).To(HaveSuffix("foo_bar_baz"))
-		})
-
-		It("returns a wrapped error if registering fails", func() {
-			fakeCake.RegisterStub = func(image *image.Image, layer archive.ArchiveReader) error {
-				return errors.New("sold out")
-			}
-
-			_, _, _, err := fetcher.Fetch(logger, &url.URL{Path: tmpDir}, 0)
-			Expect(err).To(MatchError("repository_fetcher: fetch local rootfs: register rootfs: sold out"))
-		})
-
-		It("returns the image id", func() {
-			dirPath := path.Join(tmpDir, "foo/bar/baz")
-			err := os.MkdirAll(dirPath, 0700)
-			Expect(err).NotTo(HaveOccurred())
-
-			id, _, _, err := fetcher.Fetch(logger, &url.URL{Path: dirPath}, 0)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(id).To(HaveSuffix("foo_bar_baz"))
 		})
 
 		It("registers the image with the correct layer data", func() {
@@ -206,8 +202,31 @@ var _ = Describe("Local", func() {
 			Expect(os.MkdirAll(path.Join(tmp, "a", "test"), 0700)).To(Succeed())
 			Expect(ioutil.WriteFile(path.Join(tmp, "a", "test", "file"), []byte(""), 0700)).To(Succeed())
 
-			_, _, _, err = fetcher.Fetch(logger, &url.URL{Path: tmp}, 0)
+			_, err = fetcher.Fetch(&url.URL{Path: tmp}, 0)
 			Expect(err).NotTo(HaveOccurred())
+		})
+
+		It("sets up the image id", func() {
+			dirPath := path.Join(tmpDir, "foo/bar/baz")
+			err := os.MkdirAll(dirPath, 0700)
+			Expect(err).NotTo(HaveOccurred())
+
+			response, err := fetcher.Fetch(&url.URL{Path: dirPath}, 0)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(response.ImageID).To(HaveSuffix("foo_bar_baz"))
+		})
+
+		It("sets up the layerids", func() {
+			tmp, err := ioutil.TempDir("", "")
+			Expect(err).NotTo(HaveOccurred())
+			defer os.RemoveAll(tmp)
+
+			Expect(os.MkdirAll(path.Join(tmp, "abc"), 0700)).To(Succeed())
+
+			image, err := fetcher.Fetch(&url.URL{Path: path.Join(tmp, "abc")}, 0)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(image.LayerIDs).To(Equal([]string{image.ImageID}))
 		})
 
 		Context("when the path is a symlink", func() {
@@ -237,20 +256,33 @@ var _ = Describe("Local", func() {
 				Expect(os.MkdirAll(path.Join(tmp, "a", "test"), 0700)).To(Succeed())
 				Expect(ioutil.WriteFile(path.Join(tmp, "a", "test", "file"), []byte(""), 0700)).To(Succeed())
 
-				_, _, _, err = fetcher.Fetch(logger, &url.URL{Path: symlinkDir}, 0)
+				_, err = fetcher.Fetch(&url.URL{Path: symlinkDir}, 0)
 				Expect(err).NotTo(HaveOccurred())
 			})
 		})
 
 		Context("when the path does not exist", func() {
 			It("returns an error", func() {
-				_, _, _, err := fetcher.Fetch(logger, &url.URL{Path: "does-not-exist"}, 0)
+				_, err := fetcher.Fetch(&url.URL{Path: "does-not-exist"}, 0)
 				Expect(err).To(HaveOccurred())
 			})
 
 			It("doesn't try to register anything in the graph", func() {
-				fetcher.Fetch(logger, &url.URL{Path: "does-not-exist"}, 0)
+				fetcher.Fetch(&url.URL{Path: "does-not-exist"}, 0)
 				Expect(fakeCake.RegisterCallCount()).To(Equal(0))
+			})
+		})
+
+		Context("when registering fails", func() {
+			BeforeEach(func() {
+				fakeCake.RegisterStub = func(image *image.Image, layer archive.ArchiveReader) error {
+					return errors.New("sold out")
+				}
+			})
+
+			It("returns a wrapped error", func() {
+				_, err := fetcher.Fetch(&url.URL{Path: tmpDir}, 0)
+				Expect(err).To(MatchError("repository_fetcher: fetch local rootfs: register rootfs: sold out"))
 			})
 		})
 	})

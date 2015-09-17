@@ -15,6 +15,7 @@ import (
 type dockerRootFSProvider struct {
 	name          string
 	graph         Graph
+	retainer      layercake.Retainer
 	volumeCreator VolumeCreator
 	repoFetcher   repository_fetcher.RepositoryFetcher
 	namespacer    Namespacer
@@ -28,6 +29,7 @@ func NewDocker(
 	name string,
 	repoFetcher repository_fetcher.RepositoryFetcher,
 	graph Graph,
+	retainer layercake.Retainer,
 	volumeCreator VolumeCreator,
 	namespacer Namespacer,
 	clock clock.Clock,
@@ -36,6 +38,7 @@ func NewDocker(
 		name:          name,
 		repoFetcher:   repoFetcher,
 		graph:         graph,
+		retainer:      retainer,
 		volumeCreator: volumeCreator,
 		namespacer:    namespacer,
 		clock:         clock,
@@ -52,12 +55,16 @@ func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id stri
 		url.Fragment = "latest"
 	}
 
-	fetchedID, envvars, volumes, err := provider.repoFetcher.Fetch(logger, url, quota)
+	response, err := provider.repoFetcher.Fetch(url, quota)
 	if err != nil {
 		return "", nil, err
 	}
 
-	var imageID layercake.ID = layercake.DockerImageID(fetchedID)
+	for _, layer := range response.LayerIDs {
+		defer provider.retainer.Release(layercake.DockerImageID(layer))
+	}
+
+	var imageID layercake.ID = layercake.DockerImageID(response.ImageID)
 	if shouldNamespace {
 		provider.mutex.Lock()
 		imageID, err = provider.namespace(imageID)
@@ -65,6 +72,8 @@ func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id stri
 		if err != nil {
 			return "", nil, err
 		}
+
+		defer provider.retainer.Release(imageID)
 	}
 
 	containerID := layercake.ContainerID(id)
@@ -78,17 +87,19 @@ func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id stri
 		return "", nil, err
 	}
 
-	for _, v := range volumes {
+	for _, v := range response.Volumes {
 		if err = provider.volumeCreator.Create(rootPath, v); err != nil {
 			return "", nil, err
 		}
 	}
 
-	return rootPath, envvars, nil
+	return rootPath, response.Env, nil
 }
 
 func (provider *dockerRootFSProvider) namespace(imageID layercake.ID) (layercake.ID, error) {
 	namespacedImageID := layercake.NamespacedLayerID{imageID.GraphID(), provider.namespacer.CacheKey()}
+
+	provider.retainer.Retain(namespacedImageID)
 	if _, err := provider.graph.Get(namespacedImageID); err != nil {
 		if err := provider.createNamespacedLayer(namespacedImageID, imageID); err != nil {
 			return nil, err

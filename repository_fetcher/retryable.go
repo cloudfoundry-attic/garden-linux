@@ -3,31 +3,28 @@ package repository_fetcher
 import (
 	"net/url"
 
-	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/pivotal-golang/lager"
 )
 
 type Retryable struct {
 	RepositoryFetcher
+	Logger lager.Logger
 }
 
-func (retryable Retryable) Fetch(logger lager.Logger, repoName *url.URL, diskQuota int64) (string, process.Env, []string, error) {
-	var res string
+func (retryable Retryable) Fetch(repoName *url.URL, diskQuota int64) (*Image, error) {
 	var err error
-	var envvars process.Env
-	var volumes []string
-
+	var response *Image
 	for attempt := 1; attempt <= 3; attempt++ {
-		res, envvars, volumes, err = retryable.RepositoryFetcher.Fetch(logger, repoName, diskQuota)
+		response, err = retryable.RepositoryFetcher.Fetch(repoName, diskQuota)
 		if err == nil {
 			break
 		}
 
-		logger.Error("failed-to-fetch", err, lager.Data{
+		retryable.Logger.Error("failed-to-fetch", err, lager.Data{
 			"attempt": attempt,
 			"of":      3,
 		})
 	}
 
-	return res, envvars, volumes, err
+	return response, err
 }

@@ -8,7 +8,7 @@ import (
 
 //go:generate counterfeiter . RemoteImageIDFetcher
 type RemoteImageIDFetcher interface {
-	FetchID(url string) (layercake.ID, error)
+	FetchID(u *url.URL) (layercake.ID, error)
 }
 
 type ImageRetainer struct {
@@ -25,7 +25,7 @@ func (i *ImageRetainer) Retain(imageList []string) {
 
 	switch rootfsURL.Scheme {
 	case "docker":
-		id, err := i.DockerImageIDFetcher.FetchID(imageList[0])
+		id, err := i.DockerImageIDFetcher.FetchID(rootfsURL)
 		if err != nil {
 			return
 		}
