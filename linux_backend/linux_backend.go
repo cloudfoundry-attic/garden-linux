@@ -144,7 +144,7 @@ func (b *LinuxBackend) Start() error {
 }
 
 func (b *LinuxBackend) Ping() error {
-	return nil
+	return b.systemInfo.CheckHealth()
 }
 
 func (b *LinuxBackend) Capacity() (garden.Capacity, error) {

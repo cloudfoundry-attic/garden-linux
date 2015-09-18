@@ -17,14 +17,14 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/container_repository"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/fakes"
-	"github.com/cloudfoundry-incubator/garden-linux/sysinfo/fake_system_info"
+	"github.com/cloudfoundry-incubator/garden-linux/sysinfo/fake_sysinfo"
 )
 
 var _ = Describe("LinuxBackend", func() {
 	var logger *lagertest.TestLogger
 
 	var fakeResourcePool *fakes.FakeResourcePool
-	var fakeSystemInfo *fake_system_info.FakeProvider
+	var fakeSystemInfo *fake_sysinfo.FakeProvider
 	var fakeContainerProvider *fakes.FakeContainerProvider
 	var containerRepo linux_backend.ContainerRepository
 	var linuxBackend *linux_backend.LinuxBackend
@@ -65,7 +65,7 @@ var _ = Describe("LinuxBackend", func() {
 		logger = lagertest.NewTestLogger("test")
 		fakeResourcePool = new(fakes.FakeResourcePool)
 		containerRepo = container_repository.New()
-		fakeSystemInfo = fake_system_info.NewFakeProvider()
+		fakeSystemInfo = new(fake_sysinfo.FakeProvider)
 
 		snapshotsPath = ""
 		maxContainers = 0
@@ -117,6 +117,25 @@ var _ = Describe("LinuxBackend", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(fakeResourcePool.SetupCallCount()).To(Equal(1))
+		})
+	})
+
+	Describe("Ping", func() {
+		It("should not return an error normally", func() {
+			Expect(linuxBackend.Ping()).To(Succeed())
+		})
+
+		Context("when system info reports an error", func() {
+			var sick error
+
+			BeforeEach(func() {
+				sick = errors.New("sick as a parrot")
+				fakeSystemInfo.CheckHealthReturns(sick)
+			})
+
+			It("should return the error", func() {
+				Expect(linuxBackend.Ping()).To(MatchError(sick))
+			})
 		})
 	})
 
@@ -321,8 +340,8 @@ var _ = Describe("LinuxBackend", func() {
 
 	Describe("Capacity", func() {
 		It("returns the right capacity values", func() {
-			fakeSystemInfo.TotalMemoryResult = 1111
-			fakeSystemInfo.TotalDiskResult = 2222
+			fakeSystemInfo.TotalMemoryReturns(1111, nil)
+			fakeSystemInfo.TotalDiskReturns(2222, nil)
 			fakeResourcePool.MaxContainersReturns(42)
 
 			capacity, err := linuxBackend.Capacity()
@@ -364,7 +383,7 @@ var _ = Describe("LinuxBackend", func() {
 			disaster := errors.New("oh no!")
 
 			BeforeEach(func() {
-				fakeSystemInfo.TotalMemoryError = disaster
+				fakeSystemInfo.TotalMemoryReturns(0, disaster)
 			})
 
 			It("returns the error", func() {
@@ -377,7 +396,7 @@ var _ = Describe("LinuxBackend", func() {
 			disaster := errors.New("oh no!")
 
 			BeforeEach(func() {
-				fakeSystemInfo.TotalDiskError = disaster
+				fakeSystemInfo.TotalMemoryReturns(0, disaster)
 			})
 
 			It("returns the error", func() {
