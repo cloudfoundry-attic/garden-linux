@@ -17,10 +17,6 @@ var shmTestBin string
 
 var client *runner.RunningGarden
 
-func startGardenWithRunnerCreator(creator runner.RunnerCreator, argv ...string) *runner.RunningGarden {
-	return runner.StartWithRunnerCreator(creator, argv...)
-}
-
 func startGarden(argv ...string) *runner.RunningGarden {
 	return runner.Start(argv...)
 }
