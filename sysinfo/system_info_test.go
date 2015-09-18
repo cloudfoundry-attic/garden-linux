@@ -1,6 +1,8 @@
 package sysinfo_test
 
 import (
+	"path/filepath"
+
 	"github.com/cloudfoundry-incubator/garden-linux/sysinfo"
 
 	"io/ioutil"
@@ -58,7 +60,13 @@ var _ = Describe("SystemInfo", func() {
 				var err error
 				graphDir, err = ioutil.TempDir("", "read-only-graph-dir-test")
 				Expect(err).NotTo(HaveOccurred())
-				Expect(os.Chmod(graphDir, 0577)).To(Succeed())
+				Expect(os.Chmod(graphDir, os.FileMode(0444))).To(Succeed())
+
+				// check the directory really is read-only
+				testFile := filepath.Join(graphDir, "is-it-ro")
+				err = ioutil.WriteFile(testFile, []byte("x"), 0777)
+				Expect(err).To(MatchError("blah"))
+
 				provider = sysinfo.NewProvider("/", graphDir)
 			})
 
@@ -68,6 +76,7 @@ var _ = Describe("SystemInfo", func() {
 
 			It("should return an error", func() {
 				err := provider.CheckHealth()
+				Expect(err).NotTo(BeNil())
 				Expect(err).To(BeAssignableToTypeOf(garden.NewUnrecoverableError("")))
 				Expect(err.Error()).To(MatchRegexp("graph directory '%s' is not writeable:.*", graphDir))
 			})
