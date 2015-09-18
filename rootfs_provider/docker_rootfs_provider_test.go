@@ -144,7 +144,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 				fakeRepositoryFetcher.FetchResult = "some-image-id"
 				fakeCake.GetStub = func(ID layercake.ID) (*image.Image, error) {
 					Expect(fakeRetainer.RetainCallCount()).To(Equal(1))
-					Expect(fakeRetainer.RetainArgsForCall(0)).To(Equal(layercake.NamespacedLayerID{"some-image-id", "jam"}))
+					Expect(fakeRetainer.RetainArgsForCall(0)).To(Equal(layercake.NamespacedID(layercake.DockerImageID("some-image-id"), "jam")))
 					return nil, nil
 				}
 
@@ -161,7 +161,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 				fakeRepositoryFetcher.FetchResult = "some-image-id"
 				provider.ProvideRootFS(logger, "some-id", parseURL("docker:///some-repository-name"), true, 0)
 				Expect(fakeRetainer.ReleaseCallCount()).To(Equal(1))
-				Expect(fakeRetainer.ReleaseArgsForCall(0)).To(Equal(layercake.NamespacedLayerID{"some-image-id", "jam"}))
+				Expect(fakeRetainer.ReleaseArgsForCall(0)).To(Equal(layercake.NamespacedID(layercake.DockerImageID("some-image-id"), "jam")))
 			})
 
 			Context("and the image has not been translated yet", func() {
@@ -194,16 +194,16 @@ var _ = Describe("DockerRootFSProvider", func() {
 
 					Expect(fakeCake.CreateCallCount()).To(Equal(2))
 					id, parent := fakeCake.CreateArgsForCall(0)
-					Expect(id).To(Equal(layercake.NamespacedLayerID{"some-image-id", "jam"}))
+					Expect(id).To(Equal(layercake.NamespacedID(layercake.DockerImageID("some-image-id"), "jam")))
 					Expect(parent).To(Equal(layercake.DockerImageID("some-image-id")))
 
 					id, parent = fakeCake.CreateArgsForCall(1)
 					Expect(id).To(Equal(layercake.ContainerID("some-id")))
-					Expect(parent).To(Equal(layercake.NamespacedLayerID{"some-image-id", "jam"}))
+					Expect(parent).To(Equal(layercake.NamespacedID(layercake.DockerImageID("some-image-id"), "jam")))
 
 					Expect(fakeNamespacer.NamespaceCallCount()).To(Equal(1))
 					dst := fakeNamespacer.NamespaceArgsForCall(0)
-					Expect(dst).To(Equal("/mount/point/" + layercake.NamespacedLayerID{"some-image-id", "jam"}.GraphID()))
+					Expect(dst).To(Equal("/mount/point/" + layercake.NamespacedID(layercake.DockerImageID("some-image-id"), "jam").GraphID()))
 
 					Expect(mountpoint).To(Equal("/mount/point/" + layercake.ContainerID("some-id").GraphID()))
 					Expect(envvars).To(Equal(
@@ -225,7 +225,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 					fakeNamespacer.CacheKeyReturns("sandwich")
 
 					fakeCake.GetStub = func(id layercake.ID) (*image.Image, error) {
-						if id == (layercake.NamespacedLayerID{"some-image-id", "sandwich"}) {
+						if id == (layercake.NamespacedID(layercake.DockerImageID("some-image-id"), "sandwich")) {
 							return &image.Image{}, nil
 						}
 
@@ -253,7 +253,7 @@ var _ = Describe("DockerRootFSProvider", func() {
 					Expect(fakeCake.CreateCallCount()).To(Equal(1))
 					id, parent := fakeCake.CreateArgsForCall(0)
 					Expect(id).To(Equal(layercake.ContainerID("some-id")))
-					Expect(parent).To(Equal(layercake.NamespacedLayerID{"some-image-id", "sandwich"}))
+					Expect(parent).To(Equal(layercake.NamespacedID(layercake.DockerImageID("some-image-id"), "sandwich")))
 
 					Expect(fakeNamespacer.NamespaceCallCount()).To(Equal(0))
 

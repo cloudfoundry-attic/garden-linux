@@ -332,14 +332,6 @@ func main() {
 		},
 	}
 
-	imageRetainer := &repository_fetcher.ImageRetainer{
-		GraphRetainer:             retainer,
-		DirectoryRootfsIDProvider: repository_fetcher.LayerIDProvider{},
-		DockerImageIDFetcher:      repoFetcher,
-	}
-
-	imageRetainer.Retain(strings.Split(*persistentImageList, ","))
-
 	maxId := sysinfo.Min(sysinfo.MustGetMaxValidUID(), sysinfo.MustGetMaxValidGID())
 	mappingList := rootfs_provider.MappingList{
 		{
@@ -361,6 +353,21 @@ func main() {
 			mappingList, // gid
 		),
 	}
+
+	imageRetainer := &repository_fetcher.ImageRetainer{
+		GraphRetainer:             retainer,
+		DirectoryRootfsIDProvider: repository_fetcher.LayerIDProvider{},
+		DockerImageIDFetcher:      repoFetcher,
+
+		NamespaceCacheKey: rootFSNamespacer.CacheKey(),
+		Logger:            logger,
+	}
+
+	// spawn off in a go function to avoid blocking startup
+	// worst case is if an image is immediately created and deleted faster than
+	// we can retain it we'll garbage collect it when we shouldn't. This
+	// is an OK trade-off for not having garden startup block on dockerhub.
+	go imageRetainer.Retain(strings.Split(*persistentImageList, ","))
 
 	remoteRootFSProvider, err := rootfs_provider.NewDocker(fmt.Sprintf("docker-remote-%s", cake.DriverName()),
 		&repository_fetcher.Retryable{Logger: logger.Session("retryable-fetcher"), RepositoryFetcher: repoFetcher}, cake, retainer, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock())

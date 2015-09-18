@@ -1,6 +1,7 @@
 package repository_fetcher_test
 
 import (
+	"errors"
 	"net/url"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/repository_fetcher/fakes"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/pivotal-golang/lager/lagertest"
 )
 
 var _ = Describe("ImageRetainer", func() {
@@ -39,6 +41,9 @@ var _ = Describe("ImageRetainer", func() {
 			DirectoryRootfsIDProvider: fakeDirRootfsProvider,
 			DockerImageIDFetcher:      fakeRemoteImageIDProvider,
 			GraphRetainer:             fakeGraphRetainer,
+			NamespaceCacheKey:         "chip-sandwhich",
+
+			Logger: lagertest.NewTestLogger("test"),
 		}
 	})
 
@@ -49,8 +54,19 @@ var _ = Describe("ImageRetainer", func() {
 					"/foo/bar/baz",
 				})
 
-				Expect(fakeGraphRetainer.RetainCallCount()).To(Equal(1))
+				Expect(fakeGraphRetainer.RetainCallCount()).To(Equal(2))
 				Expect(fakeGraphRetainer.RetainArgsForCall(0)).To(Equal(layercake.LocalImageID{"/foo/bar/baz", time.Time{}}))
+			})
+
+			It("retains the namespaced version of the image", func() {
+				imageRetainer.Retain([]string{
+					"/foo/bar/baz",
+				})
+
+				Expect(fakeGraphRetainer.RetainCallCount()).To(Equal(2))
+				Expect(fakeGraphRetainer.RetainArgsForCall(1)).To(Equal(
+					layercake.NamespacedID(layercake.LocalImageID{"/foo/bar/baz", time.Time{}}, "chip-sandwhich"),
+				))
 			})
 		})
 
@@ -60,8 +76,51 @@ var _ = Describe("ImageRetainer", func() {
 					"docker://foo/bar/baz",
 				})
 
-				Expect(fakeGraphRetainer.RetainCallCount()).To(Equal(1))
+				Expect(fakeGraphRetainer.RetainCallCount()).To(Equal(2))
 				Expect(fakeGraphRetainer.RetainArgsForCall(0)).To(Equal(layercake.DockerImageID("/fetched//bar/baz")))
+			})
+
+			It("retains the namespaced version of the image", func() {
+				imageRetainer.Retain([]string{
+					"docker://foo/bar/baz",
+				})
+
+				Expect(fakeGraphRetainer.RetainCallCount()).To(Equal(2))
+				Expect(fakeGraphRetainer.RetainArgsForCall(1)).To(Equal(
+					layercake.NamespacedID(layercake.DockerImageID("/fetched//bar/baz"), "chip-sandwhich"),
+				))
+			})
+		})
+	})
+
+	Context("when multiple images are passed", func() {
+		It("retains all the images", func() {
+			imageRetainer.Retain([]string{
+				"docker://foo/bar/baz",
+				"/foo/bar/baz",
+			})
+
+			Expect(fakeGraphRetainer.RetainCallCount()).To(Equal(4)) // both images, both namespaced version
+		})
+
+		Context("when an image id cannot be fetched", func() {
+			It("still retains the other images", func() {
+				fakeRemoteImageIDProvider.FetchIDStub = func(u *url.URL) (layercake.ID, error) {
+					if u.Path == "/potato" {
+						return nil, errors.New("boom")
+					}
+
+					return nil, nil
+				}
+
+				imageRetainer.Retain([]string{
+					"docker://foo/bar/baz",
+					":",
+					"docker:///potato",
+					"/foo/bar/baz",
+				})
+
+				Expect(fakeGraphRetainer.RetainCallCount()).To(Equal(4)) // both images, both namespaced version
 			})
 		})
 	})

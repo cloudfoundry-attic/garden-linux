@@ -9,6 +9,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gbytes"
 )
 
 var _ = Describe("Garden startup flags", func() {
@@ -95,8 +96,10 @@ var _ = Describe("Garden startup flags", func() {
 
 		Context("when set", func() {
 			BeforeEach(func() {
-				client = startGarden("--persistentImageList", "docker:///busybox,docker:///ubuntu,docker://banana/bananatest")
+				client = startGarden("--persistentImageList", "docker:///busybox,docker:///ubuntu,docker://banana/bananatest,docker:///cloudfoundry/with-volume")
 				layersPath = path.Join(client.GraphPath, "btrfs", "subvolumes")
+
+				Eventually(client, "30s").Should(gbytes.Say("retain.retained"))
 			})
 
 			Context("and destroying a container that uses a rootfs from the whitelist", func() {
@@ -105,22 +108,27 @@ var _ = Describe("Garden startup flags", func() {
 				BeforeEach(func() {
 					container, err := client.Create(garden.ContainerSpec{
 						RootFSPath: "docker:///busybox",
-						Privileged: true, // avoid having the @namespaced layer
+					})
+					Expect(err).ToNot(HaveOccurred())
+
+					container2, err := client.Create(garden.ContainerSpec{
+						RootFSPath: "docker:///cloudfoundry/with-volume",
 					})
 					Expect(err).ToNot(HaveOccurred())
 
 					files, err := ioutil.ReadDir(layersPath)
 					Expect(err).ToNot(HaveOccurred())
-					imageLayersAmt = len(files) - 1
+					imageLayersAmt = len(files)
 
 					Expect(client.Destroy(container.Handle())).To(Succeed())
+					Expect(client.Destroy(container2.Handle())).To(Succeed())
 				})
 
 				It("keeps the rootfs", func() {
 					files, err := ioutil.ReadDir(layersPath)
 					Expect(err).ToNot(HaveOccurred())
 
-					Expect(files).To(HaveLen(imageLayersAmt))
+					Expect(files).To(HaveLen(imageLayersAmt - 2)) // should have deleted the container layers, only
 				})
 			})
 

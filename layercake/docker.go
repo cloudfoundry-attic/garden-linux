@@ -62,8 +62,12 @@ type LocalImageID struct {
 }
 
 type NamespacedLayerID struct {
-	LayerID  string
+	LayerID  ID
 	CacheKey string
+}
+
+func NamespacedID(id ID, cacheKey string) NamespacedLayerID {
+	return NamespacedLayerID{id, cacheKey}
 }
 
 func (c ContainerID) GraphID() string {
@@ -79,7 +83,7 @@ func (c LocalImageID) GraphID() string {
 }
 
 func (n NamespacedLayerID) GraphID() string {
-	return shaID(n.LayerID + "@" + n.CacheKey)
+	return shaID(n.LayerID.GraphID() + "@" + n.CacheKey)
 }
 
 func shaID(id string) string {

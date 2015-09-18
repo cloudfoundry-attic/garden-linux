@@ -97,7 +97,7 @@ func (provider *dockerRootFSProvider) ProvideRootFS(logger lager.Logger, id stri
 }
 
 func (provider *dockerRootFSProvider) namespace(imageID layercake.ID) (layercake.ID, error) {
-	namespacedImageID := layercake.NamespacedLayerID{imageID.GraphID(), provider.namespacer.CacheKey()}
+	namespacedImageID := layercake.NamespacedID(imageID, provider.namespacer.CacheKey())
 
 	provider.retainer.Retain(namespacedImageID)
 	if _, err := provider.graph.Get(namespacedImageID); err != nil {
