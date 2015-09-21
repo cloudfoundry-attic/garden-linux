@@ -14,6 +14,8 @@ type OvenCleaner struct {
 
 	Logger lager.Logger
 
+	EnableImageCleanup bool
+
 	mu map[ID]*sync.RWMutex
 }
 
@@ -46,10 +48,13 @@ func (g *OvenCleaner) Remove(id ID) error {
 		return err
 	}
 
-	if img.Parent == "" {
+	if !g.EnableImageCleanup {
 		return nil
 	}
 
+	if img.Parent == "" {
+		return nil
+	}
 	if leaf, err := g.Cake.IsLeaf(DockerImageID(img.Parent)); err == nil && leaf {
 		return g.Remove(DockerImageID(img.Parent))
 	}

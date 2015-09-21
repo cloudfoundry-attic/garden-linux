@@ -100,6 +100,12 @@ var persistentImageList = flag.String(
 	"list of whitelisted images",
 )
 
+var enableGraphCleanup = flag.Bool(
+	"enableGraphCleanup",
+	false,
+	"enables graph garbage collection",
+)
+
 var disableQuotas = flag.Bool(
 	"disableQuotas",
 	false,
@@ -301,9 +307,10 @@ func main() {
 
 	retainer := layercake.NewRetainer()
 	cake = &layercake.OvenCleaner{
-		Cake:     cake,
-		Retainer: retainer,
-		Logger:   logger.Session("oven-cleaner"),
+		Cake:               cake,
+		Retainer:           retainer,
+		Logger:             logger.Session("oven-cleaner"),
+		EnableImageCleanup: *enableGraphCleanup,
 	}
 
 	lock := repository_fetcher.NewFetchLock()

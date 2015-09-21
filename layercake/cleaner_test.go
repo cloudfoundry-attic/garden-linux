@@ -13,21 +13,20 @@ import (
 )
 
 var _ = Describe("Oven cleaner", func() {
-	var gc *layercake.OvenCleaner
-	var fakeCake *fake_cake.FakeCake
-	var fakeRetainer *fake_retainer.FakeRetainer
-	var child2parent map[layercake.ID]layercake.ID // child -> parent
+	var (
+		gc                 *layercake.OvenCleaner
+		fakeCake           *fake_cake.FakeCake
+		fakeRetainer       *fake_retainer.FakeRetainer
+		child2parent       map[layercake.ID]layercake.ID // child -> parent
+		enableImageCleanup bool
+	)
 
 	BeforeEach(func() {
-		fakeCake = new(fake_cake.FakeCake)
-		fakeRetainer = new(fake_retainer.FakeRetainer)
-		gc = &layercake.OvenCleaner{
-			Cake:     fakeCake,
-			Retainer: fakeRetainer,
-			Logger:   lagertest.NewTestLogger("test"),
-		}
+		enableImageCleanup = true
 
-		child2parent = make(map[layercake.ID]layercake.ID)
+		fakeRetainer = new(fake_retainer.FakeRetainer)
+
+		fakeCake = new(fake_cake.FakeCake)
 		fakeCake.GetStub = func(id layercake.ID) (*image.Image, error) {
 			if parent, ok := child2parent[id]; ok {
 				return &image.Image{ID: id.GraphID(), Parent: parent.GraphID()}, nil
@@ -49,6 +48,17 @@ var _ = Describe("Oven cleaner", func() {
 		fakeCake.RemoveStub = func(id layercake.ID) error {
 			delete(child2parent, id)
 			return nil
+		}
+
+		child2parent = make(map[layercake.ID]layercake.ID)
+	})
+
+	JustBeforeEach(func() {
+		gc = &layercake.OvenCleaner{
+			Cake:               fakeCake,
+			Retainer:           fakeRetainer,
+			Logger:             lagertest.NewTestLogger("test"),
+			EnableImageCleanup: enableImageCleanup,
 		}
 	})
 
@@ -132,6 +142,21 @@ var _ = Describe("Oven cleaner", func() {
 				Expect(fakeCake.RemoveArgsForCall(0)).To(Equal(layercake.ContainerID("child")))
 				Expect(fakeCake.RemoveArgsForCall(1)).To(Equal(layercake.DockerImageID("parent")))
 				Expect(fakeCake.RemoveArgsForCall(2)).To(Equal(layercake.DockerImageID("granddaddy")))
+			})
+		})
+
+		Context("when image cleanup is disabled", func() {
+			BeforeEach(func() {
+				enableImageCleanup = false
+
+				child2parent[layercake.ContainerID("child")] = layercake.DockerImageID("parent")
+			})
+
+			It("removes the container layer but not the parent layer", func() {
+				Expect(gc.Remove(layercake.ContainerID("child"))).To(Succeed())
+
+				Expect(fakeCake.RemoveCallCount()).To(Equal(1))
+				Expect(fakeCake.RemoveArgsForCall(0)).To(Equal(layercake.ContainerID("child")))
 			})
 		})
 	})

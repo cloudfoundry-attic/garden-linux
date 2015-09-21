@@ -91,6 +91,48 @@ var _ = Describe("Garden startup flags", func() {
 		})
 	})
 
+	Describe("--enableGraphCleanup", func() {
+		var (
+			args       []string
+			layersPath string
+		)
+
+		BeforeEach(func() {
+			args = []string{}
+		})
+
+		JustBeforeEach(func() {
+			client = startGarden(args...)
+			layersPath = path.Join(client.GraphPath, "btrfs", "subvolumes")
+
+			container, err := client.Create(garden.ContainerSpec{
+				RootFSPath: "docker:///busybox",
+			})
+			Expect(err).ToNot(HaveOccurred())
+			Expect(client.Destroy(container.Handle())).To(Succeed())
+		})
+
+		Context("when starting without the flag", func() {
+			BeforeEach(func() {
+				args = append(args, "-enableGraphCleanup=false")
+			})
+
+			It("does NOT clean up the graph directory", func() {
+				files, err := ioutil.ReadDir(layersPath)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(files).ToNot(HaveLen(0))
+			})
+		})
+
+		Context("when starting with the flag", func() {
+			It("cleans up the graph directory", func() {
+				files, err := ioutil.ReadDir(layersPath)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(files).To(HaveLen(0))
+			})
+		})
+	})
+
 	Describe("--persistentImageList", func() {
 		var layersPath string
 
