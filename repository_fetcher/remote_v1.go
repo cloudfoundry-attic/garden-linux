@@ -49,7 +49,11 @@ func (fetcher *RemoteV1Fetcher) Fetch(request *FetchRequest) (*Image, error) {
 			"image":    imgID,
 		})
 
-		image, history, err := fetcher.fetchFromEndpoint(request, endpointURL, imgID, request.Logger)
+		var (
+			image   *dockerImage
+			history []string
+		)
+		image, history, err = fetcher.fetchFromEndpoint(request, endpointURL, imgID, request.Logger)
 		if err == nil {
 			request.Logger.Debug("fetched", lager.Data{
 				"endpoint": endpointURL,
