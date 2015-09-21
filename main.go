@@ -514,6 +514,7 @@ func missing(flagName string) {
 	println("missing " + flagName)
 	println()
 	flag.Usage()
+	os.Exit(1)
 }
 
 func initializeDropsonde(logger lager.Logger) {
