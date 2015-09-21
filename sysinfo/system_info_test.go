@@ -43,7 +43,9 @@ var _ = Describe("SystemInfo", func() {
 	Describe("CheckHealth", func() {
 		Context("when the graph directory is read-write", func() {
 			BeforeEach(func() {
-				provider = sysinfo.NewProvider("/", "/tmp")
+				tmpDir, err := ioutil.TempDir("", "garden-test")
+				Expect(err).NotTo(HaveOccurred())
+				provider = sysinfo.NewProvider("/", tmpDir)
 			})
 
 			It("should not return an error", func() {
