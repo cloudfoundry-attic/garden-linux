@@ -1,8 +1,6 @@
 package sysinfo_test
 
 import (
-	"path/filepath"
-
 	"github.com/cloudfoundry-incubator/garden-linux/sysinfo"
 
 	"io/ioutil"
@@ -53,32 +51,30 @@ var _ = Describe("SystemInfo", func() {
 			})
 		})
 
-		Context("when the graph directory is read-only", func() {
-			var graphDir string
+		Context("when the graph directory is not writable", func() {
+			var graphDirFile string
 
 			BeforeEach(func() {
-				var err error
-				graphDir, err = ioutil.TempDir("", "read-only-graph-dir-test")
+				// Try to use a file as the graphdir -- this is certainly not a writable directory.
+				tempFile, err := ioutil.TempFile("", "read-only-graph-dir-test")
 				Expect(err).NotTo(HaveOccurred())
-				Expect(os.Chmod(graphDir, os.FileMode(0444))).To(Succeed())
 
-				// check the directory really is read-only
-				testFile := filepath.Join(graphDir, "is-it-ro")
-				err = ioutil.WriteFile(testFile, []byte("x"), 0777)
-				Expect(err).To(MatchError("blah"))
+				graphDirFile = tempFile.Name()
+				err = tempFile.Close()
+				Expect(err).NotTo(HaveOccurred())
 
-				provider = sysinfo.NewProvider("/", graphDir)
+				provider = sysinfo.NewProvider("/", graphDirFile)
 			})
 
 			AfterEach(func() {
-				os.RemoveAll(graphDir)
+				os.RemoveAll(graphDirFile)
 			})
 
 			It("should return an error", func() {
 				err := provider.CheckHealth()
 				Expect(err).NotTo(BeNil())
 				Expect(err).To(BeAssignableToTypeOf(garden.NewUnrecoverableError("")))
-				Expect(err.Error()).To(MatchRegexp("graph directory '%s' is not writeable:.*", graphDir))
+				Expect(err.Error()).To(MatchRegexp("graph directory '%s' is not writeable:.*", graphDirFile))
 			})
 		})
 	})
