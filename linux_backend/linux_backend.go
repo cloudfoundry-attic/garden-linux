@@ -1,6 +1,7 @@
 package linux_backend
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -144,7 +145,11 @@ func (b *LinuxBackend) Start() error {
 }
 
 func (b *LinuxBackend) Ping() error {
-	return b.systemInfo.CheckHealth()
+	fmt.Println("I'm running the thign you expect!")
+	err := b.systemInfo.CheckHealth()
+	fmt.Printf("The actual error is: %v\n", err)
+	return errors.New("sdfqsdfas")
+	return err
 }
 
 func (b *LinuxBackend) Capacity() (garden.Capacity, error) {
