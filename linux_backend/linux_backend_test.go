@@ -26,6 +26,7 @@ var _ = Describe("LinuxBackend", func() {
 	var fakeResourcePool *fakes.FakeResourcePool
 	var fakeSystemInfo *fake_sysinfo.FakeProvider
 	var fakeContainerProvider *fakes.FakeContainerProvider
+	var fakeHealthCheck *fakes.FakeHealthChecker
 	var containerRepo linux_backend.ContainerRepository
 	var linuxBackend *linux_backend.LinuxBackend
 	var snapshotsPath string
@@ -66,6 +67,7 @@ var _ = Describe("LinuxBackend", func() {
 		fakeResourcePool = new(fakes.FakeResourcePool)
 		containerRepo = container_repository.New()
 		fakeSystemInfo = new(fake_sysinfo.FakeProvider)
+		fakeHealthCheck = new(fakes.FakeHealthChecker)
 
 		snapshotsPath = ""
 		maxContainers = 0
@@ -106,6 +108,7 @@ var _ = Describe("LinuxBackend", func() {
 			containerRepo,
 			fakeContainerProvider,
 			fakeSystemInfo,
+			fakeHealthCheck,
 			snapshotsPath,
 			maxContainers,
 		)
@@ -125,16 +128,16 @@ var _ = Describe("LinuxBackend", func() {
 			Expect(linuxBackend.Ping()).To(Succeed())
 		})
 
-		Context("when system info reports an error", func() {
+		Context("when a health check fails", func() {
 			var sick error
 
 			BeforeEach(func() {
 				sick = errors.New("sick as a parrot")
-				fakeSystemInfo.CheckHealthReturns(sick)
+				fakeHealthCheck.HealthCheckReturns(sick)
 			})
 
-			It("should return the error", func() {
-				Expect(linuxBackend.Ping()).To(MatchError(sick))
+			It("should return an unrecoverable error", func() {
+				Expect(linuxBackend.Ping()).To(MatchError(garden.UnrecoverableError{"sick as a parrot"}))
 			})
 		})
 	})

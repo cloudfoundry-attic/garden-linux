@@ -22,12 +22,6 @@ type FakeProvider struct {
 		result1 uint64
 		result2 error
 	}
-	CheckHealthStub        func() error
-	checkHealthMutex       sync.RWMutex
-	checkHealthArgsForCall []struct{}
-	checkHealthReturns     struct {
-		result1 error
-	}
 }
 
 func (fake *FakeProvider) TotalMemory() (uint64, error) {
@@ -78,30 +72,6 @@ func (fake *FakeProvider) TotalDiskReturns(result1 uint64, result2 error) {
 		result1 uint64
 		result2 error
 	}{result1, result2}
-}
-
-func (fake *FakeProvider) CheckHealth() error {
-	fake.checkHealthMutex.Lock()
-	fake.checkHealthArgsForCall = append(fake.checkHealthArgsForCall, struct{}{})
-	fake.checkHealthMutex.Unlock()
-	if fake.CheckHealthStub != nil {
-		return fake.CheckHealthStub()
-	} else {
-		return fake.checkHealthReturns.result1
-	}
-}
-
-func (fake *FakeProvider) CheckHealthCallCount() int {
-	fake.checkHealthMutex.RLock()
-	defer fake.checkHealthMutex.RUnlock()
-	return len(fake.checkHealthArgsForCall)
-}
-
-func (fake *FakeProvider) CheckHealthReturns(result1 error) {
-	fake.CheckHealthStub = nil
-	fake.checkHealthReturns = struct {
-		result1 error
-	}{result1}
 }
 
 var _ sysinfo.Provider = new(FakeProvider)
