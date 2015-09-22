@@ -89,6 +89,8 @@ type LinuxContainer struct {
 	filter           network.Filter
 	processIDPool    *ProcessIDPool
 
+	graceTime time.Duration
+
 	oomWatcher Watcher
 
 	mtu uint32
@@ -151,6 +153,7 @@ func NewLinuxContainer(
 		filter:           filter,
 		processIDPool:    &ProcessIDPool{},
 		netStats:         netStats,
+		graceTime:        spec.GraceTime,
 
 		oomWatcher: oomWatcher,
 		logger:     logger,
@@ -174,7 +177,12 @@ func (c *LinuxContainer) Handle() string {
 }
 
 func (c *LinuxContainer) GraceTime() time.Duration {
-	return c.LinuxContainerSpec.GraceTime
+	return c.graceTime
+}
+
+func (c *LinuxContainer) SetGraceTime(graceTime time.Duration) error {
+	c.graceTime = graceTime
+	return nil
 }
 
 func (c *LinuxContainer) State() linux_backend.State {

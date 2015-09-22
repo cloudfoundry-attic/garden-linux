@@ -769,6 +769,22 @@ var _ = Describe("Linux containers", func() {
 		})
 	})
 
+	Describe("GraceTime", func() {
+		Context("when SetGraceTime is called", func() {
+			var newGraceTime time.Duration
+
+			JustBeforeEach(func() {
+				newGraceTime = 12 * time.Minute
+
+				Expect(container.SetGraceTime(newGraceTime)).To(Succeed())
+			})
+
+			It("sets grace time", func() {
+				Expect(container.GraceTime()).To(Equal(newGraceTime))
+			})
+		})
+	})
+
 	Describe("Info", func() {
 		It("returns the container's state", func() {
 			info, err := container.Info()
