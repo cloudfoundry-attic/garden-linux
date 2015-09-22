@@ -33,7 +33,7 @@ var _ = FDescribe("Ping", func() {
 			err = tempFile.Close()
 			Expect(err).NotTo(HaveOccurred())
 
-			client = startGarden("-graph", graphDirFile)
+			client = startGarden("--graph", graphDirFile)
 		})
 
 		AfterEach(func() {
