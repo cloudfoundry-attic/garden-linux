@@ -459,7 +459,7 @@ func main() {
 
 	systemInfo := sysinfo.NewProvider(*depotPath)
 
-	backend := linux_backend.New(logger, pool, container_repository.New(), injector, systemInfo, *snapshotsPath, int(*maxContainers))
+	backend := linux_backend.New(logger, pool, container_repository.New(), injector, systemInfo, layercake.GraphPath(*graphRoot), *snapshotsPath, int(*maxContainers))
 
 	err = backend.Setup()
 	if err != nil {

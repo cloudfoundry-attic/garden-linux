@@ -52,11 +52,18 @@ type ContainerRepository interface {
 	Delete(Container)
 }
 
+//go:generate counterfeiter . HealthChecker
+type HealthChecker interface {
+	HealthCheck() error
+}
+
 type LinuxBackend struct {
 	logger lager.Logger
 
-	resourcePool  ResourcePool
-	systemInfo    sysinfo.Provider
+	resourcePool ResourcePool
+	systemInfo   sysinfo.Provider
+	healthCheck  HealthChecker
+
 	snapshotsPath string
 	maxContainers int
 
@@ -94,6 +101,7 @@ func New(
 	containerRepo ContainerRepository,
 	containerProvider ContainerProvider,
 	systemInfo sysinfo.Provider,
+	healthCheck HealthChecker,
 	snapshotsPath string,
 	maxContainers int,
 ) *LinuxBackend {
@@ -102,6 +110,7 @@ func New(
 
 		resourcePool:  resourcePool,
 		systemInfo:    systemInfo,
+		healthCheck:   healthCheck,
 		snapshotsPath: snapshotsPath,
 		maxContainers: maxContainers,
 
@@ -144,6 +153,10 @@ func (b *LinuxBackend) Start() error {
 }
 
 func (b *LinuxBackend) Ping() error {
+	if err := b.healthCheck.HealthCheck(); err != nil {
+		return garden.UnrecoverableError{err.Error()}
+	}
+
 	return nil
 }
 

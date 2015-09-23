@@ -1,27 +1,39 @@
 package sysinfo_test
 
 import (
-	. "github.com/cloudfoundry-incubator/garden-linux/sysinfo"
+	"github.com/cloudfoundry-incubator/garden-linux/sysinfo"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
 var _ = Describe("SystemInfo", func() {
-	var provider Provider
+	var provider sysinfo.Provider
 
-	BeforeEach(func() {
-		provider = NewProvider("/")
+	Describe("TotalMemory", func() {
+		BeforeEach(func() {
+			provider = sysinfo.NewProvider("/")
+		})
+
+		It("provides nonzero memory information", func() {
+			totalMemory, err := provider.TotalMemory()
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(totalMemory).To(BeNumerically(">", 0))
+		})
 	})
 
-	It("provides nonzero memory and disk information", func() {
-		totalMemory, err := provider.TotalMemory()
-		Expect(err).ToNot(HaveOccurred())
+	Describe("TotalDisk", func() {
+		BeforeEach(func() {
+			provider = sysinfo.NewProvider("/")
+		})
 
-		totalDisk, err := provider.TotalDisk()
-		Expect(err).ToNot(HaveOccurred())
+		It("provides nonzero disk information", func() {
+			totalDisk, err := provider.TotalDisk()
+			Expect(err).ToNot(HaveOccurred())
 
-		Expect(totalMemory).To(BeNumerically(">", 0))
-		Expect(totalDisk).To(BeNumerically(">", 0))
+			Expect(totalDisk).To(BeNumerically(">", 0))
+		})
 	})
+
 })

@@ -1,8 +1,8 @@
 package sysinfo
 
-import (
-	"github.com/cloudfoundry/gosigar"
-)
+import "github.com/cloudfoundry/gosigar"
+
+//go:generate counterfeiter -o fake_sysinfo/FakeProvider.go . Provider
 
 type Provider interface {
 	TotalMemory() (uint64, error)
