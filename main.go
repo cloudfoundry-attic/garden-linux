@@ -339,6 +339,8 @@ func main() {
 		},
 	}
 
+	cakeOrdinator := repository_fetcher.NewCakeOrdinator(cake, repoFetcher)
+
 	maxId := sysinfo.Min(sysinfo.MustGetMaxValidUID(), sysinfo.MustGetMaxValidGID())
 	mappingList := rootfs_provider.MappingList{
 		{
@@ -377,7 +379,7 @@ func main() {
 	go imageRetainer.Retain(strings.Split(*persistentImageList, ","))
 
 	remoteRootFSProvider, err := rootfs_provider.NewDocker(fmt.Sprintf("docker-remote-%s", cake.DriverName()),
-		&repository_fetcher.Retryable{Logger: logger.Session("retryable-fetcher"), RepositoryFetcher: repoFetcher}, cake, retainer, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock())
+		&repository_fetcher.Retryable{Logger: logger.Session("retryable-fetcher"), RepositoryFetcher: cakeOrdinator}, cake, retainer, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock())
 	if err != nil {
 		logger.Fatal("failed-to-construct-docker-rootfs-provider", err)
 	}
@@ -441,7 +443,7 @@ func main() {
 		*depotPath,
 		config,
 		rootFSProviders,
-		cake,
+		cakeOrdinator,
 		mappingList,
 		parsedExternalIP,
 		*mtu,

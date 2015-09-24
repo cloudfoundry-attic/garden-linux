@@ -40,8 +40,9 @@ type RemoteFetcher interface {
 	Fetch(request *FetchRequest) (*Image, error)
 }
 
+//go:generate counterfeiter . RepositoryFetcher
 type RepositoryFetcher interface {
-	Fetch(url *url.URL, diskQuota int64) (*Image, error)
+	Fetch(u *url.URL, diskQuota int64) (*Image, error)
 }
 
 type FetchRequest struct {
