@@ -20,7 +20,6 @@ import (
 	"github.com/docker/docker/graph"
 	_ "github.com/docker/docker/pkg/chrootarchive" // allow reexec of docker-applyLayer
 	"github.com/docker/docker/registry"
-	"github.com/pivotal-golang/clock"
 	"github.com/pivotal-golang/lager"
 	"github.com/pivotal-golang/localip"
 
@@ -320,17 +319,14 @@ func main() {
 			Cake:              cake,
 			DefaultRootFSPath: *rootFSPath,
 			IDProvider:        repository_fetcher.LayerIDProvider{},
-			Retainer:          retainer,
 		},
 		RemoteFetchers: map[registry.APIVersion]repository_fetcher.VersionedFetcher{
 			registry.APIVersion1: &repository_fetcher.RemoteV1Fetcher{
 				Cake:      cake,
-				Retainer:  retainer,
 				GraphLock: lock,
 			},
 			registry.APIVersion2: &repository_fetcher.RemoteV2Fetcher{
 				Cake:      cake,
-				Retainer:  retainer,
 				GraphLock: lock,
 			},
 		},
@@ -343,8 +339,6 @@ func main() {
 			Logger: logger.Session("remote-fetch-request-creator"),
 		},
 	}
-
-	cakeOrdinator := repository_fetcher.NewCakeOrdinator(cake, repoFetcher)
 
 	maxId := sysinfo.Min(sysinfo.MustGetMaxValidUID(), sysinfo.MustGetMaxValidGID())
 	mappingList := rootfs_provider.MappingList{
@@ -368,6 +362,11 @@ func main() {
 		),
 	}
 
+	layerCreator := rootfs_provider.NewLayerCreator(
+		cake, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer)
+
+	cakeOrdinator := rootfs_provider.NewCakeOrdinator(cake, repoFetcher, layerCreator)
+
 	imageRetainer := &repository_fetcher.ImageRetainer{
 		GraphRetainer:             retainer,
 		DirectoryRootfsIDProvider: repository_fetcher.LayerIDProvider{},
@@ -383,21 +382,9 @@ func main() {
 	// is an OK trade-off for not having garden startup block on dockerhub.
 	go imageRetainer.Retain(strings.Split(*persistentImageList, ","))
 
-	remoteRootFSProvider, err := rootfs_provider.NewDocker(fmt.Sprintf("docker-remote-%s", cake.DriverName()),
-		&repository_fetcher.Retryable{Logger: logger.Session("retryable-fetcher"), RepositoryFetcher: cakeOrdinator}, cake, retainer, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock())
-	if err != nil {
-		logger.Fatal("failed-to-construct-docker-rootfs-provider", err)
-	}
-
-	localRootFSProvider, err := rootfs_provider.NewDocker(fmt.Sprintf("docker-local-%s", cake.DriverName()),
-		cakeOrdinator, cake, retainer, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock())
-	if err != nil {
-		logger.Fatal("failed-to-construct-warden-rootfs-provider", err)
-	}
-
 	rootFSProviders := map[string]rootfs_provider.RootFSProvider{
-		"":       localRootFSProvider,
-		"docker": remoteRootFSProvider,
+		"":       cakeOrdinator,
+		"docker": cakeOrdinator,
 	}
 
 	if *externalIP == "" {

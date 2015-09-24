@@ -23,7 +23,6 @@ type ImageV1Metadata struct {
 
 type RemoteV1Fetcher struct {
 	Cake      layercake.Cake
-	Retainer  layercake.Retainer
 	GraphLock Lock
 }
 
@@ -81,10 +80,6 @@ func (fetcher *RemoteV1Fetcher) fetchFromEndpoint(request *FetchRequest, endpoin
 	history, err := request.Session.GetRemoteHistory(imgID, endpointURL)
 	if err != nil {
 		return nil, nil, err
-	}
-
-	for _, layerID := range history {
-		fetcher.Retainer.Retain(layercake.DockerImageID(layerID))
 	}
 
 	var allLayers []*dockerLayer

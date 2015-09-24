@@ -23,7 +23,6 @@ type ImageV2Metadata struct {
 
 type RemoteV2Fetcher struct {
 	Cake      layercake.Cake
-	Retainer  layercake.Retainer
 	GraphLock Lock
 }
 
@@ -47,7 +46,6 @@ func (fetcher *RemoteV2Fetcher) Fetch(request *FetchRequest) (*Image, error) {
 
 	for i := len(metadata.Images) - 1; i >= 0; i-- {
 		img := metadata.Images[i]
-		fetcher.Retainer.Retain(layercake.DockerImageID(img.ID))
 		history = append(history, img.ID)
 
 		var size int64

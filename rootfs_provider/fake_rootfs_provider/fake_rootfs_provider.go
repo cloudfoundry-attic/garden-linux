@@ -7,88 +7,55 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/cloudfoundry-incubator/garden-linux/rootfs_provider"
-	"github.com/pivotal-golang/lager"
 )
 
 type FakeRootFSProvider struct {
-	NameStub        func() string
-	nameMutex       sync.RWMutex
-	nameArgsForCall []struct{}
-	nameReturns     struct {
-		result1 string
-	}
-	ProvideRootFSStub        func(logger lager.Logger, id string, rootfs *url.URL, namespaced bool, quota int64) (mountpoint string, envvar process.Env, err error)
-	provideRootFSMutex       sync.RWMutex
-	provideRootFSArgsForCall []struct {
-		logger     lager.Logger
+	CreateStub        func(id string, rootfs *url.URL, namespaced bool, quota int64) (mountpoint string, envvar process.Env, err error)
+	createMutex       sync.RWMutex
+	createArgsForCall []struct {
 		id         string
 		rootfs     *url.URL
 		namespaced bool
 		quota      int64
 	}
-	provideRootFSReturns struct {
+	createReturns struct {
 		result1 string
 		result2 process.Env
 		result3 error
 	}
 }
 
-func (fake *FakeRootFSProvider) Name() string {
-	fake.nameMutex.Lock()
-	fake.nameArgsForCall = append(fake.nameArgsForCall, struct{}{})
-	fake.nameMutex.Unlock()
-	if fake.NameStub != nil {
-		return fake.NameStub()
-	} else {
-		return fake.nameReturns.result1
-	}
-}
-
-func (fake *FakeRootFSProvider) NameCallCount() int {
-	fake.nameMutex.RLock()
-	defer fake.nameMutex.RUnlock()
-	return len(fake.nameArgsForCall)
-}
-
-func (fake *FakeRootFSProvider) NameReturns(result1 string) {
-	fake.NameStub = nil
-	fake.nameReturns = struct {
-		result1 string
-	}{result1}
-}
-
-func (fake *FakeRootFSProvider) ProvideRootFS(logger lager.Logger, id string, rootfs *url.URL, namespaced bool, quota int64) (mountpoint string, envvar process.Env, err error) {
-	fake.provideRootFSMutex.Lock()
-	fake.provideRootFSArgsForCall = append(fake.provideRootFSArgsForCall, struct {
-		logger     lager.Logger
+func (fake *FakeRootFSProvider) Create(id string, rootfs *url.URL, namespaced bool, quota int64) (mountpoint string, envvar process.Env, err error) {
+	fake.createMutex.Lock()
+	fake.createArgsForCall = append(fake.createArgsForCall, struct {
 		id         string
 		rootfs     *url.URL
 		namespaced bool
 		quota      int64
-	}{logger, id, rootfs, namespaced, quota})
-	fake.provideRootFSMutex.Unlock()
-	if fake.ProvideRootFSStub != nil {
-		return fake.ProvideRootFSStub(logger, id, rootfs, namespaced, quota)
+	}{id, rootfs, namespaced, quota})
+	fake.createMutex.Unlock()
+	if fake.CreateStub != nil {
+		return fake.CreateStub(id, rootfs, namespaced, quota)
 	} else {
-		return fake.provideRootFSReturns.result1, fake.provideRootFSReturns.result2, fake.provideRootFSReturns.result3
+		return fake.createReturns.result1, fake.createReturns.result2, fake.createReturns.result3
 	}
 }
 
-func (fake *FakeRootFSProvider) ProvideRootFSCallCount() int {
-	fake.provideRootFSMutex.RLock()
-	defer fake.provideRootFSMutex.RUnlock()
-	return len(fake.provideRootFSArgsForCall)
+func (fake *FakeRootFSProvider) CreateCallCount() int {
+	fake.createMutex.RLock()
+	defer fake.createMutex.RUnlock()
+	return len(fake.createArgsForCall)
 }
 
-func (fake *FakeRootFSProvider) ProvideRootFSArgsForCall(i int) (lager.Logger, string, *url.URL, bool, int64) {
-	fake.provideRootFSMutex.RLock()
-	defer fake.provideRootFSMutex.RUnlock()
-	return fake.provideRootFSArgsForCall[i].logger, fake.provideRootFSArgsForCall[i].id, fake.provideRootFSArgsForCall[i].rootfs, fake.provideRootFSArgsForCall[i].namespaced, fake.provideRootFSArgsForCall[i].quota
+func (fake *FakeRootFSProvider) CreateArgsForCall(i int) (string, *url.URL, bool, int64) {
+	fake.createMutex.RLock()
+	defer fake.createMutex.RUnlock()
+	return fake.createArgsForCall[i].id, fake.createArgsForCall[i].rootfs, fake.createArgsForCall[i].namespaced, fake.createArgsForCall[i].quota
 }
 
-func (fake *FakeRootFSProvider) ProvideRootFSReturns(result1 string, result2 process.Env, result3 error) {
-	fake.ProvideRootFSStub = nil
-	fake.provideRootFSReturns = struct {
+func (fake *FakeRootFSProvider) CreateReturns(result1 string, result2 process.Env, result3 error) {
+	fake.CreateStub = nil
+	fake.createReturns = struct {
 		result1 string
 		result2 process.Env
 		result3 error

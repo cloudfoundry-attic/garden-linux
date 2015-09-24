@@ -11,7 +11,6 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden-linux/layercake"
 	"github.com/cloudfoundry-incubator/garden-linux/layercake/fake_cake"
-	"github.com/cloudfoundry-incubator/garden-linux/layercake/fake_retainer"
 	"github.com/cloudfoundry-incubator/garden-linux/repository_fetcher"
 	"github.com/docker/docker/image"
 	"github.com/docker/docker/pkg/archive"
@@ -70,14 +69,12 @@ var _ = Describe("Local", func() {
 	var (
 		fetcher           *repository_fetcher.Local
 		fakeCake          *fake_cake.FakeCake
-		fakeRetainer      *fake_retainer.FakeRetainer
 		defaultRootFSPath string
 		idProvider        UnderscoreIDer
 	)
 
 	BeforeEach(func() {
 		fakeCake = new(fake_cake.FakeCake)
-		fakeRetainer = new(fake_retainer.FakeRetainer)
 		defaultRootFSPath = ""
 		idProvider = UnderscoreIDer{}
 
@@ -88,7 +85,6 @@ var _ = Describe("Local", func() {
 	JustBeforeEach(func() {
 		fetcher = &repository_fetcher.Local{
 			Cake:              fakeCake,
-			Retainer:          fakeRetainer,
 			IDProvider:        idProvider,
 			DefaultRootFSPath: defaultRootFSPath,
 		}
@@ -155,21 +151,6 @@ var _ = Describe("Local", func() {
 
 		AfterEach(func() {
 			os.RemoveAll(tmpDir)
-		})
-
-		// retains the image to ensure it is not garbage collected afterwards
-		It("retains the image before registering it in the graph", func() {
-			fakeCake.RegisterStub = func(image *image.Image, layer archive.ArchiveReader) error {
-				Expect(fakeRetainer.RetainCallCount()).To(Equal(1))
-				Expect(fakeRetainer.RetainArgsForCall(0)).To(BeEquivalentTo(image.ID))
-				return nil
-			}
-
-			tmp, err := ioutil.TempDir("", "")
-			Expect(err).NotTo(HaveOccurred())
-			defer os.RemoveAll(tmp)
-
-			fetcher.Fetch(&url.URL{Path: tmp}, 0)
 		})
 
 		It("registers the image in the graph", func() {

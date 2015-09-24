@@ -8,7 +8,6 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden-linux/layercake"
 	"github.com/cloudfoundry-incubator/garden-linux/layercake/fake_cake"
-	"github.com/cloudfoundry-incubator/garden-linux/layercake/fake_retainer"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	. "github.com/cloudfoundry-incubator/garden-linux/repository_fetcher"
 	"github.com/cloudfoundry-incubator/garden-linux/repository_fetcher/fake_lock"
@@ -36,7 +35,6 @@ var _ = Describe("RemoteV1", func() {
 		lock            *fake_lock.FakeLock
 		logger          *lagertest.TestLogger
 		fetchRequest    *FetchRequest
-		retainer        *fake_retainer.FakeRetainer
 
 		registryAddr string
 	)
@@ -47,10 +45,8 @@ var _ = Describe("RemoteV1", func() {
 		logger = lagertest.NewTestLogger("test")
 		server, endpoint1Server, endpoint2Server, registryAddr, fetchRequest = createFakeHTTPV1RegistryServer(logger)
 
-		retainer = new(fake_retainer.FakeRetainer)
 		fetcher = &RemoteV1Fetcher{
 			Cake:      cake,
-			Retainer:  retainer,
 			GraphLock: lock,
 		}
 
@@ -58,36 +54,6 @@ var _ = Describe("RemoteV1", func() {
 	})
 
 	Describe("Fetch", func() {
-		It("retains all the layers before starting", func() {
-			setupSuccessfulFetch(endpoint1Server)
-
-			retained := make(map[layercake.ID]bool)
-			cake.GetStub = func(id layercake.ID) (*image.Image, error) {
-				Expect(retained).To(HaveKey(layercake.DockerImageID("layer-1")))
-				Expect(retained).To(HaveKey(layercake.DockerImageID("layer-2")))
-				Expect(retained).To(HaveKey(layercake.DockerImageID("layer-3")))
-				return nil, errors.New("no layer")
-			}
-
-			retainer.RetainStub = func(id layercake.ID) {
-				retained[id] = true
-			}
-
-			fetcher.Fetch(fetchRequest)
-		})
-
-		It("returns the layer ids", func() {
-			setupSuccessfulFetch(endpoint1Server)
-
-			response, err := fetcher.Fetch(fetchRequest)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(response.LayerIDs).To(ConsistOf(
-				"layer-1",
-				"layer-2",
-				"layer-3",
-			))
-		})
-
 		Context("when none of the layers already exist", func() {
 			BeforeEach(func() {
 				setupSuccessfulFetch(endpoint1Server)

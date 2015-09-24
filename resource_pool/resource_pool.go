@@ -536,7 +536,7 @@ func (p *LinuxResourcePool) acquireSystemResources(id, handle, containerPath, ro
 		return "", nil, ErrUnknownRootFSProvider
 	}
 
-	rootfsPath, rootFSEnvVars, err := provider.ProvideRootFS(pLog.Session("create-rootfs"), id, rootfsURL, resources.RootUID != 0, diskQuota)
+	rootfsPath, rootFSEnvVars, err := provider.Create(id, rootfsURL, resources.RootUID != 0, diskQuota)
 	if err != nil {
 		pLog.Error("provide-rootfs-failed", err)
 		return "", nil, err
@@ -599,7 +599,7 @@ func (p *LinuxResourcePool) acquireSystemResources(id, handle, containerPath, ro
 		return "", nil, err
 	}
 
-	err = p.saveRootFSProvider(id, provider.Name())
+	err = p.saveRootFSProvider(id, "docker-composite")
 	if err != nil {
 		p.logger.Error("save-rootfs-provider-failed", err, lager.Data{
 			"Id":     id,
@@ -686,6 +686,7 @@ func shouldCleanRootfs(rootfsProvider string) bool {
 		"docker-local-vfs",
 		"docker-remote-btrfs",
 		"docker-remote-vfs",
+		"docker-composite",
 		"invalid-rootfs-provider",
 	}
 

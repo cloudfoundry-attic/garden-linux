@@ -20,7 +20,6 @@ type ContainerIDProvider interface {
 
 type Local struct {
 	Cake              layercake.Cake
-	Retainer          layercake.Retainer
 	DefaultRootFSPath string
 	IDProvider        ContainerIDProvider
 
@@ -71,8 +70,6 @@ func (l *Local) fetch(path string) (string, error) {
 		return "", fmt.Errorf("repository_fetcher: fetch local rootfs: untar rootfs: %v", err)
 	}
 	defer tar.Close()
-
-	l.Retainer.Retain(id)
 
 	if err := l.Cake.Register(&image.Image{ID: id.GraphID()}, tar); err != nil {
 		return "", fmt.Errorf("repository_fetcher: fetch local rootfs: register rootfs: %v", err)

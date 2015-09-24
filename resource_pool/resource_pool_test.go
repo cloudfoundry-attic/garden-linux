@@ -97,9 +97,7 @@ var _ = Describe("Container pool", func() {
 		defaultVersion = "1.0.0"
 
 		defaultProviderName = "docker-local-vfs"
-		defaultFakeRootFSProvider.ProvideRootFSReturns("/provided/rootfs/path", nil, nil)
-		defaultFakeRootFSProvider.NameReturns(defaultProviderName)
-		fakeRootFSProvider.NameReturns("fake")
+		defaultFakeRootFSProvider.CreateReturns("/provided/rootfs/path", nil, nil)
 
 		depotPath, err = ioutil.TempDir("", "depot-path")
 		Expect(err).ToNot(HaveOccurred())
@@ -281,7 +279,7 @@ var _ = Describe("Container pool", func() {
 		itCleansUpTheRootfs := func() {
 			It("cleans up the rootfs for the container", func() {
 				Expect(fakeRootFSRemover.RemoveCallCount()).To(Equal(1))
-				_, providedID, _, _, _ := defaultFakeRootFSProvider.ProvideRootFSArgsForCall(0)
+				providedID, _, _, _ := defaultFakeRootFSProvider.CreateArgsForCall(0)
 				cleanedUpID := fakeRootFSRemover.RemoveArgsForCall(0)
 				Expect(cleanedUpID).To(Equal(layercake.ContainerID(providedID)))
 			})
@@ -353,8 +351,8 @@ var _ = Describe("Container pool", func() {
 				_, err := pool.Acquire(garden.ContainerSpec{Limits: garden.Limits{Disk: garden.DiskLimits{ByteHard: 98765}}})
 				Expect(err).ToNot(HaveOccurred())
 
-				Expect(defaultFakeRootFSProvider.ProvideRootFSCallCount()).To(Equal(1))
-				_, _, _, _, quota := defaultFakeRootFSProvider.ProvideRootFSArgsForCall(0)
+				Expect(defaultFakeRootFSProvider.CreateCallCount()).To(Equal(1))
+				_, _, _, quota := defaultFakeRootFSProvider.CreateArgsForCall(0)
 				Expect(quota).To(Equal(int64(98765)))
 			})
 
@@ -362,8 +360,8 @@ var _ = Describe("Container pool", func() {
 				_, err := pool.Acquire(garden.ContainerSpec{})
 				Expect(err).ToNot(HaveOccurred())
 
-				Expect(defaultFakeRootFSProvider.ProvideRootFSCallCount()).To(Equal(1))
-				_, _, _, _, quota := defaultFakeRootFSProvider.ProvideRootFSArgsForCall(0)
+				Expect(defaultFakeRootFSProvider.CreateCallCount()).To(Equal(1))
+				_, _, _, quota := defaultFakeRootFSProvider.CreateArgsForCall(0)
 				Expect(quota).To(Equal(int64(math.MaxInt64)))
 			})
 		})
@@ -390,8 +388,8 @@ var _ = Describe("Container pool", func() {
 				_, err := pool.Acquire(garden.ContainerSpec{Privileged: false})
 				Expect(err).ToNot(HaveOccurred())
 
-				Expect(defaultFakeRootFSProvider.ProvideRootFSCallCount()).To(Equal(1))
-				_, _, _, namespace, _ := defaultFakeRootFSProvider.ProvideRootFSArgsForCall(0)
+				Expect(defaultFakeRootFSProvider.CreateCallCount()).To(Equal(1))
+				_, _, namespace, _ := defaultFakeRootFSProvider.CreateArgsForCall(0)
 				Expect(namespace).To(Equal(true))
 			})
 
@@ -643,16 +641,6 @@ var _ = Describe("Container pool", func() {
 			Expect(string(body)).To(Equal("bridge-for-10.2.0.0/30-" + container.ID))
 		})
 
-		It("saves the determined rootfs provider to the depot", func() {
-			container, err := pool.Acquire(garden.ContainerSpec{})
-			Expect(err).ToNot(HaveOccurred())
-
-			body, err := ioutil.ReadFile(path.Join(depotPath, container.ID, "rootfs-provider"))
-			Expect(err).ToNot(HaveOccurred())
-
-			Expect(string(body)).To(Equal(defaultProviderName))
-		})
-
 		It("saves the container version to the depot", func() {
 			container, err := pool.Acquire(garden.ContainerSpec{})
 			Expect(err).ToNot(HaveOccurred())
@@ -677,7 +665,7 @@ var _ = Describe("Container pool", func() {
 				})
 				Expect(err).ToNot(HaveOccurred())
 
-				_, id, uri, _, _ := fakeRootFSProvider.ProvideRootFSArgsForCall(0)
+				id, uri, _, _ := fakeRootFSProvider.CreateArgsForCall(0)
 				Expect(id).To(Equal(container.ID))
 				Expect(uri).To(Equal(&url.URL{
 					Scheme: "fake",
@@ -687,7 +675,7 @@ var _ = Describe("Container pool", func() {
 			})
 
 			It("passes the provided rootfs as $rootfs_path to create.sh", func() {
-				fakeRootFSProvider.ProvideRootFSReturns("/var/some/mount/point", nil, nil)
+				fakeRootFSProvider.CreateReturns("/var/some/mount/point", nil, nil)
 
 				_, err := pool.Acquire(garden.ContainerSpec{
 					RootFSPath: "fake:///path/to/custom-rootfs",
@@ -695,7 +683,7 @@ var _ = Describe("Container pool", func() {
 				Expect(err).ToNot(HaveOccurred())
 			})
 
-			It("saves the determined rootfs provider to the depot", func() {
+			It("saves the composite rootfs provider to the depot", func() {
 				container, err := pool.Acquire(garden.ContainerSpec{
 					RootFSPath: "fake:///path/to/custom-rootfs",
 				})
@@ -704,7 +692,7 @@ var _ = Describe("Container pool", func() {
 				body, err := ioutil.ReadFile(path.Join(depotPath, container.ID, "rootfs-provider"))
 				Expect(err).ToNot(HaveOccurred())
 
-				Expect(string(body)).To(Equal("fake"))
+				Expect(string(body)).To(Equal("docker-composite"))
 			})
 
 			It("returns an error if the supplied environment is invalid", func() {
@@ -717,7 +705,7 @@ var _ = Describe("Container pool", func() {
 			})
 
 			It("merges the env vars associated with the rootfs with those in the spec", func() {
-				fakeRootFSProvider.ProvideRootFSReturns("/provided/rootfs/path", process.Env{
+				fakeRootFSProvider.CreateReturns("/provided/rootfs/path", process.Env{
 					"var2": "rootfs-value-2",
 					"var3": "rootfs-value-3",
 				}, nil)
@@ -783,7 +771,7 @@ var _ = Describe("Container pool", func() {
 				providerErr := errors.New("oh no!")
 
 				BeforeEach(func() {
-					fakeRootFSProvider.ProvideRootFSReturns("", nil, providerErr)
+					fakeRootFSProvider.CreateReturns("", nil, providerErr)
 
 					_, err = pool.Acquire(garden.ContainerSpec{
 						RootFSPath: "fake:///path/to/custom-rootfs",
@@ -813,7 +801,7 @@ var _ = Describe("Container pool", func() {
 		Context("when acquiring the bridge fails", func() {
 			var err error
 			BeforeEach(func() {
-				fakeRootFSProvider.ProvideRootFSReturns("the-rootfs", nil, nil)
+				fakeRootFSProvider.CreateReturns("the-rootfs", nil, nil)
 				fakeBridges.ReserveReturns("", errors.New("o no"))
 				_, err = pool.Acquire(garden.ContainerSpec{
 					RootFSPath: "fake:///path/to/custom-rootfs",
