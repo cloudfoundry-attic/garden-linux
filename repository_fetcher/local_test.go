@@ -94,6 +94,12 @@ var _ = Describe("Local", func() {
 		}
 	})
 
+	Describe("FetchID", func() {
+		It("delegates to the IDProvider", func() {
+			Expect(fetcher.FetchID(&url.URL{Path: "/something/something"})).To(Equal(layercake.DockerImageID("_something_something")))
+		})
+	})
+
 	Context("when the image already exists in the graph", func() {
 		It("returns the image id", func() {
 			fakeCake.GetReturns(&image.Image{}, nil)

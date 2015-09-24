@@ -44,6 +44,10 @@ func (l *Local) Fetch(repoURL *url.URL, _ int64) (*Image, error) {
 	}, err
 }
 
+func (l *Local) FetchID(repoURL *url.URL) (layercake.ID, error) {
+	return l.IDProvider.ProvideID(repoURL.Path), nil
+}
+
 func (l *Local) fetch(path string) (string, error) {
 	path, err := resolve(path)
 	if err != nil {

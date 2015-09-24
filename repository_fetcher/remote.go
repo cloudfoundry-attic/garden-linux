@@ -17,39 +17,53 @@ type VersionedFetcher interface {
 	FetchID(*FetchRequest) (layercake.ID, error)
 }
 
+type CompositeFetcher struct {
+	// fetcher used for requests without a scheme
+	LocalFetcher RepositoryFetcher
+
+	// fetchers used for docker:// urls, depending on the version
+	RemoteFetchers map[registry.APIVersion]VersionedFetcher
+
+	// creates remote fetch requests for a particular URL
+	RequestCreator FetchRequestCreator
+}
+
 //go:generate counterfeiter -o fake_fetch_request_creator/fake_fetch_request_creator.go . FetchRequestCreator
 type FetchRequestCreator interface {
 	CreateFetchRequest(repoURL *url.URL, diskQuota int64) (*FetchRequest, error)
 }
 
-type CompositeFetcher struct {
-	Fetchers       map[registry.APIVersion]VersionedFetcher
-	RequestCreator FetchRequestCreator
-}
-
 func (f *CompositeFetcher) Fetch(repoURL *url.URL, diskQuota int64) (*Image, error) {
+	if repoURL.Scheme == "" {
+		return f.LocalFetcher.Fetch(repoURL, diskQuota)
+	}
+
 	req, err := f.RequestCreator.CreateFetchRequest(repoURL, diskQuota)
 	if err != nil {
 		return nil, err
 	}
 
-	fetcher, ok := f.Fetchers[req.Endpoint.Version]
+	fetcher, ok := f.RemoteFetchers[req.Endpoint.Version]
 	if !ok {
-		return nil, errors.New("repository_fetcher: fetching and image: incompatible endpoint version")
+		return nil, errors.New("repository_fetcher: fetching an image: incompatible endpoint version")
 	}
 
 	return fetcher.Fetch(req)
 }
 
 func (f *CompositeFetcher) FetchID(repoURL *url.URL) (layercake.ID, error) {
+	if repoURL.Scheme == "" {
+		return f.LocalFetcher.FetchID(repoURL)
+	}
+
 	req, err := f.RequestCreator.CreateFetchRequest(repoURL, 0)
 	if err != nil {
 		return nil, err
 	}
 
-	fetcher, ok := f.Fetchers[req.Endpoint.Version]
+	fetcher, ok := f.RemoteFetchers[req.Endpoint.Version]
 	if !ok {
-		return nil, errors.New("repository_fetcher: fetching and image id: incompatible endpoint version")
+		return nil, errors.New("repository_fetcher: fetching an image id: incompatible endpoint version")
 	}
 
 	return fetcher.FetchID(req)

@@ -7,7 +7,10 @@ import (
 )
 
 type Retryable struct {
-	RepositoryFetcher
+	RepositoryFetcher interface {
+		Fetch(*url.URL, int64) (*Image, error)
+	}
+
 	Logger lager.Logger
 }
 

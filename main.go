@@ -314,21 +314,26 @@ func main() {
 	}
 
 	lock := repository_fetcher.NewFetchLock()
-	fetchers := map[registry.APIVersion]repository_fetcher.VersionedFetcher{
-		registry.APIVersion1: &repository_fetcher.RemoteV1Fetcher{
-			Cake:      cake,
-			Retainer:  retainer,
-			GraphLock: lock,
-		},
-		registry.APIVersion2: &repository_fetcher.RemoteV2Fetcher{
-			Cake:      cake,
-			Retainer:  retainer,
-			GraphLock: lock,
-		},
-	}
 
 	repoFetcher := &repository_fetcher.CompositeFetcher{
-		Fetchers: fetchers,
+		LocalFetcher: &repository_fetcher.Local{
+			Cake:              cake,
+			DefaultRootFSPath: *rootFSPath,
+			IDProvider:        repository_fetcher.LayerIDProvider{},
+			Retainer:          retainer,
+		},
+		RemoteFetchers: map[registry.APIVersion]repository_fetcher.VersionedFetcher{
+			registry.APIVersion1: &repository_fetcher.RemoteV1Fetcher{
+				Cake:      cake,
+				Retainer:  retainer,
+				GraphLock: lock,
+			},
+			registry.APIVersion2: &repository_fetcher.RemoteV2Fetcher{
+				Cake:      cake,
+				Retainer:  retainer,
+				GraphLock: lock,
+			},
+		},
 		RequestCreator: &repository_fetcher.RemoteFetchRequestCreator{
 			RegistryProvider: repository_fetcher.NewRepositoryProvider(
 				*dockerRegistry,
@@ -385,12 +390,7 @@ func main() {
 	}
 
 	localRootFSProvider, err := rootfs_provider.NewDocker(fmt.Sprintf("docker-local-%s", cake.DriverName()),
-		&repository_fetcher.Local{
-			Cake:              cake,
-			DefaultRootFSPath: *rootFSPath,
-			IDProvider:        repository_fetcher.LayerIDProvider{},
-			Retainer:          retainer,
-		}, cake, retainer, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock())
+		cakeOrdinator, cake, retainer, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer, clock.NewClock())
 	if err != nil {
 		logger.Fatal("failed-to-construct-warden-rootfs-provider", err)
 	}

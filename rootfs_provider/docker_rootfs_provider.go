@@ -17,7 +17,7 @@ type dockerRootFSProvider struct {
 	graph         Graph
 	retainer      layercake.Retainer
 	volumeCreator VolumeCreator
-	repoFetcher   repository_fetcher.RepositoryFetcher
+	repoFetcher   Fetcher
 	namespacer    Namespacer
 	clock         clock.Clock
 	mutex         *sync.Mutex
@@ -25,9 +25,13 @@ type dockerRootFSProvider struct {
 	fallback RootFSProvider
 }
 
+type Fetcher interface {
+	Fetch(u *url.URL, diskQuota int64) (*repository_fetcher.Image, error)
+}
+
 func NewDocker(
 	name string,
-	repoFetcher repository_fetcher.RepositoryFetcher,
+	repoFetcher Fetcher,
 	graph Graph,
 	retainer layercake.Retainer,
 	volumeCreator VolumeCreator,
