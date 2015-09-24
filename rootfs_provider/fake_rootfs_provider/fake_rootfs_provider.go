@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"sync"
 
+	"github.com/cloudfoundry-incubator/garden-linux/layercake"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/cloudfoundry-incubator/garden-linux/rootfs_provider"
 )
@@ -22,6 +23,14 @@ type FakeRootFSProvider struct {
 		result1 string
 		result2 process.Env
 		result3 error
+	}
+	RemoveStub        func(id layercake.ID) error
+	removeMutex       sync.RWMutex
+	removeArgsForCall []struct {
+		id layercake.ID
+	}
+	removeReturns struct {
+		result1 error
 	}
 }
 
@@ -60,6 +69,38 @@ func (fake *FakeRootFSProvider) CreateReturns(result1 string, result2 process.En
 		result2 process.Env
 		result3 error
 	}{result1, result2, result3}
+}
+
+func (fake *FakeRootFSProvider) Remove(id layercake.ID) error {
+	fake.removeMutex.Lock()
+	fake.removeArgsForCall = append(fake.removeArgsForCall, struct {
+		id layercake.ID
+	}{id})
+	fake.removeMutex.Unlock()
+	if fake.RemoveStub != nil {
+		return fake.RemoveStub(id)
+	} else {
+		return fake.removeReturns.result1
+	}
+}
+
+func (fake *FakeRootFSProvider) RemoveCallCount() int {
+	fake.removeMutex.RLock()
+	defer fake.removeMutex.RUnlock()
+	return len(fake.removeArgsForCall)
+}
+
+func (fake *FakeRootFSProvider) RemoveArgsForCall(i int) layercake.ID {
+	fake.removeMutex.RLock()
+	defer fake.removeMutex.RUnlock()
+	return fake.removeArgsForCall[i].id
+}
+
+func (fake *FakeRootFSProvider) RemoveReturns(result1 error) {
+	fake.RemoveStub = nil
+	fake.removeReturns = struct {
+		result1 error
+	}{result1}
 }
 
 var _ rootfs_provider.RootFSProvider = new(FakeRootFSProvider)

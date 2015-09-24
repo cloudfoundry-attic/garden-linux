@@ -68,9 +68,8 @@ type LinuxResourcePool struct {
 	denyNetworks  []string
 	allowNetworks []string
 
-	rootfsProviders map[string]rootfs_provider.RootFSProvider
-	rootfsRemover   Remover
-	mappingList     rootfs_provider.MappingList
+	rootfsProvider rootfs_provider.RootFSProvider
+	mappingList    rootfs_provider.MappingList
 
 	subnetPool SubnetPool
 
@@ -97,8 +96,7 @@ func New(
 	logger lager.Logger,
 	binPath, depotPath string,
 	sysconfig sysconfig.Config,
-	rootfsProviders map[string]rootfs_provider.RootFSProvider,
-	rootfsRemover Remover,
+	rootfsProvider rootfs_provider.RootFSProvider,
 	mappingList rootfs_provider.MappingList,
 	externalIP net.IP,
 	mtu int,
@@ -120,9 +118,8 @@ func New(
 
 		sysconfig: sysconfig,
 
-		rootfsProviders: rootfsProviders,
-		rootfsRemover:   rootfsRemover,
-		mappingList:     mappingList,
+		rootfsProvider: rootfsProvider,
+		mappingList:    mappingList,
 
 		allowNetworks: allowNetworks,
 		denyNetworks:  denyNetworks,
@@ -528,15 +525,7 @@ func (p *LinuxResourcePool) acquireSystemResources(id, handle, containerPath, ro
 		return "", nil, err
 	}
 
-	provider, found := p.rootfsProviders[rootfsURL.Scheme]
-	if !found {
-		pLog.Error("unknown-rootfs-provider", nil, lager.Data{
-			"provider": rootfsURL.Scheme,
-		})
-		return "", nil, ErrUnknownRootFSProvider
-	}
-
-	rootfsPath, rootFSEnvVars, err := provider.Create(id, rootfsURL, resources.RootUID != 0, diskQuota)
+	rootfsPath, rootFSEnvVars, err := p.rootfsProvider.Create(id, rootfsURL, resources.RootUID != 0, diskQuota)
 	if err != nil {
 		pLog.Error("provide-rootfs-failed", err)
 		return "", nil, err
@@ -549,7 +538,7 @@ func (p *LinuxResourcePool) acquireSystemResources(id, handle, containerPath, ro
 			"Bridge": resources.Bridge,
 		})
 
-		p.rootfsRemover.Remove(layercake.ContainerID(rootfsPath))
+		p.rootfsProvider.Remove(layercake.ContainerID(rootfsPath))
 		return "", nil, err
 	}
 
@@ -559,7 +548,7 @@ func (p *LinuxResourcePool) acquireSystemResources(id, handle, containerPath, ro
 			"Bridge": resources.Bridge,
 		})
 
-		p.rootfsRemover.Remove(layercake.ContainerID(rootfsPath))
+		p.rootfsProvider.Remove(layercake.ContainerID(rootfsPath))
 		return "", nil, err
 	}
 
@@ -668,7 +657,7 @@ func (p *LinuxResourcePool) releaseSystemResources(logger lager.Logger, id strin
 	}
 
 	if shouldCleanRootfs(string(rootfsProvider)) {
-		if err = p.rootfsRemover.Remove(layercake.ContainerID(id)); err != nil {
+		if err = p.rootfsProvider.Remove(layercake.ContainerID(id)); err != nil {
 			return err
 		}
 	}

@@ -382,11 +382,6 @@ func main() {
 	// is an OK trade-off for not having garden startup block on dockerhub.
 	go imageRetainer.Retain(strings.Split(*persistentImageList, ","))
 
-	rootFSProviders := map[string]rootfs_provider.RootFSProvider{
-		"":       cakeOrdinator,
-		"docker": cakeOrdinator,
-	}
-
 	if *externalIP == "" {
 		ip, err := localip.LocalIP()
 		if err != nil {
@@ -429,7 +424,6 @@ func main() {
 		*binPath,
 		*depotPath,
 		config,
-		rootFSProviders,
 		cakeOrdinator,
 		mappingList,
 		parsedExternalIP,
