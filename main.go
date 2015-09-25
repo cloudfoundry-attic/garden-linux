@@ -365,7 +365,7 @@ func main() {
 	layerCreator := rootfs_provider.NewLayerCreator(
 		cake, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer)
 
-	cakeOrdinator := rootfs_provider.NewCakeOrdinator(cake, repoFetcher, layerCreator)
+	cakeOrdinator := rootfs_provider.NewCakeOrdinator(cake, repoFetcher, layerCreator, logger.Session("cake-ordinator"))
 
 	imageRetainer := &repository_fetcher.ImageRetainer{
 		GraphRetainer:             retainer,

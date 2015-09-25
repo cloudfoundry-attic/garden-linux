@@ -10,6 +10,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/repository_fetcher"
 	"github.com/cloudfoundry-incubator/garden-linux/rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/rootfs_provider/fakes"
+	"github.com/pivotal-golang/lager/lagertest"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -20,15 +21,17 @@ var _ = Describe("The Cake Co-ordinator", func() {
 		fakeFetcher      *fakes.FakeRepositoryFetcher
 		fakeLayerCreator *fakes.FakeLayerCreator
 		fakeCake         *fake_cake.FakeCake
+		logger           *lagertest.TestLogger
 
 		cakeOrdinator *rootfs_provider.CakeOrdinator
 	)
 
 	BeforeEach(func() {
+		logger = lagertest.NewTestLogger("test")
 		fakeFetcher = new(fakes.FakeRepositoryFetcher)
 		fakeLayerCreator = new(fakes.FakeLayerCreator)
 		fakeCake = new(fake_cake.FakeCake)
-		cakeOrdinator = rootfs_provider.NewCakeOrdinator(fakeCake, fakeFetcher, fakeLayerCreator)
+		cakeOrdinator = rootfs_provider.NewCakeOrdinator(fakeCake, fakeFetcher, fakeLayerCreator, logger)
 	})
 
 	Describe("creating container layers", func() {
@@ -61,29 +64,93 @@ var _ = Describe("The Cake Co-ordinator", func() {
 		})
 	})
 
-	It("delegates removals", func() {
-		fakeCake.RemoveReturns(errors.New("returned-error"))
+	Describe("whitelist", func() {
+		It("can be set", func() {
+			importantImageURL := "/my/important/image"
+			anotherImportantImageURL := "/my/other/important/image"
 
-		err := cakeOrdinator.Remove(layercake.DockerImageID("something"))
-		Expect(err).To(MatchError("returned-error"))
+			cakeOrdinator.WhiteList([]string{importantImageURL, anotherImportantImageURL})
+			Expect(fakeFetcher.FetchIDCallCount()).To(Equal(2))
+
+			imageURL := fakeFetcher.FetchIDArgsForCall(0)
+			Expect(imageURL.String()).To(Equal(importantImageURL))
+
+			imageURL = fakeFetcher.FetchIDArgsForCall(1)
+			Expect(imageURL.String()).To(Equal(anotherImportantImageURL))
+		})
+
+		Context("when one of the URLs is invalid", func() {
+			It("still can register the other valid URLs", func() {
+				badURL := "ht%tq://aaaaaaaaaaaaaaaargh!"
+				importantImageURL := "/my/awesome/image"
+
+				cakeOrdinator.WhiteList([]string{badURL, importantImageURL})
+				Expect(fakeFetcher.FetchIDCallCount()).To(Equal(1))
+
+				imageURL := fakeFetcher.FetchIDArgsForCall(0)
+				Expect(imageURL.String()).To(Equal(importantImageURL))
+			})
+		})
 	})
 
-	It("prevents concurrent garbage collection and creation", func() {
-		removeStarted := make(chan struct{})
-		removeReturns := make(chan struct{})
-		fakeCake.RemoveStub = func(id layercake.ID) error {
-			close(removeStarted)
-			<-removeReturns
-			return nil
-		}
+	Describe("Remove", func() {
+		It("delegates removals", func() {
+			fakeCake.RemoveReturns(errors.New("returned-error"))
 
-		go cakeOrdinator.Remove(layercake.DockerImageID(""))
-		<-removeStarted
-		go cakeOrdinator.Create("", &url.URL{}, false, 33)
+			err := cakeOrdinator.Remove(layercake.DockerImageID("something"))
+			Expect(err).To(MatchError("returned-error"))
+		})
 
-		Consistently(fakeFetcher.FetchCallCount).Should(Equal(0))
-		close(removeReturns)
-		Eventually(fakeFetcher.FetchCallCount).Should(Equal(1))
+		It("prevents concurrent garbage collection and creation", func() {
+			removeStarted := make(chan struct{})
+			removeReturns := make(chan struct{})
+			fakeCake.RemoveStub = func(id layercake.ID) error {
+				close(removeStarted)
+				<-removeReturns
+				return nil
+			}
+
+			go cakeOrdinator.Remove(layercake.DockerImageID(""))
+			<-removeStarted
+			go cakeOrdinator.Create("", &url.URL{}, false, 33)
+
+			Consistently(fakeFetcher.FetchCallCount).Should(Equal(0))
+			close(removeReturns)
+			Eventually(fakeFetcher.FetchCallCount).Should(Equal(1))
+		})
+
+		Context("when images are whitelisted", func() {
+			var (
+				importantImageURL        string
+				anotherImportantImageURL string
+			)
+
+			BeforeEach(func() {
+				importantImageURL = "/my/important/image"
+				anotherImportantImageURL = "/my/other/important/image"
+
+				fakeFetcher.FetchIDStub = func(imageURL *url.URL) (layercake.ID, error) {
+					return layercake.DockerImageID(imageURL.String()), nil
+				}
+
+				cakeOrdinator.WhiteList([]string{importantImageURL})
+			})
+
+			It("should NOT remove them", func() {
+				cakeOrdinator.Remove(layercake.DockerImageID(importantImageURL))
+				Expect(fakeCake.RemoveCallCount()).To(Equal(0))
+
+			})
+
+			It("should remove non-whitelisted image", func() {
+				var imageID layercake.ID = layercake.DockerImageID(anotherImportantImageURL)
+				cakeOrdinator.Remove(imageID)
+				Expect(fakeCake.RemoveCallCount()).To(Equal(1))
+
+				id := fakeCake.RemoveArgsForCall(0)
+				Expect(id).To(Equal(imageID))
+			})
+		})
 	})
 
 	It("allows concurrent creation as long as deletion is not ongoing", func() {
