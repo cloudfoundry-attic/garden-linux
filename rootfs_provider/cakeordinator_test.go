@@ -6,6 +6,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden-linux/layercake"
 	"github.com/cloudfoundry-incubator/garden-linux/layercake/fake_cake"
+	"github.com/cloudfoundry-incubator/garden-linux/layercake/fake_retainer"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/cloudfoundry-incubator/garden-linux/repository_fetcher"
 	"github.com/cloudfoundry-incubator/garden-linux/rootfs_provider"
@@ -21,6 +22,7 @@ var _ = Describe("The Cake Co-ordinator", func() {
 		fakeFetcher      *fakes.FakeRepositoryFetcher
 		fakeLayerCreator *fakes.FakeLayerCreator
 		fakeCake         *fake_cake.FakeCake
+		fakeRetainer     *fake_retainer.FakeRetainer
 		logger           *lagertest.TestLogger
 
 		cakeOrdinator *rootfs_provider.CakeOrdinator
@@ -28,10 +30,16 @@ var _ = Describe("The Cake Co-ordinator", func() {
 
 	BeforeEach(func() {
 		logger = lagertest.NewTestLogger("test")
+
 		fakeFetcher = new(fakes.FakeRepositoryFetcher)
+		fakeFetcher.FetchIDStub = func(imageURL *url.URL) (layercake.ID, error) {
+			return layercake.DockerImageID(imageURL.String()), nil
+		}
+
+		fakeRetainer = new(fake_retainer.FakeRetainer)
 		fakeLayerCreator = new(fakes.FakeLayerCreator)
 		fakeCake = new(fake_cake.FakeCake)
-		cakeOrdinator = rootfs_provider.NewCakeOrdinator(fakeCake, fakeFetcher, fakeLayerCreator, logger)
+		cakeOrdinator = rootfs_provider.NewCakeOrdinator(fakeCake, fakeFetcher, fakeLayerCreator, fakeRetainer, logger)
 	})
 
 	Describe("creating container layers", func() {
@@ -64,32 +72,14 @@ var _ = Describe("The Cake Co-ordinator", func() {
 		})
 	})
 
-	Describe("whitelist", func() {
-		It("can be set", func() {
-			importantImageURL := "/my/important/image"
-			anotherImportantImageURL := "/my/other/important/image"
+	Describe("Retain", func() {
+		It("can be retained by Retainer", func() {
+			retainedId := layercake.ContainerID("banana")
+			cakeOrdinator.Retain(retainedId)
 
-			cakeOrdinator.WhiteList([]string{importantImageURL, anotherImportantImageURL})
-			Expect(fakeFetcher.FetchIDCallCount()).To(Equal(2))
-
-			imageURL := fakeFetcher.FetchIDArgsForCall(0)
-			Expect(imageURL.String()).To(Equal(importantImageURL))
-
-			imageURL = fakeFetcher.FetchIDArgsForCall(1)
-			Expect(imageURL.String()).To(Equal(anotherImportantImageURL))
-		})
-
-		Context("when one of the URLs is invalid", func() {
-			It("still can register the other valid URLs", func() {
-				badURL := "ht%tq://aaaaaaaaaaaaaaaargh!"
-				importantImageURL := "/my/awesome/image"
-
-				cakeOrdinator.WhiteList([]string{badURL, importantImageURL})
-				Expect(fakeFetcher.FetchIDCallCount()).To(Equal(1))
-
-				imageURL := fakeFetcher.FetchIDArgsForCall(0)
-				Expect(imageURL.String()).To(Equal(importantImageURL))
-			})
+			Expect(fakeRetainer.RetainCallCount()).To(Equal(1))
+			var id layercake.ID = fakeRetainer.RetainArgsForCall(0)
+			Expect(id).To(Equal(retainedId))
 		})
 	})
 
@@ -117,39 +107,6 @@ var _ = Describe("The Cake Co-ordinator", func() {
 			Consistently(fakeFetcher.FetchCallCount).Should(Equal(0))
 			close(removeReturns)
 			Eventually(fakeFetcher.FetchCallCount).Should(Equal(1))
-		})
-
-		Context("when images are whitelisted", func() {
-			var (
-				importantImageURL        string
-				anotherImportantImageURL string
-			)
-
-			BeforeEach(func() {
-				importantImageURL = "/my/important/image"
-				anotherImportantImageURL = "/my/other/important/image"
-
-				fakeFetcher.FetchIDStub = func(imageURL *url.URL) (layercake.ID, error) {
-					return layercake.DockerImageID(imageURL.String()), nil
-				}
-
-				cakeOrdinator.WhiteList([]string{importantImageURL})
-			})
-
-			It("should NOT remove them", func() {
-				cakeOrdinator.Remove(layercake.DockerImageID(importantImageURL))
-				Expect(fakeCake.RemoveCallCount()).To(Equal(0))
-
-			})
-
-			It("should remove non-whitelisted image", func() {
-				var imageID layercake.ID = layercake.DockerImageID(anotherImportantImageURL)
-				cakeOrdinator.Remove(imageID)
-				Expect(fakeCake.RemoveCallCount()).To(Equal(1))
-
-				id := fakeCake.RemoveArgsForCall(0)
-				Expect(id).To(Equal(imageID))
-			})
 		})
 	})
 

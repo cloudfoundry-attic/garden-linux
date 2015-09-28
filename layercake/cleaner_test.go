@@ -5,7 +5,6 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden-linux/layercake"
 	"github.com/cloudfoundry-incubator/garden-linux/layercake/fake_cake"
-	"github.com/cloudfoundry-incubator/garden-linux/layercake/fake_retainer"
 	"github.com/docker/docker/image"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -16,15 +15,12 @@ var _ = Describe("Oven cleaner", func() {
 	var (
 		gc                 *layercake.OvenCleaner
 		fakeCake           *fake_cake.FakeCake
-		fakeRetainer       *fake_retainer.FakeRetainer
 		child2parent       map[layercake.ID]layercake.ID // child -> parent
 		enableImageCleanup bool
 	)
 
 	BeforeEach(func() {
 		enableImageCleanup = true
-
-		fakeRetainer = new(fake_retainer.FakeRetainer)
 
 		fakeCake = new(fake_cake.FakeCake)
 		fakeCake.GetStub = func(id layercake.ID) (*image.Image, error) {
@@ -56,7 +52,6 @@ var _ = Describe("Oven cleaner", func() {
 	JustBeforeEach(func() {
 		gc = &layercake.OvenCleaner{
 			Cake:               fakeCake,
-			Retainer:           fakeRetainer,
 			Logger:             lagertest.NewTestLogger("test"),
 			EnableImageCleanup: enableImageCleanup,
 		}
@@ -75,8 +70,8 @@ var _ = Describe("Oven cleaner", func() {
 			})
 
 			Context("when the layer is retained", func() {
-				BeforeEach(func() {
-					fakeRetainer.IsHeldReturns(true)
+				JustBeforeEach(func() {
+					gc.Retain(layercake.ContainerID("child"))
 				})
 
 				It("should not remove the layer", func() {

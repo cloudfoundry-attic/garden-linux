@@ -304,10 +304,8 @@ func main() {
 		}
 	}
 
-	retainer := layercake.NewRetainer()
-	cake = &layercake.OvenCleaner{
+	ovenCleanerCake := &layercake.OvenCleaner{
 		Cake:               cake,
-		Retainer:           retainer,
 		Logger:             logger.Session("oven-cleaner"),
 		EnableImageCleanup: *enableGraphCleanup,
 	}
@@ -316,17 +314,17 @@ func main() {
 
 	repoFetcher := &repository_fetcher.CompositeFetcher{
 		LocalFetcher: &repository_fetcher.Local{
-			Cake:              cake,
+			Cake:              ovenCleanerCake,
 			DefaultRootFSPath: *rootFSPath,
 			IDProvider:        repository_fetcher.LayerIDProvider{},
 		},
 		RemoteFetchers: map[registry.APIVersion]repository_fetcher.VersionedFetcher{
 			registry.APIVersion1: &repository_fetcher.RemoteV1Fetcher{
-				Cake:      cake,
+				Cake:      ovenCleanerCake,
 				GraphLock: lock,
 			},
 			registry.APIVersion2: &repository_fetcher.RemoteV2Fetcher{
-				Cake:      cake,
+				Cake:      ovenCleanerCake,
 				GraphLock: lock,
 			},
 		},
@@ -363,12 +361,14 @@ func main() {
 	}
 
 	layerCreator := rootfs_provider.NewLayerCreator(
-		cake, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer)
+		ovenCleanerCake, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer)
 
-	cakeOrdinator := rootfs_provider.NewCakeOrdinator(cake, repoFetcher, layerCreator, logger.Session("cake-ordinator"))
+	cakeOrdinator := rootfs_provider.NewCakeOrdinator(
+		ovenCleanerCake, repoFetcher, layerCreator, ovenCleanerCake, logger.Session("cake-ordinator"),
+	)
 
 	imageRetainer := &repository_fetcher.ImageRetainer{
-		GraphRetainer:             retainer,
+		GraphRetainer:             cakeOrdinator,
 		DirectoryRootfsIDProvider: repository_fetcher.LayerIDProvider{},
 		DockerImageIDFetcher:      repoFetcher,
 

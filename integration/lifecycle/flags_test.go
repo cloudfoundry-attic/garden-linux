@@ -170,7 +170,7 @@ var _ = Describe("Garden startup flags", func() {
 					files, err := ioutil.ReadDir(layersPath)
 					Expect(err).ToNot(HaveOccurred())
 
-					Expect(files).To(HaveLen(imageLayersAmt - 2)) // should have deleted the container layers, only
+					Expect(len(files)).To(Equal(imageLayersAmt - 2)) // should have deleted the container layers, only
 				})
 			})
 

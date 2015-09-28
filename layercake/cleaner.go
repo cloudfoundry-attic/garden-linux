@@ -10,11 +10,13 @@ import (
 
 type OvenCleaner struct {
 	Cake
-	Retainer
 
 	Logger lager.Logger
 
 	EnableImageCleanup bool
+
+	images   map[string]int
+	imagesMu sync.RWMutex
 
 	mu map[ID]*sync.RWMutex
 }
@@ -33,7 +35,7 @@ func (g *OvenCleaner) Remove(id ID) error {
 	log := g.Logger.Session("remove", lager.Data{"ID": id})
 	log.Info("start")
 
-	if g.Retainer.IsHeld(id) {
+	if g.isHeld(id) {
 		log.Info("layer-is-held")
 		return nil
 	}
@@ -60,6 +62,29 @@ func (g *OvenCleaner) Remove(id ID) error {
 	}
 
 	return nil
+}
+
+func (g *OvenCleaner) Retain(id ID) {
+	g.imagesMu.Lock()
+	defer g.imagesMu.Unlock()
+
+	if g.images == nil {
+		g.images = make(map[string]int)
+	}
+
+	g.images[id.GraphID()]++
+}
+
+func (g *OvenCleaner) isHeld(id ID) bool {
+	g.imagesMu.Lock()
+	defer g.imagesMu.Unlock()
+
+	if g.images == nil {
+		g.images = make(map[string]int)
+	}
+
+	_, ok := g.images[id.GraphID()]
+	return ok
 }
 
 func (g *OvenCleaner) l(id ID) *sync.RWMutex {
