@@ -32,9 +32,6 @@ var _ = Describe("The Cake Co-ordinator", func() {
 		logger = lagertest.NewTestLogger("test")
 
 		fakeFetcher = new(fakes.FakeRepositoryFetcher)
-		fakeFetcher.FetchIDStub = func(imageURL *url.URL) (layercake.ID, error) {
-			return layercake.DockerImageID(imageURL.String()), nil
-		}
 
 		fakeRetainer = new(fake_retainer.FakeRetainer)
 		fakeLayerCreator = new(fakes.FakeLayerCreator)
