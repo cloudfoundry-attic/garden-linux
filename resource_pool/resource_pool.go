@@ -23,7 +23,6 @@ import (
 
 	"math"
 
-	"github.com/cloudfoundry-incubator/garden-linux/layercake"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
 	"github.com/cloudfoundry-incubator/garden-linux/logging"
@@ -32,7 +31,8 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/network/iptables"
 	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
-	"github.com/cloudfoundry-incubator/garden-linux/rootfs_provider"
+	"github.com/cloudfoundry-incubator/garden-linux/shed/layercake"
+	"github.com/cloudfoundry-incubator/garden-linux/shed/rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/sysconfig"
 )
 
