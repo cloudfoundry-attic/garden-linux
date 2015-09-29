@@ -133,12 +133,17 @@ var _ = Describe("Garden startup flags", func() {
 		})
 	})
 
-	Describe("--persistentImageList", func() {
+	Describe("--persistentImage", func() {
 		var layersPath string
 
 		Context("when set", func() {
 			BeforeEach(func() {
-				client = startGarden("--persistentImageList", "docker:///busybox,docker:///ubuntu,docker://banana/bananatest,docker:///cloudfoundry/with-volume")
+				client = startGarden(
+					"--persistentImage", "docker:///busybox",
+					"--persistentImage", "docker:///ubuntu",
+					"--persistentImage", "docker://banana/bananatest",
+					"--persistentImage", "docker:///cloudfoundry/with-volume",
+				)
 				layersPath = path.Join(client.GraphPath, "btrfs", "subvolumes")
 
 				Eventually(client, "30s").Should(gbytes.Say("retain.retained"))

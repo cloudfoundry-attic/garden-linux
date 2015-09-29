@@ -1,8 +1,7 @@
-package container_daemon_test
+package vars_test
 
 import (
-	. "github.com/cloudfoundry-incubator/garden-linux/container_daemon"
-
+	"github.com/cloudfoundry-incubator/garden-linux/pkg/vars"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -10,10 +9,10 @@ import (
 var _ = Describe("Vars", func() {
 	Describe("when set is called", func() {
 
-		var sl *StringList
+		var sl *vars.StringList
 
 		BeforeEach(func() {
-			sl = &StringList{}
+			sl = &vars.StringList{}
 			Expect(sl.Set("foo")).To(Succeed())
 			Expect(sl.Set("bar")).To(Succeed())
 		})

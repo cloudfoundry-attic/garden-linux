@@ -18,7 +18,7 @@ type InsecureRegistryError struct {
 
 func (err InsecureRegistryError) Error() string {
 	return fmt.Sprintf(
-		"Registry %s is missing from -insecureDockerRegistryList (%v)",
+		"Registry %s is missing from -insecureDockerRegistry list (%v)",
 		err.Endpoint,
 		err.InsecureRegistries,
 	)

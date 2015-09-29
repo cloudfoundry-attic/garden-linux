@@ -1,4 +1,4 @@
-package container_daemon
+package vars
 
 import "strings"
 

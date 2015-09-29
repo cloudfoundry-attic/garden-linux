@@ -38,6 +38,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/network/devices"
 	"github.com/cloudfoundry-incubator/garden-linux/network/iptables"
 	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
+	"github.com/cloudfoundry-incubator/garden-linux/pkg/vars"
 	"github.com/cloudfoundry-incubator/garden-linux/port_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/process_tracker"
 	"github.com/cloudfoundry-incubator/garden-linux/repository_fetcher"
@@ -91,12 +92,6 @@ var rootFSPath = flag.String(
 	"rootfs",
 	"",
 	"directory of the rootfs for the containers",
-)
-
-var persistentImageList = flag.String(
-	"persistentImageList",
-	"",
-	"list of whitelisted images",
 )
 
 var enableGraphCleanup = flag.Bool(
@@ -157,12 +152,6 @@ var dockerRegistry = flag.String(
 	"docker registry API endpoint",
 )
 
-var insecureRegistries = flag.String(
-	"insecureDockerRegistryList",
-	"",
-	"comma-separated list of docker registries to allow connection to even if they are not secure",
-)
-
 var tag = flag.String(
 	"tag",
 	"",
@@ -212,6 +201,20 @@ func main() {
 	if reexec.Init() {
 		return
 	}
+
+	var insecureRegistries vars.StringList
+	flag.Var(
+		&insecureRegistries,
+		"insecureDockerRegistry",
+		"Docker registry to allow connecting to even if not secure. (Can be specified multiple times to allow insecure connection to multiple repositories)",
+	)
+
+	var persistentImages vars.StringList
+	flag.Var(
+		&persistentImages,
+		"persistentImage",
+		"Image which should never be garbage collected. (Can be specified multiple times)",
+	)
 
 	cf_debug_server.AddFlags(flag.CommandLine)
 	cf_lager.AddFlags(flag.CommandLine)
@@ -331,7 +334,7 @@ func main() {
 		RequestCreator: &repository_fetcher.RemoteFetchRequestCreator{
 			RegistryProvider: repository_fetcher.NewRepositoryProvider(
 				*dockerRegistry,
-				strings.Split(*insecureRegistries, ","),
+				insecureRegistries.List,
 			),
 			Pinger: repository_fetcher.EndpointPinger{},
 			Logger: logger.Session("remote-fetch-request-creator"),
@@ -380,7 +383,7 @@ func main() {
 	// worst case is if an image is immediately created and deleted faster than
 	// we can retain it we'll garbage collect it when we shouldn't. This
 	// is an OK trade-off for not having garden startup block on dockerhub.
-	go imageRetainer.Retain(strings.Split(*persistentImageList, ","))
+	go imageRetainer.Retain(persistentImages.List)
 
 	if *externalIP == "" {
 		ip, err := localip.LocalIP()

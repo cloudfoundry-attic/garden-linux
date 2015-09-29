@@ -10,6 +10,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
+	"github.com/cloudfoundry-incubator/garden-linux/pkg/vars"
 	"golang.org/x/crypto/ssh/terminal"
 )
 
@@ -18,7 +19,7 @@ func main() {
 	user := flag.String("user", "root", "User to change to")
 	dir := flag.String("dir", "", "Working directory for the running process")
 
-	var envVars container_daemon.StringList
+	var envVars vars.StringList
 	flag.Var(&envVars, "env", "Environment variables to set for the command.")
 
 	flag.Bool("rsh", false, "RSH compatibility mode")

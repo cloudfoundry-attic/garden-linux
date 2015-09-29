@@ -192,7 +192,7 @@ var _ = Describe("Rootfs container create parameter", func() {
 					}
 				})
 
-				Context("when the host is listed in -insecureDockerRegistryList", func() {
+				Context("when the host is listed in -insecureDockerRegistry", func() {
 					BeforeEach(func() {
 						args = []string{
 							"-allowHostAccess=true",
@@ -203,7 +203,7 @@ var _ = Describe("Rootfs container create parameter", func() {
 						BeforeEach(func() {
 							args = append(
 								args,
-								"-insecureDockerRegistryList",
+								"-insecureDockerRegistry",
 								fmt.Sprintf("%s:%s", dockerRegistryIP, dockerRegistryPort),
 							)
 						})
@@ -237,7 +237,7 @@ var _ = Describe("Rootfs container create parameter", func() {
 
 							args = append(
 								args,
-								"-insecureDockerRegistryList",
+								"-insecureDockerRegistry",
 								fmt.Sprintf("%s/24", dockerRegistryIP),
 							)
 						})
@@ -265,7 +265,7 @@ var _ = Describe("Rootfs container create parameter", func() {
 
 							args = append(
 								args,
-								"-insecureDockerRegistryList",
+								"-insecureDockerRegistry",
 								serverURL.Host,
 							)
 						})
@@ -296,15 +296,15 @@ var _ = Describe("Rootfs container create parameter", func() {
 					})
 				})
 
-				Context("when the host is NOT listed in -insecureDockerRegistryList", func() {
-					It("fails, and suggests the -insecureDockerRegistryList flag", func() {
+				Context("when the host is NOT listed in -insecureDockerRegistry", func() {
+					It("fails, and suggests the -insecureDockerRegistry flag", func() {
 						_, err := client.Create(garden.ContainerSpec{
 							RootFSPath: fmt.Sprintf("docker://%s:%s/busybox", dockerRegistryIP,
 								dockerRegistryPort),
 						})
 
 						Expect(err).To(MatchError(ContainSubstring(
-							"Registry %s:%s is missing from -insecureDockerRegistryList ([])",
+							"Registry %s:%s is missing from -insecureDockerRegistry list ([])",
 							dockerRegistryIP, dockerRegistryPort,
 						)))
 					})
