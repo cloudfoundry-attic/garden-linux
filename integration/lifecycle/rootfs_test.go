@@ -109,6 +109,19 @@ var _ = Describe("Rootfs container create parameter", func() {
 					_, err := client.Create(garden.ContainerSpec{RootFSPath: "docker:///cloudfoundry/doesnotexist"})
 					Expect(err.Error()).To(ContainSubstring("could not fetch image cloudfoundry/doesnotexist from registry"))
 				})
+
+				It("should not leak the depot directory", func() {
+					_, err := client.Create(
+						garden.ContainerSpec{
+							RootFSPath: "docker:///cloudfoundry/doesnotexist",
+						},
+					)
+					Expect(err).To(HaveOccurred())
+
+					entries, err := ioutil.ReadDir(client.DepotPath)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(entries).To(HaveLen(0))
+				})
 			})
 
 			Context("when the -registry flag targets a v2 repository", func() {

@@ -250,8 +250,16 @@ var _ = Describe("Container pool", func() {
 			})
 		}
 
-		itDeletesTheContainerDirectory := func() {
-			It("deletes the container's directory", func() {
+		itShouldNotLeakContainerDirectory := func() {
+			It("should not leak the container directory", func() {
+				entries, err := ioutil.ReadDir(depotPath)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(entries).To(HaveLen(0))
+			})
+		}
+
+		itRunsTheDestroyScript := func() {
+			It("runs the destroy script", func() {
 				executedCommands := fakeRunner.ExecutedCommands()
 
 				createCommand := executedCommands[0]
@@ -368,7 +376,7 @@ var _ = Describe("Container pool", func() {
 
 			itReleasesTheIPBlock()
 			itCleansUpTheRootfs()
-			itDeletesTheContainerDirectory()
+			itRunsTheDestroyScript()
 		})
 
 		Context("in an unprivileged container", func() {
@@ -512,7 +520,7 @@ var _ = Describe("Container pool", func() {
 
 				It("returns an error", func() {
 					_, err := pool.Acquire(garden.ContainerSpec{})
-					Expect(err).To(MatchError(HavePrefix("containerpool: creating container directory")))
+					Expect(err).To(MatchError(HavePrefix("resource_pool: creating container directory")))
 				})
 			})
 
@@ -727,6 +735,8 @@ var _ = Describe("Container pool", func() {
 					Expect(err).To(BeAssignableToTypeOf(&url.Error{}))
 				})
 
+				itShouldNotLeakContainerDirectory()
+
 				itReleasesTheIPBlock()
 
 				It("does not acquire a bridge", func() {
@@ -751,6 +761,8 @@ var _ = Describe("Container pool", func() {
 				})
 
 				itReleasesTheIPBlock()
+
+				itShouldNotLeakContainerDirectory()
 
 				It("does not acquire a bridge", func() {
 					Expect(fakeBridges.ReserveCallCount()).To(Equal(0))
@@ -789,6 +801,8 @@ var _ = Describe("Container pool", func() {
 				rootfsPath := fakeRootFSProvider.RemoveArgsForCall(0)
 				Expect(rootfsPath).To(Equal(layercake.ContainerID("the-rootfs")))
 			})
+
+			itShouldNotLeakContainerDirectory()
 
 			It("returns an error", func() {
 				Expect(err).To(HaveOccurred())
@@ -946,7 +960,7 @@ var _ = Describe("Container pool", func() {
 
 				itReleasesTheIPBlock()
 				itCleansUpTheRootfs()
-				itDeletesTheContainerDirectory()
+				itRunsTheDestroyScript()
 			})
 		})
 
@@ -974,7 +988,7 @@ var _ = Describe("Container pool", func() {
 			})
 
 			itReleasesTheIPBlock()
-			itDeletesTheContainerDirectory()
+			itRunsTheDestroyScript()
 			itCleansUpTheRootfs()
 			itReleasesAndDestroysTheBridge()
 		})
@@ -1008,7 +1022,7 @@ var _ = Describe("Container pool", func() {
 
 			itReleasesTheIPBlock()
 			itCleansUpTheRootfs()
-			itDeletesTheContainerDirectory()
+			itRunsTheDestroyScript()
 		})
 
 		Context("the container environment is invalid", func() {
@@ -1031,7 +1045,7 @@ var _ = Describe("Container pool", func() {
 
 			itTearsDownTheIPTableFilters()
 			itReleasesTheIPBlock()
-			itDeletesTheContainerDirectory()
+			itRunsTheDestroyScript()
 			itCleansUpTheRootfs()
 			itReleasesAndDestroysTheBridge()
 		})

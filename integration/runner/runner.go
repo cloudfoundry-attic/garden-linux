@@ -35,9 +35,11 @@ type RunningGarden struct {
 
 	Pid int
 
-	tmpdir    string
-	GraphRoot string
-	GraphPath string
+	tmpdir        string
+	GraphRoot     string
+	GraphPath     string
+	DepotPath     string
+	SnapshotsPath string
 
 	logger lager.Logger
 }
@@ -52,23 +54,31 @@ func start(network, addr string, argv ...string) *RunningGarden {
 		os.TempDir(),
 		fmt.Sprintf("test-garden-%d", ginkgo.GinkgoParallelNode()),
 	)
+	Expect(os.MkdirAll(tmpDir, 0755)).To(Succeed())
 
 	if GraphRoot == "" {
 		GraphRoot = filepath.Join(tmpDir, "graph")
 	}
-
 	graphPath := filepath.Join(GraphRoot, fmt.Sprintf("node-%d", ginkgo.GinkgoParallelNode()))
 
+	depotPath := filepath.Join(tmpDir, "containers")
+	Expect(os.MkdirAll(depotPath, 0755)).To(Succeed())
+
+	snapshotsPath := filepath.Join(tmpDir, "snapshots")
+	Expect(os.MkdirAll(snapshotsPath, 0755)).To(Succeed())
+
 	r := &RunningGarden{
-		GraphRoot: GraphRoot,
-		GraphPath: graphPath,
-		tmpdir:    tmpDir,
-		logger:    lagertest.NewTestLogger("garden-runner"),
+		GraphRoot:     GraphRoot,
+		GraphPath:     graphPath,
+		DepotPath:     depotPath,
+		SnapshotsPath: snapshotsPath,
+		tmpdir:        tmpDir,
+		logger:        lagertest.NewTestLogger("garden-runner"),
 
 		Client: client.New(connection.New(network, addr)),
 	}
 
-	c := cmd(tmpDir, graphPath, network, addr, GardenBin, BinPath, RootFSPath, argv...)
+	c := cmd(depotPath, snapshotsPath, graphPath, network, addr, GardenBin, BinPath, RootFSPath, argv...)
 	r.runner = ginkgomon.New(ginkgomon.Config{
 		Name:              "garden-linux",
 		Command:           c,
@@ -121,16 +131,7 @@ func (r *RunningGarden) Stop() error {
 	}
 }
 
-func cmd(tmpdir, graphPath, network, addr, bin, binPath, RootFSPath string, argv ...string) *exec.Cmd {
-	Expect(os.MkdirAll(tmpdir, 0755)).To(Succeed())
-
-	depotPath := filepath.Join(tmpdir, "containers")
-	snapshotsPath := filepath.Join(tmpdir, "snapshots")
-
-	Expect(os.MkdirAll(depotPath, 0755)).To(Succeed())
-
-	Expect(os.MkdirAll(snapshotsPath, 0755)).To(Succeed())
-
+func cmd(depotPath, snapshotsPath, graphPath, network, addr, bin, binPath, RootFSPath string, argv ...string) *exec.Cmd {
 	appendDefaultFlag := func(ar []string, key, value string) []string {
 		for _, a := range argv {
 			if a == key {

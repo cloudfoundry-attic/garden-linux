@@ -513,42 +513,14 @@ func (p *LinuxResourcePool) releasePoolResources(resources *linux_backend.Resour
 }
 
 func (p *LinuxResourcePool) acquireSystemResources(id, handle, containerPath, rootFSPath string, resources *linux_backend.Resources, bindMounts []garden.BindMount, diskQuota int64, pLog lager.Logger) (string, process.Env, error) {
+
 	if err := os.MkdirAll(containerPath, 0755); err != nil {
-		return "", nil, fmt.Errorf("containerpool: creating container directory: %v", err)
+		return "", nil, fmt.Errorf("resource_pool: creating container directory: %v", err)
 	}
 
-	rootfsURL, err := url.Parse(rootFSPath)
+	rootfsPath, rootFSEnvVars, err := p.setupContainerDirectories(pLog, id, handle, containerPath, rootFSPath, resources, diskQuota)
 	if err != nil {
-		pLog.Error("parse-rootfs-path-failed", err, lager.Data{
-			"RootFSPath": rootFSPath,
-		})
-		return "", nil, err
-	}
-
-	rootfsPath, rootFSEnvVars, err := p.rootfsProvider.Create(id, rootfsURL, resources.RootUID != 0, diskQuota)
-	if err != nil {
-		pLog.Error("provide-rootfs-failed", err)
-		return "", nil, err
-	}
-
-	if resources.Bridge, err = p.bridges.Reserve(resources.Network.Subnet, id); err != nil {
-		pLog.Error("reserve-bridge-failed", err, lager.Data{
-			"Id":     id,
-			"Subnet": resources.Network.Subnet,
-			"Bridge": resources.Bridge,
-		})
-
-		p.rootfsProvider.Remove(layercake.ContainerID(rootfsPath))
-		return "", nil, err
-	}
-
-	if err = p.saveBridgeName(id, resources.Bridge); err != nil {
-		pLog.Error("save-bridge-name-failed", err, lager.Data{
-			"Id":     id,
-			"Bridge": resources.Bridge,
-		})
-
-		p.rootfsProvider.Remove(layercake.ContainerID(rootfsPath))
+		os.RemoveAll(containerPath)
 		return "", nil, err
 	}
 
@@ -592,7 +564,7 @@ func (p *LinuxResourcePool) acquireSystemResources(id, handle, containerPath, ro
 	if err != nil {
 		p.logger.Error("save-rootfs-provider-failed", err, lager.Data{
 			"Id":     id,
-			"rootfs": rootfsURL.String(),
+			"rootfs": rootFSPath,
 		})
 		return "", nil, err
 	}
@@ -622,6 +594,64 @@ func (p *LinuxResourcePool) acquireSystemResources(id, handle, containerPath, ro
 	filterLog.Debug("finished")
 
 	return rootfsPath, rootFSEnvVars, nil
+}
+
+func (p *LinuxResourcePool) setupRootfs(pLog lager.Logger, id, rootFSPath string, privileged bool, diskQuota int64) (string, process.Env, error) {
+	rootfsURL, err := url.Parse(rootFSPath)
+	if err != nil {
+		pLog.Error("parse-rootfs-path-failed", err, lager.Data{
+			"RootFSPath": rootFSPath,
+		})
+
+		return "", nil, err
+	}
+
+	rootfsPath, rootFSEnvVars, err := p.rootfsProvider.Create(id, rootfsURL, privileged, diskQuota)
+	if err != nil {
+		pLog.Error("provide-rootfs-failed", err)
+
+		return "", nil, err
+	}
+
+	return rootfsPath, rootFSEnvVars, nil
+}
+
+func (p *LinuxResourcePool) setupContainerDirectories(pLog lager.Logger, id, handle, containerPath, rootFSPath string, resources *linux_backend.Resources, diskQuota int64) (string, process.Env, error) {
+	rootfsPath, rootFSEnvVars, err := p.setupRootfs(pLog, id, rootFSPath, resources.RootUID != 0, diskQuota)
+	if err != nil {
+		return "", nil, err
+	}
+
+	if err := p.setupBridge(pLog, id, resources); err != nil {
+		p.rootfsProvider.Remove(layercake.ContainerID(rootfsPath))
+		return "", nil, err
+	}
+
+	return rootfsPath, rootFSEnvVars, nil
+}
+
+func (p *LinuxResourcePool) setupBridge(pLog lager.Logger, id string, resources *linux_backend.Resources) error {
+	var err error
+	if resources.Bridge, err = p.bridges.Reserve(resources.Network.Subnet, id); err != nil {
+		pLog.Error("reserve-bridge-failed", err, lager.Data{
+			"Id":     id,
+			"Subnet": resources.Network.Subnet,
+			"Bridge": resources.Bridge,
+		})
+
+		return err
+	}
+
+	if err = p.saveBridgeName(id, resources.Bridge); err != nil {
+		pLog.Error("save-bridge-name-failed", err, lager.Data{
+			"Id":     id,
+			"Bridge": resources.Bridge,
+		})
+
+		return err
+	}
+
+	return nil
 }
 
 func (p *LinuxResourcePool) tryReleaseSystemResources(logger lager.Logger, id string) {
