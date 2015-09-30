@@ -549,11 +549,11 @@ func (p *LinuxResourcePool) acquireSystemResources(id, handle, containerPath, ro
 
 	err = pRunner.Run(create)
 	defer cleanup(&err, func() {
-		p.tryReleaseSystemResources(p.logger, id)
+		p.tryReleaseSystemResources(pLog, id)
 	})
 
 	if err != nil {
-		p.logger.Error("create-command-failed", err, lager.Data{
+		pLog.Error("create-command-failed", err, lager.Data{
 			"CreateCmd": createCmd,
 			"Env":       create.Env,
 		})
@@ -562,7 +562,7 @@ func (p *LinuxResourcePool) acquireSystemResources(id, handle, containerPath, ro
 
 	err = p.saveRootFSProvider(id, "docker-composite")
 	if err != nil {
-		p.logger.Error("save-rootfs-provider-failed", err, lager.Data{
+		pLog.Error("save-rootfs-provider-failed", err, lager.Data{
 			"Id":     id,
 			"rootfs": rootFSPath,
 		})
@@ -571,7 +571,7 @@ func (p *LinuxResourcePool) acquireSystemResources(id, handle, containerPath, ro
 
 	err = p.saveContainerVersion(id)
 	if err != nil {
-		p.logger.Error("save-container-version-failed", err, lager.Data{
+		pLog.Error("save-container-version-failed", err, lager.Data{
 			"Id":            id,
 			"ContainerPath": containerPath,
 		})
@@ -580,18 +580,16 @@ func (p *LinuxResourcePool) acquireSystemResources(id, handle, containerPath, ro
 
 	err = p.writeBindMounts(containerPath, rootfsPath, bindMounts)
 	if err != nil {
-		p.logger.Error("bind-mounts-failed", err)
+		pLog.Error("bind-mounts-failed", err)
 		return "", nil, err
 	}
 
-	filterLog := pLog.Session("setup-filter")
-
-	filterLog.Debug("starting")
+	pLog.Debug("setup-iptables-starting")
 	if err = p.filterProvider.ProvideFilter(id).Setup(handle); err != nil {
-		p.logger.Error("set-up-filter-failed", err)
+		pLog.Error("setup-iptables-failed", err)
 		return "", nil, fmt.Errorf("resource_pool: set up filter: %v", err)
 	}
-	filterLog.Debug("finished")
+	pLog.Debug("setup-iptables-ended")
 
 	return rootfsPath, rootFSEnvVars, nil
 }
@@ -606,12 +604,14 @@ func (p *LinuxResourcePool) setupRootfs(pLog lager.Logger, id, rootFSPath string
 		return "", nil, err
 	}
 
+	pLog.Debug("provide-rootfs-starting")
 	rootfsPath, rootFSEnvVars, err := p.rootfsProvider.Create(id, rootfsURL, privileged, diskQuota)
 	if err != nil {
 		pLog.Error("provide-rootfs-failed", err)
 
 		return "", nil, err
 	}
+	pLog.Debug("provide-rootfs-ended")
 
 	return rootfsPath, rootFSEnvVars, nil
 }
@@ -622,10 +622,12 @@ func (p *LinuxResourcePool) setupContainerDirectories(pLog lager.Logger, id, han
 		return "", nil, err
 	}
 
+	pLog.Debug("setup-bridge-starting")
 	if err := p.setupBridge(pLog, id, resources); err != nil {
 		p.rootfsProvider.Remove(layercake.ContainerID(rootfsPath))
 		return "", nil, err
 	}
+	pLog.Debug("setup-bridge-ended")
 
 	return rootfsPath, rootFSEnvVars, nil
 }

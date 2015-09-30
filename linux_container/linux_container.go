@@ -383,13 +383,13 @@ func (c *LinuxContainer) Start() error {
 
 	err := cRunner.Run(start)
 	if err != nil {
-		cLog.Error("failed-to-start", err)
+		cLog.Error("failed", err)
 		return fmt.Errorf("container: start: %v", err)
 	}
 
 	c.setState(linux_backend.StateActive)
 
-	cLog.Info("started")
+	cLog.Info("ended")
 
 	return nil
 }
@@ -484,6 +484,8 @@ func (c *LinuxContainer) HasProperties(properties garden.Properties) bool {
 }
 
 func (c *LinuxContainer) Info() (garden.ContainerInfo, error) {
+	c.logger.Debug("info-starting")
+
 	mappedPorts := []garden.PortMapping{}
 
 	c.netInsMutex.RLock()
@@ -516,6 +518,8 @@ func (c *LinuxContainer) Info() (garden.ContainerInfo, error) {
 	info.ContainerIP = c.Resources.Network.IP.String()
 	info.HostIP = subnets.GatewayIP(c.Resources.Network.Subnet).String()
 	info.ExternalIP = c.Resources.ExternalIP.String()
+
+	c.logger.Debug("info-ended")
 
 	return info, nil
 }

@@ -26,11 +26,17 @@ var _ = Describe("Logging", func() {
 	Context("when container is created", func() {
 		BeforeEach(func() {
 			containerSpec = garden.ContainerSpec{
-				Env: []string{"PASSWORD=MY_SECRET"},
+				Handle: "kumquat",
+				Env:    []string{"PASSWORD=MY_SECRET"},
 				Properties: garden.Properties{
 					"super": "banana",
 				},
 			}
+		})
+
+		It("should log before and after starting with the container handle", func() {
+			Expect(client).To(gbytes.Say("container.kumquat.start.starting"))
+			Expect(client).To(gbytes.Say("container.kumquat.start.ended"))
 		})
 
 		It("should not log any environment variables", func() {

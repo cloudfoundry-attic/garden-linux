@@ -60,6 +60,7 @@ var _ = Describe("Container pool", func() {
 		config             sysconfig.Config
 		containerNetwork   *linux_backend.Network
 		defaultVersion     string
+		logger             *lagertest.TestLogger
 	)
 
 	BeforeEach(func() {
@@ -98,7 +99,7 @@ var _ = Describe("Container pool", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		config = sysconfig.NewConfig("0", false)
-		logger := lagertest.NewTestLogger("test")
+		logger = lagertest.NewTestLogger("test")
 		pool = resource_pool.New(
 			logger,
 			"/root/path",
@@ -1707,6 +1708,34 @@ var _ = Describe("Container pool", func() {
 			It("does not tear down the filter", func() {
 				pool.Release(container)
 				Expect(fakeFilter.TearDownCallCount()).To(Equal(0))
+			})
+		})
+	})
+
+	Describe("Logging", func() {
+		Context("when acquiring", func() {
+			It("should log before and after bridge setup", func() {
+				_, err := pool.Acquire(garden.ContainerSpec{})
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(logger.LogMessages()).To(ContainElement(ContainSubstring("setup-bridge-starting")))
+				Expect(logger.LogMessages()).To(ContainElement(ContainSubstring("setup-bridge-ended")))
+			})
+
+			It("should log before and after iptables setup", func() {
+				_, err := pool.Acquire(garden.ContainerSpec{})
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(logger.LogMessages()).To(ContainElement(ContainSubstring("setup-iptables-starting")))
+				Expect(logger.LogMessages()).To(ContainElement(ContainSubstring("setup-iptables-ended")))
+			})
+
+			It("should log before and after RootFS provision", func() {
+				_, err := pool.Acquire(garden.ContainerSpec{})
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(logger.LogMessages()).To(ContainElement(ContainSubstring("provide-rootfs-starting")))
+				Expect(logger.LogMessages()).To(ContainElement(ContainSubstring("provide-rootfs-ended")))
 			})
 		})
 	})

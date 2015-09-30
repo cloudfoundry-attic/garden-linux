@@ -44,6 +44,7 @@ var _ = Describe("Linux containers", func() {
 	var fakeOomWatcher *fake_watcher.FakeWatcher
 	var containerDir string
 	var containerProps map[string]string
+	var logger *lagertest.TestLogger
 
 	BeforeEach(func() {
 		fakeRunner = fake_command_runner.New()
@@ -82,6 +83,8 @@ var _ = Describe("Linux containers", func() {
 		containerProps = map[string]string{
 			"property-name": "property-value",
 		}
+
+		logger = lagertest.NewTestLogger("linux-container")
 	})
 
 	JustBeforeEach(func() {
@@ -107,7 +110,7 @@ var _ = Describe("Linux containers", func() {
 			fakeFilter,
 			new(fake_network_statisticser.FakeNetworkStatisticser),
 			fakeOomWatcher,
-			lagertest.NewTestLogger("linux-container-limits-test"),
+			logger,
 		)
 	})
 
@@ -150,6 +153,13 @@ var _ = Describe("Linux containers", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(container.State()).To(Equal(linux_backend.StateActive))
+		})
+
+		It("should log before and after", func() {
+			Expect(container.Start()).To(Succeed())
+
+			Expect(logger.LogMessages()).To(ContainElement(ContainSubstring("start.starting")))
+			Expect(logger.LogMessages()).To(ContainElement(ContainSubstring("start.ended")))
 		})
 
 		Context("when start.sh fails", func() {
@@ -837,6 +847,14 @@ var _ = Describe("Linux containers", func() {
 				{HostPort: 1235, ContainerPort: 5679},
 			}))
 
+		})
+
+		It("should log before and after", func() {
+			_, err := container.Info()
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(logger.LogMessages()).To(ContainElement(ContainSubstring("info-starting")))
+			Expect(logger.LogMessages()).To(ContainElement(ContainSubstring("info-ended")))
 		})
 
 		Context("with running processes", func() {
