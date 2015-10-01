@@ -20,7 +20,7 @@ import (
 var _ = Describe("Namespaced Signaller", func() {
 	var (
 		containerPath         string
-		processId             uint32
+		processId             string
 		processPidFileContent string
 		signaller             *process_tracker.NamespacedSignaller
 		fakeRunner            *fake_command_runner.FakeCommandRunner
@@ -43,7 +43,7 @@ var _ = Describe("Namespaced Signaller", func() {
 			Timeout:       time.Millisecond * 100,
 		}
 
-		processId = 12345
+		processId = "12345"
 		request = &process_tracker.SignalRequest{
 			Pid:    processId,
 			Link:   nil,

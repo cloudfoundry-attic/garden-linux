@@ -323,7 +323,7 @@ var _ = Describe("Linux containers", func() {
 
 		Describe("streaming", func() {
 			JustBeforeEach(func() {
-				fakeProcessTracker.RunStub = func(processID uint32, cmd *exec.Cmd, io garden.ProcessIO, tty *garden.TTYSpec, signaller process_tracker.Signaller) (garden.Process, error) {
+				fakeProcessTracker.RunStub = func(processID string, cmd *exec.Cmd, io garden.ProcessIO, tty *garden.TTYSpec, signaller process_tracker.Signaller) (garden.Process, error) {
 					writing := new(sync.WaitGroup)
 					writing.Add(1)
 
@@ -364,7 +364,7 @@ var _ = Describe("Linux containers", func() {
 				})
 				Expect(err).ToNot(HaveOccurred())
 
-				Expect(process.ID()).To(Equal(uint32(1)))
+				Expect(process.ID()).To(Equal("1"))
 
 				Eventually(stdout).Should(gbytes.Say("hi out\n"))
 				Eventually(stderr).Should(gbytes.Say("hi err\n"))
@@ -445,7 +445,7 @@ var _ = Describe("Linux containers", func() {
 	Describe("Attaching", func() {
 		Context("to a started process", func() {
 			JustBeforeEach(func() {
-				fakeProcessTracker.AttachStub = func(id uint32, io garden.ProcessIO) (garden.Process, error) {
+				fakeProcessTracker.AttachStub = func(id string, io garden.ProcessIO) (garden.Process, error) {
 					writing := new(sync.WaitGroup)
 					writing.Add(1)
 
@@ -462,7 +462,7 @@ var _ = Describe("Linux containers", func() {
 
 					process := new(wfakes.FakeProcess)
 
-					process.IDReturns(42)
+					process.IDReturns("42")
 
 					process.WaitStub = func() (int, error) {
 						writing.Wait()
@@ -477,16 +477,16 @@ var _ = Describe("Linux containers", func() {
 				stdout := gbytes.NewBuffer()
 				stderr := gbytes.NewBuffer()
 
-				process, err := container.Attach(1, garden.ProcessIO{
+				process, err := container.Attach("1", garden.ProcessIO{
 					Stdout: stdout,
 					Stderr: stderr,
 				})
 				Expect(err).ToNot(HaveOccurred())
 
 				pid, _ := fakeProcessTracker.AttachArgsForCall(0)
-				Expect(pid).To(Equal(uint32(1)))
+				Expect(pid).To(Equal("1"))
 
-				Expect(process.ID()).To(Equal(uint32(42)))
+				Expect(process.ID()).To(Equal("42"))
 
 				Eventually(stdout).Should(gbytes.Say("hi out\n"))
 				Eventually(stderr).Should(gbytes.Say("hi err\n"))
@@ -503,7 +503,7 @@ var _ = Describe("Linux containers", func() {
 			})
 
 			It("returns the error", func() {
-				_, err := container.Attach(42, garden.ProcessIO{})
+				_, err := container.Attach("42", garden.ProcessIO{})
 				Expect(err).To(Equal(disaster))
 			})
 		})

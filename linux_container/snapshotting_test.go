@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os/exec"
+	"strconv"
 	"time"
 
 	"github.com/blang/semver"
@@ -168,13 +169,13 @@ var _ = Describe("Linux containers", func() {
 			container.NetOut(netOutRule2)
 
 			p1 := new(wfakes.FakeProcess)
-			p1.IDReturns(1)
+			p1.IDReturns("1")
 
 			p2 := new(wfakes.FakeProcess)
-			p2.IDReturns(2)
+			p2.IDReturns("2")
 
 			p3 := new(wfakes.FakeProcess)
-			p3.IDReturns(3)
+			p3.IDReturns("3")
 
 			fakeProcessTracker.ActiveProcessesReturns([]garden.Process{p1, p2, p3})
 		})
@@ -361,10 +362,10 @@ var _ = Describe("Linux containers", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			pid, _ := fakeProcessTracker.RestoreArgsForCall(0)
-			Expect(pid).To(Equal(uint32(0)))
+			Expect(pid).To(Equal("0"))
 
 			pid, _ = fakeProcessTracker.RestoreArgsForCall(1)
-			Expect(pid).To(Equal(uint32(1)))
+			Expect(pid).To(Equal("1"))
 		})
 
 		It("makes the next process ID be higher than the highest restored ID", func() {
@@ -391,7 +392,8 @@ var _ = Describe("Linux containers", func() {
 			}, garden.ProcessIO{})
 			Expect(err).ToNot(HaveOccurred())
 
-			nextId, _, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
+			nextGuid, _, _, _, _ := fakeProcessTracker.RunArgsForCall(0)
+			nextId, _ := strconv.Atoi(nextGuid)
 
 			Expect(nextId).To(BeNumerically(">", 5))
 		})

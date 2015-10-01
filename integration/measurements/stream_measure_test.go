@@ -104,7 +104,7 @@ var _ = Describe("The Garden server", func() {
 	})
 
 	Describe("repeatedly attaching to a running process", func() {
-		var processID uint32
+		var processID string
 
 		BeforeEach(func() {
 			process, err := container.Run(garden.ProcessSpec{

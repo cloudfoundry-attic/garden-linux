@@ -26,13 +26,13 @@ type MsgSender interface {
 }
 
 type SignalRequest struct {
-	Pid    uint32
+	Pid    string
 	Signal syscall.Signal
 	Link   MsgSender
 }
 
 type Process struct {
-	id uint32
+	id string
 
 	containerPath string
 	runner        command_runner.CommandRunner
@@ -53,7 +53,7 @@ type Process struct {
 }
 
 func NewProcess(
-	id uint32,
+	id string,
 	containerPath string,
 	runner command_runner.CommandRunner,
 	signaller Signaller,
@@ -77,7 +77,7 @@ func NewProcess(
 	}
 }
 
-func (p *Process) ID() uint32 {
+func (p *Process) ID() string {
 	return p.id
 }
 
@@ -118,7 +118,7 @@ func (p *Process) Spawn(cmd *exec.Cmd, tty *garden.TTYSpec) (ready, active chan 
 	active = make(chan error, 1)
 
 	spawnPath := path.Join(p.containerPath, "bin", "iodaemon")
-	processSock := path.Join(p.containerPath, "processes", fmt.Sprintf("%d.sock", p.ID()))
+	processSock := path.Join(p.containerPath, "processes", fmt.Sprintf("%s.sock", p.ID()))
 
 	bashFlags := []string{
 		"-c",
@@ -201,7 +201,7 @@ func (p *Process) Attach(processIO garden.ProcessIO) {
 
 // This is guarded by runningLink so will only run once per Process per garden.
 func (p *Process) runLinker() {
-	processSock := path.Join(p.containerPath, "processes", fmt.Sprintf("%d.sock", p.ID()))
+	processSock := path.Join(p.containerPath, "processes", fmt.Sprintf("%s.sock", p.ID()))
 
 	link, err := link.Create(processSock, p.stdout, p.stderr)
 	if err != nil {

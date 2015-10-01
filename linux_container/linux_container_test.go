@@ -860,13 +860,13 @@ var _ = Describe("Linux containers", func() {
 		Context("with running processes", func() {
 			JustBeforeEach(func() {
 				p1 := new(wfakes.FakeProcess)
-				p1.IDReturns(1)
+				p1.IDReturns("1")
 
 				p2 := new(wfakes.FakeProcess)
-				p2.IDReturns(2)
+				p2.IDReturns("2")
 
 				p3 := new(wfakes.FakeProcess)
-				p3.IDReturns(3)
+				p3.IDReturns("3")
 
 				fakeProcessTracker.ActiveProcessesReturns([]garden.Process{p1, p2, p3})
 			})
@@ -874,7 +874,7 @@ var _ = Describe("Linux containers", func() {
 			It("returns their process IDs", func() {
 				info, err := container.Info()
 				Expect(err).ToNot(HaveOccurred())
-				Expect(info.ProcessIDs).To(Equal([]uint32{1, 2, 3}))
+				Expect(info.ProcessIDs).To(Equal([]string{"1", "2", "3"}))
 			})
 		})
 	})

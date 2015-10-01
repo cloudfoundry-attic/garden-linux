@@ -304,7 +304,7 @@ var _ = Describe("Through a restart", func() {
 			info, err := container.Info()
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(info.ProcessIDs).To(ContainElement(uint32(process.ID())))
+			Expect(info.ProcessIDs).To(ContainElement(process.ID()))
 		})
 	})
 

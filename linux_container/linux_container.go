@@ -227,7 +227,12 @@ func (c *LinuxContainer) Snapshot(out io.Writer) error {
 	processSnapshots := []linux_backend.ActiveProcess{}
 
 	for _, p := range c.processTracker.ActiveProcesses() {
-		processSnapshots = append(processSnapshots, linux_backend.ActiveProcess{ID: p.ID()})
+		pid, err := strconv.Atoi(p.ID())
+		if err != nil {
+			panic(fmt.Sprintf("process id not a number: %s", p.ID())) // should never happen..
+		}
+
+		processSnapshots = append(processSnapshots, linux_backend.ActiveProcess{ID: uint32(pid)})
 	}
 
 	properties, _ := c.Properties()
@@ -318,7 +323,7 @@ func (c *LinuxContainer) Restore(snapshot linux_backend.LinuxContainerSpec) erro
 		})
 
 		c.processIDPool.Restore(process.ID)
-		c.processTracker.Restore(process.ID, signaller)
+		c.processTracker.Restore(fmt.Sprintf("%d", process.ID), signaller)
 	}
 
 	net := exec.Command(path.Join(c.ContainerPath, "net.sh"), "setup")
@@ -499,7 +504,7 @@ func (c *LinuxContainer) Info() (garden.ContainerInfo, error) {
 
 	c.netInsMutex.RUnlock()
 
-	processIDs := []uint32{}
+	var processIDs []string
 	for _, process := range c.processTracker.ActiveProcesses() {
 		processIDs = append(processIDs, process.ID())
 	}

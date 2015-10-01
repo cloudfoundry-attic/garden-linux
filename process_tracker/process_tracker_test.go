@@ -50,7 +50,7 @@ var _ = Describe("Process tracker", func() {
 		It("runs the process and returns its exit code", func() {
 			cmd := exec.Command("bash", "-c", "exit 42")
 
-			process, err := processTracker.Run(555, cmd, garden.ProcessIO{}, nil, signaller)
+			process, err := processTracker.Run("555", cmd, garden.ProcessIO{}, nil, signaller)
 			Expect(err).NotTo(HaveOccurred())
 
 			status, err := process.Wait()
@@ -71,7 +71,7 @@ var _ = Describe("Process tracker", func() {
 
 				stdout = gbytes.NewBuffer()
 				process, err = processTracker.Run(
-					2, cmd,
+					"2", cmd,
 					garden.ProcessIO{
 						Stdout: io.MultiWriter(stdout, GinkgoWriter),
 						Stderr: GinkgoWriter,
@@ -122,7 +122,7 @@ var _ = Describe("Process tracker", func() {
 			stdout := gbytes.NewBuffer()
 			stderr := gbytes.NewBuffer()
 
-			_, err := processTracker.Run(40, cmd, garden.ProcessIO{
+			_, err := processTracker.Run("40", cmd, garden.ProcessIO{
 				Stdout: stdout,
 				Stderr: stderr,
 			}, nil, signaller)
@@ -135,7 +135,7 @@ var _ = Describe("Process tracker", func() {
 		It("streams input to the process", func() {
 			stdout := gbytes.NewBuffer()
 
-			_, err := processTracker.Run(50, exec.Command("cat"), garden.ProcessIO{
+			_, err := processTracker.Run("50", exec.Command("cat"), garden.ProcessIO{
 				Stdin:  bytes.NewBufferString("stdin-line1\nstdin-line2\n"),
 				Stdout: stdout,
 			}, nil, signaller)
@@ -149,7 +149,7 @@ var _ = Describe("Process tracker", func() {
 				pipeR, pipeW := io.Pipe()
 				stdout := gbytes.NewBuffer()
 
-				process, err := processTracker.Run(60, exec.Command("cat"), garden.ProcessIO{
+				process, err := processTracker.Run("60", exec.Command("cat"), garden.ProcessIO{
 					Stdin:  pipeR,
 					Stdout: stdout,
 				}, nil, signaller)
@@ -179,7 +179,7 @@ var _ = Describe("Process tracker", func() {
 				pipeR, pipeW := io.Pipe()
 				stdout := gbytes.NewBuffer()
 
-				process, err := processTracker.Run(70, exec.Command("cat"), garden.ProcessIO{
+				process, err := processTracker.Run("70", exec.Command("cat"), garden.ProcessIO{
 					Stdin:  pipeR,
 					Stdout: stdout,
 				}, nil, signaller)
@@ -225,7 +225,7 @@ var _ = Describe("Process tracker", func() {
 
 				stdout := gbytes.NewBuffer()
 
-				process, err := processTracker.Run(90, cmd, garden.ProcessIO{
+				process, err := processTracker.Run("90", cmd, garden.ProcessIO{
 					Stdout: stdout,
 				}, &garden.TTYSpec{
 					WindowSize: &garden.WindowSize{
@@ -256,7 +256,7 @@ var _ = Describe("Process tracker", func() {
 
 					stdout := gbytes.NewBuffer()
 
-					_, err := processTracker.Run(100, cmd, garden.ProcessIO{
+					_, err := processTracker.Run("100", cmd, garden.ProcessIO{
 						Stdout: stdout,
 					}, &garden.TTYSpec{}, signaller)
 					Expect(err).NotTo(HaveOccurred())
@@ -268,7 +268,7 @@ var _ = Describe("Process tracker", func() {
 
 		Context("when spawning fails", func() {
 			It("returns the error", func() {
-				_, err := processTracker.Run(200, exec.Command("/bin/does-not-exist"), garden.ProcessIO{}, nil, signaller)
+				_, err := processTracker.Run("200", exec.Command("/bin/does-not-exist"), garden.ProcessIO{}, nil, signaller)
 				Expect(err).To(HaveOccurred())
 			})
 		})
@@ -276,11 +276,11 @@ var _ = Describe("Process tracker", func() {
 
 	Describe("Restoring processes", func() {
 		It("tracks the restored process", func() {
-			processTracker.Restore(2, signaller)
+			processTracker.Restore("2", signaller)
 
 			activeProcesses := processTracker.ActiveProcesses()
 			Expect(activeProcesses).To(HaveLen(1))
-			Expect(activeProcesses[0].ID()).To(Equal(uint32(2)))
+			Expect(activeProcesses[0].ID()).To(Equal("2"))
 		})
 	})
 
@@ -292,7 +292,7 @@ var _ = Describe("Process tracker", func() {
 			echo "hi stderr" $stuff >&2
 		`)
 
-			process, err := processTracker.Run(855, cmd, garden.ProcessIO{}, nil, signaller)
+			process, err := processTracker.Run("855", cmd, garden.ProcessIO{}, nil, signaller)
 			Expect(err).NotTo(HaveOccurred())
 
 			stdout := gbytes.NewBuffer()
@@ -317,14 +317,14 @@ var _ = Describe("Process tracker", func() {
 
 			Expect(processTracker.ActiveProcesses()).To(BeEmpty())
 
-			process1, err := processTracker.Run(9955, exec.Command("cat"), garden.ProcessIO{
+			process1, err := processTracker.Run("9955", exec.Command("cat"), garden.ProcessIO{
 				Stdin: stdin1,
 			}, nil, signaller)
 			Expect(err).ToNot(HaveOccurred())
 
 			Eventually(processTracker.ActiveProcesses).Should(ConsistOf(process1))
 
-			process2, err := processTracker.Run(9956, exec.Command("cat"), garden.ProcessIO{
+			process2, err := processTracker.Run("9956", exec.Command("cat"), garden.ProcessIO{
 				Stdin: stdin2,
 			}, nil, signaller)
 			Expect(err).ToNot(HaveOccurred())

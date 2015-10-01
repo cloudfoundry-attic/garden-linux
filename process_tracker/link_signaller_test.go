@@ -25,7 +25,7 @@ var _ = Describe("Link Signaller", func() {
 	JustBeforeEach(func() {
 		msgSender = new(fake_msg_sender.FakeMsgSender)
 		request = &process_tracker.SignalRequest{
-			Pid:    12345,
+			Pid:    "12345",
 			Link:   msgSender,
 			Signal: signalSent,
 		}
