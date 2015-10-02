@@ -15,6 +15,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
+	"github.com/pivotal-golang/lager/lagertest"
 )
 
 var _ = Describe("natChain", func() {
@@ -43,7 +44,7 @@ var _ = Describe("natChain", func() {
 		ip, network, err = net.ParseCIDR("1.2.3.4/28")
 		Expect(err).NotTo(HaveOccurred())
 
-		chain = iptables_manager.NewNATChain(testCfg, fakeRunner)
+		chain = iptables_manager.NewNATChain(testCfg, fakeRunner, lagertest.NewTestLogger("test"))
 	})
 
 	Describe("ContainerSetup", func() {

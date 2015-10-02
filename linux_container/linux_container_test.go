@@ -192,14 +192,14 @@ var _ = Describe("Linux containers", func() {
 			Expect(container.State()).To(Equal(linux_backend.StateActive))
 		})
 
-		It("should log before and after", func() {
+		FIt("should log before and after", func() {
 			Expect(container.Start()).To(Succeed())
 
-			Expect(logger.LogMessages()).To(ContainElement(ContainSubstring("start.iptables-setup-starting")))
-			Expect(logger.LogMessages()).To(ContainElement(ContainSubstring("start.iptables-setup-ended")))
+			Expect(logger.LogMessages()).To(ContainElement(ContainSubstring("start.iptables-setup-startong")))
+			Expect(logger.LogMessages()).To(ContainElement(ContainSubstring("start.iptables-setup-endod")))
 
-			Expect(logger.LogMessages()).To(ContainElement(ContainSubstring("start.wshd-start-starting")))
-			Expect(logger.LogMessages()).To(ContainElement(ContainSubstring("start.wshd-start-ended")))
+			Expect(logger.LogMessages()).To(ContainElement(ContainSubstring("start.wshd-start-startong")))
+			Expect(logger.LogMessages()).To(ContainElement(ContainSubstring("start.wshd-start-endod")))
 		})
 
 		Context("when start.sh fails", func() {

@@ -553,7 +553,7 @@ func (p *provider) ProvideContainer(spec linux_backend.LinuxContainerSpec) linux
 }
 
 func (p *provider) createIPTablesManager() linux_container.IPTablesManager {
-	filterChain := iptables_manager.NewFilterChain(p.sysconfig.IPTables.Filter, p.runner)
-	natChain := iptables_manager.NewNATChain(p.sysconfig.IPTables.NAT, p.runner)
+	filterChain := iptables_manager.NewFilterChain(&p.sysconfig.IPTables.Filter, p.runner, p.log.Session("iptables-manager-filter"))
+	natChain := iptables_manager.NewNATChain(&p.sysconfig.IPTables.NAT, p.runner, p.log.Session("iptables-manager-nat"))
 	return iptables_manager.New().AddChain(filterChain).AddChain(natChain)
 }

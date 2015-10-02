@@ -15,6 +15,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
+	"github.com/pivotal-golang/lager/lagertest"
 )
 
 var _ = Describe("filterChain", func() {
@@ -44,7 +45,7 @@ var _ = Describe("filterChain", func() {
 		ip, network, err = net.ParseCIDR("1.2.3.4/28")
 		Expect(err).NotTo(HaveOccurred())
 
-		chain = iptables_manager.NewFilterChain(testCfg, fakeRunner)
+		chain = iptables_manager.NewFilterChain(testCfg, fakeRunner, lagertest.NewTestLogger("test"))
 	})
 
 	Describe("Setup", func() {

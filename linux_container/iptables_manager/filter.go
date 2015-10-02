@@ -7,19 +7,25 @@ import (
 
 	"fmt"
 
+	"bytes"
+	"io/ioutil"
+
 	"github.com/cloudfoundry-incubator/garden-linux/sysconfig"
 	"github.com/cloudfoundry/gunk/command_runner"
+	"github.com/pivotal-golang/lager"
 )
 
 type filterChain struct {
 	cfg    *sysconfig.IPTablesFilterConfig
 	runner command_runner.CommandRunner
+	logger lager.Logger
 }
 
-func NewFilterChain(cfg *sysconfig.IPTablesFilterConfig, runner command_runner.CommandRunner) *filterChain {
+func NewFilterChain(cfg *sysconfig.IPTablesFilterConfig, runner command_runner.CommandRunner, logger lager.Logger) *filterChain {
 	return &filterChain{
 		cfg:    cfg,
 		runner: runner,
+		logger: logger,
 	}
 }
 
@@ -38,8 +44,12 @@ func (mgr *filterChain) Setup(containerID, bridgeName string, ip net.IP, network
 	}
 
 	for _, cmd := range commands {
+		buffer := &bytes.Buffer{}
+		cmd.Stderr = buffer
 		if err := mgr.runner.Run(cmd); err != nil {
-			return fmt.Errorf("iptables_manager: %s", err)
+			stderr, _ := ioutil.ReadAll(buffer)
+			mgr.logger.Error("setup", err, lager.Data{"cmd": cmd, "stderr": string(stderr)})
+			return fmt.Errorf("iptables_manager: filter: %s", err)
 		}
 	}
 

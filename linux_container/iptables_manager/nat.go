@@ -9,17 +9,20 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden-linux/sysconfig"
 	"github.com/cloudfoundry/gunk/command_runner"
+	"github.com/pivotal-golang/lager"
 )
 
 type natChain struct {
 	cfg    *sysconfig.IPTablesNATConfig
 	runner command_runner.CommandRunner
+	logger lager.Logger
 }
 
-func NewNATChain(cfg *sysconfig.IPTablesNATConfig, runner command_runner.CommandRunner) *natChain {
+func NewNATChain(cfg *sysconfig.IPTablesNATConfig, runner command_runner.CommandRunner, logger lager.Logger) *natChain {
 	return &natChain{
 		cfg:    cfg,
 		runner: runner,
+		logger: logger,
 	}
 }
 
@@ -42,6 +45,7 @@ func (mgr *natChain) Setup(containerID, bridgeName string, ip net.IP, network *n
 
 	for _, cmd := range commands {
 		if err := mgr.runner.Run(cmd); err != nil {
+			mgr.logger.Error("setup", err, lager.Data{"cmd": cmd})
 			return fmt.Errorf("iptables_manager: %s", err)
 		}
 	}
