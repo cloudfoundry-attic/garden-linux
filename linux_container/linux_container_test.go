@@ -20,6 +20,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/bandwidth_manager/fake_bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/cgroups_manager/fake_cgroups_manager"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_iptables_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_network_statisticser"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_quota_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_watcher"
@@ -41,6 +42,7 @@ var _ = Describe("Linux containers", func() {
 	var fakePortPool *fake_port_pool.FakePortPool
 	var fakeProcessTracker *fake_process_tracker.FakeProcessTracker
 	var fakeFilter *networkFakes.FakeFilter
+	var fakeIPTablesManager *fake_iptables_manager.FakeIPTablesManager
 	var fakeOomWatcher *fake_watcher.FakeWatcher
 	var containerDir string
 	var containerProps map[string]string
@@ -55,6 +57,7 @@ var _ = Describe("Linux containers", func() {
 		fakeBandwidthManager = fake_bandwidth_manager.New()
 		fakeProcessTracker = new(fake_process_tracker.FakeProcessTracker)
 		fakeFilter = new(networkFakes.FakeFilter)
+		fakeIPTablesManager = new(fake_iptables_manager.FakeIPTablesManager)
 		fakeOomWatcher = new(fake_watcher.FakeWatcher)
 
 		fakePortPool = fake_port_pool.New(1000)
@@ -108,6 +111,7 @@ var _ = Describe("Linux containers", func() {
 			fakeBandwidthManager,
 			fakeProcessTracker,
 			fakeFilter,
+			fakeIPTablesManager,
 			new(fake_network_statisticser.FakeNetworkStatisticser),
 			fakeOomWatcher,
 			logger,
@@ -131,6 +135,39 @@ var _ = Describe("Linux containers", func() {
 	})
 
 	Describe("Starting", func() {
+		It("should setup IPTables", func() {
+			err := container.Start()
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(fakeIPTablesManager.ContainerSetupCallCount()).To(Equal(1))
+			id, bridgeIface, ip, network := fakeIPTablesManager.ContainerSetupArgsForCall(0)
+			Expect(id).To(Equal("some-id"))
+			Expect(bridgeIface).To(Equal("some-bridge"))
+			Expect(err).ToNot(HaveOccurred())
+			Expect(ip).To(Equal(containerResources.Network.IP))
+			Expect(network).To(Equal(containerResources.Network.Subnet))
+		})
+
+		Context("when IPTables setup fails", func() {
+			JustBeforeEach(func() {
+				fakeIPTablesManager.ContainerSetupReturns(errors.New("oh yes!"))
+			})
+
+			It("should return a wrapped error", func() {
+				Expect(container.Start()).To(MatchError("container: start: oh yes!"))
+			})
+
+			It("should not call start.sh", func() {
+				Expect(container.Start()).ToNot(Succeed())
+
+				Expect(fakeRunner).ToNot(HaveExecutedSerially(
+					fake_command_runner.CommandSpec{
+						Path: containerDir + "/start.sh",
+					},
+				))
+			})
+		})
+
 		It("executes the container's start.sh with the correct environment", func() {
 			err := container.Start()
 			Expect(err).ToNot(HaveOccurred())
@@ -158,8 +195,11 @@ var _ = Describe("Linux containers", func() {
 		It("should log before and after", func() {
 			Expect(container.Start()).To(Succeed())
 
-			Expect(logger.LogMessages()).To(ContainElement(ContainSubstring("start.starting")))
-			Expect(logger.LogMessages()).To(ContainElement(ContainSubstring("start.ended")))
+			Expect(logger.LogMessages()).To(ContainElement(ContainSubstring("start.iptables-setup-starting")))
+			Expect(logger.LogMessages()).To(ContainElement(ContainSubstring("start.iptables-setup-ended")))
+
+			Expect(logger.LogMessages()).To(ContainElement(ContainSubstring("start.wshd-start-starting")))
+			Expect(logger.LogMessages()).To(ContainElement(ContainSubstring("start.wshd-start-ended")))
 		})
 
 		Context("when start.sh fails", func() {
@@ -203,6 +243,14 @@ var _ = Describe("Linux containers", func() {
 			))
 		})
 
+		It("should tear down IPTables", func() {
+			Expect(container.Stop(false)).To(Succeed())
+
+			Expect(fakeIPTablesManager.ContainerTeardownCallCount()).To(Equal(1))
+			id := fakeIPTablesManager.ContainerTeardownArgsForCall(0)
+			Expect(id).To(Equal("some-id"))
+		})
+
 		It("sets the container's state to stopped", func() {
 			Expect(container.State()).To(Equal(linux_backend.StateBorn))
 
@@ -225,6 +273,19 @@ var _ = Describe("Linux containers", func() {
 					},
 				))
 
+			})
+		})
+
+		Context("when tearing down IPTables fails", func() {
+			nastyError := errors.New("banana")
+
+			BeforeEach(func() {
+				fakeIPTablesManager.ContainerTeardownReturns(nastyError)
+			})
+
+			It("should return the error", func() {
+				err := container.Stop(false)
+				Expect(err).To(Equal(nastyError))
 			})
 		})
 

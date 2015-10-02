@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
 	"path"
@@ -33,6 +34,12 @@ type UndefinedPropertyError struct {
 
 func (err UndefinedPropertyError) Error() string {
 	return fmt.Sprintf("property does not exist: %s", err.Key)
+}
+
+//go:generate counterfeiter -o fake_iptables_manager/fake_iptables_manager.go . IPTablesManager
+type IPTablesManager interface {
+	ContainerSetup(containerID, bridgeIface string, ip net.IP, network *net.IPNet) error
+	ContainerTeardown(containerID string) error
 }
 
 //go:generate counterfeiter -o fake_quota_manager/fake_quota_manager.go . QuotaManager
@@ -87,6 +94,7 @@ type LinuxContainer struct {
 	bandwidthManager BandwidthManager
 	processTracker   process_tracker.ProcessTracker
 	filter           network.Filter
+	ipTablesManager  IPTablesManager
 	processIDPool    *ProcessIDPool
 
 	graceTime time.Duration
@@ -137,6 +145,7 @@ func NewLinuxContainer(
 	bandwidthManager BandwidthManager,
 	processTracker process_tracker.ProcessTracker,
 	filter network.Filter,
+	ipTablesManager IPTablesManager,
 	netStats NetworkStatisticser,
 	oomWatcher Watcher,
 	logger lager.Logger,
@@ -151,6 +160,7 @@ func NewLinuxContainer(
 		bandwidthManager: bandwidthManager,
 		processTracker:   processTracker,
 		filter:           filter,
+		ipTablesManager:  ipTablesManager,
 		processIDPool:    &ProcessIDPool{},
 		netStats:         netStats,
 		graceTime:        spec.GraceTime,
@@ -373,8 +383,17 @@ func (c *LinuxContainer) processSignaller() process_tracker.Signaller {
 func (c *LinuxContainer) Start() error {
 	cLog := c.logger.Session("start")
 
-	cLog.Debug("starting")
+	cLog.Debug("iptables-setup-starting")
+	err := c.ipTablesManager.ContainerSetup(
+		c.ID(), c.Resources.Bridge, c.Resources.Network.IP, c.Resources.Network.Subnet,
+	)
+	if err != nil {
+		cLog.Error("iptables-setup-failed", err)
+		return fmt.Errorf("container: start: %v", err)
+	}
+	cLog.Debug("iptables-setup-ended")
 
+	cLog.Debug("wshd-start-starting")
 	start := exec.Command(path.Join(c.ContainerPath, "start.sh"))
 	start.Env = []string{
 		"id=" + c.ID(),
@@ -386,16 +405,16 @@ func (c *LinuxContainer) Start() error {
 		Logger:        cLog,
 	}
 
-	err := cRunner.Run(start)
+	err = cRunner.Run(start)
 	if err != nil {
-		cLog.Error("failed", err)
+		cLog.Error("wshd-start-failed", err)
 		return fmt.Errorf("container: start: %v", err)
 	}
+	cLog.Debug("wshd-start-ended")
 
 	c.setState(linux_backend.StateActive)
 
 	cLog.Debug("ended")
-
 	return nil
 }
 
@@ -410,13 +429,15 @@ func (c *LinuxContainer) Cleanup() {
 
 func (c *LinuxContainer) Stop(kill bool) error {
 	stop := exec.Command(path.Join(c.ContainerPath, "stop.sh"))
-
 	if kill {
 		stop.Args = append(stop.Args, "-w", "0")
 	}
 
-	err := c.runner.Run(stop)
-	if err != nil {
+	if err := c.runner.Run(stop); err != nil {
+		return err
+	}
+
+	if err := c.ipTablesManager.ContainerTeardown(c.ID()); err != nil {
 		return err
 	}
 
