@@ -9,11 +9,11 @@ import (
 )
 
 type FakeChain struct {
-	SetupStub        func(containerID, bridgeIface string, ip net.IP, network *net.IPNet) error
+	SetupStub        func(containerID, bridgeName string, ip net.IP, network *net.IPNet) error
 	setupMutex       sync.RWMutex
 	setupArgsForCall []struct {
 		containerID string
-		bridgeIface string
+		bridgeName  string
 		ip          net.IP
 		network     *net.IPNet
 	}
@@ -30,17 +30,17 @@ type FakeChain struct {
 	}
 }
 
-func (fake *FakeChain) Setup(containerID string, bridgeIface string, ip net.IP, network *net.IPNet) error {
+func (fake *FakeChain) Setup(containerID string, bridgeName string, ip net.IP, network *net.IPNet) error {
 	fake.setupMutex.Lock()
 	fake.setupArgsForCall = append(fake.setupArgsForCall, struct {
 		containerID string
-		bridgeIface string
+		bridgeName  string
 		ip          net.IP
 		network     *net.IPNet
-	}{containerID, bridgeIface, ip, network})
+	}{containerID, bridgeName, ip, network})
 	fake.setupMutex.Unlock()
 	if fake.SetupStub != nil {
-		return fake.SetupStub(containerID, bridgeIface, ip, network)
+		return fake.SetupStub(containerID, bridgeName, ip, network)
 	} else {
 		return fake.setupReturns.result1
 	}
@@ -55,7 +55,7 @@ func (fake *FakeChain) SetupCallCount() int {
 func (fake *FakeChain) SetupArgsForCall(i int) (string, string, net.IP, *net.IPNet) {
 	fake.setupMutex.RLock()
 	defer fake.setupMutex.RUnlock()
-	return fake.setupArgsForCall[i].containerID, fake.setupArgsForCall[i].bridgeIface, fake.setupArgsForCall[i].ip, fake.setupArgsForCall[i].network
+	return fake.setupArgsForCall[i].containerID, fake.setupArgsForCall[i].bridgeName, fake.setupArgsForCall[i].ip, fake.setupArgsForCall[i].network
 }
 
 func (fake *FakeChain) SetupReturns(result1 error) {

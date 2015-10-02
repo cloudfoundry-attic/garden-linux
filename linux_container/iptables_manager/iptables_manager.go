@@ -4,7 +4,7 @@ import "net"
 
 //go:generate counterfeiter -o fake_chain/fake_chain.go . Chain
 type Chain interface {
-	Setup(containerID, bridgeIface string, ip net.IP, network *net.IPNet) error
+	Setup(containerID, bridgeName string, ip net.IP, network *net.IPNet) error
 	Teardown(containerID string) error
 }
 
@@ -22,15 +22,19 @@ func (mgr *IPTablesManager) AddChain(chain Chain) *IPTablesManager {
 	return mgr
 }
 
-func (mgr *IPTablesManager) ContainerSetup(containerID, bridgeIface string, ip net.IP, network *net.IPNet) error {
+func (mgr *IPTablesManager) ContainerSetup(containerID, bridgeName string, ip net.IP, network *net.IPNet) error {
 	if err := mgr.ContainerTeardown(containerID); err != nil {
 		return err
 	}
 
-	for _, chain := range mgr.chains {
-		if err := chain.Setup(containerID, bridgeIface, ip, network); err != nil {
+	for index, chain := range mgr.chains {
+		if err := chain.Setup(containerID, bridgeName, ip, network); err != nil {
+			for i := 0; i < index; i++ {
+				mgr.chains[i].Teardown(containerID)
+			}
 			return err
 		}
+
 	}
 
 	return nil

@@ -23,7 +23,7 @@ func NewNATChain(cfg *sysconfig.IPTablesNATConfig, runner command_runner.Command
 	}
 }
 
-func (mgr *natChain) Setup(containerID, bridgeIface string, ip net.IP, network *net.IPNet) error {
+func (mgr *natChain) Setup(containerID, bridgeName string, ip net.IP, network *net.IPNet) error {
 	instanceChain := mgr.cfg.InstancePrefix + containerID
 
 	commands := []*exec.Cmd{

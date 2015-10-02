@@ -23,7 +23,7 @@ var _ = Describe("filterChain", func() {
 		testCfg     *sysconfig.IPTablesFilterConfig
 		chain       iptables_manager.Chain
 		containerID string
-		bridgeIface string
+		bridgeName  string
 		ip          net.IP
 		network     *net.IPNet
 	)
@@ -40,7 +40,7 @@ var _ = Describe("filterChain", func() {
 		}
 
 		containerID = "some-ctr-id"
-		bridgeIface = "some-bridge"
+		bridgeName = "some-bridge"
 		ip, network, err = net.ParseCIDR("1.2.3.4/28")
 		Expect(err).NotTo(HaveOccurred())
 
@@ -69,14 +69,14 @@ var _ = Describe("filterChain", func() {
 				},
 				fake_command_runner.CommandSpec{
 					Path: "iptables",
-					Args: []string{"--wait", "-I", testCfg.ForwardChain, "2", "--in-interface", bridgeIface,
+					Args: []string{"--wait", "-I", testCfg.ForwardChain, "2", "--in-interface", bridgeName,
 						"--source", ip.String(), "--goto", expectedFilterInstanceChain},
 				},
 			}
 		})
 
 		It("should set up the chain", func() {
-			Expect(chain.Setup(containerID, bridgeIface, ip, network)).To(Succeed())
+			Expect(chain.Setup(containerID, bridgeName, ip, network)).To(Succeed())
 
 			Expect(fakeRunner).To(HaveExecutedSerially(specs...))
 		})
@@ -86,7 +86,7 @@ var _ = Describe("filterChain", func() {
 				fakeRunner.WhenRunning(specs[specIndex], func(*exec.Cmd) error {
 					return errors.New("iptables failed")
 				})
-				Expect(chain.Setup(containerID, bridgeIface, ip, network)).To(MatchError(errorString))
+				Expect(chain.Setup(containerID, bridgeName, ip, network)).To(MatchError(errorString))
 
 			},
 			Entry("create filter instance chain", 0, "iptables_manager: iptables failed"),

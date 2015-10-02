@@ -23,7 +23,7 @@ func NewFilterChain(cfg *sysconfig.IPTablesFilterConfig, runner command_runner.C
 	}
 }
 
-func (mgr *filterChain) Setup(containerID, bridgeIface string, ip net.IP, network *net.IPNet) error {
+func (mgr *filterChain) Setup(containerID, bridgeName string, ip net.IP, network *net.IPNet) error {
 	instanceChain := mgr.cfg.InstancePrefix + containerID
 
 	commands := []*exec.Cmd{
@@ -34,7 +34,7 @@ func (mgr *filterChain) Setup(containerID, bridgeIface string, ip net.IP, networ
 		// Otherwise, use the default filter chain
 		exec.Command("iptables", "--wait", "-A", instanceChain, "-goto", mgr.cfg.DefaultChain),
 		// Bind filter instance chain to filter forward chain
-		exec.Command("iptables", "--wait", "-I", mgr.cfg.ForwardChain, "2", "--in-interface", bridgeIface, "--source", ip.String(), "--goto", instanceChain),
+		exec.Command("iptables", "--wait", "-I", mgr.cfg.ForwardChain, "2", "--in-interface", bridgeName, "--source", ip.String(), "--goto", instanceChain),
 	}
 
 	for _, cmd := range commands {

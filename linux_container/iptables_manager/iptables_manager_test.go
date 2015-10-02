@@ -15,7 +15,7 @@ var _ = Describe("IptablesManager", func() {
 		fakeChains  []*fake_chain.FakeChain
 		manager     *iptables_manager.IPTablesManager
 		containerID string
-		bridgeIface string
+		bridgeName  string
 		ip          net.IP
 		network     *net.IPNet
 	)
@@ -31,7 +31,7 @@ var _ = Describe("IptablesManager", func() {
 		}
 
 		containerID = "some-ctr-id"
-		bridgeIface = "some-bridge"
+		bridgeName = "some-bridge"
 		var err error
 		ip, network, err = net.ParseCIDR("1.2.3.4/28")
 		Expect(err).NotTo(HaveOccurred())
@@ -39,19 +39,19 @@ var _ = Describe("IptablesManager", func() {
 
 	Describe("ContainerSetup", func() {
 		It("should set up the chains", func() {
-			Expect(manager.ContainerSetup(containerID, bridgeIface, ip, network)).To(Succeed())
+			Expect(manager.ContainerSetup(containerID, bridgeName, ip, network)).To(Succeed())
 			for _, fakeChain := range fakeChains {
 				Expect(fakeChain.SetupCallCount()).To(Equal(1))
 				ctrID, br, i, n := fakeChain.SetupArgsForCall(0)
 				Expect(ctrID).To(Equal(containerID))
-				Expect(br).To(Equal(bridgeIface))
+				Expect(br).To(Equal(bridgeName))
 				Expect(i).To(Equal(ip))
 				Expect(n).To(Equal(network))
 			}
 		})
 
 		It("should tear down the chains", func() {
-			Expect(manager.ContainerSetup(containerID, bridgeIface, ip, network)).To(Succeed())
+			Expect(manager.ContainerSetup(containerID, bridgeName, ip, network)).To(Succeed())
 
 			for _, fakeChain := range fakeChains {
 				Expect(fakeChain.TeardownCallCount()).To(Equal(1))
@@ -66,7 +66,7 @@ var _ = Describe("IptablesManager", func() {
 			})
 
 			It("should return an error", func() {
-				Expect(manager.ContainerSetup(containerID, bridgeIface, ip, network)).To(MatchError("banana"))
+				Expect(manager.ContainerSetup(containerID, bridgeName, ip, network)).To(MatchError("banana"))
 			})
 
 			It("should not set up any chains", func() {
@@ -76,19 +76,40 @@ var _ = Describe("IptablesManager", func() {
 			})
 		})
 
-		Context("when setting up a chain fails", func() {
+		Context("when setting up an early chain fails", func() {
 			BeforeEach(func() {
 				fakeChains[0].SetupReturns(errors.New("banana"))
 			})
 
 			It("should return an error", func() {
-				Expect(manager.ContainerSetup(containerID, bridgeIface, ip, network)).To(MatchError("banana"))
+				Expect(manager.ContainerSetup(containerID, bridgeName, ip, network)).To(MatchError("banana"))
 			})
 
 			It("should not setup subsequent chains", func() {
-				Expect(manager.ContainerSetup(containerID, bridgeIface, ip, network)).NotTo(Succeed())
+				Expect(manager.ContainerSetup(containerID, bridgeName, ip, network)).NotTo(Succeed())
 
 				Expect(fakeChains[1].SetupCallCount()).To(Equal(0))
+			})
+		})
+
+		Context("when setting up a late chain fails", func() {
+			BeforeEach(func() {
+				fakeChains[1].SetupReturns(errors.New("banana"))
+			})
+
+			It("should return an error", func() {
+				Expect(manager.ContainerSetup(containerID, bridgeName, ip, network)).To(MatchError("banana"))
+			})
+
+			It("should tear down the earlier chains", func() {
+				Expect(manager.ContainerSetup(containerID, bridgeName, ip, network)).NotTo(Succeed())
+
+				Expect(fakeChains[0].TeardownCallCount()).To(Equal(2))
+				ctrID := fakeChains[0].TeardownArgsForCall(1)
+				Expect(ctrID).To(Equal(containerID))
+
+				Expect(fakeChains[1].TeardownCallCount()).To(Equal(1))
+
 			})
 		})
 	})

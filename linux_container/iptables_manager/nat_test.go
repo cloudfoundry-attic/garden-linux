@@ -23,7 +23,7 @@ var _ = Describe("natChain", func() {
 		testCfg     *sysconfig.IPTablesNATConfig
 		chain       iptables_manager.Chain
 		containerID string
-		bridgeIface string
+		bridgeName  string
 		ip          net.IP
 		network     *net.IPNet
 	)
@@ -39,7 +39,7 @@ var _ = Describe("natChain", func() {
 		}
 
 		containerID = "some-ctr-id"
-		bridgeIface = "some-bridge"
+		bridgeName = "some-bridge"
 		ip, network, err = net.ParseCIDR("1.2.3.4/28")
 		Expect(err).NotTo(HaveOccurred())
 
@@ -73,7 +73,7 @@ var _ = Describe("natChain", func() {
 		})
 
 		It("should set up the chain", func() {
-			Expect(chain.Setup(containerID, bridgeIface, ip, network)).To(Succeed())
+			Expect(chain.Setup(containerID, bridgeName, ip, network)).To(Succeed())
 
 			Expect(fakeRunner).To(HaveExecutedSerially(specs...))
 		})
@@ -84,7 +84,7 @@ var _ = Describe("natChain", func() {
 					return errors.New("iptables failed")
 				})
 
-				Expect(chain.Setup(containerID, bridgeIface, ip, network)).To(MatchError(errorString))
+				Expect(chain.Setup(containerID, bridgeName, ip, network)).To(MatchError(errorString))
 			},
 			Entry("create nat instance chain", 0, "iptables_manager: iptables failed"),
 			Entry("bind nat instance chain to nat prerouting chain", 1, "iptables_manager: iptables failed"),
