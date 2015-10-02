@@ -35,8 +35,8 @@ var _ = Describe("Logging", func() {
 		})
 
 		It("should log before and after starting with the container handle", func() {
-			Expect(client).To(gbytes.Say("container.kumquat.start.starting"))
-			Expect(client).To(gbytes.Say("container.kumquat.start.ended"))
+			Expect(client).To(gbytes.Say(`container.start.starting","log_level":0,"data":{"handle":"kumquat"`))
+			Expect(client).To(gbytes.Say(`container.start.ended","log_level":0,"data":{"handle":"kumquat"`))
 		})
 
 		It("should not log any environment variables", func() {

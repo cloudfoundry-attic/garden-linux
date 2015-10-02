@@ -241,7 +241,8 @@ func (p *LinuxResourcePool) pruneEntry(id string) {
 func (p *LinuxResourcePool) Acquire(spec garden.ContainerSpec) (linux_backend.LinuxContainerSpec, error) {
 	id := <-p.containerIDs
 	containerPath := path.Join(p.depotPath, id)
-	pLog := p.logger.Session(id)
+	handle := getHandle(spec.Handle, id)
+	pLog := p.logger.Session("acquire", lager.Data{"handle": handle})
 
 	pLog.Info("creating")
 
@@ -254,8 +255,6 @@ func (p *LinuxResourcePool) Acquire(spec garden.ContainerSpec) (linux_backend.Li
 	})
 
 	pLog.Info("acquired-pool-resources")
-
-	handle := getHandle(spec.Handle, id)
 
 	var quota int64 = int64(spec.Limits.Disk.ByteHard)
 	if quota == 0 {

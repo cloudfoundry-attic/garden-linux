@@ -394,7 +394,7 @@ func (c *LinuxContainer) Start() error {
 
 	c.setState(linux_backend.StateActive)
 
-	cLog.Info("ended")
+	cLog.Debug("ended")
 
 	return nil
 }

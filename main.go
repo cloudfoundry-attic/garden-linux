@@ -546,6 +546,6 @@ func (p *provider) ProvideContainer(spec linux_backend.LinuxContainerSpec) linux
 		p.ProvideFilter(spec.ID),
 		devices.Link{Name: p.sysconfig.NetworkInterfacePrefix + spec.ID + "-0"},
 		oomWatcher,
-		p.log.Session(fmt.Sprintf("container.%s", spec.Handle)),
+		p.log.Session("container", lager.Data{"handle": spec.Handle}),
 	)
 }
