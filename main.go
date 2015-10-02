@@ -31,6 +31,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/cgroups_manager"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_container/iptables_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/quota_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/network"
 	"github.com/cloudfoundry-incubator/garden-linux/network/bridgemgr"
@@ -544,8 +545,15 @@ func (p *provider) ProvideContainer(spec linux_backend.LinuxContainerSpec) linux
 		bandwidth_manager.New(spec.ContainerPath, spec.ID, p.runner),
 		process_tracker.New(spec.ContainerPath, p.runner),
 		p.ProvideFilter(spec.ID),
+		p.createIPTablesManager(),
 		devices.Link{Name: p.sysconfig.NetworkInterfacePrefix + spec.ID + "-0"},
 		oomWatcher,
 		p.log.Session("container", lager.Data{"handle": spec.Handle}),
 	)
+}
+
+func (p *provider) createIPTablesManager() linux_container.IPTablesManager {
+	filterChain := iptables_manager.NewFilterChain(p.sysconfig.IPTables.Filter, p.runner)
+	natChain := iptables_manager.NewNATChain(p.sysconfig.IPTables.NAT, p.runner)
+	return iptables_manager.New().AddChain(filterChain).AddChain(natChain)
 }
