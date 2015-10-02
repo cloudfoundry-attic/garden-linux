@@ -15,8 +15,6 @@ then
   exit 1
 fi
 
-./net.sh setup
-
 mkdir -p ./run
 
 if [ "$root_uid" -eq 0 ]

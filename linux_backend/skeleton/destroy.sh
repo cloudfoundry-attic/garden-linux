@@ -9,8 +9,6 @@ cd $(dirname $0)
 
 source ./etc/config
 
-./net.sh teardown
-
 cgroup_path="${GARDEN_CGROUP_PATH}"
 
 if [ -f ./run/wshd.pid ]
