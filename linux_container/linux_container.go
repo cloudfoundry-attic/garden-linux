@@ -381,7 +381,7 @@ func (c *LinuxContainer) processSignaller() process_tracker.Signaller {
 }
 
 func (c *LinuxContainer) Start() error {
-	cLog := c.logger.Session("start")
+	cLog := c.logger.Session("start", lager.Data{"handle": c.Handle()})
 
 	cLog.Debug("iptables-setup-starting")
 	err := c.ipTablesManager.ContainerSetup(

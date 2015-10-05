@@ -66,7 +66,7 @@ var _ = Describe("filterChain", func() {
 				fake_command_runner.CommandSpec{
 					Path: "iptables",
 					Args: []string{"--wait", "-A", expectedFilterInstanceChain,
-						"-goto", testCfg.DefaultChain},
+						"--goto", testCfg.DefaultChain},
 				},
 				fake_command_runner.CommandSpec{
 					Path: "iptables",
@@ -90,10 +90,10 @@ var _ = Describe("filterChain", func() {
 				Expect(chain.Setup(containerID, bridgeName, ip, network)).To(MatchError(errorString))
 
 			},
-			Entry("create filter instance chain", 0, "iptables_manager: iptables failed"),
-			Entry("allow intra-subnet traffic", 1, "iptables_manager: iptables failed"),
-			Entry("use the default filter chain otherwise", 2, "iptables_manager: iptables failed"),
-			Entry("bind filter instance chain to filter forward chain", 3, "iptables_manager: iptables failed"),
+			Entry("create filter instance chain", 0, "iptables_manager: filter: iptables failed"),
+			Entry("allow intra-subnet traffic", 1, "iptables_manager: filter: iptables failed"),
+			Entry("use the default filter chain otherwise", 2, "iptables_manager: filter: iptables failed"),
+			Entry("bind filter instance chain to filter forward chain", 3, "iptables_manager: filter: iptables failed"),
 		)
 	})
 

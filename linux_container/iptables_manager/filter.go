@@ -38,7 +38,7 @@ func (mgr *filterChain) Setup(containerID, bridgeName string, ip net.IP, network
 		// Allow intra-subnet traffic (Linux ethernet bridging goes through ip stack)
 		exec.Command("iptables", "--wait", "-A", instanceChain, "-s", network.String(), "-d", network.String(), "-j", "ACCEPT"),
 		// Otherwise, use the default filter chain
-		exec.Command("iptables", "--wait", "-A", instanceChain, "-goto", mgr.cfg.DefaultChain),
+		exec.Command("iptables", "--wait", "-A", instanceChain, "--goto", mgr.cfg.DefaultChain),
 		// Bind filter instance chain to filter forward chain
 		exec.Command("iptables", "--wait", "-I", mgr.cfg.ForwardChain, "2", "--in-interface", bridgeName, "--source", ip.String(), "--goto", instanceChain),
 	}

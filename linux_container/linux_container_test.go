@@ -13,7 +13,10 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/pivotal-golang/lager"
 	"github.com/pivotal-golang/lager/lagertest"
+
+	"fmt"
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
@@ -30,6 +33,8 @@ import (
 	wfakes "github.com/cloudfoundry-incubator/garden/fakes"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
+	"github.com/onsi/gomega/format"
+	"github.com/onsi/gomega/types"
 )
 
 var _ = Describe("Linux containers", func() {
@@ -192,14 +197,15 @@ var _ = Describe("Linux containers", func() {
 			Expect(container.State()).To(Equal(linux_backend.StateActive))
 		})
 
-		FIt("should log before and after", func() {
+		It("should log before and after", func() {
 			Expect(container.Start()).To(Succeed())
 
-			Expect(logger.LogMessages()).To(ContainElement(ContainSubstring("start.iptables-setup-startong")))
-			Expect(logger.LogMessages()).To(ContainElement(ContainSubstring("start.iptables-setup-endod")))
-
-			Expect(logger.LogMessages()).To(ContainElement(ContainSubstring("start.wshd-start-startong")))
-			Expect(logger.LogMessages()).To(ContainElement(ContainSubstring("start.wshd-start-endod")))
+			logs := logger.Logs()
+			expectedData := lager.Data{"handle": "some-handle"}
+			Expect(logs).To(ContainLogWithData("linux-container.start.iptables-setup-starting", expectedData))
+			Expect(logs).To(ContainLogWithData("linux-container.start.iptables-setup-ended", expectedData))
+			Expect(logs).To(ContainLogWithData("linux-container.start.wshd-start-starting", expectedData))
+			Expect(logs).To(ContainLogWithData("linux-container.start.wshd-start-ended", expectedData))
 		})
 
 		Context("when start.sh fails", func() {
@@ -940,3 +946,48 @@ var _ = Describe("Linux containers", func() {
 		})
 	})
 })
+
+func ContainLogWithData(message string, data lager.Data) types.GomegaMatcher {
+	return &containLogMatcher{
+		message: message,
+		data:    data,
+	}
+}
+
+type containLogMatcher struct {
+	message string
+	data    lager.Data
+}
+
+func (m *containLogMatcher) Match(actual interface{}) (success bool, err error) {
+	logs, ok := actual.([]lager.LogFormat)
+	if !ok {
+		return false, errors.New("invalid type")
+	}
+
+	for _, log := range logs {
+		if log.Message == m.message {
+			for k, v := range m.data {
+				if value, ok := log.Data[k]; !ok || value != v {
+					return false, nil
+				}
+			}
+
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+func (m *containLogMatcher) FailureMessage(actual interface{}) (message string) {
+	return format.Message(actual, "to contain log matching", m.String())
+}
+
+func (m *containLogMatcher) NegatedFailureMessage(actual interface{}) (message string) {
+	return format.Message(actual, "not to contain log matching", m.String())
+}
+
+func (m *containLogMatcher) String() string {
+	return fmt.Sprintf("message %s, data %v", m.message, m.data)
+}
