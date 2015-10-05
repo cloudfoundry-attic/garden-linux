@@ -48,6 +48,7 @@ var _ = Describe("Linux containers", func() {
 		containerDir         string
 		containerProps       map[string]string
 		containerVersion     semver.Version
+		fakeIPTablesManager  *fake_iptables_manager.FakeIPTablesManager
 	)
 
 	netOutRule1 := garden.NetOutRule{
@@ -99,6 +100,8 @@ var _ = Describe("Linux containers", func() {
 		containerProps = map[string]string{
 			"property-name": "property-value",
 		}
+
+		fakeIPTablesManager = new(fake_iptables_manager.FakeIPTablesManager)
 	})
 
 	fakeOomWatcher = new(fake_watcher.FakeWatcher)
@@ -126,7 +129,7 @@ var _ = Describe("Linux containers", func() {
 			fakeBandwidthManager,
 			fakeProcessTracker,
 			fakeFilter,
-			new(fake_iptables_manager.FakeIPTablesManager),
+			fakeIPTablesManager,
 			new(fake_network_statisticser.FakeNetworkStatisticser),
 			fakeOomWatcher,
 			lagertest.NewTestLogger("linux-container-limits-test"),
@@ -332,8 +335,9 @@ var _ = Describe("Linux containers", func() {
 	Describe("Restoring", func() {
 		It("sets the container's state and events", func() {
 			err := container.Restore(linux_backend.LinuxContainerSpec{
-				State:  "active",
-				Events: []string{"out of memory", "foo"},
+				State:     "active",
+				Events:    []string{"out of memory", "foo"},
+				Resources: containerResources,
 			})
 			Expect(err).ToNot(HaveOccurred())
 
@@ -347,8 +351,9 @@ var _ = Describe("Linux containers", func() {
 
 		It("restores process state", func() {
 			err := container.Restore(linux_backend.LinuxContainerSpec{
-				State:  "active",
-				Events: []string{},
+				State:     "active",
+				Events:    []string{},
+				Resources: containerResources,
 
 				Processes: []linux_backend.ActiveProcess{
 					{
@@ -372,8 +377,9 @@ var _ = Describe("Linux containers", func() {
 
 		It("makes the next process ID be higher than the highest restored ID", func() {
 			err := container.Restore(linux_backend.LinuxContainerSpec{
-				State:  "active",
-				Events: []string{},
+				State:     "active",
+				Events:    []string{},
+				Resources: containerResources,
 
 				Processes: []linux_backend.ActiveProcess{
 					{
@@ -404,6 +410,7 @@ var _ = Describe("Linux containers", func() {
 			Expect(container.Restore(linux_backend.LinuxContainerSpec{
 				State:     "active",
 				Processes: []linux_backend.ActiveProcess{{ID: 0, TTY: false}},
+				Resources: containerResources,
 			})).To(Succeed())
 
 			_, signaller := fakeProcessTracker.RestoreArgsForCall(0)
@@ -419,6 +426,7 @@ var _ = Describe("Linux containers", func() {
 				Expect(container.Restore(linux_backend.LinuxContainerSpec{
 					State:     "active",
 					Processes: []linux_backend.ActiveProcess{{ID: 0, TTY: false}},
+					Resources: containerResources,
 				})).To(Succeed())
 
 				_, signaller := fakeProcessTracker.RestoreArgsForCall(0)
@@ -429,6 +437,7 @@ var _ = Describe("Linux containers", func() {
 		It("restores environment variables", func() {
 			err := container.Restore(linux_backend.LinuxContainerSpec{
 				ContainerSpec: garden.ContainerSpec{Env: []string{"env1=env1value", "env2=env2Value"}},
+				Resources:     containerResources,
 			})
 			Expect(err).ToNot(HaveOccurred())
 			Expect(container.Env).To(Equal([]string{"env1=env1value", "env2=env2Value"}))
@@ -436,7 +445,8 @@ var _ = Describe("Linux containers", func() {
 
 		It("redoes net-outs", func() {
 			Expect(container.Restore(linux_backend.LinuxContainerSpec{
-				NetOuts: []garden.NetOutRule{netOutRule1, netOutRule2},
+				NetOuts:   []garden.NetOutRule{netOutRule1, netOutRule2},
+				Resources: containerResources,
 			})).To(Succeed())
 
 			Expect(fakeFilter.NetOutCallCount()).To(Equal(2))
@@ -450,15 +460,17 @@ var _ = Describe("Linux containers", func() {
 
 				Expect(container.Restore(
 					linux_backend.LinuxContainerSpec{
-						NetOuts: []garden.NetOutRule{{}},
+						NetOuts:   []garden.NetOutRule{{}},
+						Resources: containerResources,
 					})).To(MatchError("didn't work"))
 			})
 		})
 
 		It("redoes network setup and net-ins", func() {
 			err := container.Restore(linux_backend.LinuxContainerSpec{
-				State:  "active",
-				Events: []string{},
+				State:     "active",
+				Events:    []string{},
+				Resources: containerResources,
 
 				NetIns: []linux_backend.NetInSpec{
 					{
@@ -476,10 +488,6 @@ var _ = Describe("Linux containers", func() {
 			Expect(fakeRunner).To(HaveExecutedSerially(
 				fake_command_runner.CommandSpec{
 					Path: containerDir + "/net.sh",
-					Args: []string{"setup"},
-				},
-				fake_command_runner.CommandSpec{
-					Path: containerDir + "/net.sh",
 					Args: []string{"in"},
 				},
 				fake_command_runner.CommandSpec{
@@ -489,7 +497,35 @@ var _ = Describe("Linux containers", func() {
 			))
 		})
 
-		for _, cmd := range []string{"setup", "in"} {
+		It("should redo iptables setup", func() {
+			err := container.Restore(linux_backend.LinuxContainerSpec{
+				ID:        "test-container",
+				State:     "active",
+				Events:    []string{},
+				Resources: containerResources,
+
+				NetIns: []linux_backend.NetInSpec{
+					{
+						HostPort:      1234,
+						ContainerPort: 5678,
+					},
+					{
+						HostPort:      1235,
+						ContainerPort: 5679,
+					},
+				},
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(fakeIPTablesManager.ContainerSetupCallCount()).To(Equal(1))
+			containerID, bridgeName, ip, network := fakeIPTablesManager.ContainerSetupArgsForCall(0)
+			Expect(containerID).To(Equal("test-container"))
+			Expect(bridgeName).To(Equal("some-bridge"))
+			Expect(ip.String()).To(Equal("1.2.3.4"))
+			Expect(network.String()).To(Equal("2.3.4.0/30"))
+		})
+
+		for _, cmd := range []string{"in"} {
 			command := cmd
 
 			Context("when net.sh "+cmd+" fails", func() {
@@ -508,8 +544,9 @@ var _ = Describe("Linux containers", func() {
 
 				It("returns the error", func() {
 					err := container.Restore(linux_backend.LinuxContainerSpec{
-						State:  "active",
-						Events: []string{},
+						State:     "active",
+						Events:    []string{},
+						Resources: containerResources,
 
 						NetIns: []linux_backend.NetInSpec{
 							{
@@ -529,6 +566,23 @@ var _ = Describe("Linux containers", func() {
 			})
 		}
 
+		Context("when iptables manager returns an error", func() {
+			disaster := errors.New("oh no!")
+
+			BeforeEach(func() {
+				fakeIPTablesManager.ContainerSetupReturns(disaster)
+			})
+
+			It("should return the error", func() {
+				err := container.Restore(linux_backend.LinuxContainerSpec{
+					State:     "active",
+					Events:    []string{},
+					Resources: containerResources,
+				})
+				Expect(err).To(Equal(disaster))
+			})
+		})
+
 		It("re-enforces the memory limit", func() {
 			fakeOomWatcher.WatchStub = func(onOom func()) error {
 				onOom()
@@ -536,8 +590,9 @@ var _ = Describe("Linux containers", func() {
 			}
 
 			err := container.Restore(linux_backend.LinuxContainerSpec{
-				State:  "active",
-				Events: []string{},
+				State:     "active",
+				Events:    []string{},
+				Resources: containerResources,
 
 				Limits: linux_backend.Limits{
 					Memory: &garden.MemoryLimits{
@@ -570,8 +625,9 @@ var _ = Describe("Linux containers", func() {
 		Context("when no memory limit is present", func() {
 			It("does not set a limit", func() {
 				err := container.Restore(linux_backend.LinuxContainerSpec{
-					State:  "active",
-					Events: []string{},
+					State:     "active",
+					Events:    []string{},
+					Resources: containerResources,
 				})
 				Expect(err).ToNot(HaveOccurred())
 
@@ -590,8 +646,9 @@ var _ = Describe("Linux containers", func() {
 
 			It("returns the error", func() {
 				err := container.Restore(linux_backend.LinuxContainerSpec{
-					State:  "active",
-					Events: []string{},
+					State:     "active",
+					Events:    []string{},
+					Resources: containerResources,
 
 					Limits: linux_backend.Limits{
 						Memory: &garden.MemoryLimits{

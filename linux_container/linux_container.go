@@ -38,7 +38,7 @@ func (err UndefinedPropertyError) Error() string {
 
 //go:generate counterfeiter -o fake_iptables_manager/fake_iptables_manager.go . IPTablesManager
 type IPTablesManager interface {
-	ContainerSetup(containerID, bridgeIface string, ip net.IP, network *net.IPNet) error
+	ContainerSetup(containerID, bridgeName string, ip net.IP, network *net.IPNet) error
 	ContainerTeardown(containerID string) error
 }
 
@@ -304,11 +304,6 @@ func (c *LinuxContainer) Restore(snapshot linux_backend.LinuxContainerSpec) erro
 
 	cLog.Debug("restoring")
 
-	cRunner := logging.Runner{
-		CommandRunner: c.runner,
-		Logger:        cLog,
-	}
-
 	c.setState(linux_backend.State(snapshot.State))
 
 	c.Env = snapshot.Env
@@ -336,9 +331,7 @@ func (c *LinuxContainer) Restore(snapshot linux_backend.LinuxContainerSpec) erro
 		c.processTracker.Restore(fmt.Sprintf("%d", process.ID), signaller)
 	}
 
-	net := exec.Command(path.Join(c.ContainerPath, "net.sh"), "setup")
-
-	if err := cRunner.Run(net); err != nil {
+	if err := c.ipTablesManager.ContainerSetup(snapshot.ID, snapshot.Resources.Bridge, snapshot.Resources.Network.IP, snapshot.Resources.Network.Subnet); err != nil {
 		cLog.Error("failed-to-reenforce-network-rules", err)
 		return err
 	}
@@ -382,6 +375,7 @@ func (c *LinuxContainer) processSignaller() process_tracker.Signaller {
 
 func (c *LinuxContainer) Start() error {
 	cLog := c.logger.Session("start", lager.Data{"handle": c.Handle()})
+	cLog.Debug("starting")
 
 	cLog.Debug("iptables-setup-starting")
 	err := c.ipTablesManager.ContainerSetup(
@@ -418,13 +412,19 @@ func (c *LinuxContainer) Start() error {
 	return nil
 }
 
-func (c *LinuxContainer) Cleanup() {
+func (c *LinuxContainer) Cleanup() error {
 	cLog := c.logger.Session("cleanup")
+
+	if err := c.ipTablesManager.ContainerTeardown(c.ID()); err != nil {
+		cLog.Error("container-teardown-failed", err)
+		return fmt.Errorf("container teardown failed: %s", err)
+	}
 
 	cLog.Debug("stopping-oom-notifier")
 	c.oomWatcher.Unwatch()
 
 	cLog.Info("done")
+	return nil
 }
 
 func (c *LinuxContainer) Stop(kill bool) error {
@@ -437,11 +437,9 @@ func (c *LinuxContainer) Stop(kill bool) error {
 		return err
 	}
 
-	if err := c.ipTablesManager.ContainerTeardown(c.ID()); err != nil {
+	if err := c.Cleanup(); err != nil {
 		return err
 	}
-
-	c.oomWatcher.Unwatch()
 
 	c.setState(linux_backend.StateStopped)
 

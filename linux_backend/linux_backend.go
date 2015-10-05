@@ -24,7 +24,7 @@ type Container interface {
 	Snapshot(io.Writer) error
 	ResourceSpec() LinuxContainerSpec
 	Restore(LinuxContainerSpec) error
-	Cleanup()
+	Cleanup() error
 
 	garden.Container
 }
@@ -249,6 +249,11 @@ func (b *LinuxBackend) ApplyLimits(container garden.Container, limits garden.Lim
 
 func (b *LinuxBackend) Destroy(handle string) error {
 	container, err := b.containerRepo.FindByHandle(handle)
+	if err != nil {
+		return err
+	}
+
+	err = container.Cleanup()
 	if err != nil {
 		return err
 	}

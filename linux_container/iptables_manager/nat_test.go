@@ -64,8 +64,7 @@ var _ = Describe("natChain", func() {
 				fake_command_runner.CommandSpec{
 					Path: "sh",
 					Args: []string{"-c", fmt.Sprintf(
-						`(iptables --wait --table nat -S %s | grep "\-j MASQUERADE\b" | grep -q -F -- "-s %s") ||
- iptables --wait --table nat -A %s --source %s ! --destination %s --jump MASQUERADE`,
+						`(iptables --wait --table nat -S %s | grep "\-j MASQUERADE\b" | grep -q -F -- "-s %s") || iptables --wait --table nat -A %s --source %s ! --destination %s --jump MASQUERADE`,
 						testCfg.PostroutingChain, network.String(), testCfg.PostroutingChain,
 						network.String(), network.String(),
 					)},
@@ -103,9 +102,7 @@ var _ = Describe("natChain", func() {
 					fake_command_runner.CommandSpec{
 						Path: "sh",
 						Args: []string{"-c", fmt.Sprintf(
-							`iptables --wait --table nat -S %s 2> /dev/null |
- grep "\-j %s\b" | sed -e "s/-A/-D/" |
- xargs --no-run-if-empty --max-lines=1 iptables --wait --table nat`,
+							`iptables --wait --table nat -S %s 2> /dev/null | grep "\-j %s\b" | sed -e "s/-A/-D/" | xargs --no-run-if-empty --max-lines=1 iptables --wait --table nat`,
 							testCfg.PreroutingChain, expectedFilterInstanceChain,
 						)},
 					},

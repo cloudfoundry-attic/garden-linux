@@ -46,11 +46,14 @@ func (mgr *filterChain) Setup(containerID, bridgeName string, ip net.IP, network
 	for _, cmd := range commands {
 		buffer := &bytes.Buffer{}
 		cmd.Stderr = buffer
+		logger := mgr.logger.Session("setup", lager.Data{"cmd": cmd})
+		logger.Debug("starting")
 		if err := mgr.runner.Run(cmd); err != nil {
 			stderr, _ := ioutil.ReadAll(buffer)
-			mgr.logger.Error("setup", err, lager.Data{"cmd": cmd, "stderr": string(stderr)})
+			logger.Error("failed", err, lager.Data{"stderr": string(stderr)})
 			return fmt.Errorf("iptables_manager: filter: %s", err)
 		}
+		logger.Debug("ended")
 	}
 
 	return nil
@@ -62,8 +65,7 @@ func (mgr *filterChain) Teardown(containerID string) error {
 	commands := []*exec.Cmd{
 		// Prune forward chain
 		exec.Command("sh", "-c", fmt.Sprintf(
-			`iptables --wait -S %s 2> /dev/null |
- grep "\-g %s \b" | sed -e "s/-A/-D/" | xargs --no-run-if-empty --max-lines=1 iptables --wait`,
+			`iptables --wait -S %s 2> /dev/null | grep "\-g %s\b" | sed -e "s/-A/-D/" | xargs --no-run-if-empty --max-lines=1 iptables --wait`,
 			mgr.cfg.ForwardChain, instanceChain,
 		)),
 		// Flush instance chain

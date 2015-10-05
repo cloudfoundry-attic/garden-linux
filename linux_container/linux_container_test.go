@@ -291,7 +291,7 @@ var _ = Describe("Linux containers", func() {
 
 			It("should return the error", func() {
 				err := container.Stop(false)
-				Expect(err).To(Equal(nastyError))
+				Expect(err).To(MatchError("container teardown failed: banana"))
 			})
 		})
 

@@ -59,13 +59,16 @@ type FakeContainer struct {
 	restoreReturns struct {
 		result1 error
 	}
-	CleanupStub        func()
+	CleanupStub        func() error
 	cleanupMutex       sync.RWMutex
 	cleanupArgsForCall []struct{}
-	HandleStub         func() string
-	handleMutex        sync.RWMutex
-	handleArgsForCall  []struct{}
-	handleReturns      struct {
+	cleanupReturns     struct {
+		result1 error
+	}
+	HandleStub        func() string
+	handleMutex       sync.RWMutex
+	handleArgsForCall []struct{}
+	handleReturns     struct {
 		result1 string
 	}
 	StopStub        func(kill bool) error
@@ -441,12 +444,14 @@ func (fake *FakeContainer) RestoreReturns(result1 error) {
 	}{result1}
 }
 
-func (fake *FakeContainer) Cleanup() {
+func (fake *FakeContainer) Cleanup() error {
 	fake.cleanupMutex.Lock()
 	fake.cleanupArgsForCall = append(fake.cleanupArgsForCall, struct{}{})
 	fake.cleanupMutex.Unlock()
 	if fake.CleanupStub != nil {
-		fake.CleanupStub()
+		return fake.CleanupStub()
+	} else {
+		return fake.cleanupReturns.result1
 	}
 }
 
@@ -454,6 +459,13 @@ func (fake *FakeContainer) CleanupCallCount() int {
 	fake.cleanupMutex.RLock()
 	defer fake.cleanupMutex.RUnlock()
 	return len(fake.cleanupArgsForCall)
+}
+
+func (fake *FakeContainer) CleanupReturns(result1 error) {
+	fake.CleanupStub = nil
+	fake.cleanupReturns = struct {
+		result1 error
+	}{result1}
 }
 
 func (fake *FakeContainer) Handle() string {

@@ -106,8 +106,7 @@ var _ = Describe("filterChain", func() {
 				fake_command_runner.CommandSpec{
 					Path: "sh",
 					Args: []string{"-c", fmt.Sprintf(
-						`iptables --wait -S %s 2> /dev/null |
- grep "\-g %s \b" | sed -e "s/-A/-D/" | xargs --no-run-if-empty --max-lines=1 iptables --wait`,
+						`iptables --wait -S %s 2> /dev/null | grep "\-g %s\b" | sed -e "s/-A/-D/" | xargs --no-run-if-empty --max-lines=1 iptables --wait`,
 						testCfg.ForwardChain, expectedFilterInstanceChain,
 					)},
 				},
