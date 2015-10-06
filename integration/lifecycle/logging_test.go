@@ -35,18 +35,18 @@ var _ = Describe("Logging", func() {
 		})
 
 		It("should log before and after starting with the container handle", func() {
-			Expect(client).To(gbytes.Say(`container.start.starting","log_level":0,"data":{"handle":"kumquat"`))
-			Expect(client).To(gbytes.Say(`container.start.ended","log_level":0,"data":{"handle":"kumquat"`))
+			Eventually(client).Should(gbytes.Say(`container.start.starting","log_level":0,"data":{"handle":"kumquat"`))
+			Eventually(client).Should(gbytes.Say(`container.start.ended","log_level":0,"data":{"handle":"kumquat"`))
 		})
 
 		It("should not log any environment variables", func() {
-			Expect(client).ToNot(gbytes.Say("PASSWORD"))
-			Expect(client).ToNot(gbytes.Say("MY_SECRET"))
+			Consistently(client).ShouldNot(gbytes.Say("PASSWORD"))
+			Consistently(client).ShouldNot(gbytes.Say("MY_SECRET"))
 		})
 
 		It("should not log any properties", func() {
-			Expect(client).ToNot(gbytes.Say("super"))
-			Expect(client).ToNot(gbytes.Say("banana"))
+			Consistently(client).ShouldNot(gbytes.Say("super"))
+			Consistently(client).ShouldNot(gbytes.Say("banana"))
 		})
 
 		Context("from a docker url", func() {
@@ -55,7 +55,7 @@ var _ = Describe("Logging", func() {
 			})
 
 			It("should not log any environment variables", func() {
-				Expect(client).ToNot(gbytes.Say("test-from-dockerfile"))
+				Consistently(client).ShouldNot(gbytes.Say("test-from-dockerfile"))
 			})
 		})
 	})
@@ -76,10 +76,10 @@ var _ = Describe("Logging", func() {
 			Expect(err).ToNot(HaveOccurred())
 			Expect(exitStatus).To(Equal(0))
 
-			Expect(client).ToNot(gbytes.Say("PASSWORD"))
-			Expect(client).ToNot(gbytes.Say("MY_SECRET"))
-			Expect(client).ToNot(gbytes.Say("-username"))
-			Expect(client).ToNot(gbytes.Say("banana"))
+			Consistently(client).ShouldNot(gbytes.Say("PASSWORD"))
+			Consistently(client).ShouldNot(gbytes.Say("MY_SECRET"))
+			Consistently(client).ShouldNot(gbytes.Say("-username"))
+			Consistently(client).ShouldNot(gbytes.Say("banana"))
 		})
 	})
 
@@ -96,16 +96,16 @@ var _ = Describe("Logging", func() {
 			_, err := container.Properties()
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(client).ToNot(gbytes.Say("super"))
-			Expect(client).ToNot(gbytes.Say("banana"))
+			Consistently(client).ShouldNot(gbytes.Say("super"))
+			Consistently(client).ShouldNot(gbytes.Say("banana"))
 		})
 
 		It("should not log the properties when we are setting them", func() {
 			err := container.SetProperty("super", "banana")
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(client).ToNot(gbytes.Say("super"))
-			Expect(client).ToNot(gbytes.Say("banana"))
+			Consistently(client).ShouldNot(gbytes.Say("super"))
+			Consistently(client).ShouldNot(gbytes.Say("banana"))
 		})
 	})
 })
