@@ -75,9 +75,16 @@ func (mgr *filterChain) Teardown(containerID string) error {
 	}
 
 	for _, cmd := range commands {
+		buffer := &bytes.Buffer{}
+		cmd.Stderr = buffer
+		logger := mgr.logger.Session("teardown", lager.Data{"cmd": cmd})
+		logger.Debug("starting")
 		if err := mgr.runner.Run(cmd); err != nil {
-			return fmt.Errorf("iptables_manager: %s", err)
+			stderr, _ := ioutil.ReadAll(buffer)
+			logger.Error("failed", err, lager.Data{"stderr": string(stderr)})
+			return fmt.Errorf("iptables_manager: filter: %s", err)
 		}
+		logger.Debug("ended")
 	}
 
 	return nil

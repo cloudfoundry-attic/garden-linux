@@ -135,9 +135,9 @@ var _ = Describe("filterChain", func() {
 
 				Expect(chain.Teardown(containerID)).To(MatchError(errorString))
 			},
-			Entry("prune forward chain", 0, "iptables_manager: iptables failed"),
-			Entry("flush instance chain", 1, "iptables_manager: iptables failed"),
-			Entry("delete instance chain", 2, "iptables_manager: iptables failed"),
+			Entry("prune forward chain", 0, "iptables_manager: filter: iptables failed"),
+			Entry("flush instance chain", 1, "iptables_manager: filter: iptables failed"),
+			Entry("delete instance chain", 2, "iptables_manager: filter: iptables failed"),
 		)
 	})
 })

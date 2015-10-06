@@ -1,6 +1,8 @@
 package iptables_manager
 
 import (
+	"bytes"
+	"io/ioutil"
 	"net"
 
 	"os/exec"
@@ -44,8 +46,16 @@ func (mgr *natChain) Setup(containerID, bridgeName string, ip net.IP, network *n
 
 	for _, cmd := range commands {
 		if err := mgr.runner.Run(cmd); err != nil {
-			mgr.logger.Error("setup", err, lager.Data{"cmd": cmd})
-			return fmt.Errorf("iptables_manager: %s", err)
+			buffer := &bytes.Buffer{}
+			cmd.Stderr = buffer
+			logger := mgr.logger.Session("setup", lager.Data{"cmd": cmd})
+			logger.Debug("starting")
+			if err := mgr.runner.Run(cmd); err != nil {
+				stderr, _ := ioutil.ReadAll(buffer)
+				logger.Error("failed", err, lager.Data{"stderr": string(stderr)})
+				return fmt.Errorf("iptables_manager: nat: %s", err)
+			}
+			logger.Debug("ended")
 		}
 	}
 
@@ -68,9 +78,16 @@ func (mgr *natChain) Teardown(containerID string) error {
 	}
 
 	for _, cmd := range commands {
+		buffer := &bytes.Buffer{}
+		cmd.Stderr = buffer
+		logger := mgr.logger.Session("teardown", lager.Data{"cmd": cmd})
+		logger.Debug("starting")
 		if err := mgr.runner.Run(cmd); err != nil {
-			return fmt.Errorf("iptables_manager: %s", err)
+			stderr, _ := ioutil.ReadAll(buffer)
+			logger.Error("failed", err, lager.Data{"stderr": string(stderr)})
+			return fmt.Errorf("iptables_manager: nat: %s", err)
 		}
+		logger.Debug("ended")
 	}
 
 	return nil

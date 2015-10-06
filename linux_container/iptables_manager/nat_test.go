@@ -86,9 +86,9 @@ var _ = Describe("natChain", func() {
 
 				Expect(chain.Setup(containerID, bridgeName, ip, network)).To(MatchError(errorString))
 			},
-			Entry("create nat instance chain", 0, "iptables_manager: iptables failed"),
-			Entry("bind nat instance chain to nat prerouting chain", 1, "iptables_manager: iptables failed"),
-			Entry("enable NAT for traffic coming from containers", 2, "iptables_manager: iptables failed"),
+			Entry("create nat instance chain", 0, "iptables_manager: nat: iptables failed"),
+			Entry("bind nat instance chain to nat prerouting chain", 1, "iptables_manager: nat: iptables failed"),
+			Entry("enable NAT for traffic coming from containers", 2, "iptables_manager: nat: iptables failed"),
 		)
 	})
 
@@ -137,9 +137,9 @@ var _ = Describe("natChain", func() {
 
 					Expect(chain.Teardown(containerID)).To(MatchError(errorString))
 				},
-				Entry("prune prerouting chain", 0, "iptables_manager: iptables failed"),
-				Entry("flush instance chain", 1, "iptables_manager: iptables failed"),
-				Entry("delete instance chain", 2, "iptables_manager: iptables failed"),
+				Entry("prune prerouting chain", 0, "iptables_manager: nat: iptables failed"),
+				Entry("flush instance chain", 1, "iptables_manager: nat: iptables failed"),
+				Entry("delete instance chain", 2, "iptables_manager: nat: iptables failed"),
 			)
 		})
 	})
