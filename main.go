@@ -408,12 +408,14 @@ func main() {
 		}
 	}
 
+	ipTablesMgr := createIPTablesManager(config, runner, logger)
 	injector := &provider{
 		useKernelLogging: useKernelLogging,
 		chainPrefix:      config.IPTables.Filter.InstancePrefix,
 		runner:           runner,
 		log:              logger,
 		portPool:         portPool,
+		ipTablesMgr:      ipTablesMgr,
 		sysconfig:        config,
 		quotaManager:     quotaManager,
 	}
@@ -434,6 +436,7 @@ func main() {
 		*mtu,
 		subnetPool,
 		bridgemgr.New("w"+config.Tag+"b-", &devices.Bridge{}, &devices.Link{}),
+		ipTablesMgr,
 		injector,
 		iptables.NewGlobalChain(config.IPTables.Filter.DefaultChain, runner, logger.Session("global-chain")),
 		portPool,
@@ -511,12 +514,19 @@ func initializeDropsonde(logger lager.Logger) {
 	}
 }
 
+func createIPTablesManager(sysconfig sysconfig.Config, runner command_runner.CommandRunner, log lager.Logger) linux_container.IPTablesManager {
+	filterChain := iptables_manager.NewFilterChain(&sysconfig.IPTables.Filter, runner, log.Session("iptables-manager-filter"))
+	natChain := iptables_manager.NewNATChain(&sysconfig.IPTables.NAT, runner, log.Session("iptables-manager-nat"))
+	return iptables_manager.New().AddChain(filterChain).AddChain(natChain)
+}
+
 type provider struct {
 	useKernelLogging bool
 	chainPrefix      string
 	runner           command_runner.CommandRunner
 	log              lager.Logger
 	portPool         *port_pool.PortPool
+	ipTablesMgr      linux_container.IPTablesManager
 	quotaManager     linux_container.QuotaManager
 	sysconfig        sysconfig.Config
 }
@@ -545,15 +555,9 @@ func (p *provider) ProvideContainer(spec linux_backend.LinuxContainerSpec) linux
 		bandwidth_manager.New(spec.ContainerPath, spec.ID, p.runner),
 		process_tracker.New(spec.ContainerPath, p.runner),
 		p.ProvideFilter(spec.ID),
-		p.createIPTablesManager(),
+		p.ipTablesMgr,
 		devices.Link{Name: p.sysconfig.NetworkInterfacePrefix + spec.ID + "-0"},
 		oomWatcher,
 		p.log.Session("container", lager.Data{"handle": spec.Handle}),
 	)
-}
-
-func (p *provider) createIPTablesManager() linux_container.IPTablesManager {
-	filterChain := iptables_manager.NewFilterChain(&p.sysconfig.IPTables.Filter, p.runner, p.log.Session("iptables-manager-filter"))
-	natChain := iptables_manager.NewNATChain(&p.sysconfig.IPTables.NAT, p.runner, p.log.Session("iptables-manager-nat"))
-	return iptables_manager.New().AddChain(filterChain).AddChain(natChain)
 }

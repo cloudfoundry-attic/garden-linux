@@ -25,6 +25,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_iptables_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_quota_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/network"
 	"github.com/cloudfoundry-incubator/garden-linux/network/bridgemgr/fake_bridge_manager"
@@ -47,20 +48,21 @@ import (
 var _ = Describe("Container pool", func() {
 
 	var (
-		depotPath          string
-		fakeRunner         *fake_command_runner.FakeCommandRunner
-		fakeSubnetPool     *fake_subnet_pool.FakeSubnetPool
-		fakeQuotaManager   *fake_quota_manager.FakeQuotaManager
-		fakePortPool       *fake_port_pool.FakePortPool
-		fakeRootFSProvider *fake_rootfs_provider.FakeRootFSProvider
-		fakeBridges        *fake_bridge_manager.FakeBridgeManager
-		fakeFilterProvider *fake_filter_provider.FakeFilterProvider
-		fakeFilter         *fakes.FakeFilter
-		pool               *resource_pool.LinuxResourcePool
-		config             sysconfig.Config
-		containerNetwork   *linux_backend.Network
-		defaultVersion     string
-		logger             *lagertest.TestLogger
+		depotPath           string
+		fakeRunner          *fake_command_runner.FakeCommandRunner
+		fakeSubnetPool      *fake_subnet_pool.FakeSubnetPool
+		fakeQuotaManager    *fake_quota_manager.FakeQuotaManager
+		fakePortPool        *fake_port_pool.FakePortPool
+		fakeRootFSProvider  *fake_rootfs_provider.FakeRootFSProvider
+		fakeBridges         *fake_bridge_manager.FakeBridgeManager
+		fakeIPTablesManager *fake_iptables_manager.FakeIPTablesManager
+		fakeFilterProvider  *fake_filter_provider.FakeFilterProvider
+		fakeFilter          *fakes.FakeFilter
+		pool                *resource_pool.LinuxResourcePool
+		config              sysconfig.Config
+		containerNetwork    *linux_backend.Network
+		defaultVersion      string
+		logger              *lagertest.TestLogger
 	)
 
 	BeforeEach(func() {
@@ -73,6 +75,7 @@ var _ = Describe("Container pool", func() {
 		fakeSubnetPool.AcquireReturns(containerNetwork, nil)
 
 		fakeBridges = new(fake_bridge_manager.FakeBridgeManager)
+		fakeIPTablesManager = new(fake_iptables_manager.FakeIPTablesManager)
 
 		fakeBridges.ReserveStub = func(n *net.IPNet, c string) (string, error) {
 			return fmt.Sprintf("bridge-for-%s-%s", n, c), nil
@@ -117,6 +120,7 @@ var _ = Describe("Container pool", func() {
 			345,
 			fakeSubnetPool,
 			fakeBridges,
+			fakeIPTablesManager,
 			fakeFilterProvider,
 			iptables.NewGlobalChain("global-default-chain", fakeRunner, logger),
 			fakePortPool,
@@ -270,6 +274,8 @@ var _ = Describe("Container pool", func() {
 				lastCommand := executedCommands[len(executedCommands)-1]
 				Expect(lastCommand.Path).To(Equal("/root/path/destroy.sh"))
 				Expect(lastCommand.Args[1]).To(Equal(containerPath))
+
+				Expect(fakeIPTablesManager.ContainerTeardownCallCount()).To(Equal(1))
 			})
 		}
 
@@ -288,9 +294,9 @@ var _ = Describe("Container pool", func() {
 				_, containerId := fakeBridges.ReserveArgsForCall(0)
 
 				Expect(fakeBridges.ReleaseCallCount()).To(Equal(1))
-				bridgeName, containerId := fakeBridges.ReleaseArgsForCall(0)
+				bridgeName, releasedContainerId := fakeBridges.ReleaseArgsForCall(0)
 				Expect(bridgeName).To(Equal("bridge-for-10.2.0.0/30-" + containerId))
-				Expect(containerId).To(Equal(containerId))
+				Expect(releasedContainerId).To(Equal(containerId))
 			})
 		}
 
@@ -365,6 +371,7 @@ var _ = Describe("Container pool", func() {
 
 		Context("when setting up iptables fails", func() {
 			var err error
+
 			BeforeEach(func() {
 				fakeFilter.SetupReturns(errors.New("iptables says no"))
 				_, err = pool.Acquire(garden.ContainerSpec{})
@@ -1315,6 +1322,17 @@ var _ = Describe("Container pool", func() {
 				err := pool.Prune(map[string]bool{})
 				Expect(err).ToNot(HaveOccurred())
 
+				Expect(fakeIPTablesManager.ContainerTeardownCallCount()).To(Equal(3))
+
+				containerID := fakeIPTablesManager.ContainerTeardownArgsForCall(0)
+				Expect(containerID).To(Equal("container-1"))
+
+				containerID = fakeIPTablesManager.ContainerTeardownArgsForCall(1)
+				Expect(containerID).To(Equal("container-2"))
+
+				containerID = fakeIPTablesManager.ContainerTeardownArgsForCall(2)
+				Expect(containerID).To(Equal("container-3"))
+
 				Expect(fakeRunner).To(HaveExecutedSerially(
 					fake_command_runner.CommandSpec{
 						Path: "/root/path/destroy.sh",
@@ -1351,6 +1369,14 @@ var _ = Describe("Container pool", func() {
 					id2 := fakeRootFSProvider.RemoveArgsForCall(1)
 					Expect(id1).To(Equal(layercake.ContainerID("container-1")))
 					Expect(id2).To(Equal(layercake.ContainerID("container-2")))
+
+					Expect(fakeIPTablesManager.ContainerTeardownCallCount()).To(Equal(3))
+
+					containerID1 := fakeIPTablesManager.ContainerTeardownArgsForCall(0)
+					Expect(containerID1).To(Equal("container-1"))
+
+					containerID2 := fakeIPTablesManager.ContainerTeardownArgsForCall(1)
+					Expect(containerID2).To(Equal("container-2"))
 				})
 
 				It("releases the bridge", func() {
@@ -1366,6 +1392,14 @@ var _ = Describe("Container pool", func() {
 					bridge, containerId = fakeBridges.ReleaseArgsForCall(1)
 					Expect(bridge).To(Equal("fake-bridge-2"))
 					Expect(containerId).To(Equal("container-2"))
+
+					Expect(fakeIPTablesManager.ContainerTeardownCallCount()).To(Equal(3))
+
+					containerID1 := fakeIPTablesManager.ContainerTeardownArgsForCall(0)
+					Expect(containerID1).To(Equal("container-1"))
+
+					containerID2 := fakeIPTablesManager.ContainerTeardownArgsForCall(1)
+					Expect(containerID2).To(Equal("container-2"))
 				})
 			})
 
@@ -1413,6 +1447,12 @@ var _ = Describe("Container pool", func() {
 					id3 := fakeRootFSProvider.RemoveArgsForCall(2)
 					Expect(id1).To(Equal(layercake.ContainerID("container-1")))
 					Expect(id3).To(Equal(layercake.ContainerID("container-4")))
+
+					Expect(fakeIPTablesManager.ContainerTeardownCallCount()).To(Equal(4))
+					containerID := fakeIPTablesManager.ContainerTeardownArgsForCall(0)
+					Expect(containerID).To(Equal("container-1"))
+					containerID = fakeIPTablesManager.ContainerTeardownArgsForCall(3)
+					Expect(containerID).To(Equal("container-4"))
 				})
 			})
 
@@ -1422,10 +1462,12 @@ var _ = Describe("Container pool", func() {
 					Expect(err).ToNot(HaveOccurred())
 				})
 
-				It("cleans it up using the default provider", func() {
+				JustBeforeEach(func() {
 					err := pool.Prune(map[string]bool{})
 					Expect(err).ToNot(HaveOccurred())
+				})
 
+				It("cleans it up using the default provider", func() {
 					Expect(fakeRootFSProvider.RemoveCallCount()).To(Equal(2))
 					id1 := fakeRootFSProvider.RemoveArgsForCall(0)
 					id2 := fakeRootFSProvider.RemoveArgsForCall(1)
@@ -1440,12 +1482,20 @@ var _ = Describe("Container pool", func() {
 					})
 
 					It("ignores the error", func() {
-						err := pool.Prune(map[string]bool{})
-						Expect(err).ToNot(HaveOccurred())
 						for i := 0; i < fakeRootFSProvider.RemoveCallCount(); i++ {
 							arg := fakeRootFSProvider.RemoveArgsForCall(i)
 							Expect(arg).ToNot(Equal(layercake.ContainerID("container-2")))
 						}
+					})
+
+					It("cleans up the iptables", func() {
+						Expect(fakeIPTablesManager.ContainerTeardownCallCount()).To(Equal(3))
+						containerID := fakeIPTablesManager.ContainerTeardownArgsForCall(0)
+						Expect(containerID).To(Equal("container-1"))
+						containerID = fakeIPTablesManager.ContainerTeardownArgsForCall(1)
+						Expect(containerID).To(Equal("container-2"))
+						containerID = fakeIPTablesManager.ContainerTeardownArgsForCall(2)
+						Expect(containerID).To(Equal("container-3"))
 					})
 				})
 
@@ -1456,14 +1506,35 @@ var _ = Describe("Container pool", func() {
 					})
 
 					It("does not clean the rootfs", func() {
-						err := pool.Prune(map[string]bool{})
-						Expect(err).ToNot(HaveOccurred())
-
 						for i := 0; i < fakeRootFSProvider.RemoveCallCount(); i++ {
 							arg := fakeRootFSProvider.RemoveArgsForCall(i)
 							Expect(arg).ToNot(Equal(layercake.ContainerID("container-2")))
+
+							containerID := fakeIPTablesManager.ContainerTeardownArgsForCall(i)
+							Expect(containerID).ToNot(Equal("container-2"))
+							Expect(layercake.ContainerID(containerID)).To(Equal(arg))
 						}
 					})
+				})
+			})
+
+			Context("when iptables manager fails", func() {
+				disaster := errors.New("oh no!")
+
+				BeforeEach(func() {
+					fakeIPTablesManager.ContainerTeardownReturns(disaster)
+				})
+
+				It("ignores the error", func() {
+					err := pool.Prune(map[string]bool{"container-2": true})
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(fakeRunner).ToNot(HaveExecutedSerially(
+						fake_command_runner.CommandSpec{
+							Path: "/root/path/destroy.sh",
+							Args: []string{path.Join(depotPath, "container-2")},
+						},
+					))
 				})
 			})
 
@@ -1491,6 +1562,14 @@ var _ = Describe("Container pool", func() {
 							Args: []string{path.Join(depotPath, "container-2")},
 						},
 					))
+
+					Expect(fakeIPTablesManager.ContainerTeardownCallCount()).To(Equal(2))
+
+					containerID := fakeIPTablesManager.ContainerTeardownArgsForCall(0)
+					Expect(containerID).ToNot(Equal("container-2"))
+
+					containerID = fakeIPTablesManager.ContainerTeardownArgsForCall(1)
+					Expect(containerID).ToNot(Equal("container-2"))
 				})
 
 				It("is not cleaned up", func() {
@@ -1500,6 +1579,8 @@ var _ = Describe("Container pool", func() {
 					Expect(fakeRootFSProvider.RemoveCallCount()).To(Equal(1))
 					prunedId := fakeRootFSProvider.RemoveArgsForCall(0)
 					Expect(prunedId).ToNot(Equal(layercake.ContainerID("container-2")))
+
+					Expect(fakeIPTablesManager.ContainerTeardownCallCount()).To(Equal(2))
 				})
 
 				It("does not release the bridge", func() {
@@ -1507,6 +1588,7 @@ var _ = Describe("Container pool", func() {
 					Expect(err).ToNot(HaveOccurred())
 
 					Expect(fakeBridges.ReleaseCallCount()).To(Equal(1))
+					Expect(fakeIPTablesManager.ContainerTeardownCallCount()).To(Equal(2))
 				})
 			})
 
@@ -1566,6 +1648,10 @@ var _ = Describe("Container pool", func() {
 					Args: []string{path.Join(depotPath, container.ID)},
 				},
 			))
+
+			Expect(fakeIPTablesManager.ContainerTeardownCallCount()).To(Equal(1))
+			containerID := fakeIPTablesManager.ContainerTeardownArgsForCall(0)
+			Expect(containerID).To(Equal(container.ID))
 		})
 
 		It("releases the container's ports and network", func() {
@@ -1577,6 +1663,9 @@ var _ = Describe("Container pool", func() {
 
 			Expect(fakeSubnetPool.ReleaseCallCount()).To(Equal(1))
 			Expect(fakeSubnetPool.ReleaseArgsForCall(0)).To(Equal(container.Resources.Network))
+
+			Expect(fakeIPTablesManager.ContainerTeardownCallCount()).To(Equal(1))
+			Expect(fakeIPTablesManager.ContainerTeardownArgsForCall(0)).To(Equal(container.ID))
 		})
 
 		Context("when a bridge was created", func() {
@@ -1593,6 +1682,9 @@ var _ = Describe("Container pool", func() {
 
 				Expect(bridgeName).To(Equal("the-bridge"))
 				Expect(containerId).To(Equal(container.ID))
+
+				Expect(fakeIPTablesManager.ContainerTeardownCallCount()).To(Equal(1))
+				Expect(fakeIPTablesManager.ContainerTeardownArgsForCall(0)).To(Equal(container.ID))
 			})
 
 			Context("when the releasing the bridge fails", func() {
@@ -1612,6 +1704,9 @@ var _ = Describe("Container pool", func() {
 			Expect(fakeFilterProvider.ProvideFilterCallCount()).To(BeNumerically(">", 0))
 			Expect(fakeFilterProvider.ProvideFilterArgsForCall(0)).To(Equal(container.Handle))
 			Expect(fakeFilter.TearDownCallCount()).To(Equal(1))
+
+			Expect(fakeIPTablesManager.ContainerTeardownCallCount()).To(Equal(1))
+			Expect(fakeIPTablesManager.ContainerTeardownArgsForCall(0)).To(Equal(container.ID))
 		})
 
 		Context("when the container has a rootfs provider defined", func() {
@@ -1630,6 +1725,14 @@ var _ = Describe("Container pool", func() {
 				Expect(fakeRootFSProvider.RemoveCallCount()).To(Equal(1))
 				id := fakeRootFSProvider.RemoveArgsForCall(0)
 				Expect(id).To(Equal(layercake.ContainerID(container.ID)))
+			})
+
+			It("clean ups the iptables", func() {
+				err := pool.Release(container)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(fakeIPTablesManager.ContainerTeardownCallCount()).To(Equal(1))
+				Expect(fakeIPTablesManager.ContainerTeardownArgsForCall(0)).To(Equal((container.ID)))
 			})
 
 			Context("when cleaning up the container's rootfs fails", func() {
@@ -1661,6 +1764,26 @@ var _ = Describe("Container pool", func() {
 					pool.Release(container)
 					Expect(fakeFilter.TearDownCallCount()).To(Equal(0))
 				})
+			})
+		})
+
+		Context("when iptables manager fails", func() {
+			disaster := errors.New("oh no!")
+
+			BeforeEach(func() {
+				fakeIPTablesManager.ContainerTeardownReturns(disaster)
+			})
+
+			It("returns the error", func() {
+				err := pool.Release(container)
+				Expect(err).To(Equal(disaster))
+
+				Expect(fakeRunner).ToNot(HaveExecutedSerially(
+					fake_command_runner.CommandSpec{
+						Path: "/root/path/destroy.sh",
+						Args: []string{path.Join(depotPath, container.ID)},
+					},
+				))
 			})
 		})
 

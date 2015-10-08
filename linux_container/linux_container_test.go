@@ -249,14 +249,6 @@ var _ = Describe("Linux containers", func() {
 			))
 		})
 
-		It("should tear down IPTables", func() {
-			Expect(container.Stop(false)).To(Succeed())
-
-			Expect(fakeIPTablesManager.ContainerTeardownCallCount()).To(Equal(1))
-			id := fakeIPTablesManager.ContainerTeardownArgsForCall(0)
-			Expect(id).To(Equal("some-id"))
-		})
-
 		It("sets the container's state to stopped", func() {
 			Expect(container.State()).To(Equal(linux_backend.StateBorn))
 
@@ -279,19 +271,6 @@ var _ = Describe("Linux containers", func() {
 					},
 				))
 
-			})
-		})
-
-		Context("when tearing down IPTables fails", func() {
-			nastyError := errors.New("banana")
-
-			BeforeEach(func() {
-				fakeIPTablesManager.ContainerTeardownReturns(nastyError)
-			})
-
-			It("should return the error", func() {
-				err := container.Stop(false)
-				Expect(err).To(MatchError("container teardown failed: banana"))
 			})
 		})
 

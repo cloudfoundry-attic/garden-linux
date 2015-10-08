@@ -415,11 +415,6 @@ func (c *LinuxContainer) Start() error {
 func (c *LinuxContainer) Cleanup() error {
 	cLog := c.logger.Session("cleanup")
 
-	if err := c.ipTablesManager.ContainerTeardown(c.ID()); err != nil {
-		cLog.Error("container-teardown-failed", err)
-		return fmt.Errorf("container teardown failed: %s", err)
-	}
-
 	cLog.Debug("stopping-oom-notifier")
 	c.oomWatcher.Unwatch()
 

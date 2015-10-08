@@ -78,7 +78,8 @@ type LinuxResourcePool struct {
 
 	portPool linux_container.PortPool
 
-	bridges bridgemgr.BridgeManager
+	bridges     bridgemgr.BridgeManager
+	iptablesMgr linux_container.IPTablesManager
 
 	filterProvider FilterProvider
 	defaultChain   iptables.Chain
@@ -102,6 +103,7 @@ func New(
 	mtu int,
 	subnetPool SubnetPool,
 	bridges bridgemgr.BridgeManager,
+	iptablesMgr linux_container.IPTablesManager,
 	filterProvider FilterProvider,
 	defaultChain iptables.Chain,
 	portPool linux_container.PortPool,
@@ -129,7 +131,8 @@ func New(
 
 		subnetPool: subnetPool,
 
-		bridges: bridges,
+		bridges:     bridges,
+		iptablesMgr: iptablesMgr,
 
 		filterProvider: filterProvider,
 		defaultChain:   defaultChain,
@@ -678,6 +681,10 @@ func (p *LinuxResourcePool) releaseSystemResources(logger lager.Logger, id strin
 	rootfsProvider, err := ioutil.ReadFile(path.Join(p.depotPath, id, "rootfs-provider"))
 	if err != nil {
 		rootfsProvider = []byte("invalid-rootfs-provider")
+	}
+
+	if err = p.iptablesMgr.ContainerTeardown(id); err != nil {
+		return err
 	}
 
 	destroy := exec.Command(path.Join(p.binPath, "destroy.sh"), path.Join(p.depotPath, id))
