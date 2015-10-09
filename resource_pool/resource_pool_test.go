@@ -251,7 +251,8 @@ var _ = Describe("Container pool", func() {
 		itReleasesTheIPBlock := func() {
 			It("returns the container's IP block to the pool", func() {
 				Expect(fakeSubnetPool.ReleaseCallCount()).To(Equal(1))
-				Expect(fakeSubnetPool.ReleaseArgsForCall(0)).To(Equal(containerNetwork))
+				actualNetwork, _ := fakeSubnetPool.ReleaseArgsForCall(0)
+				Expect(actualNetwork).To(Equal(containerNetwork))
 			})
 		}
 
@@ -535,7 +536,7 @@ var _ = Describe("Container pool", func() {
 			Describe("allocating the requested network", func() {
 				itShouldAcquire := func(subnet subnets.SubnetSelector, ip subnets.IPSelector) {
 					Expect(fakeSubnetPool.AcquireCallCount()).To(Equal(1))
-					s, i := fakeSubnetPool.AcquireArgsForCall(0)
+					s, i, _ := fakeSubnetPool.AcquireArgsForCall(0)
 
 					Expect(s).To(Equal(subnet))
 					Expect(i).To(Equal(ip))
@@ -992,7 +993,8 @@ var _ = Describe("Container pool", func() {
 				Expect(err).To(Equal(nastyError))
 
 				Expect(fakeSubnetPool.ReleaseCallCount()).To(Equal(1))
-				Expect(fakeSubnetPool.ReleaseArgsForCall(0)).To(Equal(containerNetwork))
+				actualNetwork, _ := fakeSubnetPool.ReleaseArgsForCall(0)
+				Expect(actualNetwork).To(Equal(containerNetwork))
 			})
 
 			itReleasesTheIPBlock()
@@ -1190,7 +1192,8 @@ var _ = Describe("Container pool", func() {
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(fakeSubnetPool.RemoveCallCount()).To(Equal(1))
-			Expect(fakeSubnetPool.RemoveArgsForCall(0)).To(Equal(containerNetwork))
+			actualNetwork, _ := fakeSubnetPool.RemoveArgsForCall(0)
+			Expect(actualNetwork).To(Equal(containerNetwork))
 		})
 
 		It("removes its ports from the pool", func() {
@@ -1227,7 +1230,8 @@ var _ = Describe("Container pool", func() {
 
 			It("returns the subnet to the pool", func() {
 				Expect(fakeSubnetPool.ReleaseCallCount()).To(Equal(1))
-				Expect(fakeSubnetPool.ReleaseArgsForCall(0)).To(Equal(containerNetwork))
+				actualNetwork, _ := fakeSubnetPool.ReleaseArgsForCall(0)
+				Expect(actualNetwork).To(Equal(containerNetwork))
 			})
 		})
 
@@ -1267,7 +1271,8 @@ var _ = Describe("Container pool", func() {
 				Expect(err).To(Equal(disaster))
 
 				Expect(fakeSubnetPool.ReleaseCallCount()).To(Equal(1))
-				Expect(fakeSubnetPool.ReleaseArgsForCall(0)).To(Equal(containerNetwork))
+				actualNetwork, _ := fakeSubnetPool.ReleaseArgsForCall(0)
+				Expect(actualNetwork).To(Equal(containerNetwork))
 
 				Expect(fakePortPool.Released).To(ContainElement(uint32(61001)))
 				Expect(fakePortPool.Released).To(ContainElement(uint32(61002)))
@@ -1662,7 +1667,8 @@ var _ = Describe("Container pool", func() {
 			Expect(fakePortPool.Released).To(ContainElement(uint32(456)))
 
 			Expect(fakeSubnetPool.ReleaseCallCount()).To(Equal(1))
-			Expect(fakeSubnetPool.ReleaseArgsForCall(0)).To(Equal(container.Resources.Network))
+			actualNetwork, _ := fakeSubnetPool.ReleaseArgsForCall(0)
+			Expect(actualNetwork).To(Equal(container.Resources.Network))
 
 			Expect(fakeIPTablesManager.ContainerTeardownCallCount()).To(Equal(1))
 			Expect(fakeIPTablesManager.ContainerTeardownArgsForCall(0)).To(Equal(container.ID))

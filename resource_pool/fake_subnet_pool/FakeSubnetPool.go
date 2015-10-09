@@ -7,31 +7,35 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
 	"github.com/cloudfoundry-incubator/garden-linux/resource_pool"
+	"github.com/pivotal-golang/lager"
 )
 
 type FakeSubnetPool struct {
-	AcquireStub        func(subnet subnets.SubnetSelector, ip subnets.IPSelector) (*linux_backend.Network, error)
+	AcquireStub        func(subnet subnets.SubnetSelector, ip subnets.IPSelector, logger lager.Logger) (*linux_backend.Network, error)
 	acquireMutex       sync.RWMutex
 	acquireArgsForCall []struct {
 		subnet subnets.SubnetSelector
 		ip     subnets.IPSelector
+		logger lager.Logger
 	}
 	acquireReturns struct {
 		result1 *linux_backend.Network
 		result2 error
 	}
-	ReleaseStub        func(*linux_backend.Network) error
+	ReleaseStub        func(network *linux_backend.Network, logger lager.Logger) error
 	releaseMutex       sync.RWMutex
 	releaseArgsForCall []struct {
-		arg1 *linux_backend.Network
+		network *linux_backend.Network
+		logger  lager.Logger
 	}
 	releaseReturns struct {
 		result1 error
 	}
-	RemoveStub        func(*linux_backend.Network) error
+	RemoveStub        func(network *linux_backend.Network, logger lager.Logger) error
 	removeMutex       sync.RWMutex
 	removeArgsForCall []struct {
-		arg1 *linux_backend.Network
+		network *linux_backend.Network
+		logger  lager.Logger
 	}
 	removeReturns struct {
 		result1 error
@@ -44,15 +48,16 @@ type FakeSubnetPool struct {
 	}
 }
 
-func (fake *FakeSubnetPool) Acquire(subnet subnets.SubnetSelector, ip subnets.IPSelector) (*linux_backend.Network, error) {
+func (fake *FakeSubnetPool) Acquire(subnet subnets.SubnetSelector, ip subnets.IPSelector, logger lager.Logger) (*linux_backend.Network, error) {
 	fake.acquireMutex.Lock()
 	fake.acquireArgsForCall = append(fake.acquireArgsForCall, struct {
 		subnet subnets.SubnetSelector
 		ip     subnets.IPSelector
-	}{subnet, ip})
+		logger lager.Logger
+	}{subnet, ip, logger})
 	fake.acquireMutex.Unlock()
 	if fake.AcquireStub != nil {
-		return fake.AcquireStub(subnet, ip)
+		return fake.AcquireStub(subnet, ip, logger)
 	} else {
 		return fake.acquireReturns.result1, fake.acquireReturns.result2
 	}
@@ -64,10 +69,10 @@ func (fake *FakeSubnetPool) AcquireCallCount() int {
 	return len(fake.acquireArgsForCall)
 }
 
-func (fake *FakeSubnetPool) AcquireArgsForCall(i int) (subnets.SubnetSelector, subnets.IPSelector) {
+func (fake *FakeSubnetPool) AcquireArgsForCall(i int) (subnets.SubnetSelector, subnets.IPSelector, lager.Logger) {
 	fake.acquireMutex.RLock()
 	defer fake.acquireMutex.RUnlock()
-	return fake.acquireArgsForCall[i].subnet, fake.acquireArgsForCall[i].ip
+	return fake.acquireArgsForCall[i].subnet, fake.acquireArgsForCall[i].ip, fake.acquireArgsForCall[i].logger
 }
 
 func (fake *FakeSubnetPool) AcquireReturns(result1 *linux_backend.Network, result2 error) {
@@ -78,14 +83,15 @@ func (fake *FakeSubnetPool) AcquireReturns(result1 *linux_backend.Network, resul
 	}{result1, result2}
 }
 
-func (fake *FakeSubnetPool) Release(arg1 *linux_backend.Network) error {
+func (fake *FakeSubnetPool) Release(network *linux_backend.Network, logger lager.Logger) error {
 	fake.releaseMutex.Lock()
 	fake.releaseArgsForCall = append(fake.releaseArgsForCall, struct {
-		arg1 *linux_backend.Network
-	}{arg1})
+		network *linux_backend.Network
+		logger  lager.Logger
+	}{network, logger})
 	fake.releaseMutex.Unlock()
 	if fake.ReleaseStub != nil {
-		return fake.ReleaseStub(arg1)
+		return fake.ReleaseStub(network, logger)
 	} else {
 		return fake.releaseReturns.result1
 	}
@@ -97,10 +103,10 @@ func (fake *FakeSubnetPool) ReleaseCallCount() int {
 	return len(fake.releaseArgsForCall)
 }
 
-func (fake *FakeSubnetPool) ReleaseArgsForCall(i int) *linux_backend.Network {
+func (fake *FakeSubnetPool) ReleaseArgsForCall(i int) (*linux_backend.Network, lager.Logger) {
 	fake.releaseMutex.RLock()
 	defer fake.releaseMutex.RUnlock()
-	return fake.releaseArgsForCall[i].arg1
+	return fake.releaseArgsForCall[i].network, fake.releaseArgsForCall[i].logger
 }
 
 func (fake *FakeSubnetPool) ReleaseReturns(result1 error) {
@@ -110,14 +116,15 @@ func (fake *FakeSubnetPool) ReleaseReturns(result1 error) {
 	}{result1}
 }
 
-func (fake *FakeSubnetPool) Remove(arg1 *linux_backend.Network) error {
+func (fake *FakeSubnetPool) Remove(network *linux_backend.Network, logger lager.Logger) error {
 	fake.removeMutex.Lock()
 	fake.removeArgsForCall = append(fake.removeArgsForCall, struct {
-		arg1 *linux_backend.Network
-	}{arg1})
+		network *linux_backend.Network
+		logger  lager.Logger
+	}{network, logger})
 	fake.removeMutex.Unlock()
 	if fake.RemoveStub != nil {
-		return fake.RemoveStub(arg1)
+		return fake.RemoveStub(network, logger)
 	} else {
 		return fake.removeReturns.result1
 	}
@@ -129,10 +136,10 @@ func (fake *FakeSubnetPool) RemoveCallCount() int {
 	return len(fake.removeArgsForCall)
 }
 
-func (fake *FakeSubnetPool) RemoveArgsForCall(i int) *linux_backend.Network {
+func (fake *FakeSubnetPool) RemoveArgsForCall(i int) (*linux_backend.Network, lager.Logger) {
 	fake.removeMutex.RLock()
 	defer fake.removeMutex.RUnlock()
-	return fake.removeArgsForCall[i].arg1
+	return fake.removeArgsForCall[i].network, fake.removeArgsForCall[i].logger
 }
 
 func (fake *FakeSubnetPool) RemoveReturns(result1 error) {

@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
+	"github.com/pivotal-golang/lager"
 )
 
 // Subnets provides a means of allocating subnets and associated IP addresses.
@@ -18,16 +19,16 @@ type Subnets interface {
 	// Returns a subnet, an IP address, and a boolean which is true if and only if this is the
 	// first IP address to be associated with this subnet.
 	// If either selector fails, an error is returned.
-	Acquire(SubnetSelector, IPSelector) (*linux_backend.Network, error)
+	Acquire(SubnetSelector, IPSelector, lager.Logger) (*linux_backend.Network, error)
 
 	// Releases an IP address associated with an allocated subnet. If the subnet has no other IP
 	// addresses associated with it, it is deallocated.
 	// Returns a boolean which is true if and only if the subnet was deallocated.
 	// Returns an error if the given combination is not already in the pool.
-	Release(*linux_backend.Network) error
+	Release(*linux_backend.Network, lager.Logger) error
 
 	// Remove an IP address so it appears to be associated with the given subnet.
-	Remove(*linux_backend.Network) error
+	Remove(*linux_backend.Network, lager.Logger) error
 
 	// Returns the number of /30 subnets which can be Acquired by a DynamicSubnetSelector.
 	Capacity() int
@@ -66,30 +67,44 @@ func NewSubnets(ipNet *net.IPNet) (Subnets, error) {
 
 // Acquire uses the given subnet and IP selectors to request a subnet, container IP address combination
 // from the pool.
-func (p *pool) Acquire(sn SubnetSelector, i IPSelector) (network *linux_backend.Network, err error) {
+func (p *pool) Acquire(sn SubnetSelector, i IPSelector, logger lager.Logger) (network *linux_backend.Network, err error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
+	logger = logger.Session("acquire")
+
 	network = &linux_backend.Network{}
-	if network.Subnet, err = sn.SelectSubnet(p.dynamicRange, existingSubnets(p.allocated)); err != nil {
+
+	allocatedSubnets := subnets(p.allocated)
+	logger.Info("subnet-selecting", lager.Data{"allocated-subnets": subnetsStr(allocatedSubnets)})
+	if network.Subnet, err = sn.SelectSubnet(p.dynamicRange, allocatedSubnets); err != nil {
+		logger.Error("subnet-selecting-failed", err)
 		return nil, err
 	}
+	logger.Info("subnet-selected", lager.Data{"subnet": network.Subnet.String()})
 
 	ips := p.allocated[network.Subnet.String()]
-	existingIPs := append(ips, NetworkIP(network.Subnet), GatewayIP(network.Subnet), BroadcastIP(network.Subnet))
-	if network.IP, err = i.SelectIP(network.Subnet, existingIPs); err != nil {
+	logger.Info("ip-selecting", lager.Data{"allocated-ips": ipsStr(ips)})
+	allocatedIPs := append(ips, NetworkIP(network.Subnet), GatewayIP(network.Subnet), BroadcastIP(network.Subnet))
+	if network.IP, err = i.SelectIP(network.Subnet, allocatedIPs); err != nil {
+		logger.Error("ip-selecting-failed", err)
 		return nil, err
 	}
+	logger.Info("ip-selected", lager.Data{"ip": network.IP.String()})
 
 	p.allocated[network.Subnet.String()] = append(ips, network.IP)
+	logger.Info("new-allocated", lager.Data{"allocated-ips": ipsStr(p.allocated[network.Subnet.String()])})
+
 	return network, nil
 }
 
-// Recover re-allocates a given subnet and ip address combination in the pool. It returns
+// Remove re-allocates a given subnet and ip address combination in the pool. It returns
 // an error if the combination is already allocated.
-func (p *pool) Remove(network *linux_backend.Network) error {
+func (p *pool) Remove(network *linux_backend.Network, logger lager.Logger) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
+	logger = logger.Session("release")
 
 	if network.IP == nil {
 		return ErrIpCannotBeNil
@@ -102,12 +117,16 @@ func (p *pool) Remove(network *linux_backend.Network) error {
 	}
 
 	p.allocated[network.Subnet.String()] = append(p.allocated[network.Subnet.String()], network.IP)
+	logger.Info("new-allocated", lager.Data{"allocated-ips": ipsStr(p.allocated[network.Subnet.String()]), "subnet": network.Subnet.String()})
+
 	return nil
 }
 
-func (p *pool) Release(network *linux_backend.Network) error {
+func (p *pool) Release(network *linux_backend.Network, logger lager.Logger) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
+
+	logger = logger.Session("release")
 
 	subnetString := network.Subnet.String()
 	ips := p.allocated[subnetString]
@@ -115,8 +134,10 @@ func (p *pool) Release(network *linux_backend.Network) error {
 	if i, found := indexOf(ips, network.IP); found {
 		if reducedIps, empty := removeIPAtIndex(ips, i); empty {
 			delete(p.allocated, subnetString)
+			logger.Info("changing-allocated-subnets", lager.Data{"allocated-subnets": subnetsStr(subnets(p.allocated))})
 		} else {
 			p.allocated[subnetString] = reducedIps
+			logger.Info("changing-allocated-ips", lager.Data{"allocated-ips": ipsStr(reducedIps)})
 		}
 
 		return nil
@@ -148,7 +169,7 @@ func BroadcastIP(subnet *net.IPNet) net.IP {
 }
 
 // returns the keys in the given map whose values are non-empty slices
-func existingSubnets(m map[string][]net.IP) (result []*net.IPNet) {
+func subnets(m map[string][]net.IP) (result []*net.IPNet) {
 	for k, v := range m {
 		if len(v) > 0 {
 			_, ipn, err := net.ParseCIDR(k)
@@ -161,6 +182,26 @@ func existingSubnets(m map[string][]net.IP) (result []*net.IPNet) {
 	}
 
 	return result
+}
+
+func subnetsStr(subnets []*net.IPNet) []string {
+	var retVal []string
+
+	for _, subnet := range subnets {
+		retVal = append(retVal, subnet.String())
+	}
+
+	return retVal
+}
+
+func ipsStr(ips []net.IP) []string {
+	var retVal []string
+
+	for _, ip := range ips {
+		retVal = append(retVal, ip.String())
+	}
+
+	return retVal
 }
 
 func indexOf(a []net.IP, w net.IP) (int, bool) {

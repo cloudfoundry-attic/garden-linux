@@ -47,9 +47,9 @@ type FilterProvider interface {
 
 //go:generate counterfeiter -o fake_subnet_pool/FakeSubnetPool.go . SubnetPool
 type SubnetPool interface {
-	Acquire(subnet subnets.SubnetSelector, ip subnets.IPSelector) (*linux_backend.Network, error)
-	Release(*linux_backend.Network) error
-	Remove(*linux_backend.Network) error
+	Acquire(subnet subnets.SubnetSelector, ip subnets.IPSelector, logger lager.Logger) (*linux_backend.Network, error)
+	Release(network *linux_backend.Network, logger lager.Logger) error
+	Remove(network *linux_backend.Network, logger lager.Logger) error
 	Capacity() int
 }
 
@@ -249,12 +249,12 @@ func (p *LinuxResourcePool) Acquire(spec garden.ContainerSpec) (linux_backend.Li
 
 	pLog.Info("creating")
 
-	resources, err := p.acquirePoolResources(spec, id)
+	resources, err := p.acquirePoolResources(spec, id, pLog)
 	if err != nil {
 		return linux_backend.LinuxContainerSpec{}, err
 	}
 	defer cleanup(&err, func() {
-		p.releasePoolResources(resources)
+		p.releasePoolResources(resources, pLog)
 	})
 
 	pLog.Info("acquired-pool-resources")
@@ -309,20 +309,21 @@ func (p *LinuxResourcePool) Restore(snapshot io.Reader) (linux_backend.LinuxCont
 	rLog.Debug("restoring")
 
 	resources := containerSnapshot.Resources
+	subnetLogger := rLog.Session("subnet-pool")
 
-	if err = p.subnetPool.Remove(resources.Network); err != nil {
+	if err = p.subnetPool.Remove(resources.Network, subnetLogger); err != nil {
 		return linux_backend.LinuxContainerSpec{}, err
 	}
 
 	if err = p.bridges.Rereserve(resources.Bridge, resources.Network.Subnet, id); err != nil {
-		p.subnetPool.Release(resources.Network)
+		p.subnetPool.Release(resources.Network, subnetLogger)
 		return linux_backend.LinuxContainerSpec{}, err
 	}
 
 	for _, port := range resources.Ports {
 		err = p.portPool.Remove(port)
 		if err != nil {
-			p.subnetPool.Release(resources.Network)
+			p.subnetPool.Release(resources.Network, subnetLogger)
 
 			for _, port := range resources.Ports {
 				p.portPool.Release(port)
@@ -381,7 +382,7 @@ func (p *LinuxResourcePool) Release(container linux_backend.LinuxContainerSpec) 
 		return err
 	}
 
-	p.releasePoolResources(container.Resources)
+	p.releasePoolResources(container.Resources, pLog)
 
 	pLog.Info("released")
 
@@ -474,7 +475,7 @@ func (p *LinuxResourcePool) restoreContainerVersion(id string) (semver.Version, 
 	return semver.Make(string(content))
 }
 
-func (p *LinuxResourcePool) acquirePoolResources(spec garden.ContainerSpec, id string) (*linux_backend.Resources, error) {
+func (p *LinuxResourcePool) acquirePoolResources(spec garden.ContainerSpec, id string, logger lager.Logger) (*linux_backend.Resources, error) {
 	resources := linux_backend.NewResources(0, nil, "", nil, p.externalIP)
 
 	subnet, ip, err := parseNetworkSpec(spec.Network)
@@ -486,8 +487,8 @@ func (p *LinuxResourcePool) acquirePoolResources(spec garden.ContainerSpec, id s
 		return nil, err
 	}
 
-	if resources.Network, err = p.subnetPool.Acquire(subnet, ip); err != nil {
-		p.releasePoolResources(resources)
+	if resources.Network, err = p.subnetPool.Acquire(subnet, ip, logger.Session("subnet-pool")); err != nil {
+		p.releasePoolResources(resources, logger)
 		return nil, err
 	}
 
@@ -504,13 +505,13 @@ func (p *LinuxResourcePool) acquireUID(resources *linux_backend.Resources, privi
 	return nil
 }
 
-func (p *LinuxResourcePool) releasePoolResources(resources *linux_backend.Resources) {
+func (p *LinuxResourcePool) releasePoolResources(resources *linux_backend.Resources, logger lager.Logger) {
 	for _, port := range resources.Ports {
 		p.portPool.Release(port)
 	}
 
 	if resources.Network != nil {
-		p.subnetPool.Release(resources.Network)
+		p.subnetPool.Release(resources.Network, logger.Session("subnet-pool"))
 	}
 }
 

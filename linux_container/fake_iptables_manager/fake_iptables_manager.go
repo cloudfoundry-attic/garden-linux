@@ -9,11 +9,11 @@ import (
 )
 
 type FakeIPTablesManager struct {
-	ContainerSetupStub        func(containerID, bridgeIface string, ip net.IP, network *net.IPNet) error
+	ContainerSetupStub        func(containerID, bridgeName string, ip net.IP, network *net.IPNet) error
 	containerSetupMutex       sync.RWMutex
 	containerSetupArgsForCall []struct {
 		containerID string
-		bridgeIface string
+		bridgeName  string
 		ip          net.IP
 		network     *net.IPNet
 	}
@@ -30,17 +30,17 @@ type FakeIPTablesManager struct {
 	}
 }
 
-func (fake *FakeIPTablesManager) ContainerSetup(containerID string, bridgeIface string, ip net.IP, network *net.IPNet) error {
+func (fake *FakeIPTablesManager) ContainerSetup(containerID string, bridgeName string, ip net.IP, network *net.IPNet) error {
 	fake.containerSetupMutex.Lock()
 	fake.containerSetupArgsForCall = append(fake.containerSetupArgsForCall, struct {
 		containerID string
-		bridgeIface string
+		bridgeName  string
 		ip          net.IP
 		network     *net.IPNet
-	}{containerID, bridgeIface, ip, network})
+	}{containerID, bridgeName, ip, network})
 	fake.containerSetupMutex.Unlock()
 	if fake.ContainerSetupStub != nil {
-		return fake.ContainerSetupStub(containerID, bridgeIface, ip, network)
+		return fake.ContainerSetupStub(containerID, bridgeName, ip, network)
 	} else {
 		return fake.containerSetupReturns.result1
 	}
@@ -55,7 +55,7 @@ func (fake *FakeIPTablesManager) ContainerSetupCallCount() int {
 func (fake *FakeIPTablesManager) ContainerSetupArgsForCall(i int) (string, string, net.IP, *net.IPNet) {
 	fake.containerSetupMutex.RLock()
 	defer fake.containerSetupMutex.RUnlock()
-	return fake.containerSetupArgsForCall[i].containerID, fake.containerSetupArgsForCall[i].bridgeIface, fake.containerSetupArgsForCall[i].ip, fake.containerSetupArgsForCall[i].network
+	return fake.containerSetupArgsForCall[i].containerID, fake.containerSetupArgsForCall[i].bridgeName, fake.containerSetupArgsForCall[i].ip, fake.containerSetupArgsForCall[i].network
 }
 
 func (fake *FakeIPTablesManager) ContainerSetupReturns(result1 error) {
