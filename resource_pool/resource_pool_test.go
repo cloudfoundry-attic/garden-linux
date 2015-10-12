@@ -33,7 +33,6 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/network/iptables"
 	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
 	"github.com/cloudfoundry-incubator/garden-linux/port_pool/fake_port_pool"
-	"github.com/cloudfoundry-incubator/garden-linux/process"
 	"github.com/cloudfoundry-incubator/garden-linux/resource_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/resource_pool/fake_filter_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/resource_pool/fake_subnet_pool"
@@ -710,9 +709,9 @@ var _ = Describe("Container pool", func() {
 			})
 
 			It("merges the env vars associated with the rootfs with those in the spec", func() {
-				fakeRootFSProvider.CreateReturns("/provided/rootfs/path", process.Env{
-					"var2": "rootfs-value-2",
-					"var3": "rootfs-value-3",
+				fakeRootFSProvider.CreateReturns("/provided/rootfs/path", []string{
+					"var2=rootfs-value-2",
+					"var3=rootfs-value-3",
 				}, nil)
 
 				containerSpec, err := pool.Acquire(garden.ContainerSpec{

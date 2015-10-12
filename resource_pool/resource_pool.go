@@ -616,7 +616,14 @@ func (p *LinuxResourcePool) setupRootfs(pLog lager.Logger, id, rootFSPath string
 	}
 	pLog.Debug("provide-rootfs-ended")
 
-	return rootfsPath, rootFSEnvVars, nil
+	rootFSProcessEnv, err := process.NewEnv(rootFSEnvVars)
+	if err != nil {
+		pLog.Error("rootfs-env-malformed", err)
+
+		return "", nil, err
+	}
+
+	return rootfsPath, rootFSProcessEnv, nil
 }
 
 func (p *LinuxResourcePool) setupContainerDirectories(pLog lager.Logger, id, handle, containerPath, rootFSPath string, resources *linux_backend.Resources, diskQuota int64) (string, process.Env, error) {
