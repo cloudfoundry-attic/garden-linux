@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/cloudfoundry-incubator/garden-linux/resource_pool"
-	"github.com/cloudfoundry-incubator/garden-linux/shed/layercake"
+	"github.com/cloudfoundry-incubator/garden-shed/layercake"
 )
 
 type FakeRemover struct {

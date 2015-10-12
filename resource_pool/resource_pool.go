@@ -31,8 +31,8 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/network/iptables"
 	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
 	"github.com/cloudfoundry-incubator/garden-linux/process"
-	"github.com/cloudfoundry-incubator/garden-linux/shed/layercake"
-	"github.com/cloudfoundry-incubator/garden-linux/shed/rootfs_provider"
+	"github.com/cloudfoundry-incubator/garden-shed/layercake"
+	"github.com/cloudfoundry-incubator/garden-shed/rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/sysconfig"
 )
 
