@@ -37,10 +37,10 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/resource_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/resource_pool/fake_filter_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/resource_pool/fake_subnet_pool"
+	"github.com/cloudfoundry-incubator/garden-linux/sysconfig"
 	"github.com/cloudfoundry-incubator/garden-shed/layercake"
 	"github.com/cloudfoundry-incubator/garden-shed/rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-shed/rootfs_provider/fake_rootfs_provider"
-	"github.com/cloudfoundry-incubator/garden-linux/sysconfig"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
 )
