@@ -14,8 +14,9 @@ import (
 )
 
 type BtrfsQuotaManager struct {
-	Runner     command_runner.CommandRunner
-	MountPoint string
+	Runner      command_runner.CommandRunner
+	MountPoint  string
+	SyncEnabled bool
 }
 
 const QUOTA_BLOCK_SIZE = 1024
@@ -98,14 +99,13 @@ func (m *BtrfsQuotaManager) quotaInfo(logger lager.Logger, path string) (*QuotaI
 		limit  string
 	)
 
-	runner := logging.Runner{
+	runner := &logging.Runner{
 		Logger:        logger,
 		CommandRunner: m.Runner,
 	}
 
-	syncCmd := exec.Command("sync")
-	if err := runner.Run(syncCmd); err != nil {
-		return nil, fmt.Errorf("quota_manager: sync disk i/o: %s", err)
+	if err := m.sync(runner); err != nil {
+		return nil, err
 	}
 
 	cmd := exec.Command("sh", "-c", fmt.Sprintf("btrfs qgroup show -rF --raw %s", path))
@@ -131,4 +131,16 @@ func (m *BtrfsQuotaManager) quotaInfo(logger lager.Logger, path string) (*QuotaI
 	}
 
 	return &info, nil
+}
+
+func (m *BtrfsQuotaManager) sync(runner command_runner.CommandRunner) error {
+	if !m.SyncEnabled {
+		return nil
+	}
+
+	syncCmd := exec.Command("sync")
+	if err := runner.Run(syncCmd); err != nil {
+		return fmt.Errorf("quota_manager: sync disk i/o: %s", err)
+	}
+	return nil
 }

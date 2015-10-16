@@ -22,19 +22,22 @@ var _ = Describe("btrfs quota manager", func() {
 	var subvolumePath string
 	var qgroupShowResponse []byte
 	var qgroupShowError error
+	var syncEnabled bool
 
 	BeforeEach(func() {
+		syncEnabled = true
 		fakeRunner = fake_command_runner.New()
 		logger = lagertest.NewTestLogger("test")
-		quotaManager = &quota_manager.BtrfsQuotaManager{
-			Runner:     fakeRunner,
-			MountPoint: "/the/mount/point",
-		}
-
 		subvolumePath = "/some/volume/path"
 	})
 
 	JustBeforeEach(func() {
+		quotaManager = &quota_manager.BtrfsQuotaManager{
+			Runner:      fakeRunner,
+			MountPoint:  "/the/mount/point",
+			SyncEnabled: syncEnabled,
+		}
+
 		fakeRunner.WhenRunning(
 			fake_command_runner.CommandSpec{
 				Path: "sh",
@@ -233,6 +236,29 @@ var _ = Describe("btrfs quota manager", func() {
 						Args: []string{"-c", fmt.Sprintf("btrfs qgroup show -rF --raw %s", subvolumePath)},
 					},
 				))
+			})
+
+			Context("when sync is disabled", func() {
+				BeforeEach(func() {
+					syncEnabled = false
+				})
+
+				It("should not sync", func() {
+					usage, err := quotaManager.GetUsage(logger, subvolumePath)
+					Expect(err).ToNot(HaveOccurred())
+					Expect(usage).To(Equal(garden.ContainerDiskStat{
+						TotalBytesUsed:      uint64(10 * 1024 * 1024),
+						TotalInodesUsed:     uint64(0),
+						ExclusiveBytesUsed:  uint64(16 * 1024),
+						ExclusiveInodesUsed: uint64(0),
+					}))
+
+					Expect(fakeRunner).ToNot(HaveExecutedSerially(
+						fake_command_runner.CommandSpec{
+							Path: "sync",
+						},
+					))
+				})
 			})
 
 			Context("when there is no quota", func() {

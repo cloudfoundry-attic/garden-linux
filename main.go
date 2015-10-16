@@ -13,16 +13,6 @@ import (
 	"syscall"
 
 	"github.com/blang/semver"
-	"github.com/cloudfoundry/gunk/command_runner"
-	"github.com/docker/docker/daemon/graphdriver"
-	_ "github.com/docker/docker/daemon/graphdriver/btrfs"
-	_ "github.com/docker/docker/daemon/graphdriver/vfs"
-	"github.com/docker/docker/graph"
-	_ "github.com/docker/docker/pkg/chrootarchive" // allow reexec of docker-applyLayer
-	"github.com/docker/docker/registry"
-	"github.com/pivotal-golang/lager"
-	"github.com/pivotal-golang/localip"
-
 	"github.com/cloudfoundry-incubator/cf-debug-server"
 	"github.com/cloudfoundry-incubator/cf-lager"
 	"github.com/cloudfoundry-incubator/garden-linux/container_repository"
@@ -49,8 +39,17 @@ import (
 	"github.com/cloudfoundry-incubator/garden-shed/rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden/server"
 	"github.com/cloudfoundry/dropsonde"
+	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
+	"github.com/docker/docker/daemon/graphdriver"
+	_ "github.com/docker/docker/daemon/graphdriver/btrfs"
+	_ "github.com/docker/docker/daemon/graphdriver/vfs"
+	"github.com/docker/docker/graph"
+	_ "github.com/docker/docker/pkg/chrootarchive" // allow reexec of docker-applyLayer
 	"github.com/docker/docker/pkg/reexec"
+	"github.com/docker/docker/registry"
+	"github.com/pivotal-golang/lager"
+	"github.com/pivotal-golang/localip"
 )
 
 const (
@@ -105,6 +104,12 @@ var disableQuotas = flag.Bool(
 	"disableQuotas",
 	false,
 	"disable disk quotas",
+)
+
+var btrfsForceSync = flag.Bool(
+	"btrfsForceSync",
+	true,
+	"force btrfs synchronization before gathering metrics",
 )
 
 var containerGraceTime = flag.Duration(
@@ -403,8 +408,9 @@ func main() {
 	var quotaManager linux_container.QuotaManager = quota_manager.DisabledQuotaManager{}
 	if !*disableQuotas {
 		quotaManager = &quota_manager.BtrfsQuotaManager{
-			Runner:     runner,
-			MountPoint: graphMountPoint,
+			Runner:      runner,
+			MountPoint:  graphMountPoint,
+			SyncEnabled: *btrfsForceSync,
 		}
 	}
 
