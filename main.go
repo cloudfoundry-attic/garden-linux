@@ -19,7 +19,6 @@ import (
 	_ "github.com/docker/docker/daemon/graphdriver/vfs"
 	"github.com/docker/docker/graph"
 	_ "github.com/docker/docker/pkg/chrootarchive" // allow reexec of docker-applyLayer
-	"github.com/docker/docker/registry"
 	"github.com/pivotal-golang/lager"
 	"github.com/pivotal-golang/localip"
 
@@ -44,6 +43,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/resource_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/sysconfig"
 	"github.com/cloudfoundry-incubator/garden-linux/sysinfo"
+	"github.com/cloudfoundry-incubator/garden-shed/distclient"
 	"github.com/cloudfoundry-incubator/garden-shed/layercake"
 	"github.com/cloudfoundry-incubator/garden-shed/repository_fetcher"
 	"github.com/cloudfoundry-incubator/garden-shed/rootfs_provider"
@@ -149,7 +149,7 @@ var graphRoot = flag.String(
 
 var dockerRegistry = flag.String(
 	"registry",
-	registry.IndexServerAddress(),
+	"registry-1.docker.io",
 	"docker registry API endpoint",
 )
 
@@ -295,7 +295,8 @@ func main() {
 	graphMountPoint := mountPoint(logger, *graphRoot)
 
 	var cake layercake.Cake = &layercake.Docker{
-		Graph: dockerGraph,
+		Graph:  dockerGraph,
+		Driver: dockerGraphDriver,
 	}
 
 	if cake.DriverName() == "btrfs" {
@@ -314,32 +315,13 @@ func main() {
 		EnableImageCleanup: *enableGraphCleanup,
 	}
 
-	lock := repository_fetcher.NewFetchLock()
-
 	repoFetcher := &repository_fetcher.CompositeFetcher{
 		LocalFetcher: &repository_fetcher.Local{
 			Cake:              ovenCleanerCake,
 			DefaultRootFSPath: *rootFSPath,
 			IDProvider:        repository_fetcher.LayerIDProvider{},
 		},
-		RemoteFetchers: map[registry.APIVersion]repository_fetcher.VersionedFetcher{
-			registry.APIVersion1: &repository_fetcher.RemoteV1Fetcher{
-				Cake:      ovenCleanerCake,
-				GraphLock: lock,
-			},
-			registry.APIVersion2: &repository_fetcher.RemoteV2Fetcher{
-				Cake:      ovenCleanerCake,
-				GraphLock: lock,
-			},
-		},
-		RequestCreator: &repository_fetcher.RemoteFetchRequestCreator{
-			RegistryProvider: repository_fetcher.NewRepositoryProvider(
-				*dockerRegistry,
-				insecureRegistries.List,
-			),
-			Pinger: repository_fetcher.EndpointPinger{},
-			Logger: logger.Session("remote-fetch-request-creator"),
-		},
+		RemoteFetcher: repository_fetcher.NewRemote(logger, "registry-1.docker.io", ovenCleanerCake, repository_fetcher.DialFunc(distclient.Dial)),
 	}
 
 	maxId := sysinfo.Min(sysinfo.MustGetMaxValidUID(), sysinfo.MustGetMaxValidGID())
