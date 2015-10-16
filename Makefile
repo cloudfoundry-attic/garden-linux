@@ -9,7 +9,7 @@ all:
 	CGO_ENABLED=0 go build -a -installsuffix static -o linux_backend/skeleton/lib/hook github.com/cloudfoundry-incubator/garden-linux/hook/hook
 	go build -o ${PWD}/out/garden-linux -tags daemon github.com/cloudfoundry-incubator/garden-linux
 	cd linux_backend/src && make clean all
-	cp linux_backend/src/oom/oom linux_backend/bin
+	cp linux_backend/src/oom/oom linux_backend/skeleton/bin
 	cp linux_backend/src/nstar/nstar linux_backend/bin
 	cd linux_backend/src && make clean
 	
