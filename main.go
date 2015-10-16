@@ -12,6 +12,13 @@ import (
 	"syscall"
 
 	"github.com/blang/semver"
+	"github.com/cloudfoundry/gunk/command_runner"
+	"github.com/docker/docker/daemon/graphdriver"
+	"github.com/docker/docker/graph"
+	_ "github.com/docker/docker/pkg/chrootarchive" // allow reexec of docker-applyLayer
+	"github.com/pivotal-golang/lager"
+	"github.com/pivotal-golang/localip"
+
 	"github.com/cloudfoundry-incubator/cf-debug-server"
 	"github.com/cloudfoundry-incubator/cf-lager"
 	"github.com/cloudfoundry-incubator/garden-linux/container_repository"
@@ -33,22 +40,17 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/resource_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/sysconfig"
 	"github.com/cloudfoundry-incubator/garden-linux/sysinfo"
+	"github.com/cloudfoundry-incubator/garden-shed/distclient"
 	quotaed_aufs "github.com/cloudfoundry-incubator/garden-shed/docker_drivers/aufs"
 	"github.com/cloudfoundry-incubator/garden-shed/layercake"
 	"github.com/cloudfoundry-incubator/garden-shed/repository_fetcher"
 	"github.com/cloudfoundry-incubator/garden-shed/rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden/server"
 	"github.com/cloudfoundry/dropsonde"
-	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
-	"github.com/docker/docker/daemon/graphdriver"
 	_ "github.com/docker/docker/daemon/graphdriver/aufs"
-	"github.com/docker/docker/graph"
 	_ "github.com/docker/docker/pkg/chrootarchive" // allow reexec of docker-applyLayer
 	"github.com/docker/docker/pkg/reexec"
-	"github.com/docker/docker/registry"
-	"github.com/pivotal-golang/lager"
-	"github.com/pivotal-golang/localip"
 )
 
 const (
@@ -135,7 +137,7 @@ var graphRoot = flag.String(
 
 var dockerRegistry = flag.String(
 	"registry",
-	registry.IndexServerAddress(),
+	"registry-1.docker.io",
 	"docker registry API endpoint",
 )
 
@@ -286,7 +288,8 @@ func main() {
 	}
 
 	var cake layercake.Cake = &layercake.Docker{
-		Graph: dockerGraph,
+		Graph:  dockerGraph,
+		Driver: quotaedGraphDriver,
 	}
 
 	if cake.DriverName() == "aufs" {
@@ -296,32 +299,19 @@ func main() {
 		}
 	}
 
-	lock := repository_fetcher.NewFetchLock()
-
 	repoFetcher := &repository_fetcher.CompositeFetcher{
 		LocalFetcher: &repository_fetcher.Local{
 			Cake:              cake,
 			DefaultRootFSPath: *rootFSPath,
 			IDProvider:        repository_fetcher.LayerIDProvider{},
 		},
-		RemoteFetchers: map[registry.APIVersion]repository_fetcher.VersionedFetcher{
-			registry.APIVersion1: &repository_fetcher.RemoteV1Fetcher{
-				Cake:      cake,
-				GraphLock: lock,
-			},
-			registry.APIVersion2: &repository_fetcher.RemoteV2Fetcher{
-				Cake:      cake,
-				GraphLock: lock,
-			},
-		},
-		RequestCreator: &repository_fetcher.RemoteFetchRequestCreator{
-			RegistryProvider: repository_fetcher.NewRepositoryProvider(
-				*dockerRegistry,
-				insecureRegistries.List,
-			),
-			Pinger: repository_fetcher.EndpointPinger{},
-			Logger: logger.Session("remote-fetch-request-creator"),
-		},
+		RemoteFetcher: repository_fetcher.NewRemote(
+			logger,
+			"registry-1.docker.io",
+			cake,
+			distclient.NewDialer(insecureRegistries.List),
+			repository_fetcher.VerifyFunc(repository_fetcher.Verify),
+		),
 	}
 
 	maxId := sysinfo.Min(sysinfo.MustGetMaxValidUID(), sysinfo.MustGetMaxValidGID())
