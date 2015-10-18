@@ -42,8 +42,7 @@ import (
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
 	"github.com/docker/docker/daemon/graphdriver"
-	_ "github.com/docker/docker/daemon/graphdriver/btrfs"
-	_ "github.com/docker/docker/daemon/graphdriver/vfs"
+	_ "github.com/docker/docker/daemon/graphdriver/aufs"
 	"github.com/docker/docker/graph"
 	_ "github.com/docker/docker/pkg/chrootarchive" // allow reexec of docker-applyLayer
 	"github.com/docker/docker/pkg/reexec"
