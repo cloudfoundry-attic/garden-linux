@@ -247,6 +247,19 @@ func (p *LinuxResourcePool) Acquire(spec garden.ContainerSpec) (linux_backend.Li
 	handle := getHandle(spec.Handle, id)
 	pLog := p.logger.Session("acquire", lager.Data{"handle": handle})
 
+	iptablesCh := make(chan error)
+
+	go func(iptablesCh chan error) {
+		pLog.Debug("setup-iptables-starting")
+		if err := p.filterProvider.ProvideFilter(id).Setup(handle); err != nil {
+			pLog.Error("setup-iptables-failed", err)
+			iptablesCh <- fmt.Errorf("resource_pool: set up filter: %v", err)
+		} else {
+			pLog.Debug("setup-iptables-ended")
+			iptablesCh <- nil
+		}
+	}(iptablesCh)
+
 	pLog.Info("creating")
 
 	resources, err := p.acquirePoolResources(spec, id, pLog)
@@ -266,6 +279,12 @@ func (p *LinuxResourcePool) Acquire(spec garden.ContainerSpec) (linux_backend.Li
 
 	containerRootFSPath, rootFSEnv, err := p.acquireSystemResources(id, handle, containerPath, spec.RootFSPath, resources, spec.BindMounts, quota, pLog)
 	if err != nil {
+		return linux_backend.LinuxContainerSpec{}, err
+	}
+
+	err = <-iptablesCh
+	if err != nil {
+		p.tryReleaseSystemResources(p.logger, id)
 		return linux_backend.LinuxContainerSpec{}, err
 	}
 
@@ -586,13 +605,6 @@ func (p *LinuxResourcePool) acquireSystemResources(id, handle, containerPath, ro
 		pLog.Error("bind-mounts-failed", err)
 		return "", nil, err
 	}
-
-	pLog.Debug("setup-iptables-starting")
-	if err = p.filterProvider.ProvideFilter(id).Setup(handle); err != nil {
-		pLog.Error("setup-iptables-failed", err)
-		return "", nil, fmt.Errorf("resource_pool: set up filter: %v", err)
-	}
-	pLog.Debug("setup-iptables-ended")
 
 	return rootfsPath, rootFSEnvVars, nil
 }
