@@ -85,6 +85,7 @@ type LinuxContainer struct {
 	cpuMutex        sync.RWMutex
 	netInsMutex     sync.RWMutex
 	netOutsMutex    sync.RWMutex
+	graceTimeMutex  sync.RWMutex
 	linux_backend.LinuxContainerSpec
 
 	portPool         PortPool
@@ -187,10 +188,14 @@ func (c *LinuxContainer) Handle() string {
 }
 
 func (c *LinuxContainer) GraceTime() time.Duration {
+	c.graceTimeMutex.RLock()
+	defer c.graceTimeMutex.RUnlock()
 	return c.graceTime
 }
 
 func (c *LinuxContainer) SetGraceTime(graceTime time.Duration) error {
+	c.graceTimeMutex.Lock()
+	defer c.graceTimeMutex.Unlock()
 	c.graceTime = graceTime
 	return nil
 }
