@@ -892,6 +892,41 @@ var _ = Describe("LinuxBackend", func() {
 				Expect(containers).To(ContainElement(container3))
 			})
 		})
+
+		Describe("logging", func() {
+			It("should log the entry and exit when there are containers", func() {
+				_, err := linuxBackend.Create(garden.ContainerSpec{
+					Handle:     "container-1",
+					Properties: garden.Properties{"a": "b"},
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = linuxBackend.Create(garden.ContainerSpec{
+					Handle:     "container-2",
+					Properties: garden.Properties{"a": "b"},
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				_, err = linuxBackend.Containers(
+					garden.Properties{"a": "b"},
+				)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(logger.LogMessages()).To(ConsistOf("test.backend.containers.started", "test.backend.containers.ending"))
+
+				logs := logger.Logs()
+				Expect(logs[1].Data["handles"]).To(ConsistOf("container-1", "container-2"))
+			})
+
+			It("should log the entry and exit when there are no containers", func() {
+				_, err := linuxBackend.Containers(
+					garden.Properties{"a": "b", "e": "f"},
+				)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(logger.LogMessages()).To(ConsistOf("test.backend.containers.started", "test.backend.containers.ending"))
+			})
+		})
 	})
 
 	Describe("GraceTime", func() {

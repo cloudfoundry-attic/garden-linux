@@ -272,8 +272,16 @@ func (b *LinuxBackend) Containers(props garden.Properties) ([]garden.Container, 
 	logger := b.logger.Session("containers", lager.Data{"props": props})
 	logger.Debug("started")
 	containers := toGardenContainers(b.containerRepo.Query(withProperties(props)))
-	logger.Debug("ending", lager.Data{"containers": containers})
+	logger.Debug("ending", lager.Data{"handles": handles(containers)})
 	return containers, nil
+}
+
+func handles(containers []garden.Container) []string {
+	handles := []string{}
+	for _, container := range containers {
+		handles = append(handles, container.Handle())
+	}
+	return handles
 }
 
 func (b *LinuxBackend) Lookup(handle string) (garden.Container, error) {
