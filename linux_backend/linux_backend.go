@@ -269,7 +269,11 @@ func (b *LinuxBackend) Destroy(handle string) error {
 }
 
 func (b *LinuxBackend) Containers(props garden.Properties) ([]garden.Container, error) {
-	return toGardenContainers(b.containerRepo.Query(withProperties(props))), nil
+	logger := b.logger.Session("containers", lager.Data{"props": props})
+	logger.Debug("started")
+	containers := toGardenContainers(b.containerRepo.Query(withProperties(props)))
+	logger.Debug("ending", lager.Data{"containers": containers})
+	return containers, nil
 }
 
 func (b *LinuxBackend) Lookup(handle string) (garden.Container, error) {
