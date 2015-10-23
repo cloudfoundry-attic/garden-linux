@@ -29,6 +29,8 @@ var _ = Describe("Process", func() {
 	var process *container_daemon.Process
 
 	BeforeEach(func() {
+		var err error
+
 		fakeTerm = new(fake_term.FakeTerm)
 		socketConnector = new(fake_connector.FakeConnector)
 		response = &container_daemon.ResponseMessage{
@@ -40,7 +42,8 @@ var _ = Describe("Process", func() {
 		socketConnector.ConnectReturns(response, nil)
 
 		sigwinchCh = make(chan os.Signal)
-		signalReader, signalWriter = io.Pipe()
+		signalReader, signalWriter, err = os.Pipe()
+		Expect(err).NotTo(HaveOccurred())
 
 		process = &container_daemon.Process{
 			Connector:    socketConnector,
@@ -73,40 +76,56 @@ var _ = Describe("Process", func() {
 			signalSent syscall.Signal
 		)
 
-		BeforeEach(func() {
-			response.Pid = 12
-
-			socketConnector.ConnectReturns(response, nil)
-			Expect(process.Start()).To(Succeed())
-		})
-
-		JustBeforeEach(func() {
-			data, err := json.Marshal(&link.SignalMsg{Signal: signalSent})
-			Expect(err).ToNot(HaveOccurred())
-			signalWriter.Write(data)
-		})
-
-		Context("when sending a KILL signal", func() {
+		Context("when signalling is enabled", func() {
 			BeforeEach(func() {
-				signalSent = syscall.SIGKILL
+				response.Pid = 12
+				process.ReadSignals = true
+
+				socketConnector.ConnectReturns(response, nil)
+				Expect(process.Start()).To(Succeed())
 			})
 
-			It("sends the correct message", func() {
-				Eventually(socketConnector.ConnectCallCount).Should(Equal(2))
-				Expect(socketConnector.ConnectArgsForCall(1).Type).To(Equal(container_daemon.SignalRequest))
-				Expect(string(socketConnector.ConnectArgsForCall(1).Data)).To(MatchJSON(`{"Pid": 12, "Signal": 9}`))
+			JustBeforeEach(func() {
+				data, err := json.Marshal(&link.SignalMsg{Signal: signalSent})
+				Expect(err).ToNot(HaveOccurred())
+				signalWriter.Write(data)
+			})
+
+			Context("when sending a KILL signal", func() {
+				BeforeEach(func() {
+					signalSent = syscall.SIGKILL
+				})
+
+				It("sends the correct message", func() {
+					Eventually(socketConnector.ConnectCallCount).Should(Equal(2))
+					Expect(socketConnector.ConnectArgsForCall(1).Type).To(Equal(container_daemon.SignalRequest))
+					Expect(string(socketConnector.ConnectArgsForCall(1).Data)).To(MatchJSON(`{"Pid": 12, "Signal": 9}`))
+				})
+			})
+
+			Context("when sending a TERM signal", func() {
+				BeforeEach(func() {
+					signalSent = syscall.SIGTERM
+				})
+
+				It("sends the correct message", func() {
+					Eventually(socketConnector.ConnectCallCount).Should(Equal(2))
+					Expect(socketConnector.ConnectArgsForCall(1).Type).To(Equal(container_daemon.SignalRequest))
+					Expect(string(socketConnector.ConnectArgsForCall(1).Data)).To(MatchJSON(`{"Pid": 12, "Signal": 15}`))
+				})
 			})
 		})
 
-		Context("when sending a TERM signal", func() {
-			BeforeEach(func() {
-				signalSent = syscall.SIGTERM
-			})
+		Context("when signaling is disabled", func() {
+			It("the process should not handle signals", func() {
+				process.ReadSignals = false
+				Expect(process.Start()).To(Succeed())
 
-			It("sends the correct message", func() {
-				Eventually(socketConnector.ConnectCallCount).Should(Equal(2))
-				Expect(socketConnector.ConnectArgsForCall(1).Type).To(Equal(container_daemon.SignalRequest))
-				Expect(string(socketConnector.ConnectArgsForCall(1).Data)).To(MatchJSON(`{"Pid": 12, "Signal": 15}`))
+				data, err := json.Marshal(&link.SignalMsg{Signal: signalSent})
+				Expect(err).ToNot(HaveOccurred())
+				signalWriter.Write(data)
+
+				Eventually(socketConnector.ConnectCallCount).Should(Equal(1))
 			})
 		})
 	})

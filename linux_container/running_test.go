@@ -125,6 +125,7 @@ var _ = Describe("Linux containers", func() {
 			Expect(ranCmd.Args).To(Equal([]string{
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
+				"--readSignals",
 				"--user", "alice",
 				"--env", "env1=env1Value",
 				"--env", "env2=env2Value",
@@ -163,6 +164,7 @@ var _ = Describe("Linux containers", func() {
 			Expect(ranCmd.Args).To(Equal([]string{
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
+				"--readSignals",
 				"--user", "alice",
 				"--env", "env1=env1Value",
 				"--env", "env2=env2Value",
@@ -251,6 +253,7 @@ var _ = Describe("Linux containers", func() {
 			Expect(ranCmd.Args).To(Equal([]string{
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
+				"--readSignals",
 				"--user", "bob",
 				"--env", `ESCAPED=kurt "russell"`,
 				"--env", "UNESCAPED=isaac\nhayes",
@@ -275,6 +278,7 @@ var _ = Describe("Linux containers", func() {
 			Expect(ranCmd.Args).To(Equal([]string{
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
+				"--readSignals",
 				"--user", "alice",
 				"--env", "env1=overridden",
 				"--env", "env2=env2Value",
@@ -295,6 +299,7 @@ var _ = Describe("Linux containers", func() {
 			Expect(ranCmd.Args).To(Equal([]string{
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
+				"--readSignals",
 				"--user", "alice",
 				"--env", "env1=env1Value",
 				"--env", "env2=env2Value",
@@ -399,6 +404,7 @@ var _ = Describe("Linux containers", func() {
 			Expect(ranCmd.Args).To(Equal([]string{
 				containerDir + "/bin/wsh",
 				"--socket", containerDir + "/run/wshd.sock",
+				"--readSignals",
 				"--user", "alice",
 				"--env", "env1=env1Value",
 				"--env", "env2=env2Value",

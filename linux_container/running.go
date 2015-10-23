@@ -20,7 +20,7 @@ func (c *LinuxContainer) Run(spec garden.ProcessSpec, processIO garden.ProcessIO
 		return nil, errors.New("A User for the process to run as must be specified.")
 	}
 
-	args := []string{"--socket", sockPath, "--user", spec.User}
+	args := []string{"--socket", sockPath, "--readSignals", "--user", spec.User}
 
 	specEnv, err := process.NewEnv(spec.Env)
 	if err != nil {

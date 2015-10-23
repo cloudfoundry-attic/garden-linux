@@ -18,6 +18,7 @@ const UnknownExitStatus = 255
 
 type Process struct {
 	Connector    Connector
+	ReadSignals  bool
 	Term         Term
 	SigwinchCh   <-chan os.Signal
 	SignalReader io.Reader
@@ -87,7 +88,9 @@ func (p *Process) Start() error {
 
 	p.pid = response.Pid
 
-	go p.signalLoop()
+	if p.ReadSignals {
+		go p.signalLoop()
+	}
 	p.streaming = &sync.WaitGroup{}
 
 	if p.Spec.TTY != nil {

@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"syscall"
@@ -18,6 +19,7 @@ func main() {
 	socketPath := flag.String("socket", "./run/wshd.sock", "Path to socket")
 	user := flag.String("user", "root", "User to change to")
 	dir := flag.String("dir", "", "Working directory for the running process")
+	readSignals := flag.Bool("readSignals", false, "Read signals from extra file descriptor")
 
 	var envVars vars.StringList
 	flag.Var(&envVars, "env", "Environment variables to set for the command.")
@@ -39,9 +41,10 @@ func main() {
 		signal.Notify(resize, syscall.SIGWINCH)
 	}
 
-	i := 0 // number of fd after stdin, stdout and stderr
-	// see ExtraFiles property in https://golang.org/pkg/os/exec/#Cmd
-	signalReader := os.NewFile(uintptr(3+i), "extrafd")
+	var signalReader io.Reader
+	if *readSignals {
+		signalReader = os.NewFile(uintptr(3), "extrafd")
+	}
 
 	process := &container_daemon.Process{
 		Connector: &unix_socket.Connector{
@@ -52,6 +55,7 @@ func main() {
 
 		SigwinchCh: resize,
 
+		ReadSignals:  *readSignals,
 		SignalReader: signalReader,
 
 		Spec: &garden.ProcessSpec{

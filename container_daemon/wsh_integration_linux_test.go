@@ -2,9 +2,12 @@ package container_daemon_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
+	"strconv"
+	"strings"
 	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
@@ -87,13 +90,38 @@ var _ = Describe("wsh and daemon integration", func() {
 		os.RemoveAll(tempDir)
 	})
 
+	It("should avoid pinning the cpu when doing nothing", func() {
+		stdout := gbytes.NewBuffer()
+
+		wshCmd := exec.Command(wsh,
+			"--socket", socketPath,
+			"--user", "root",
+			"sh", "-c", "echo 'hello'; sleep 2")
+		wshCmd.Stdout = stdout
+
+		err := wshCmd.Start()
+		Expect(err).NotTo(HaveOccurred())
+
+		// this is required to warm up the process such that full cpu
+		// load can be evaluated in the subsequent command
+		Eventually(stdout, "10s").Should(gbytes.Say("hello"))
+
+		pid := wshCmd.Process.Pid
+		output, err := exec.Command("ps", "-p", fmt.Sprintf("%d", pid), "-o", "%cpu=").CombinedOutput()
+		Expect(err).NotTo(HaveOccurred())
+
+		percentageCpu, err := strconv.ParseFloat(strings.TrimSpace(string(output)), 32)
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(percentageCpu).To(BeNumerically("<", 30))
+		wshCmd.Wait()
+	})
+
 	It("should run a program", func() {
 		wshCmd := exec.Command(wsh,
 			"--socket", socketPath,
 			"--user", "root",
 			"echo", "hello")
-		wshReader, _, _ := os.Pipe()
-		wshCmd.ExtraFiles = []*os.File{wshReader}
 		op, err := wshCmd.CombinedOutput()
 		Expect(err).ToNot(HaveOccurred())
 		Expect(string(op)).To(Equal("hello\n"))
@@ -104,6 +132,7 @@ var _ = Describe("wsh and daemon integration", func() {
 			wshCmd := exec.Command(wsh,
 				"--socket", socketPath,
 				"--user", "root",
+				"--readSignals",
 				"sh", "-c",
 				`while true; do echo -n "x"; sleep 1; done`)
 			wshReader, wshWriter, err := os.Pipe()
@@ -126,6 +155,7 @@ var _ = Describe("wsh and daemon integration", func() {
 		wshCmd := exec.Command(wsh,
 			"--socket", socketPath,
 			"--user", "root",
+			"--readSignals",
 			"sh", "-c", `
 				  trap 'echo termed; exit 142' TERM
 					while true; do
@@ -168,13 +198,7 @@ var _ = Describe("wsh and daemon integration", func() {
 				`)
 			wshCmd.Stdout = stdout
 			wshCmd.Stderr = GinkgoWriter
-
-			wshReader, _, err := os.Pipe()
-			Expect(err).ToNot(HaveOccurred())
-			wshCmd.ExtraFiles = []*os.File{wshReader}
-
-			err = wshCmd.Start()
-			Expect(err).ToNot(HaveOccurred())
+			Expect(wshCmd.Start()).To(Succeed())
 
 			Expect(exitStatusFromErr(wshCmd.Wait())).To(Equal(byte(255)))
 			Eventually(stdout, "3s").Should(gbytes.Say("ended"))
@@ -190,8 +214,6 @@ var _ = Describe("wsh and daemon integration", func() {
 			"ulimit -n")
 
 		wshCmd.Env = append(wshCmd.Env, "RLIMIT_NOFILE=16")
-		wshReader, _, _ := os.Pipe()
-		wshCmd.ExtraFiles = []*os.File{wshReader}
 
 		op, err := wshCmd.CombinedOutput()
 		Expect(err).ToNot(HaveOccurred())
