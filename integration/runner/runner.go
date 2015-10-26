@@ -59,13 +59,22 @@ func start(network, addr string, argv ...string) *RunningGarden {
 	if GraphRoot == "" {
 		GraphRoot = filepath.Join(tmpDir, "graph")
 	}
+
 	graphPath := filepath.Join(GraphRoot, fmt.Sprintf("node-%d", ginkgo.GinkgoParallelNode()))
-
 	depotPath := filepath.Join(tmpDir, "containers")
-	Expect(os.MkdirAll(depotPath, 0755)).To(Succeed())
-
+	overlaysPath := filepath.Join(tmpDir, "overlays")
 	snapshotsPath := filepath.Join(tmpDir, "snapshots")
-	Expect(os.MkdirAll(snapshotsPath, 0755)).To(Succeed())
+
+	if err := os.MkdirAll(depotPath, 0755); err != nil {
+		Expect(err).ToNot(HaveOccurred())
+	}
+
+	if err := os.MkdirAll(snapshotsPath, 0755); err != nil {
+		Expect(err).ToNot(HaveOccurred())
+	}
+
+	MustMountTmpfs(overlaysPath)
+	MustMountTmpfs(graphPath)
 
 	r := &RunningGarden{
 		GraphRoot:     GraphRoot,
@@ -146,16 +155,6 @@ func cmd(depotPath, snapshotsPath, graphPath, network, addr, bin, binPath, RootF
 		}
 	}
 
-	hasFlag := func(ar []string, key string) bool {
-		for _, a := range ar {
-			if a == key {
-				return true
-			}
-		}
-
-		return false
-	}
-
 	gardenArgs := make([]string, len(argv))
 	copy(gardenArgs, argv)
 
@@ -173,15 +172,6 @@ func cmd(depotPath, snapshotsPath, graphPath, network, addr, bin, binPath, RootF
 	gardenArgs = appendDefaultFlag(gardenArgs, "--portPoolStart", strconv.Itoa(51000+(1000*ginkgo.GinkgoParallelNode())))
 	gardenArgs = appendDefaultFlag(gardenArgs, "--portPoolSize", "1000")
 	gardenArgs = appendDefaultFlag(gardenArgs, "--tag", strconv.Itoa(ginkgo.GinkgoParallelNode()))
-
-	btrfsIsSupported := strings.EqualFold(os.Getenv("BTRFS_SUPPORTED"), "true")
-	hasDisabledFlag := hasFlag(gardenArgs, "-disableQuotas=true")
-
-	if !btrfsIsSupported && !hasDisabledFlag {
-		// We should disabled quotas if BTRFS is not supported
-		gardenArgs = appendDefaultFlag(gardenArgs, "--disableQuotas", "")
-	}
-
 	gardenArgs = appendDefaultFlag(gardenArgs, "--debugAddr", fmt.Sprintf(":808%d", ginkgo.GinkgoParallelNode()))
 
 	return exec.Command(bin, gardenArgs...)

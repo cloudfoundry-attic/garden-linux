@@ -339,7 +339,10 @@ func checkFileAccess(container garden.Container, bindMountMode garden.BindMountM
 		Path: "touch",
 		Args: []string{filePath},
 		User: user,
-	}, garden.ProcessIO{})
+	}, garden.ProcessIO{
+		Stderr: GinkgoWriter,
+		Stdout: GinkgoWriter,
+	})
 	Expect(err).ToNot(HaveOccurred())
 
 	if readOnly || (!realRoot && !ctrOrigin) {

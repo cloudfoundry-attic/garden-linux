@@ -7,7 +7,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Limits", func() {
+var _ = PDescribe("Limits", func() {
 	const BTRFS_WAIT_TIME = 90
 
 	var container garden.Container
