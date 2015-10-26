@@ -94,12 +94,6 @@ var rootFSPath = flag.String(
 	"directory of the rootfs for the containers",
 )
 
-var enableGraphCleanup = flag.Bool(
-	"enableGraphCleanup",
-	false,
-	"enables graph garbage collection",
-)
-
 var disableQuotas = flag.Bool(
 	"disableQuotas",
 	false,
@@ -215,13 +209,6 @@ func main() {
 		"Docker registry to allow connecting to even if not secure. (Can be specified multiple times to allow insecure connection to multiple repositories)",
 	)
 
-	var persistentImages vars.StringList
-	flag.Var(
-		&persistentImages,
-		"persistentImage",
-		"Image which should never be garbage collected. (Can be specified multiple times)",
-	)
-
 	cf_debug_server.AddFlags(flag.CommandLine)
 	cf_lager.AddFlags(flag.CommandLine)
 	flag.Parse()
@@ -313,27 +300,21 @@ func main() {
 		}
 	}
 
-	ovenCleanerCake := &layercake.OvenCleaner{
-		Cake:               cake,
-		Logger:             logger.Session("oven-cleaner"),
-		EnableImageCleanup: *enableGraphCleanup,
-	}
-
 	lock := repository_fetcher.NewFetchLock()
 
 	repoFetcher := &repository_fetcher.CompositeFetcher{
 		LocalFetcher: &repository_fetcher.Local{
-			Cake:              ovenCleanerCake,
+			Cake:              cake,
 			DefaultRootFSPath: *rootFSPath,
 			IDProvider:        repository_fetcher.LayerIDProvider{},
 		},
 		RemoteFetchers: map[registry.APIVersion]repository_fetcher.VersionedFetcher{
 			registry.APIVersion1: &repository_fetcher.RemoteV1Fetcher{
-				Cake:      ovenCleanerCake,
+				Cake:      cake,
 				GraphLock: lock,
 			},
 			registry.APIVersion2: &repository_fetcher.RemoteV2Fetcher{
-				Cake:      ovenCleanerCake,
+				Cake:      cake,
 				GraphLock: lock,
 			},
 		},
@@ -370,26 +351,11 @@ func main() {
 	}
 
 	layerCreator := rootfs_provider.NewLayerCreator(
-		ovenCleanerCake, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer)
+		cake, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer)
 
 	cakeOrdinator := rootfs_provider.NewCakeOrdinator(
-		ovenCleanerCake, repoFetcher, layerCreator, ovenCleanerCake, logger.Session("cake-ordinator"),
+		cake, repoFetcher, layerCreator, rootfs_provider.CakeRetainer{Cake: cake}, logger.Session("cake-ordinator"),
 	)
-
-	imageRetainer := &repository_fetcher.ImageRetainer{
-		GraphRetainer:             cakeOrdinator,
-		DirectoryRootfsIDProvider: repository_fetcher.LayerIDProvider{},
-		DockerImageIDFetcher:      repoFetcher,
-
-		NamespaceCacheKey: rootFSNamespacer.CacheKey(),
-		Logger:            logger,
-	}
-
-	// spawn off in a go function to avoid blocking startup
-	// worst case is if an image is immediately created and deleted faster than
-	// we can retain it we'll garbage collect it when we shouldn't. This
-	// is an OK trade-off for not having garden startup block on dockerhub.
-	go imageRetainer.Retain(persistentImages.List)
 
 	if *externalIP == "" {
 		ip, err := localip.LocalIP()

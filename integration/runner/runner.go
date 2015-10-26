@@ -174,10 +174,6 @@ func cmd(depotPath, snapshotsPath, graphPath, network, addr, bin, binPath, RootF
 	gardenArgs = appendDefaultFlag(gardenArgs, "--portPoolSize", "1000")
 	gardenArgs = appendDefaultFlag(gardenArgs, "--tag", strconv.Itoa(ginkgo.GinkgoParallelNode()))
 
-	if !hasFlag(gardenArgs, "-enableGraphCleanup=false") {
-		gardenArgs = appendDefaultFlag(gardenArgs, "--enableGraphCleanup", "")
-	}
-
 	btrfsIsSupported := strings.EqualFold(os.Getenv("BTRFS_SUPPORTED"), "true")
 	hasDisabledFlag := hasFlag(gardenArgs, "-disableQuotas=true")
 

@@ -15,7 +15,6 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/onsi/gomega/gexec"
 	"github.com/onsi/gomega/types"
 )
 
@@ -41,26 +40,6 @@ var _ = Describe("Rootfs container create parameter", func() {
 		if container != nil {
 			Expect(client.Destroy(container.Handle())).To(Succeed())
 		}
-	})
-
-	Describe("Garbage Collection", func() {
-		Context("when container is deleted", func() {
-			It("the graph path is emptied", func() {
-				container, err := client.Create(garden.ContainerSpec{RootFSPath: ""})
-				Expect(err).ToNot(HaveOccurred())
-
-				err = client.Destroy(container.Handle())
-				Expect(err).ToNot(HaveOccurred())
-
-				var size int
-				session, err := gexec.Start(exec.Command("sh", "-c", fmt.Sprintf(" du -d0 %s", client.GraphPath)), GinkgoWriter, GinkgoWriter)
-				Expect(err).ToNot(HaveOccurred())
-				Eventually(session).Should(gexec.Exit(0))
-
-				fmt.Sscanf(string(session.Out.Contents()), "%d", &size)
-				Expect(size).To(Equal(0))
-			})
-		})
 	})
 
 	Context("without a default rootfs", func() {

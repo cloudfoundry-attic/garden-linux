@@ -2,14 +2,10 @@ package lifecycle_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/http"
-	"path"
 
-	"github.com/cloudfoundry-incubator/garden"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/onsi/gomega/gbytes"
 )
 
 var _ = Describe("Garden startup flags", func() {
@@ -88,139 +84,6 @@ var _ = Describe("Garden startup flags", func() {
 
 			_, err = http.Get(fmt.Sprintf("http://%s/log-level -X PUT -d fatal", debugAddr))
 			Expect(err).ToNot(HaveOccurred())
-		})
-	})
-
-	Describe("--enableGraphCleanup", func() {
-		var (
-			args       []string
-			layersPath string
-		)
-
-		BeforeEach(func() {
-			args = []string{}
-		})
-
-		JustBeforeEach(func() {
-			client = startGarden(args...)
-			layersPath = path.Join(client.GraphPath, "btrfs", "subvolumes")
-
-			container, err := client.Create(garden.ContainerSpec{
-				RootFSPath: "docker:///busybox",
-			})
-			Expect(err).ToNot(HaveOccurred())
-			Expect(client.Destroy(container.Handle())).To(Succeed())
-		})
-
-		Context("when starting without the flag", func() {
-			BeforeEach(func() {
-				args = append(args, "-enableGraphCleanup=false")
-			})
-
-			It("does NOT clean up the graph directory", func() {
-				files, err := ioutil.ReadDir(layersPath)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(files).ToNot(HaveLen(0))
-			})
-		})
-
-		Context("when starting with the flag", func() {
-			It("cleans up the graph directory", func() {
-				files, err := ioutil.ReadDir(layersPath)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(files).To(HaveLen(0))
-			})
-		})
-	})
-
-	Describe("--persistentImage", func() {
-		var layersPath string
-
-		Context("when set", func() {
-			BeforeEach(func() {
-				client = startGarden(
-					"--persistentImage", "docker:///busybox",
-					"--persistentImage", "docker:///ubuntu",
-					"--persistentImage", "docker://banana/bananatest",
-					"--persistentImage", "docker:///cloudfoundry/with-volume",
-				)
-				layersPath = path.Join(client.GraphPath, "btrfs", "subvolumes")
-
-				Eventually(client, "30s").Should(gbytes.Say("retain.retained"))
-			})
-
-			Context("and destroying a container that uses a rootfs from the whitelist", func() {
-				var imageLayersAmt int
-
-				BeforeEach(func() {
-					container, err := client.Create(garden.ContainerSpec{
-						RootFSPath: "docker:///busybox",
-					})
-					Expect(err).ToNot(HaveOccurred())
-
-					container2, err := client.Create(garden.ContainerSpec{
-						RootFSPath: "docker:///cloudfoundry/with-volume",
-					})
-					Expect(err).ToNot(HaveOccurred())
-
-					files, err := ioutil.ReadDir(layersPath)
-					Expect(err).ToNot(HaveOccurred())
-					imageLayersAmt = len(files)
-
-					Expect(client.Destroy(container.Handle())).To(Succeed())
-					Expect(client.Destroy(container2.Handle())).To(Succeed())
-				})
-
-				It("keeps the rootfs", func() {
-					files, err := ioutil.ReadDir(layersPath)
-					Expect(err).ToNot(HaveOccurred())
-
-					Expect(len(files)).To(Equal(imageLayersAmt - 2)) // should have deleted the container layers, only
-				})
-			})
-
-			Context("and destroying a container that uses a rootfs that is not in the whitelist", func() {
-				BeforeEach(func() {
-					container, err := client.Create(garden.ContainerSpec{
-						RootFSPath: "docker:///cloudfoundry/garden-busybox",
-					})
-					Expect(err).ToNot(HaveOccurred())
-
-					Expect(client.Destroy(container.Handle())).To(Succeed())
-				})
-
-				It("deletes the rootfs", func() {
-					files, err := ioutil.ReadDir(layersPath)
-					Expect(err).ToNot(HaveOccurred())
-
-					Expect(files).To(HaveLen(0))
-				})
-			})
-		})
-
-		Context("when it is not set", func() {
-			BeforeEach(func() {
-				client = startGarden()
-				layersPath = path.Join(client.GraphPath, "btrfs", "subvolumes")
-			})
-
-			Context("and destroying a container", func() {
-				BeforeEach(func() {
-					container, err := client.Create(garden.ContainerSpec{
-						RootFSPath: "docker:///busybox",
-					})
-					Expect(err).ToNot(HaveOccurred())
-
-					Expect(client.Destroy(container.Handle())).To(Succeed())
-				})
-
-				It("deletes the rootfs", func() {
-					files, err := ioutil.ReadDir(layersPath)
-					Expect(err).ToNot(HaveOccurred())
-
-					Expect(files).To(HaveLen(0))
-				})
-			})
 		})
 	})
 })
