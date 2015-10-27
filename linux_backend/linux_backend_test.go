@@ -912,10 +912,10 @@ var _ = Describe("LinuxBackend", func() {
 				)
 				Expect(err).ToNot(HaveOccurred())
 
-				Expect(logger.LogMessages()).To(ConsistOf("test.backend.containers.started", "test.backend.containers.ending"))
+				Expect(logger.LogMessages()).To(ConsistOf("test.backend.containers.started", "test.backend.containers.matched", "test.backend.containers.matched", "test.backend.containers.ending"))
 
 				logs := logger.Logs()
-				Expect(logs[1].Data["handles"]).To(ConsistOf("container-1", "container-2"))
+				Expect(logs[3].Data["handles"]).To(ConsistOf("container-1", "container-2"))
 			})
 
 			It("should log the entry and exit when there are no containers", func() {

@@ -48,7 +48,7 @@ type ContainerRepository interface {
 	All() []Container
 	Add(Container)
 	FindByHandle(string) (Container, error)
-	Query(filter func(Container) bool) []Container
+	Query(filter func(Container) bool, logger lager.Logger) []Container
 	Delete(Container)
 }
 
@@ -271,7 +271,7 @@ func (b *LinuxBackend) Destroy(handle string) error {
 func (b *LinuxBackend) Containers(props garden.Properties) ([]garden.Container, error) {
 	logger := b.logger.Session("containers", lager.Data{"props": props})
 	logger.Debug("started")
-	containers := toGardenContainers(b.containerRepo.Query(withProperties(props)))
+	containers := toGardenContainers(b.containerRepo.Query(withProperties(props), logger))
 	logger.Debug("ending", lager.Data{"handles": handles(containers)})
 	return containers, nil
 }
@@ -289,7 +289,7 @@ func (b *LinuxBackend) Lookup(handle string) (garden.Container, error) {
 }
 
 func (b *LinuxBackend) BulkInfo(handles []string) (map[string]garden.ContainerInfoEntry, error) {
-	containers := b.containerRepo.Query(withHandles(handles))
+	containers := b.containerRepo.Query(withHandles(handles), nil)
 
 	infos := make(map[string]garden.ContainerInfoEntry)
 	for _, container := range containers {
@@ -309,7 +309,7 @@ func (b *LinuxBackend) BulkInfo(handles []string) (map[string]garden.ContainerIn
 }
 
 func (b *LinuxBackend) BulkMetrics(handles []string) (map[string]garden.ContainerMetricsEntry, error) {
-	containers := b.containerRepo.Query(withHandles(handles))
+	containers := b.containerRepo.Query(withHandles(handles), nil)
 
 	metrics := make(map[string]garden.ContainerMetricsEntry)
 	for _, container := range containers {

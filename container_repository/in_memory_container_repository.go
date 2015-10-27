@@ -5,6 +5,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
+	"github.com/pivotal-golang/lager"
 )
 
 type InMemoryContainerRepository struct {
@@ -25,7 +26,7 @@ func (cr *InMemoryContainerRepository) All() []linux_backend.Container {
 
 	return cr.Query(func(c linux_backend.Container) bool {
 		return true
-	})
+	}, nil)
 }
 
 func (cr *InMemoryContainerRepository) Add(container linux_backend.Container) {
@@ -54,14 +55,21 @@ func (cr *InMemoryContainerRepository) Delete(container linux_backend.Container)
 	delete(cr.store, container.Handle())
 }
 
-func (cr *InMemoryContainerRepository) Query(filter func(linux_backend.Container) bool) []linux_backend.Container {
+func (cr *InMemoryContainerRepository) Query(filter func(linux_backend.Container) bool, logger lager.Logger) []linux_backend.Container {
 	cr.mutex.RLock()
 	defer cr.mutex.RUnlock()
 
 	var matches []linux_backend.Container
 	for _, c := range cr.store {
 		if filter(c) {
+			if logger != nil {
+				logger.Debug("matched", lager.Data{"handle": c.Handle()})
+			}
 			matches = append(matches, c)
+		} else {
+			if logger != nil {
+				logger.Debug("did-not-match", lager.Data{"handle": c.Handle()})
+			}
 		}
 	}
 
