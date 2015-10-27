@@ -269,7 +269,7 @@ func (b *LinuxBackend) Destroy(handle string) error {
 }
 
 func (b *LinuxBackend) Containers(props garden.Properties) ([]garden.Container, error) {
-	logger := b.logger.Session("containers", lager.Data{"props": props})
+	logger := b.logger.Session("containers")
 	logger.Debug("started")
 	containers := toGardenContainers(b.containerRepo.Query(withProperties(props), logger))
 	logger.Debug("ending", lager.Data{"handles": handles(containers)})
