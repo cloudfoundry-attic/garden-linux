@@ -10,6 +10,7 @@ import (
 	"sync"
 
 	"github.com/cloudfoundry-incubator/garden"
+	"github.com/cloudfoundry-incubator/garden-linux/logging"
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/pivotal-golang/lager"
 )
@@ -24,14 +25,21 @@ var protocols = map[garden.Protocol]string{
 // NewGlobalChain creates a chain without an associated log chain.
 // The chain is not created by this package (currently it is created in net.sh).
 // It is an error to attempt to call Setup on this chain.
-func NewGlobalChain(name string, runner command_runner.CommandRunner, log lager.Logger) Chain {
-	return &chain{name: name, logChainName: "", runner: runner, logger: log}
+func NewGlobalChain(name string, runner command_runner.CommandRunner, logger lager.Logger) Chain {
+	logger = logger.Session("global-chain", lager.Data{
+		"name": name,
+	})
+	return &chain{name: name, logChainName: "", runner: &logging.Runner{runner, logger}, logger: logger}
 }
 
 // NewLoggingChain creates a chain with an associated log chain.
 // This allows NetOut calls with the 'log' parameter to succesfully log.
 func NewLoggingChain(name string, useKernelLogging bool, runner command_runner.CommandRunner, logger lager.Logger) Chain {
-	return &chain{name: name, logChainName: name + "-log", useKernelLogging: useKernelLogging, runner: runner, logger: logger}
+	logger = logger.Session("logging-chain", lager.Data{
+		"name":             name,
+		"useKernelLogging": useKernelLogging,
+	})
+	return &chain{name: name, logChainName: name + "-log", useKernelLogging: useKernelLogging, runner: &logging.Runner{runner, logger}, logger: logger}
 }
 
 //go:generate counterfeiter . Chain
@@ -65,6 +73,11 @@ func (ch *chain) Setup(logPrefix string) error {
 	ch.mu.Lock()
 	defer ch.mu.Unlock()
 
+	logger := ch.logger.Session("setup", lager.Data{
+		"logChainName": ch.logChainName,
+	})
+	logger.Debug("started")
+
 	if ch.logChainName == "" {
 		// we still use net.sh to set up global non-logging chains
 		panic("cannot set up chains without associated log chains")
@@ -75,19 +88,19 @@ func (ch *chain) Setup(logPrefix string) error {
 	if err := ch.runner.Run(exec.Command("/sbin/iptables", "-w", "-N", ch.logChainName)); err != nil {
 		return fmt.Errorf("iptables: log chain setup: %v", err)
 	}
-	ch.logger.Debug("log-chain-created")
+	logger.Debug("created")
 
 	logParams := ch.buildLogParams(logPrefix)
 	appendFlags := []string{"-w", "-A", ch.logChainName, "-m", "conntrack", "--ctstate", "NEW,UNTRACKED,INVALID", "--protocol", "tcp"}
 	if err := ch.runner.Run(exec.Command("/sbin/iptables", append(appendFlags, logParams...)...)); err != nil {
 		return fmt.Errorf("iptables: log chain setup: %v", err)
 	}
-	ch.logger.Debug("log-chain-conntrack-set-up")
+	logger.Debug("conntrack-set-up")
 
 	if err := ch.runner.Run(exec.Command("/sbin/iptables", "-w", "-A", ch.logChainName, "--jump", "RETURN")); err != nil {
 		return fmt.Errorf("iptables: log chain setup: %v", err)
 	}
-	ch.logger.Debug("log-chain-setup-finished")
+	logger.Debug("ending")
 
 	return nil
 }
@@ -101,13 +114,19 @@ func (ch *chain) buildLogParams(logPrefix string) []string {
 }
 
 func (ch *chain) TearDown() error {
+	logger := ch.logger.Session("teardown", lager.Data{
+		"logChainName": ch.logChainName,
+	})
+	logger.Debug("started")
 	if ch.logChainName == "" {
 		// we still use net.sh to tear down global non-logging chains
 		panic("cannot tear down chains without associated log chains")
 	}
 
 	ch.runner.Run(exec.Command("/sbin/iptables", "-w", "-F", ch.logChainName))
+	logger.Debug("flushed")
 	ch.runner.Run(exec.Command("/sbin/iptables", "-w", "-X", ch.logChainName))
+	logger.Debug("ending")
 	return nil
 }
 
@@ -156,7 +175,8 @@ type singleRule struct {
 }
 
 func (ch *chain) PrependFilterRule(r garden.NetOutRule) error {
-
+	logger := ch.logger.Session("prepend-filter-rule", lager.Data{"rule": r})
+	logger.Debug("started")
 	if len(r.Ports) > 0 && !allowsPort(r.Protocol) {
 		return fmt.Errorf("Ports cannot be specified for Protocol %s", strings.ToUpper(protocols[r.Protocol]))
 	}
@@ -187,6 +207,7 @@ func (ch *chain) PrependFilterRule(r garden.NetOutRule) error {
 		}
 	}
 
+	logger.Debug("ending")
 	return nil
 }
 
