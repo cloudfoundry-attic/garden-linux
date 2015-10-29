@@ -7,7 +7,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
@@ -182,50 +181,11 @@ func (r *RunningGarden) Cleanup() {
 		r.logger.Error("remove graph", err)
 	}
 
-	if os.Getenv("BTRFS_SUPPORTED") != "" {
-		r.cleanupSubvolumes()
-	}
-
 	r.logger.Info("cleanup-tempdirs")
 	if err := os.RemoveAll(r.tmpdir); err != nil {
 		r.logger.Error("cleanup-tempdirs-failed", err, lager.Data{"tmpdir": r.tmpdir})
 	} else {
 		r.logger.Info("tempdirs-removed")
-	}
-}
-
-func (r *RunningGarden) cleanupSubvolumes() {
-	r.logger.Info("cleanup-subvolumes")
-
-	// need to remove subvolumes before cleaning graphpath
-	subvolumesOutput, err := exec.Command("btrfs", "subvolume", "list", "-o", r.GraphRoot).CombinedOutput()
-	r.logger.Debug(fmt.Sprintf("listing-subvolumes: %s", string(subvolumesOutput)))
-	if err != nil {
-		r.logger.Fatal("listing-subvolumes-error", err)
-	}
-
-	for _, line := range strings.Split(string(subvolumesOutput), "\n") {
-		fields := strings.Fields(line)
-		if len(fields) < 1 {
-			continue
-		}
-
-		subvolumePath := fields[len(fields)-1] // this path is relative to the outer Garden-Linux BTRFS mount
-		idx := strings.Index(subvolumePath, r.GraphRoot)
-		if idx == -1 {
-			continue
-		}
-		subvolumeAbsolutePath := subvolumePath[idx:]
-
-		if strings.Contains(subvolumeAbsolutePath, r.GraphPath) {
-			if b, err := exec.Command("btrfs", "subvolume", "delete", subvolumeAbsolutePath).CombinedOutput(); err != nil {
-				r.logger.Fatal(fmt.Sprintf("deleting-subvolume: %s", string(b)), err)
-			}
-		}
-	}
-
-	if err := os.RemoveAll(r.GraphPath); err != nil {
-		r.logger.Error("remove-graph-again", err)
 	}
 }
 
