@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
@@ -32,6 +33,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/resource_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/sysconfig"
 	"github.com/cloudfoundry-incubator/garden-linux/sysinfo"
+	quotaed_aufs "github.com/cloudfoundry-incubator/garden-shed/docker_drivers/aufs"
 	"github.com/cloudfoundry-incubator/garden-shed/layercake"
 	"github.com/cloudfoundry-incubator/garden-shed/repository_fetcher"
 	"github.com/cloudfoundry-incubator/garden-shed/rootfs_provider"
@@ -264,7 +266,21 @@ func main() {
 		logger.Fatal("failed-to-construct-graph-driver", err)
 	}
 
-	dockerGraph, err := graph.NewGraph(*graphRoot, dockerGraphDriver)
+	backingStoresPath := filepath.Join(*graphRoot, "backing_stores")
+	if err := os.MkdirAll(backingStoresPath, 0660); err != nil {
+		logger.Fatal("failed-to-mkdir-backing-stores", err)
+	}
+
+	quotaedGraphDriver := &quotaed_aufs.QuotaedDriver{
+		GraphDriver: dockerGraphDriver,
+		BackingStoreMgr: &quotaed_aufs.BackingStore{
+			RootPath: backingStoresPath,
+		},
+		LoopMounter: &quotaed_aufs.Loop{},
+		RootPath:    *graphRoot,
+	}
+
+	dockerGraph, err := graph.NewGraph(*graphRoot, quotaedGraphDriver)
 	if err != nil {
 		logger.Fatal("failed-to-construct-graph", err)
 	}

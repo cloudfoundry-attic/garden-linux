@@ -20,8 +20,6 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/pivotal-golang/lager/lagertest"
 
-	"math"
-
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
@@ -357,15 +355,6 @@ var _ = Describe("Container pool", func() {
 				Expect(fakeRootFSProvider.CreateCallCount()).To(Equal(1))
 				_, _, _, quota := fakeRootFSProvider.CreateArgsForCall(0)
 				Expect(quota).To(Equal(int64(98765)))
-			})
-
-			It("should default the rootfs provider's disk quota when the container's disk quota is not specified", func() {
-				_, err := pool.Acquire(garden.ContainerSpec{})
-				Expect(err).ToNot(HaveOccurred())
-
-				Expect(fakeRootFSProvider.CreateCallCount()).To(Equal(1))
-				_, _, _, quota := fakeRootFSProvider.CreateArgsForCall(0)
-				Expect(quota).To(Equal(int64(math.MaxInt64)))
 			})
 		})
 

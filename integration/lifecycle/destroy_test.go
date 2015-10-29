@@ -42,4 +42,64 @@ var _ = Describe("Destroying a container", func() {
 			})
 		})
 	})
+
+	Context("when destroying a container with a disk limit", func() {
+		It("should remove the backing store file", func() {
+			client = startGarden()
+
+			container, err := client.Create(garden.ContainerSpec{
+				RootFSPath: "docker:///busybox",
+				Limits: garden.Limits{
+					Disk: garden.DiskLimits{
+						ByteHard: 10 * 1024 * 1024,
+						Scope:    garden.DiskLimitScopeExclusive,
+					},
+				},
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			entries, err := ioutil.ReadDir(filepath.Join(client.GraphPath, "backing_stores"))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(entries).To(HaveLen(1))
+
+			Expect(client.Destroy(container.Handle())).To(Succeed())
+
+			entries, err = ioutil.ReadDir(filepath.Join(client.GraphPath, "backing_stores"))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(entries).To(HaveLen(0))
+		})
+
+		It("should remove the AUFS directories", func() {
+			client = startGarden()
+
+			container, err := client.Create(garden.ContainerSpec{
+				RootFSPath: "docker:///busybox",
+				Limits: garden.Limits{
+					Disk: garden.DiskLimits{
+						ByteHard: 10 * 1024 * 1024,
+						Scope:    garden.DiskLimitScopeExclusive,
+					},
+				},
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			entries, err := ioutil.ReadDir(filepath.Join(client.GraphPath, "aufs", "diff"))
+			Expect(err).NotTo(HaveOccurred())
+			pdDiffEntLen := len(entries)
+
+			entries, err = ioutil.ReadDir(filepath.Join(client.GraphPath, "aufs", "mnt"))
+			Expect(err).NotTo(HaveOccurred())
+			pdMntEntLen := len(entries)
+
+			Expect(client.Destroy(container.Handle())).To(Succeed())
+
+			entries, err = ioutil.ReadDir(filepath.Join(client.GraphPath, "aufs", "diff"))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(entries).To(HaveLen(pdDiffEntLen - 1))
+
+			entries, err = ioutil.ReadDir(filepath.Join(client.GraphPath, "aufs", "mnt"))
+			Expect(err).NotTo(HaveOccurred())
+			Expect(entries).To(HaveLen(pdMntEntLen - 1))
+		})
+	})
 })

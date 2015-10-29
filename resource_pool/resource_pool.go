@@ -21,8 +21,6 @@ import (
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/pivotal-golang/lager"
 
-	"math"
-
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
 	"github.com/cloudfoundry-incubator/garden-linux/logging"
@@ -272,12 +270,10 @@ func (p *LinuxResourcePool) Acquire(spec garden.ContainerSpec) (linux_backend.Li
 
 	pLog.Info("acquired-pool-resources")
 
-	var quota int64 = int64(spec.Limits.Disk.ByteHard)
-	if quota == 0 {
-		quota = math.MaxInt64
-	}
-
-	containerRootFSPath, rootFSEnv, err := p.acquireSystemResources(id, handle, containerPath, spec.RootFSPath, resources, spec.BindMounts, quota, pLog)
+	containerRootFSPath, rootFSEnv, err := p.acquireSystemResources(
+		id, handle, containerPath, spec.RootFSPath, resources, spec.BindMounts,
+		int64(spec.Limits.Disk.ByteHard), pLog,
+	)
 	if err != nil {
 		return linux_backend.LinuxContainerSpec{}, err
 	}

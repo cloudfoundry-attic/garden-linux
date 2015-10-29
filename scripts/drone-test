@@ -2,7 +2,7 @@
 
 set -e -x
 
-export GARDEN_TEST_GRAPHPATH=/tmp/btrfs_mount
+export GARDEN_TEST_GRAPHPATH=/tmp/aufs_mount
 mkdir -p $GARDEN_TEST_GRAPHPATH
 
 export GARDEN_TEST_ROOTFS=/opt/warden/rootfs
