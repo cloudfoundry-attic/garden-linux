@@ -275,9 +275,13 @@ func main() {
 		GraphDriver: dockerGraphDriver,
 		BackingStoreMgr: &quotaed_aufs.BackingStore{
 			RootPath: backingStoresPath,
+			Logger:   logger.Session("backing-store-mgr"),
 		},
-		LoopMounter: &quotaed_aufs.Loop{},
-		RootPath:    *graphRoot,
+		LoopMounter: &quotaed_aufs.Loop{
+			Logger: logger.Session("loop-mounter"),
+		},
+		RootPath: *graphRoot,
+		Logger:   logger.Session("quotaed-driver"),
 	}
 
 	dockerGraph, err := graph.NewGraph(*graphRoot, quotaedGraphDriver)
