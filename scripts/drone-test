@@ -13,6 +13,8 @@ export GARDEN_TEST_ROOTFS=/opt/warden/rootfs
 [ -d /opt/warden/docker-registry-v2-rootfs ] && export GARDEN_DOCKER_REGISTRY_V2_TEST_ROOTFS=/opt/warden/docker-registry-v2-rootfs
 [ -d /opt/warden/preexisting-users-rootfs ] && export GARDEN_PREEXISTING_USERS_TEST_ROOTFS=/opt/warden/preexisting-users-rootfs
 [ -d /opt/warden/empty ] && export GARDEN_EMPTY_TEST_ROOTFS=/opt/warden/empty
+root=$(cd $(dirname $BASH_SOURCE)/.. && pwd)
+[ -f $root/../garden-integration-tests/resources/dora.tgz ] && export GARDEN_DORA_PATH=$root/../garden-integration-tests/resources/dora.tgz
 
 export PATH=$GOPATH/bin:$PATH
 
