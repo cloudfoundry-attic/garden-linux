@@ -50,7 +50,6 @@ var _ = Describe("Security", func() {
 
 			Eventually(lsof.Wait()).Should(gexec.Exit())
 			Expect(lsof.Out).To(gbytes.Say(`\A\z`))
-			Expect(lsof.Err).To(gbytes.Say(`\A\z`))
 		})
 	})
 
