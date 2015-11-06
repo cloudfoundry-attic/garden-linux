@@ -47,8 +47,10 @@ var _ = Describe("Security", func() {
 					"/",
 				),
 				GinkgoWriter, GinkgoWriter)
-			Eventually(lsof).Should(gexec.Exit(0))
-			Expect(lsof).To(gbytes.Say(""))
+
+			Eventually(lsof.Wait()).Should(gexec.Exit())
+			Expect(lsof.Out).To(gbytes.Say(`\A\z`))
+			Expect(lsof.Err).To(gbytes.Say(`\A\z`))
 		})
 	})
 
