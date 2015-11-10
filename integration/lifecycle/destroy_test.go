@@ -48,12 +48,66 @@ var _ = Describe("Destroying a container", func() {
 		})
 	})
 
-	// Need to make this test work consistently with ginkgo -p. The loop
-	// devices is a shared resource and it can be affected by other tests.
-	// One potential solution is to check that the loop devices
-	// used by this test are gone.
-	PContext("when destroying a container with a disk limit", func() {
+	Context("when destroying a container with a disk limit", func() {
 		var tgzPath string
+
+		createContainer := func() (garden.Container, error) {
+			container, err := client.Create(garden.ContainerSpec{
+				RootFSPath: "docker:///busybox",
+				Limits: garden.Limits{
+					Disk: garden.DiskLimits{
+						ByteHard: 100 * 1024 * 1024,
+						Scope:    garden.DiskLimitScopeExclusive,
+					},
+				},
+			})
+
+			return container, err
+		}
+
+		streamInDora := func(container garden.Container) error {
+			tgz, err := os.Open(tgzPath)
+			if err != nil {
+				return err
+			}
+
+			tarStream, err := gzip.NewReader(tgz)
+			if err != nil {
+				return err
+			}
+
+			err = container.StreamIn(garden.StreamInSpec{
+				User:      "root",
+				Path:      "/root/dora",
+				TarStream: tarStream,
+			})
+
+			return err
+		}
+
+		destroy := func(handle string) error {
+			err := client.Destroy(handle)
+			return err
+		}
+
+		loopDevicesAmt := func() int {
+			buffer := gbytes.NewBuffer()
+			cmd := exec.Command("sh", "-c", "losetup -a | wc -l")
+			cmd.Stdout = buffer
+			Expect(cmd.Run()).To(Succeed())
+
+			amt, err := strconv.ParseInt(strings.TrimSpace(string(buffer.Contents())), 10, 32)
+			Expect(err).NotTo(HaveOccurred())
+
+			return int(amt)
+		}
+
+		entriesAmt := func(path string) int {
+			entries, err := ioutil.ReadDir(path)
+			Expect(err).NotTo(HaveOccurred())
+
+			return len(entries)
+		}
 
 		BeforeEach(func() {
 			tgzPath = os.Getenv("GARDEN_DORA_PATH")
@@ -65,54 +119,28 @@ var _ = Describe("Destroying a container", func() {
 		It("should remove the AUFS directories", func() {
 			client = startGarden()
 
-			var handles []string
 			containersAmt := 5
 
+			beforeLoopAmt := loopDevicesAmt()
+			beforeBsAmt := entriesAmt(filepath.Join(client.GraphPath, "backing_stores"))
+
 			h := make(chan string, containersAmt)
-			errs := make(chan error, containersAmt)
+			createErrs := make(chan error, containersAmt)
+			destroyErrs := make(chan error, containersAmt)
 			for i := 0; i < containersAmt; i++ {
 				go func() {
 					defer GinkgoRecover()
 
-					container, err := client.Create(garden.ContainerSpec{
-						RootFSPath: "docker:///busybox",
-						Limits: garden.Limits{
-							Disk: garden.DiskLimits{
-								ByteHard: 100 * 1024 * 1024,
-								Scope:    garden.DiskLimitScopeExclusive,
-							},
-						},
-					})
+					container, err := createContainer()
 					if err != nil {
-						errs <- err
+						createErrs <- err
 						return
 					}
 
-					tgz, err := os.Open(tgzPath)
-					if err != nil {
-						errs <- err
+					if err := streamInDora(container); err != nil {
+						createErrs <- err
 						return
 					}
-
-					tarStream, err := gzip.NewReader(tgz)
-					if err != nil {
-						errs <- err
-						return
-					}
-
-					fmt.Println("stream-in-start")
-					err = container.StreamIn(garden.StreamInSpec{
-						User:      "root",
-						Path:      "/root/dora",
-						TarStream: tarStream,
-					})
-
-					if err != nil {
-						errs <- err
-						return
-					}
-
-					fmt.Println("stream-in-complete")
 
 					h <- container.Handle()
 				}()
@@ -121,64 +149,29 @@ var _ = Describe("Destroying a container", func() {
 			for i := 0; i < containersAmt; i++ {
 				select {
 				case handle := <-h:
-					handles = append(handles, handle)
-					fmt.Println("created", i)
-				case err := <-errs:
+					go func() {
+						defer GinkgoRecover()
+
+						destroyErrs <- destroy(handle)
+					}()
+				case err := <-createErrs:
 					Fail(err.Error())
 				}
 			}
 
-			buffer := gbytes.NewBuffer()
-			cmd := exec.Command("sh", "-c", "losetup -a | wc -l")
-			cmd.Stdout = buffer
-			Expect(cmd.Run()).To(Succeed())
-			pdLoopEntLen, err := strconv.ParseInt(strings.TrimSpace(string(buffer.Contents())), 10, 32)
-			Expect(err).NotTo(HaveOccurred())
-
-			entries, err := ioutil.ReadDir(filepath.Join(client.GraphPath, "backing_stores"))
-			Expect(err).NotTo(HaveOccurred())
-			Expect(entries).To(HaveLen(containersAmt))
-
-			entries, err = ioutil.ReadDir(filepath.Join(client.GraphPath, "aufs", "diff"))
-			Expect(err).NotTo(HaveOccurred())
-			pdDiffEntLen := len(entries)
-
-			entries, err = ioutil.ReadDir(filepath.Join(client.GraphPath, "aufs", "mnt"))
-			Expect(err).NotTo(HaveOccurred())
-			pdMntEntLen := len(entries)
-
-			errors := make(chan error, containersAmt)
 			for i := 0; i < containersAmt; i++ {
-				go func(i int, ec chan error) {
-					defer GinkgoRecover()
-					errors <- client.Destroy(handles[i])
-				}(i, errors)
-			}
-
-			for i := 0; i < containersAmt; i++ {
-				e := <-errors
+				e := <-destroyErrs
 				Expect(e).NotTo(HaveOccurred())
 			}
 
-			buffer = gbytes.NewBuffer()
-			cmd = exec.Command("sh", "-c", "losetup -a | wc -l")
-			cmd.Stdout = buffer
-			Expect(cmd.Run()).To(Succeed())
-			adLoopEntLen, err := strconv.ParseInt(strings.TrimSpace(string(buffer.Contents())), 10, 32)
-			Expect(err).NotTo(HaveOccurred())
-			Expect(adLoopEntLen).To(Equal(pdLoopEntLen - int64(containersAmt)))
-
-			entries, err = ioutil.ReadDir(filepath.Join(client.GraphPath, "backing_stores"))
-			Expect(err).NotTo(HaveOccurred())
-			Expect(entries).To(HaveLen(0))
-
-			entries, err = ioutil.ReadDir(filepath.Join(client.GraphPath, "aufs", "diff"))
-			Expect(err).NotTo(HaveOccurred())
-			Expect(entries).To(HaveLen(pdDiffEntLen - containersAmt))
-
-			entries, err = ioutil.ReadDir(filepath.Join(client.GraphPath, "aufs", "mnt"))
-			Expect(err).NotTo(HaveOccurred())
-			Expect(entries).To(HaveLen(pdMntEntLen - containersAmt))
+			afterLoopAmt := loopDevicesAmt()
+			Expect(afterLoopAmt).To(Equal(beforeLoopAmt))
+			afterBsAmt := entriesAmt(filepath.Join(client.GraphPath, "backing_stores"))
+			Expect(afterBsAmt).To(Equal(beforeBsAmt))
+			afterDiffAmt := entriesAmt(filepath.Join(client.GraphPath, "aufs", "diff"))
+			Expect(afterDiffAmt).To(Equal(3)) // no g.c. - image + namespacing layers
+			afterMntAmt := entriesAmt(filepath.Join(client.GraphPath, "aufs", "mnt"))
+			Expect(afterMntAmt).To(Equal(3))
 		})
 	})
 })

@@ -10,14 +10,13 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/blang/semver"
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/docker/docker/daemon/graphdriver"
 	"github.com/docker/docker/graph"
 	_ "github.com/docker/docker/pkg/chrootarchive" // allow reexec of docker-applyLayer
-	"github.com/pivotal-golang/lager"
-	"github.com/pivotal-golang/localip"
 
 	"github.com/cloudfoundry-incubator/cf-debug-server"
 	"github.com/cloudfoundry-incubator/cf-lager"
@@ -43,6 +42,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-shed/distclient"
 	quotaed_aufs "github.com/cloudfoundry-incubator/garden-shed/docker_drivers/aufs"
 	"github.com/cloudfoundry-incubator/garden-shed/layercake"
+	"github.com/cloudfoundry-incubator/garden-shed/pkg/retrier"
 	"github.com/cloudfoundry-incubator/garden-shed/repository_fetcher"
 	"github.com/cloudfoundry-incubator/garden-shed/rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden/server"
@@ -51,6 +51,9 @@ import (
 	_ "github.com/docker/docker/daemon/graphdriver/aufs"
 	_ "github.com/docker/docker/pkg/chrootarchive" // allow reexec of docker-applyLayer
 	"github.com/docker/docker/pkg/reexec"
+	"github.com/pivotal-golang/clock"
+	"github.com/pivotal-golang/lager"
+	"github.com/pivotal-golang/localip"
 )
 
 const (
@@ -273,15 +276,24 @@ func main() {
 		logger.Fatal("failed-to-mkdir-backing-stores", err)
 	}
 
+	graphRetrier := &retrier.Retrier{
+		Timeout:         100 * time.Second,
+		PollingInterval: 500 * time.Millisecond,
+		Clock:           clock.NewClock(),
+	}
+
 	quotaedGraphDriver := &quotaed_aufs.QuotaedDriver{
 		GraphDriver: dockerGraphDriver,
+		Unmount:     quotaed_aufs.Unmount,
 		BackingStoreMgr: &quotaed_aufs.BackingStore{
 			RootPath: backingStoresPath,
 			Logger:   logger.Session("backing-store-mgr"),
 		},
 		LoopMounter: &quotaed_aufs.Loop{
-			Logger: logger.Session("loop-mounter"),
+			Retrier: graphRetrier,
+			Logger:  logger.Session("loop-mounter"),
 		},
+		Retrier:  graphRetrier,
 		RootPath: *graphRoot,
 		Logger:   logger.Session("quotaed-driver"),
 	}
