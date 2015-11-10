@@ -373,7 +373,7 @@ func main() {
 		panic(fmt.Sprintf("Value of -externalIP %s could not be converted to an IP", *externalIP))
 	}
 
-	var quotaManager linux_container.QuotaManager = quota_manager.DisabledQuotaManager{}
+	var quotaManager linux_container.QuotaManager = quota_manager.AUFSQuotaManager{}
 
 	ipTablesMgr := createIPTablesManager(config, runner, logger)
 	injector := &provider{
