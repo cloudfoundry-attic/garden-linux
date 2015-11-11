@@ -22,7 +22,7 @@ make
 
 go install github.com/onsi/ginkgo/ginkgo
 
-ginkgo -tags daemon -r -p -race -cover -keepGoing -nodes=4 "$@"
+ginkgo -tags daemon -r -p -race -cover -keepGoing -nodes=4 -slowSpecThreshold=15 "$@"
 
 # don't leak coveralls token
 set +x
