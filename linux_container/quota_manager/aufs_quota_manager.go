@@ -53,7 +53,3 @@ func (a *AUFSQuotaManager) GetUsage(logger lager.Logger, containerRootFSPath str
 func (*AUFSQuotaManager) Setup() error {
 	return nil
 }
-
-func (*AUFSQuotaManager) IsEnabled() bool {
-	return false
-}

@@ -49,8 +49,6 @@ type QuotaManager interface {
 	GetUsage(logger lager.Logger, containerRootFSPath string) (garden.ContainerDiskStat, error)
 
 	Setup() error
-
-	IsEnabled() bool
 }
 
 //go:generate counterfeiter -o fake_network_statisticser/fake_network_statisticser.go . NetworkStatisticser

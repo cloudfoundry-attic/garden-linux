@@ -22,7 +22,3 @@ func (DisabledQuotaManager) GetUsage(logger lager.Logger, containerRootFSPath st
 func (DisabledQuotaManager) Setup() error {
 	return nil
 }
-
-func (DisabledQuotaManager) IsEnabled() bool {
-	return false
-}
