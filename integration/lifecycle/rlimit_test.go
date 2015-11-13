@@ -31,62 +31,6 @@ var _ = Describe("Resource limits", func() {
 		Expect(err).ToNot(HaveOccurred())
 	})
 
-	Context("when setting all rlimits to minimum values", func() {
-		It("succeeds", func(done Done) {
-			// Experimental minimum values tend to produce flakes.
-			fudgeFactor := 1.50
-
-			var (
-				val0 uint64 = 0
-				// Number of open files
-				valNofile uint64 = uint64(4 * fudgeFactor)
-				// Memory limits
-				valAs    uint64 = uint64(4194304 * fudgeFactor)
-				valData  uint64 = uint64(8192 * fudgeFactor)
-				valStack uint64 = uint64(11264 * fudgeFactor)
-			)
-
-			rlimits := garden.ResourceLimits{
-				// Memory limits
-				As:    &valAs,
-				Data:  &valData,
-				Stack: &valStack,
-				// Number of open files
-				Nofile: &valNofile,
-				// Can be zero
-				Core:       &val0,
-				Cpu:        &val0,
-				Fsize:      &val0,
-				Locks:      &val0,
-				Memlock:    &val0,
-				Msgqueue:   &val0,
-				Nice:       &val0,
-				Nproc:      &val0,
-				Rss:        &val0,
-				Rtprio:     &val0,
-				Sigpending: &val0,
-			}
-
-			proc, err := container.Run(
-				garden.ProcessSpec{
-					Path:   "echo",
-					Args:   []string{"Hello world"},
-					User:   "root",
-					Limits: rlimits,
-				},
-				garden.ProcessIO{
-					Stdout: GinkgoWriter,
-					Stderr: GinkgoWriter,
-				},
-			)
-			Expect(err).ToNot(HaveOccurred())
-
-			Expect(proc.Wait()).To(Equal(0))
-
-			close(done)
-		}, 10)
-	})
-
 	Describe("Specific resource limits", func() {
 		Context("CPU rlimit", func() {
 			Context("with a privileged container", func() {
