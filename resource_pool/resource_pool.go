@@ -725,9 +725,9 @@ func shouldCleanRootfs(rootfsProvider string) bool {
 	// we should try to clean it up
 
 	providers := []string{
-		"docker-local-btrfs",
+		"docker-local-aufs",
 		"docker-local-vfs",
-		"docker-remote-btrfs",
+		"docker-remote-aufs",
 		"docker-remote-vfs",
 		"docker-composite",
 		"invalid-rootfs-provider",
