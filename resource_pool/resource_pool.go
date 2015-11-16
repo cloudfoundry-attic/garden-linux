@@ -66,7 +66,7 @@ type LinuxResourcePool struct {
 	denyNetworks  []string
 	allowNetworks []string
 
-	rootfsProvider rootfs_provider.RootFSProvider
+	rootFSProvider rootfs_provider.RootFSProvider
 	mappingList    rootfs_provider.MappingList
 
 	subnetPool SubnetPool
@@ -95,7 +95,7 @@ func New(
 	logger lager.Logger,
 	binPath, depotPath string,
 	sysconfig sysconfig.Config,
-	rootfsProvider rootfs_provider.RootFSProvider,
+	rootFSProvider rootfs_provider.RootFSProvider,
 	mappingList rootfs_provider.MappingList,
 	externalIP net.IP,
 	mtu int,
@@ -118,7 +118,7 @@ func New(
 
 		sysconfig: sysconfig,
 
-		rootfsProvider: rootfsProvider,
+		rootFSProvider: rootFSProvider,
 		mappingList:    mappingList,
 
 		allowNetworks: allowNetworks,
@@ -271,8 +271,7 @@ func (p *LinuxResourcePool) Acquire(spec garden.ContainerSpec) (linux_backend.Li
 	pLog.Info("acquired-pool-resources")
 
 	containerRootFSPath, rootFSEnv, err := p.acquireSystemResources(
-		id, handle, containerPath, spec.RootFSPath, resources, spec.BindMounts,
-		int64(spec.Limits.Disk.ByteHard), pLog,
+		spec, id, resources, pLog,
 	)
 	if err != nil {
 		return linux_backend.LinuxContainerSpec{}, err
@@ -422,16 +421,16 @@ func (p *LinuxResourcePool) generateContainerIDs() {
 }
 
 func (p *LinuxResourcePool) writeBindMounts(containerPath string,
-	rootfsPath string,
+	rootFSPath string,
 	bindMounts []garden.BindMount) error {
 	hook := path.Join(containerPath, "lib", "hook-parent-before-clone.sh")
 
 	for _, bm := range bindMounts {
-		dstMount := path.Join(rootfsPath, bm.DstPath)
+		dstMount := path.Join(rootFSPath, bm.DstPath)
 		srcPath := bm.SrcPath
 
 		if bm.Origin == garden.BindMountOriginContainer {
-			srcPath = path.Join(rootfsPath, srcPath)
+			srcPath = path.Join(rootFSPath, srcPath)
 		}
 
 		mode := "ro"
@@ -530,13 +529,13 @@ func (p *LinuxResourcePool) releasePoolResources(resources *linux_backend.Resour
 	}
 }
 
-func (p *LinuxResourcePool) acquireSystemResources(id, handle, containerPath, rootFSPath string, resources *linux_backend.Resources, bindMounts []garden.BindMount, diskQuota int64, pLog lager.Logger) (string, process.Env, error) {
-
+func (p *LinuxResourcePool) acquireSystemResources(spec garden.ContainerSpec, id string, resources *linux_backend.Resources, pLog lager.Logger) (string, process.Env, error) {
+	containerPath := path.Join(p.depotPath, id)
 	if err := os.MkdirAll(containerPath, 0755); err != nil {
 		return "", nil, fmt.Errorf("resource_pool: creating container directory: %v", err)
 	}
 
-	rootfsPath, rootFSEnvVars, err := p.setupContainerDirectories(pLog, id, handle, containerPath, rootFSPath, resources, diskQuota)
+	rootFSPath, rootFSEnvVars, err := p.setupContainerDirectories(spec, id, resources, pLog)
 	if err != nil {
 		os.RemoveAll(containerPath)
 		return "", nil, err
@@ -547,7 +546,7 @@ func (p *LinuxResourcePool) acquireSystemResources(id, handle, containerPath, ro
 	suff, _ := resources.Network.Subnet.Mask.Size()
 	env := process.Env{
 		"id":                   id,
-		"rootfs_path":          rootfsPath,
+		"rootfs_path":          rootFSPath,
 		"network_host_ip":      subnets.GatewayIP(resources.Network.Subnet).String(),
 		"network_container_ip": resources.Network.IP.String(),
 		"network_cidr_suffix":  strconv.Itoa(suff),
@@ -582,7 +581,7 @@ func (p *LinuxResourcePool) acquireSystemResources(id, handle, containerPath, ro
 	if err != nil {
 		pLog.Error("save-rootfs-provider-failed", err, lager.Data{
 			"Id":     id,
-			"rootfs": rootFSPath,
+			"rootfs": spec.RootFSPath,
 		})
 		return "", nil, err
 	}
@@ -596,27 +595,34 @@ func (p *LinuxResourcePool) acquireSystemResources(id, handle, containerPath, ro
 		return "", nil, err
 	}
 
-	err = p.writeBindMounts(containerPath, rootfsPath, bindMounts)
+	err = p.writeBindMounts(containerPath, rootFSPath, spec.BindMounts)
 	if err != nil {
 		pLog.Error("bind-mounts-failed", err)
 		return "", nil, err
 	}
 
-	return rootfsPath, rootFSEnvVars, nil
+	return rootFSPath, rootFSEnvVars, nil
 }
 
-func (p *LinuxResourcePool) setupRootfs(pLog lager.Logger, id, rootFSPath string, privileged bool, diskQuota int64) (string, process.Env, error) {
-	rootfsURL, err := url.Parse(rootFSPath)
+func (p *LinuxResourcePool) setupRootfs(spec garden.ContainerSpec, id string, resources *linux_backend.Resources, pLog lager.Logger) (string, process.Env, error) {
+	rootFSURL, err := url.Parse(spec.RootFSPath)
 	if err != nil {
 		pLog.Error("parse-rootfs-path-failed", err, lager.Data{
-			"RootFSPath": rootFSPath,
+			"RootFSPath": spec.RootFSPath,
 		})
 
 		return "", nil, err
 	}
 
+	rootFSSpec := rootfs_provider.Spec{
+		RootFS:     rootFSURL,
+		Namespaced: resources.RootUID != 0,
+		QuotaSize:  int64(spec.Limits.Disk.ByteHard),
+		QuotaScope: rootfs_provider.QuotaScope(spec.Limits.Disk.Scope),
+	}
+
 	pLog.Debug("provide-rootfs-starting")
-	rootfsPath, rootFSEnvVars, err := p.rootfsProvider.Create(id, rootfsURL, privileged, diskQuota)
+	rootFSPath, rootFSEnvVars, err := p.rootFSProvider.Create(id, rootFSSpec)
 	if err != nil {
 		pLog.Error("provide-rootfs-failed", err)
 
@@ -631,23 +637,23 @@ func (p *LinuxResourcePool) setupRootfs(pLog lager.Logger, id, rootFSPath string
 		return "", nil, err
 	}
 
-	return rootfsPath, rootFSProcessEnv, nil
+	return rootFSPath, rootFSProcessEnv, nil
 }
 
-func (p *LinuxResourcePool) setupContainerDirectories(pLog lager.Logger, id, handle, containerPath, rootFSPath string, resources *linux_backend.Resources, diskQuota int64) (string, process.Env, error) {
-	rootfsPath, rootFSEnvVars, err := p.setupRootfs(pLog, id, rootFSPath, resources.RootUID != 0, diskQuota)
+func (p *LinuxResourcePool) setupContainerDirectories(spec garden.ContainerSpec, id string, resources *linux_backend.Resources, pLog lager.Logger) (string, process.Env, error) {
+	rootFSPath, rootFSEnvVars, err := p.setupRootfs(spec, id, resources, pLog)
 	if err != nil {
 		return "", nil, err
 	}
 
 	pLog.Debug("setup-bridge-starting")
 	if err := p.setupBridge(pLog, id, resources); err != nil {
-		p.rootfsProvider.Remove(layercake.ContainerID(rootfsPath))
+		p.rootFSProvider.Remove(layercake.ContainerID(rootFSPath))
 		return "", nil, err
 	}
 	pLog.Debug("setup-bridge-ended")
 
-	return rootfsPath, rootFSEnvVars, nil
+	return rootFSPath, rootFSEnvVars, nil
 }
 
 func (p *LinuxResourcePool) setupBridge(pLog lager.Logger, id string, resources *linux_backend.Resources) error {
@@ -694,9 +700,9 @@ func (p *LinuxResourcePool) releaseSystemResources(logger lager.Logger, id strin
 		}
 	}
 
-	rootfsProvider, err := ioutil.ReadFile(path.Join(p.depotPath, id, "rootfs-provider"))
+	rootFSProvider, err := ioutil.ReadFile(path.Join(p.depotPath, id, "rootfs-provider"))
 	if err != nil {
-		rootfsProvider = []byte("invalid-rootfs-provider")
+		rootFSProvider = []byte("invalid-rootfs-provider")
 	}
 
 	if err = p.iptablesMgr.ContainerTeardown(id); err != nil {
@@ -710,8 +716,8 @@ func (p *LinuxResourcePool) releaseSystemResources(logger lager.Logger, id strin
 		return err
 	}
 
-	if shouldCleanRootfs(string(rootfsProvider)) {
-		if err = p.rootfsProvider.Remove(layercake.ContainerID(id)); err != nil {
+	if shouldCleanRootfs(string(rootFSProvider)) {
+		if err = p.rootFSProvider.Remove(layercake.ContainerID(id)); err != nil {
 			return err
 		}
 	}
@@ -720,7 +726,7 @@ func (p *LinuxResourcePool) releaseSystemResources(logger lager.Logger, id strin
 	return nil
 }
 
-func shouldCleanRootfs(rootfsProvider string) bool {
+func shouldCleanRootfs(rootFSProvider string) bool {
 	// invalid-rootfs-provider indicates that this is probably a recent container that failed on create.
 	// we should try to clean it up
 
@@ -734,7 +740,7 @@ func shouldCleanRootfs(rootfsProvider string) bool {
 	}
 
 	for _, provider := range providers {
-		if provider == rootfsProvider {
+		if provider == rootFSProvider {
 			return true
 		}
 	}

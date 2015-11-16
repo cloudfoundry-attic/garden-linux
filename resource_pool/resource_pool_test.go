@@ -280,7 +280,7 @@ var _ = Describe("Container pool", func() {
 		itCleansUpTheRootfs := func() {
 			It("cleans up the rootfs for the container", func() {
 				Expect(fakeRootFSProvider.RemoveCallCount()).To(Equal(1))
-				providedID, _, _, _ := fakeRootFSProvider.CreateArgsForCall(0)
+				providedID, _ := fakeRootFSProvider.CreateArgsForCall(0)
 				cleanedUpID := fakeRootFSProvider.RemoveArgsForCall(0)
 				Expect(cleanedUpID).To(Equal(layercake.ContainerID(providedID)))
 			})
@@ -349,12 +349,20 @@ var _ = Describe("Container pool", func() {
 
 		Describe("Disk limit", func() {
 			It("should create a rootfs provider with the container's disk quota", func() {
-				_, err := pool.Acquire(garden.ContainerSpec{Limits: garden.Limits{Disk: garden.DiskLimits{ByteHard: 98765}}})
+				_, err := pool.Acquire(garden.ContainerSpec{
+					Limits: garden.Limits{
+						Disk: garden.DiskLimits{
+							ByteHard: 98765,
+							Scope:    garden.DiskLimitScopeExclusive,
+						},
+					},
+				})
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(fakeRootFSProvider.CreateCallCount()).To(Equal(1))
-				_, _, _, quota := fakeRootFSProvider.CreateArgsForCall(0)
-				Expect(quota).To(Equal(int64(98765)))
+				_, spec := fakeRootFSProvider.CreateArgsForCall(0)
+				Expect(spec.QuotaSize).To(Equal(int64(98765)))
+				Expect(spec.QuotaScope).To(Equal(rootfs_provider.QuotaScopeExclusive))
 			})
 		})
 
@@ -382,8 +390,8 @@ var _ = Describe("Container pool", func() {
 				Expect(err).ToNot(HaveOccurred())
 
 				Expect(fakeRootFSProvider.CreateCallCount()).To(Equal(1))
-				_, _, namespace, _ := fakeRootFSProvider.CreateArgsForCall(0)
-				Expect(namespace).To(Equal(true))
+				_, spec := fakeRootFSProvider.CreateArgsForCall(0)
+				Expect(spec.Namespaced).To(Equal(true))
 			})
 
 			It("always executes create.sh with a root_uid of 10001", func() {
@@ -658,9 +666,9 @@ var _ = Describe("Container pool", func() {
 				})
 				Expect(err).ToNot(HaveOccurred())
 
-				id, uri, _, _ := fakeRootFSProvider.CreateArgsForCall(0)
+				id, spec := fakeRootFSProvider.CreateArgsForCall(0)
 				Expect(id).To(Equal(container.ID))
-				Expect(uri).To(Equal(&url.URL{
+				Expect(spec.RootFS).To(Equal(&url.URL{
 					Scheme: "fake",
 					Host:   "",
 					Path:   "/path/to/custom-rootfs",
