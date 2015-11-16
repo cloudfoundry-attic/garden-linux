@@ -1,9 +1,12 @@
 package lifecycle_test
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 
+	"github.com/cloudfoundry-incubator/garden"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -84,6 +87,69 @@ var _ = Describe("Garden startup flags", func() {
 
 			_, err = http.Get(fmt.Sprintf("http://%s/log-level -X PUT -d fatal", debugAddr))
 			Expect(err).ToNot(HaveOccurred())
+		})
+
+		Describe("vars", func() {
+			var (
+				diskLimits garden.DiskLimits
+				container  garden.Container
+				vars       map[string]interface{}
+			)
+
+			BeforeEach(func() {
+				diskLimits = garden.DiskLimits{
+					ByteHard: 10 * 1024 * 1024,
+					Scope:    garden.DiskLimitScopeExclusive,
+				}
+			})
+
+			JustBeforeEach(func() {
+				var err error
+
+				container, err = client.Create(garden.ContainerSpec{
+					Limits: garden.Limits{
+						Disk: diskLimits,
+					},
+					RootFSPath: "docker:///busybox",
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				response, err := http.Get(fmt.Sprintf("http://%s/debug/vars", debugAddr))
+				Expect(err).ToNot(HaveOccurred())
+
+				contents, err := ioutil.ReadAll(response.Body)
+				Expect(err).ToNot(HaveOccurred())
+
+				vars = make(map[string]interface{})
+				Expect(json.Unmarshal(contents, &vars)).To(Succeed())
+			})
+
+			AfterEach(func() {
+				Expect(client.Destroy(container.Handle())).To(Succeed())
+			})
+
+			It("exposes the number of loop devices", func() {
+				Expect(vars["loopDevices"]).To(BeNumerically(">=", float64(1)))
+			})
+
+			It("exposes the number of depot directories", func() {
+				Expect(vars["depotDirs"]).To(Equal(float64(1)))
+			})
+
+			It("exposes the number of backing stores", func() {
+				Expect(vars["backingStores"]).To(Equal(float64(1)))
+			})
+
+			Context("when the container does not have a limit", func() {
+				BeforeEach(func() {
+					diskLimits = garden.DiskLimits{}
+				})
+
+				It("should not have any backing stores", func() {
+					Expect(vars["depotDirs"]).To(Equal(float64(1)))
+					Expect(vars["backingStores"]).To(Equal(float64(0)))
+				})
+			})
 		})
 	})
 })
