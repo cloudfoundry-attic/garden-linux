@@ -208,10 +208,6 @@ func main() {
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
 	logger, reconfigurableSink := cf_lager.New("garden-linux")
-	if dbgAddr := cf_debug_server.DebugAddress(flag.CommandLine); dbgAddr != "" {
-		debug.Run(dbgAddr, reconfigurableSink)
-	}
-
 	initializeDropsonde(logger)
 
 	if *binPath == "" {
@@ -296,6 +292,10 @@ func main() {
 		Retrier:  graphRetrier,
 		RootPath: *graphRoot,
 		Logger:   logger.Session("quotaed-driver"),
+	}
+
+	if dbgAddr := cf_debug_server.DebugAddress(flag.CommandLine); dbgAddr != "" {
+		debug.Run(dbgAddr, reconfigurableSink, backingStoresPath, *depotPath)
 	}
 
 	dockerGraph, err := graph.NewGraph(*graphRoot, quotaedGraphDriver)

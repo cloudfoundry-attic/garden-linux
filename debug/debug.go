@@ -1,8 +1,12 @@
 package debug
 
 import (
+	"bytes"
 	"expvar"
+	"fmt"
+	"io/ioutil"
 	"net/http"
+	"os/exec"
 	"runtime"
 	"strings"
 
@@ -12,13 +16,39 @@ import (
 	"github.com/tedsuo/ifrit/http_server"
 )
 
-func Run(address string, sink *lager.ReconfigurableSink) (ifrit.Process, error) {
+func Run(address string, sink *lager.ReconfigurableSink, backingStoresPath, depotDirs string) (ifrit.Process, error) {
 	expvar.Publish("numCPUS", expvar.Func(func() interface{} {
 		return int64(runtime.NumCPU())
 	}))
 
 	expvar.Publish("numGoRoutines", expvar.Func(func() interface{} {
 		return int64(runtime.NumGoroutine())
+	}))
+
+	expvar.Publish("loopDevices", expvar.Func(func() interface{} {
+		devices, err := exec.Command("losetup", "-a").CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("%s, out: %s", err, string(devices))
+		}
+		return bytes.Count(devices, []byte("\n"))
+	}))
+
+	expvar.Publish("backingStores", expvar.Func(func() interface{} {
+		entries, err := ioutil.ReadDir(backingStoresPath)
+		if err != nil {
+			return err
+		}
+
+		return len(entries)
+	}))
+
+	expvar.Publish("depotDirs", expvar.Func(func() interface{} {
+		entries, err := ioutil.ReadDir(depotDirs)
+		if err != nil {
+			return err
+		}
+
+		return len(entries)
 	}))
 
 	server := http_server.New(address, handler(sink))
