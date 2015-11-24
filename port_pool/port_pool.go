@@ -27,15 +27,25 @@ func (e PortTakenError) Error() string {
 	return fmt.Sprintf("port already acquired: %d", e.Port)
 }
 
-func New(start, size uint32) (*PortPool, error) {
+func New(start, size, offset uint32) (*PortPool, error) {
 	if start+size > 65535 {
 		return nil, fmt.Errorf("port_pool: New: invalid port range: startL %d, size: %d", start, size)
 	}
 
-	pool := []uint32{}
+	if offset >= size {
+		offset = 0
+	}
 
-	for i := start; i < start+size; i++ {
-		pool = append(pool, i)
+	pool := make([]uint32, size)
+
+	i := 0
+	for port := start + offset; port < start+size; port++ {
+		pool[i] = port
+		i += 1
+	}
+	for port := start; port < start+offset; port++ {
+		pool[i] = port
+		i += 1
 	}
 
 	return &PortPool{
@@ -100,4 +110,11 @@ func (p *PortPool) Release(port uint32) {
 	}
 
 	p.pool = append(p.pool, port)
+}
+
+func (p *PortPool) NextFreePort() (uint32, error) {
+	if len(p.pool) == 0 {
+		return 0, PoolExhaustedError{}
+	}
+	return p.pool[0], nil
 }

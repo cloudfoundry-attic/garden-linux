@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -84,6 +85,12 @@ var binPath = flag.String(
 	"bin",
 	"",
 	"directory containing backend-specific scripts (i.e. ./create.sh)",
+)
+
+var stateDirPath = flag.String(
+	"stateDir",
+	"",
+	"directory containing state files",
 )
 
 var depotPath = flag.String(
@@ -214,6 +221,10 @@ func main() {
 		missing("-bin")
 	}
 
+	if *stateDirPath == "" {
+		missing("-stateDir")
+	}
+
 	if *depotPath == "" {
 		missing("-depot")
 	}
@@ -235,8 +246,13 @@ func main() {
 		logger.Fatal("failed-to-create-subnet-pool", err)
 	}
 
+	portPoolState, err := port_pool.LoadState(path.Join(*stateDirPath, "port_pool.json"))
+	if err != nil {
+		logger.Error("failed-to-parse-pool-state", err)
+	}
+
 	// TODO: use /proc/sys/net/ipv4/ip_local_port_range by default (end + 1)
-	portPool, err := port_pool.New(uint32(*portPoolStart), uint32(*portPoolSize))
+	portPool, err := port_pool.New(uint32(*portPoolStart), uint32(*portPoolSize), portPoolState.Offset)
 	if err != nil {
 		logger.Fatal("invalid pool range", err)
 	}
@@ -436,7 +452,21 @@ func main() {
 
 	go func() {
 		<-signals
+
+		nextPort, err := portPool.NextFreePort()
+		if err != nil {
+			logger.Info("failed-to-acquire-port", lager.Data{
+				"error": err.Error(),
+			})
+			portPoolState.Offset = 0
+		} else {
+			portPoolState.Offset = nextPort - uint32(*portPoolStart)
+		}
+
+		port_pool.SaveState(path.Join(*stateDirPath, "port_pool.json"), portPoolState)
+
 		gardenServer.Stop()
+
 		os.Exit(0)
 	}()
 
