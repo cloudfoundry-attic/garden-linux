@@ -161,6 +161,16 @@ func cmd(stateDirPath, depotPath, snapshotsPath, graphPath, network, addr, bin, 
 		}
 	}
 
+	hasFlag := func(ar []string, key string) bool {
+		for _, a := range ar {
+			if a == key {
+				return true
+			}
+		}
+
+		return false
+	}
+
 	gardenArgs := make([]string, len(argv))
 	copy(gardenArgs, argv)
 
@@ -179,8 +189,12 @@ func cmd(stateDirPath, depotPath, snapshotsPath, graphPath, network, addr, bin, 
 	gardenArgs = appendDefaultFlag(gardenArgs, "--portPoolStart", strconv.Itoa(51000+(1000*ginkgo.GinkgoParallelNode())))
 	gardenArgs = appendDefaultFlag(gardenArgs, "--portPoolSize", "1000")
 	gardenArgs = appendDefaultFlag(gardenArgs, "--tag", strconv.Itoa(ginkgo.GinkgoParallelNode()))
-	gardenArgs = appendDefaultFlag(gardenArgs, "--debugAddr", fmt.Sprintf(":808%d", ginkgo.GinkgoParallelNode()))
 
+	if !hasFlag(gardenArgs, "-enableGraphCleanup=false") {
+		gardenArgs = appendDefaultFlag(gardenArgs, "--enableGraphCleanup", "")
+	}
+
+	gardenArgs = appendDefaultFlag(gardenArgs, "--debugAddr", fmt.Sprintf(":808%d", ginkgo.GinkgoParallelNode()))
 	return exec.Command(bin, gardenArgs...)
 }
 
