@@ -90,6 +90,7 @@ var _ = Describe("When nested", func() {
 
 				mkdir $tmpdir/depot
 				mkdir $tmpdir/snapshots
+				mkdir $tmpdir/state
 				mkdir $tmpdir/graph
 
 				./bin/garden-linux \
@@ -97,6 +98,7 @@ var _ = Describe("When nested", func() {
 					-rootfs /root/rootfs \
 					-depot  $tmpdir/depot \
 					-snapshots $tmpdir/snapshots \
+					-stateDir $tmpdir/state \
 					-graph $tmpdir/graph \
 					-tag n \
 					-listenNetwork tcp \

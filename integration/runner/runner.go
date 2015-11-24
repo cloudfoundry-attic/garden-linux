@@ -37,6 +37,7 @@ type RunningGarden struct {
 	tmpdir        string
 	GraphRoot     string
 	GraphPath     string
+	StateDirPath  string
 	DepotPath     string
 	SnapshotsPath string
 
@@ -60,9 +61,14 @@ func start(network, addr string, argv ...string) *RunningGarden {
 	}
 
 	graphPath := filepath.Join(GraphRoot, fmt.Sprintf("node-%d", ginkgo.GinkgoParallelNode()))
+	stateDirPath := filepath.Join(tmpDir, "state")
 	depotPath := filepath.Join(tmpDir, "containers")
 	overlaysPath := filepath.Join(tmpDir, "overlays")
 	snapshotsPath := filepath.Join(tmpDir, "snapshots")
+
+	if err := os.MkdirAll(stateDirPath, 0755); err != nil {
+		Expect(err).ToNot(HaveOccurred())
+	}
 
 	if err := os.MkdirAll(depotPath, 0755); err != nil {
 		Expect(err).ToNot(HaveOccurred())
@@ -78,6 +84,7 @@ func start(network, addr string, argv ...string) *RunningGarden {
 	r := &RunningGarden{
 		GraphRoot:     GraphRoot,
 		GraphPath:     graphPath,
+		StateDirPath:  stateDirPath,
 		DepotPath:     depotPath,
 		SnapshotsPath: snapshotsPath,
 		tmpdir:        tmpDir,
@@ -86,7 +93,7 @@ func start(network, addr string, argv ...string) *RunningGarden {
 		Client: client.New(connection.New(network, addr)),
 	}
 
-	c := cmd(depotPath, snapshotsPath, graphPath, network, addr, GardenBin, BinPath, RootFSPath, argv...)
+	c := cmd(stateDirPath, depotPath, snapshotsPath, graphPath, network, addr, GardenBin, BinPath, RootFSPath, argv...)
 	r.runner = ginkgomon.New(ginkgomon.Config{
 		Name:              "garden-linux",
 		Command:           c,
@@ -139,7 +146,7 @@ func (r *RunningGarden) Stop() error {
 	}
 }
 
-func cmd(depotPath, snapshotsPath, graphPath, network, addr, bin, binPath, RootFSPath string, argv ...string) *exec.Cmd {
+func cmd(stateDirPath, depotPath, snapshotsPath, graphPath, network, addr, bin, binPath, RootFSPath string, argv ...string) *exec.Cmd {
 	appendDefaultFlag := func(ar []string, key, value string) []string {
 		for _, a := range argv {
 			if a == key {
@@ -163,6 +170,7 @@ func cmd(depotPath, snapshotsPath, graphPath, network, addr, bin, binPath, RootF
 	if RootFSPath != "" { //rootfs is an optional parameter
 		gardenArgs = appendDefaultFlag(gardenArgs, "--rootfs", RootFSPath)
 	}
+	gardenArgs = appendDefaultFlag(gardenArgs, "--stateDir", stateDirPath)
 	gardenArgs = appendDefaultFlag(gardenArgs, "--depot", depotPath)
 	gardenArgs = appendDefaultFlag(gardenArgs, "--snapshots", snapshotsPath)
 	gardenArgs = appendDefaultFlag(gardenArgs, "--graph", graphPath)

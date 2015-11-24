@@ -2,15 +2,23 @@ package networking_test
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os/exec"
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
+	"github.com/cloudfoundry-incubator/garden-linux/integration/runner"
+	"github.com/onsi/gomega/gbytes"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-
-	"github.com/onsi/gomega/gbytes"
 )
+
+func restartGarden(argv ...string) *runner.RunningGarden {
+	Expect(client.Ping()).To(Succeed(), "tried to restart garden while it was not running")
+	Expect(client.Stop()).To(Succeed())
+	return startGarden(argv...)
+}
 
 var _ = Describe("Net In", func() {
 	var (
@@ -125,6 +133,169 @@ var _ = Describe("Net In", func() {
 			Expect(listenInContainer(container, containerPort)).To(Succeed())
 			stdout = sendRequest(externalIP, hostPort2)
 			Expect(stdout).To(gbytes.Say(fmt.Sprintf("%d", containerPort)))
+		})
+	})
+})
+
+var _ = Describe("Port Selection", func() {
+	var (
+		portPoolSize int
+		extraArgs    []string
+	)
+
+	BeforeEach(func() {
+		portPoolSize = 100
+		extraArgs = []string{}
+	})
+
+	JustBeforeEach(func() {
+		args := append(
+			[]string{"--portPoolSize", fmt.Sprintf("%d", portPoolSize)},
+			extraArgs...,
+		)
+		client = startGarden(args...)
+	})
+
+	It("should not reuse ports of destroyed containers", func() {
+		container, err := client.Create(garden.ContainerSpec{})
+		Expect(err).NotTo(HaveOccurred())
+
+		oldHostPort, _, err := container.NetIn(0, 0)
+		Expect(err).NotTo(HaveOccurred())
+
+		client.Destroy(container.Handle())
+
+		container, err = client.Create(garden.ContainerSpec{})
+		Expect(err).NotTo(HaveOccurred())
+
+		newHostPort, _, err := container.NetIn(0, 0)
+		Expect(err).NotTo(HaveOccurred())
+
+		Expect(newHostPort).To(BeNumerically("==", oldHostPort+1))
+	})
+
+	Context("when server is restarted", func() {
+		It("should not reuse ports", func() {
+			var (
+				containers   []string
+				lastHostPort uint32
+			)
+
+			for index := 0; index < 2; index++ {
+				container, err := client.Create(garden.ContainerSpec{})
+				Expect(err).NotTo(HaveOccurred())
+
+				hostPort, _, err := container.NetIn(0, 0)
+				Expect(err).NotTo(HaveOccurred())
+
+				containers = append(containers, container.Handle())
+				lastHostPort = hostPort
+			}
+
+			for index := 0; index < 2; index++ {
+				Expect(client.Destroy(containers[index])).To(Succeed())
+			}
+
+			client = restartGarden("--portPoolSize", fmt.Sprintf("%d", portPoolSize))
+
+			container, err := client.Create(garden.ContainerSpec{})
+			Expect(err).NotTo(HaveOccurred())
+
+			newHostPort, _, err := container.NetIn(0, 0)
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(newHostPort).To(BeNumerically("==", lastHostPort+1))
+		})
+
+		Context("and the port range is reduced", func() {
+			It("should start from the first port", func() {
+				var (
+					containers    []string
+					firstHostPort uint32
+				)
+
+				for index := 0; index < 2; index++ {
+					container, err := client.Create(garden.ContainerSpec{})
+					Expect(err).NotTo(HaveOccurred())
+
+					hostPort, _, err := container.NetIn(0, 0)
+					Expect(err).NotTo(HaveOccurred())
+
+					containers = append(containers, container.Handle())
+					if index == 0 {
+						firstHostPort = hostPort
+					}
+				}
+
+				for index := 0; index < 2; index++ {
+					Expect(client.Destroy(containers[index])).To(Succeed())
+				}
+
+				client = restartGarden("--portPoolSize", fmt.Sprintf("%d", 1))
+
+				container, err := client.Create(garden.ContainerSpec{})
+				Expect(err).NotTo(HaveOccurred())
+
+				newHostPort, _, err := container.NetIn(0, 0)
+				Expect(err).NotTo(HaveOccurred())
+
+				Expect(newHostPort).To(BeNumerically("==", firstHostPort))
+			})
+		})
+
+		Context("and the port range is exhausted with snapshotting disabled", func() {
+			BeforeEach(func() {
+				portPoolSize = 1
+				extraArgs = append(extraArgs, "--snapshots", "")
+			})
+
+			It("returns the first port in the range", func() {
+				container, err := client.Create(garden.ContainerSpec{})
+				Expect(err).NotTo(HaveOccurred())
+
+				firstHostPort, _, err := container.NetIn(0, 0)
+				Expect(err).NotTo(HaveOccurred())
+
+				client = restartGarden("--portPoolSize", fmt.Sprintf("%d", 2))
+
+				container, err = client.Create(garden.ContainerSpec{})
+				Expect(err).NotTo(HaveOccurred())
+
+				newHostPort, _, err := container.NetIn(0, 0)
+				Expect(err).NotTo(HaveOccurred())
+
+				Expect(newHostPort).To(BeNumerically("==", firstHostPort))
+			})
+		})
+
+		Context("and the port range is exhausted with snapshotting enabled", func() {
+			BeforeEach(func() {
+				portPoolSize = 1
+				snapshotsPath, err := ioutil.TempDir("", "snapshots")
+				Expect(err).NotTo(HaveOccurred())
+				extraArgs = append(extraArgs, "--snapshots", snapshotsPath)
+			})
+
+			It("stays exhausted after a restart", func() {
+				container, err := client.Create(garden.ContainerSpec{})
+				Expect(err).NotTo(HaveOccurred())
+
+				_, _, err = container.NetIn(0, 0)
+				Expect(err).NotTo(HaveOccurred())
+
+				args := append(extraArgs, "--portPoolSize", fmt.Sprintf("%d", portPoolSize))
+				client = restartGarden(args...)
+
+				containers, err := client.Containers(garden.Properties{})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(containers).To(HaveLen(1))
+
+				container, err = client.Create(garden.ContainerSpec{})
+				Expect(err).NotTo(HaveOccurred())
+
+				_, _, err = container.NetIn(0, 0)
+				Expect(err).To(HaveOccurred())
+			})
 		})
 	})
 })
