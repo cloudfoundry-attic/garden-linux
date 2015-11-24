@@ -2,9 +2,7 @@
 
 A Linux backend for [Garden](https://github.com/cloudfoundry-incubator/garden).
 
-You can deploy Garden (inside a Garden container) using the [Garden BOSH Release repository](https://github.com/cloudfoundry-incubator/garden-linux-release).
-
-See the [old README](old/README.md) for old documentation, caveat lector.
+You can deploy Garden-Linux using the [Garden-Linux BOSH Release](https://github.com/cloudfoundry-incubator/garden-linux-release).
 
 ## Installing Garden-Linux
 
