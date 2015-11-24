@@ -6,58 +6,54 @@ You can deploy Garden-Linux using the [Garden-Linux BOSH Release](https://github
 
 ## Installing Garden-Linux
 
-**Note:** the rest of these instructions assume you arranged for the garden-linux code, and dependencies, to be
-installed in your `$GOPATH` inside a linux environment, either by following the steps above or through some other mechanism.
+**Note:** the rest of these instructions assume you arranged for the garden-linux code and dependencies to be
+present in your `$GOPATH` on a machine running Ubuntu 14.04 or later.
 
-The rest of these instructions assume you are running inside an Ubuntu environment (for example, the above vagrant box) with go installed and the code checked out.
+### Build garden-linux
 
-* Build garden-linux
+```
+cd $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux # assuming your $GOPATH has only one entry
+make
+```
 
-        cd $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux # assuming your $GOPATH has only one entry
-        make
-        go build -a -tags daemon -o out/garden-linux
+### Set up necessary directories
 
-* Set up necessary directories
+```
+sudo mkdir -p /opt/garden/containers
+sudo mkdir -p /opt/garden/snapshots
+sudo mkdir -p /opt/garden/rootfs
+sudo mkdir -p /opt/garden/graph
+```
 
-        sudo mkdir -p /opt/garden/containers
-        sudo mkdir -p /opt/garden/snapshots
-        sudo mkdir -p /opt/garden/rootfs
-        sudo mkdir -p /opt/garden/graph
+### Download a RootFS (Optional)
 
-* (Optional) Set up a RootFS
+If you plan to run docker images instead of using rootfs from disk, you can skip this step.
 
-    If you plan to run docker images instead of using the warden rootfs provider, you can skip this step.
+e.g. if you want to use the default Cloud Foundry rootfs:
+```
+wget https://github.com/cloudfoundry/stacks/releases/download/1.19.0/cflinuxfs2-1.19.0.tar.gz
+sudo tar -xzpf cflinuxfs2-1.19.0.tar.gz -C /opt/garden/rootfs
+```
 
-    Follow the instructions at [https://github.com/cloudfoundry/stacks](https://github.com/cloudfoundry/stacks) to generate a rootfs, or download one from `http://cf-runtime-stacks.s3.amazonaws.com/lucid64.dev.tgz`. Extract it to `/opt/warden/rootfs` (or pass a different directory in the next step).
+### Run garden-linux
 
-        wget http://cf-runtime-stacks.s3.amazonaws.com/lucid64.dev.tgz
-        sudo tar -xzpf lucid64.dev.tgz -C /opt/garden/rootfs
+```
+cd $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux # assuming your $GOPATH has only one entry
+sudo ./out/garden-linux \
+       -depot=/opt/garden/containers \
+       -bin=$PWD/linux_backend/bin \
+       -rootfs=/opt/garden/rootfs \
+       -graph=/opt/garden/graph \
+       -snapshots=/opt/garden/snapshots \
+       -listenNetwork=tcp \
+       -listenAddr=127.0.0.1:7777 \
+       "$@"
+```
 
-* Run garden-linux
+### Kick the tyres
 
-        cd $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux # assuming your $GOPATH has only one entry
-        sudo ./out/garden-linux \
-               -depot=/opt/garden/containers \
-               -bin=$PWD/linux_backend/bin \
-               -rootfs=/opt/garden/rootfs \
-               -graph=/opt/garden/graph \
-               -snapshots=/opt/garden/snapshots \
-               -listenNetwork=tcp \
-               -listenAddr=127.0.0.1:7777 \
-               "$@"
-
-* Kick the tyres
-
-    The external API is exposed using [Garden](https://github.com/cloudfoundry-incubator/garden), the instructions at that repo document the various API calls that you can now make (it will be running at `http://127.0.0.1:7777` if you followed the above instructions).
-
-## External API
-
-The `garden-linux` executable provides a server which clients can use to perform operations on Garden Linux,
-such as creating containers and running processes inside containers.
-    
-Garden Linux is configured by passing command line flags to the `garden-linux` executable.
-
-[Garden](https://github.com/cloudfoundry-incubator/garden) defines the protocol supported by the server and provides a Go API for programmatic access.
+The easiest way to start creating containers is using the unofficial [`gaol`](https://github.com/contraband/gaol) command line client.
+For more advanced use cases, you'll want to use the (Garden)[https://github.com/cloudfoundry-incubator/garden] client package.
 
 ## Development
 
