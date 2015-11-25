@@ -28,7 +28,6 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/iptables_manager"
-	"github.com/cloudfoundry-incubator/garden-linux/linux_container/quota_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/network"
 	"github.com/cloudfoundry-incubator/garden-linux/network/bridgemgr"
 	"github.com/cloudfoundry-incubator/garden-linux/network/devices"
@@ -44,6 +43,7 @@ import (
 	quotaed_aufs "github.com/cloudfoundry-incubator/garden-shed/docker_drivers/aufs"
 	"github.com/cloudfoundry-incubator/garden-shed/layercake"
 	"github.com/cloudfoundry-incubator/garden-shed/pkg/retrier"
+	"github.com/cloudfoundry-incubator/garden-shed/quota_manager"
 	"github.com/cloudfoundry-incubator/garden-shed/repository_fetcher"
 	"github.com/cloudfoundry-incubator/garden-shed/rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden/server"
@@ -389,7 +389,10 @@ func main() {
 		panic(fmt.Sprintf("Value of -externalIP %s could not be converted to an IP", *externalIP))
 	}
 
-	var quotaManager linux_container.QuotaManager = &quota_manager.AUFSQuotaManager{quotaedGraphDriver}
+	var quotaManager linux_container.QuotaManager = &quota_manager.AUFSQuotaManager{
+		BaseSizer: quota_manager.NewAUFSBaseSizer(cake),
+		DiffSizer: &quota_manager.AUFSDiffSizer{quotaedGraphDriver},
+	}
 
 	ipTablesMgr := createIPTablesManager(config, runner, logger)
 	injector := &provider{
