@@ -53,8 +53,7 @@ sudo ./out/garden-linux \
        -rootfs=/opt/garden/rootfs \
        -bin=$PWD/linux_backend/bin \
        -listenNetwork=tcp \
-       -listenAddr=127.0.0.1:7777 \
-       "$@"
+       -listenAddr=127.0.0.1:7777
 ```
 
 ### Kick the tyres
