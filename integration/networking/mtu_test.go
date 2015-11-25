@@ -33,7 +33,7 @@ var _ = Describe("MTU size", func() {
 
 			process, err := container.Run(garden.ProcessSpec{
 				User: "alice",
-				Path: "/sbin/ifconfig",
+				Path: "ifconfig",
 				Args: []string{containerIfName(container)},
 			}, garden.ProcessIO{
 				Stdout: stdout,
@@ -50,7 +50,7 @@ var _ = Describe("MTU size", func() {
 
 	Describe("hosts's network interface for a container", func() {
 		It("has the correct MTU size", func() {
-			out, err := exec.Command("/sbin/ifconfig", hostIfName(container)).Output()
+			out, err := exec.Command("ifconfig", hostIfName(container)).Output()
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(out).To(ContainSubstring(" MTU:6789 "))

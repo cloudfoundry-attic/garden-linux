@@ -76,7 +76,7 @@ var _ = Describe("IP settings", func() {
 
 				process, err := container1.Run(garden.ProcessSpec{
 					User: "alice",
-					Path: "/sbin/ifconfig",
+					Path: "ifconfig",
 					Args: []string{containerInterface},
 				}, garden.ProcessIO{
 					Stdout: stdout,
@@ -113,7 +113,7 @@ var _ = Describe("IP settings", func() {
 
 				process, err := container1.Run(garden.ProcessSpec{
 					User: "alice",
-					Path: "/sbin/ifconfig",
+					Path: "ifconfig",
 					Args: []string{containerIfName(container1)},
 				}, garden.ProcessIO{
 					Stdout: stdout,

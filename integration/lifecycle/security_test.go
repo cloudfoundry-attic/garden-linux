@@ -132,7 +132,7 @@ var _ = Describe("Security", func() {
 
 			process, err := container.Run(garden.ProcessSpec{
 				User: "root",
-				Path: "/sbin/ifconfig",
+				Path: "ifconfig",
 				Args: []string{"lo:0", "1.2.3.4", "up"},
 			}, garden.ProcessIO{
 				Stdout: GinkgoWriter,
@@ -146,7 +146,7 @@ var _ = Describe("Security", func() {
 			stdout := gbytes.NewBuffer()
 			process, err = container.Run(garden.ProcessSpec{
 				User: "root",
-				Path: "/sbin/ifconfig",
+				Path: "ifconfig",
 			}, garden.ProcessIO{
 				Stdout: stdout,
 				Stderr: GinkgoWriter,
@@ -159,7 +159,7 @@ var _ = Describe("Security", func() {
 
 			Expect(stdout).To(gbytes.Say(`lo:0`))
 
-			cat := exec.Command("/sbin/ifconfig")
+			cat := exec.Command("ifconfig")
 			catSession, err := gexec.Start(cat, GinkgoWriter, GinkgoWriter)
 			Expect(err).ToNot(HaveOccurred())
 			Eventually(catSession).Should(gexec.Exit(0))
