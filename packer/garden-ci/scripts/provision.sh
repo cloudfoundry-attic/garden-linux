@@ -17,6 +17,7 @@ apt-get -y install \
   strace \
   wget \
   iptables \
+  aufs-tools \
   quota \
   ulogd
 
