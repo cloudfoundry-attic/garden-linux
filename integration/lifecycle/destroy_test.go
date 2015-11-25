@@ -165,7 +165,6 @@ var _ = Describe("Destroying a container", func() {
 			}
 
 			afterLoopAmt := loopDevicesAmt()
-			fmt.Println("Checking loop amount") // Seed 1448382907 TODO: Remove this
 			Expect(afterLoopAmt).To(Equal(beforeLoopAmt))
 			afterBsAmt := entriesAmt(filepath.Join(client.GraphPath, "backing_stores"))
 			fmt.Println("Checking backing store amount")

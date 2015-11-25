@@ -5,17 +5,20 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"strconv"
 	"syscall"
 	"time"
 
+	"github.com/cloudfoundry-incubator/garden-shed/pkg/retrier"
 	"github.com/cloudfoundry-incubator/garden/client"
 	"github.com/cloudfoundry-incubator/garden/client/connection"
 	"github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
+	"github.com/pivotal-golang/clock"
 	"github.com/pivotal-golang/lager"
 	"github.com/pivotal-golang/lager/lagertest"
 	"github.com/tedsuo/ifrit"
@@ -63,7 +66,6 @@ func start(network, addr string, argv ...string) *RunningGarden {
 	graphPath := filepath.Join(GraphRoot, fmt.Sprintf("node-%d", ginkgo.GinkgoParallelNode()))
 	stateDirPath := filepath.Join(tmpDir, "state")
 	depotPath := filepath.Join(tmpDir, "containers")
-	overlaysPath := filepath.Join(tmpDir, "overlays")
 	snapshotsPath := filepath.Join(tmpDir, "snapshots")
 
 	if err := os.MkdirAll(stateDirPath, 0755); err != nil {
@@ -78,7 +80,6 @@ func start(network, addr string, argv ...string) *RunningGarden {
 		Expect(err).ToNot(HaveOccurred())
 	}
 
-	MustMountTmpfs(overlaysPath)
 	MustMountTmpfs(graphPath)
 
 	r := &RunningGarden{
@@ -198,17 +199,41 @@ func cmd(stateDirPath, depotPath, snapshotsPath, graphPath, network, addr, bin, 
 	return exec.Command(bin, gardenArgs...)
 }
 
-func (r *RunningGarden) Cleanup() {
+func (r *RunningGarden) Cleanup() error {
+	// unmount aufs since the docker graph driver leaves this around,
+	// otherwise the following commands might fail
+	retry := &retrier.Retrier{
+		Timeout:         100 * time.Second,
+		PollingInterval: 500 * time.Millisecond,
+		Clock:           clock.NewClock(),
+	}
+
+	err := retry.Retry(func() error {
+		//err := Unmount(path.Join(r.GraphPath, "aufs"))
+		err := syscall.Unmount(path.Join(r.GraphPath, "aufs"), 0)
+		r.logger.Error("failed-unmount-attempt", err)
+		return err
+	})
+
+	if err != nil {
+		r.logger.Error("failed to unmount", err)
+		return err
+	}
+
+	MustUnmountTmpfs(r.GraphPath)
 	if err := os.RemoveAll(r.GraphPath); err != nil {
 		r.logger.Error("remove graph", err)
+		return err
 	}
 
 	r.logger.Info("cleanup-tempdirs")
 	if err := os.RemoveAll(r.tmpdir); err != nil {
 		r.logger.Error("cleanup-tempdirs-failed", err, lager.Data{"tmpdir": r.tmpdir})
-	} else {
-		r.logger.Info("tempdirs-removed")
+		return err
 	}
+	r.logger.Info("tempdirs-removed")
+
+	return nil
 }
 
 func (r *RunningGarden) DestroyContainers() error {

@@ -44,9 +44,8 @@ func TestLifecycle(t *testing.T) {
 	})
 
 	AfterEach(func() {
-		err := client.DestroyAndStop()
-		Expect(err).NotTo(HaveOccurred())
-		client.Cleanup()
+		Expect(client.DestroyAndStop()).To(Succeed())
+		Expect(client.Cleanup()).To(Succeed())
 	})
 
 	SynchronizedAfterSuite(func() {

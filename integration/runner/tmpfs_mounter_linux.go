@@ -2,6 +2,7 @@ package runner
 
 import (
 	"os"
+	"os/exec"
 	"syscall"
 )
 
@@ -13,7 +14,10 @@ func MustMountTmpfs(destination string) {
 }
 
 func MustUnmountTmpfs(destination string) {
-	must(syscall.Unmount(destination, 0))
+	if out, err := exec.Command("umount", destination).CombinedOutput(); err != nil {
+		panic(string(out))
+	}
+
 	must(os.Remove(destination))
 }
 

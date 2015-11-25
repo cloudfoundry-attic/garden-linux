@@ -9,3 +9,7 @@ func MustMountTmpfs(destination string) {
 func MustUnmountTmpfs(destination string) {
 	panic("not supported")
 }
+
+func Unmount(destination string) {
+	panic("not supported")
+}
