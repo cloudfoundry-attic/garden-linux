@@ -59,7 +59,7 @@ sudo ./out/garden-linux \
 ### Kick the tyres
 
 The easiest way to start creating containers is using the unofficial [`gaol`](https://github.com/contraband/gaol) command line client.
-For more advanced use cases, you'll want to use the (Garden)[https://github.com/cloudfoundry-incubator/garden] client package.
+For more advanced use cases, you'll want to use the [Garden](https://github.com/cloudfoundry-incubator/garden) client package.
 
 ## Development
 
