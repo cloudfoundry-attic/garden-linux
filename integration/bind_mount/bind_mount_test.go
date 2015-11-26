@@ -17,8 +17,7 @@ import (
 
 var _ = Describe("A container", func() {
 	var (
-		container          garden.Container
-		containerCreateErr error
+		container garden.Container
 
 		// container create parms
 		privilegedContainer bool
@@ -43,7 +42,6 @@ var _ = Describe("A container", func() {
 	BeforeEach(func() {
 		privilegedContainer = false
 		container = nil
-		containerCreateErr = nil
 		srcPath = ""
 		dstPath = ""
 		bindMountMode = garden.BindMountModeRO
@@ -53,7 +51,9 @@ var _ = Describe("A container", func() {
 
 	JustBeforeEach(func() {
 		client = startGarden()
-		container, containerCreateErr = client.Create(
+
+		var err error
+		container, err = client.Create(
 			garden.ContainerSpec{
 				Privileged: privilegedContainer,
 				BindMounts: []garden.BindMount{garden.BindMount{
@@ -64,6 +64,7 @@ var _ = Describe("A container", func() {
 				}},
 				Network: fmt.Sprintf("10.0.%d.0/24", GinkgoParallelNode()),
 			})
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	AfterEach(func() {
@@ -75,17 +76,6 @@ var _ = Describe("A container", func() {
 		// sanity check that bridges were cleaned up
 		bridgePrefix := fmt.Sprintf("w%db-", GinkgoParallelNode())
 		Expect(allBridges()).ToNot(ContainSubstring(bridgePrefix))
-	})
-
-	Context("with an invalid source directory", func() {
-		BeforeEach(func() {
-			srcPath = "/does-not-exist"
-			dstPath = "/home/alice/should-not-be-created"
-		})
-
-		It("should fail to be created", func() {
-			Expect(containerCreateErr).To(HaveOccurred())
-		})
 	})
 
 	Context("with a host origin bind-mount", func() {
@@ -111,12 +101,10 @@ var _ = Describe("A container", func() {
 				})
 
 				It("is successfully created with correct privileges for non-root in container", func() {
-					Expect(containerCreateErr).ToNot(HaveOccurred())
 					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, false)
 				})
 
 				It("is successfully created with correct privileges for root in container", func() {
-					Expect(containerCreateErr).ToNot(HaveOccurred())
 					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, true)
 				})
 			})
@@ -127,12 +115,10 @@ var _ = Describe("A container", func() {
 				})
 
 				It("is successfully created with correct privileges for non-root in container", func() {
-					Expect(containerCreateErr).ToNot(HaveOccurred())
 					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, false)
 				})
 
 				It("is successfully created with correct privileges for root in container", func() {
-					Expect(containerCreateErr).ToNot(HaveOccurred())
 					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, true)
 				})
 			})
@@ -150,12 +136,10 @@ var _ = Describe("A container", func() {
 				})
 
 				It("is successfully created with correct privileges for non-root in container", func() {
-					Expect(containerCreateErr).ToNot(HaveOccurred())
 					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, false)
 				})
 
 				It("is successfully created with correct privileges for root in container", func() {
-					Expect(containerCreateErr).ToNot(HaveOccurred())
 					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, true)
 				})
 			})
@@ -166,12 +150,10 @@ var _ = Describe("A container", func() {
 				})
 
 				It("is successfully created with correct privileges for non-root in container", func() {
-					Expect(containerCreateErr).ToNot(HaveOccurred())
 					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, false)
 				})
 
 				It("is successfully created with correct privileges for root in container", func() {
-					Expect(containerCreateErr).ToNot(HaveOccurred())
 					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, true)
 				})
 			})
@@ -200,12 +182,10 @@ var _ = Describe("A container", func() {
 				})
 
 				It("is successfully created with correct privileges for non-root in container", func() {
-					Expect(containerCreateErr).ToNot(HaveOccurred())
 					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, false)
 				})
 
 				It("is successfully created with correct privileges for root in container", func() {
-					Expect(containerCreateErr).ToNot(HaveOccurred())
 					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, true)
 				})
 			})
@@ -216,12 +196,10 @@ var _ = Describe("A container", func() {
 				})
 
 				It("is successfully created with correct privileges for non-root in container", func() {
-					Expect(containerCreateErr).ToNot(HaveOccurred())
 					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, false)
 				})
 
 				It("is successfully created with correct privileges for root in container", func() {
-					Expect(containerCreateErr).ToNot(HaveOccurred())
 					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, true)
 				})
 			})
@@ -240,12 +218,10 @@ var _ = Describe("A container", func() {
 				})
 
 				It("is successfully created with correct privileges for non-root in container", func() {
-					Expect(containerCreateErr).ToNot(HaveOccurred())
 					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, false)
 				})
 
 				It("is successfully created with correct privileges for root in container", func() {
-					Expect(containerCreateErr).ToNot(HaveOccurred())
 					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, true)
 				})
 			})
@@ -256,12 +232,10 @@ var _ = Describe("A container", func() {
 				})
 
 				It("is successfully created with correct privileges for non-root in container", func() {
-					Expect(containerCreateErr).ToNot(HaveOccurred())
 					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, false)
 				})
 
 				It("is successfully created with correct privileges for root in container", func() {
-					Expect(containerCreateErr).ToNot(HaveOccurred())
 					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, true)
 				})
 			})
