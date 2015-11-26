@@ -14,6 +14,7 @@ import (
 )
 
 //go:generate counterfeiter . Container
+
 type Container interface {
 	ID() string
 	HasProperties(garden.Properties) bool
@@ -26,10 +27,13 @@ type Container interface {
 	Restore(LinuxContainerSpec) error
 	Cleanup() error
 
+	LimitDisk(limits garden.DiskLimits) error
+
 	garden.Container
 }
 
 //go:generate counterfeiter . ResourcePool
+
 type ResourcePool interface {
 	Setup() error
 	Acquire(garden.ContainerSpec) (LinuxContainerSpec, error)
@@ -40,6 +44,7 @@ type ResourcePool interface {
 }
 
 //go:generate counterfeiter . ContainerProvider
+
 type ContainerProvider interface {
 	ProvideContainer(LinuxContainerSpec) Container
 }
@@ -53,6 +58,7 @@ type ContainerRepository interface {
 }
 
 //go:generate counterfeiter . HealthChecker
+
 type HealthChecker interface {
 	HealthCheck() error
 }
@@ -219,7 +225,7 @@ func (b *LinuxBackend) Create(spec garden.ContainerSpec) (garden.Container, erro
 	return container, nil
 }
 
-func (b *LinuxBackend) ApplyLimits(container garden.Container, limits garden.Limits) error {
+func (b *LinuxBackend) ApplyLimits(container Container, limits garden.Limits) error {
 	if limits.CPU != (garden.CPULimits{}) {
 		if err := container.LimitCPU(limits.CPU); err != nil {
 			return err
