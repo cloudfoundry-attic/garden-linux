@@ -6,8 +6,10 @@ import (
 	"io/ioutil"
 	"net/http"
 	"path"
+	"syscall"
 
 	"github.com/cloudfoundry-incubator/garden"
+	"github.com/cloudfoundry-incubator/garden-linux/integration/runner"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
@@ -219,21 +221,21 @@ var _ = Describe("Garden startup flags", func() {
 		})
 	})
 
-	Describe("--persistentImage", func() {
+	FDescribe("--persistentImage", func() {
 		var (
-			layersPath string
-			diffPath   string
-			mntPath    string
+			layersPath     string
+			diffPath       string
+			mntPath        string
+			args           []string
+			imageLayersAmt int
+			diffLayersAmt  int
+			mntLayersAmt   int
 		)
 
 		Context("when set", func() {
-			BeforeEach(func() {
-				client = startGarden(
-					"--persistentImage", "docker:///busybox",
-					"--persistentImage", "docker:///ubuntu",
-					"--persistentImage", "docker://banana/bananatest",
-					"--persistentImage", "docker:///cloudfoundry/with-volume",
-				)
+			JustBeforeEach(func() {
+				client = startGarden(args...)
+
 				layersPath = path.Join(client.GraphPath, "aufs", "layers")
 				diffPath = path.Join(client.GraphPath, "aufs", "diff")
 				mntPath = path.Join(client.GraphPath, "aufs", "mnt")
@@ -241,56 +243,109 @@ var _ = Describe("Garden startup flags", func() {
 				Eventually(client, "30s").Should(gbytes.Say("retain.retained"))
 			})
 
-			Context("and destroying a container that uses a rootfs from the whitelist", func() {
-				var (
-					imageLayersAmt int
-					diffLayersAmt  int
-					mntLayersAmt   int
-				)
-
+			FContext("when local images are used", func() {
 				BeforeEach(func() {
-					container, err := client.Create(garden.ContainerSpec{
-						RootFSPath: "docker:///busybox",
-					})
-					Expect(err).ToNot(HaveOccurred())
-
-					container2, err := client.Create(garden.ContainerSpec{
-						RootFSPath: "docker:///cloudfoundry/with-volume",
-					})
-					Expect(err).ToNot(HaveOccurred())
-
-					layerFiles, err := ioutil.ReadDir(layersPath)
-					Expect(err).ToNot(HaveOccurred())
-					imageLayersAmt = len(layerFiles)
-
-					diffFiles, err := ioutil.ReadDir(diffPath)
-					Expect(err).ToNot(HaveOccurred())
-					diffLayersAmt = len(diffFiles)
-
-					mntFiles, err := ioutil.ReadDir(mntPath)
-					Expect(err).ToNot(HaveOccurred())
-					mntLayersAmt = len(mntFiles)
-
-					Expect(client.Destroy(container.Handle())).To(Succeed())
-					Expect(client.Destroy(container2.Handle())).To(Succeed())
+					fmt.Println("-----------------------------")
+					fmt.Println(runner.RootFSPath)
+					fmt.Println("-----------------------------")
+					args = []string{"--persistentImage", runner.RootFSPath}
 				})
 
 				It("keeps the rootfs", func() {
-					layerFiles, err := ioutil.ReadDir(layersPath)
+					container, err := client.Create(garden.ContainerSpec{})
 					Expect(err).ToNot(HaveOccurred())
 
-					Expect(len(layerFiles)).To(Equal(imageLayersAmt - 2)) // should have deleted the container layers, only
+					layerFiles, err := ioutil.ReadDir(layersPath)
+					Expect(err).ToNot(HaveOccurred())
 
 					diffFiles, err := ioutil.ReadDir(diffPath)
 					Expect(err).ToNot(HaveOccurred())
 
-					Expect(len(diffFiles)).To(Equal(diffLayersAmt - 2)) // should have deleted the container layers, only
-
 					mntFiles, err := ioutil.ReadDir(mntPath)
 					Expect(err).ToNot(HaveOccurred())
 
-					Expect(len(mntFiles)).To(Equal(mntLayersAmt - 2)) // should have deleted the container layers, only
+					fmt.Println("Before Destroy. Run kill -CONT -1 to unpause")
+					syscall.Kill(syscall.Getpid(), syscall.SIGSTOP)
 
+					Expect(client.Destroy(container.Handle())).To(Succeed())
+
+					fmt.Println("After Destroy. Run kill -CONT -1 to unpause")
+					syscall.Kill(syscall.Getpid(), syscall.SIGSTOP)
+
+					afterLayerFiles, err := ioutil.ReadDir(layersPath)
+					Expect(err).ToNot(HaveOccurred())
+
+					afterDiffFiles, err := ioutil.ReadDir(diffPath)
+					Expect(err).ToNot(HaveOccurred())
+
+					afterMntFiles, err := ioutil.ReadDir(mntPath)
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(len(afterLayerFiles)).To(Equal(len(layerFiles) - 1)) // should have deleted the container layers, only
+					Expect(len(afterDiffFiles)).To(Equal(len(diffFiles) - 1))   // should have deleted the container layers, only
+					Expect(len(afterMntFiles)).To(Equal(len(mntFiles) - 1))     // should have deleted the container layers, only
+
+					Expect(len(afterLayerFiles)).NotTo(Equal(0)) // should have deleted the container layers, only
+					Expect(len(afterDiffFiles)).NotTo(Equal(0))  // should have deleted the container layers, only
+					Expect(len(afterMntFiles)).NotTo(Equal(0))   // should have deleted the container layers, only
+				})
+			})
+
+			Context("when docker images are used", func() {
+				BeforeEach(func() {
+					args = []string{
+						"--persistentImage", "docker:///busybox",
+						"--persistentImage", "docker:///ubuntu",
+						"--persistentImage", "docker://banana/bananatest",
+						"--persistentImage", "docker:///cloudfoundry/with-volume",
+					}
+				})
+
+				Context("and destroying a container that uses a rootfs from the whitelist", func() {
+					JustBeforeEach(func() {
+						container, err := client.Create(garden.ContainerSpec{
+							RootFSPath: "docker:///busybox",
+						})
+						Expect(err).ToNot(HaveOccurred())
+
+						container2, err := client.Create(garden.ContainerSpec{
+							RootFSPath: "docker:///cloudfoundry/with-volume",
+						})
+						Expect(err).ToNot(HaveOccurred())
+
+						layerFiles, err := ioutil.ReadDir(layersPath)
+						Expect(err).ToNot(HaveOccurred())
+						imageLayersAmt = len(layerFiles)
+
+						diffFiles, err := ioutil.ReadDir(diffPath)
+						Expect(err).ToNot(HaveOccurred())
+						diffLayersAmt = len(diffFiles)
+
+						mntFiles, err := ioutil.ReadDir(mntPath)
+						Expect(err).ToNot(HaveOccurred())
+						mntLayersAmt = len(mntFiles)
+
+						Expect(client.Destroy(container.Handle())).To(Succeed())
+						Expect(client.Destroy(container2.Handle())).To(Succeed())
+					})
+
+					It("keeps the rootfs", func() {
+						layerFiles, err := ioutil.ReadDir(layersPath)
+						Expect(err).ToNot(HaveOccurred())
+
+						Expect(len(layerFiles)).To(Equal(imageLayersAmt - 2)) // should have deleted the container layers, only
+
+						diffFiles, err := ioutil.ReadDir(diffPath)
+						Expect(err).ToNot(HaveOccurred())
+
+						Expect(len(diffFiles)).To(Equal(diffLayersAmt - 2)) // should have deleted the container layers, only
+
+						mntFiles, err := ioutil.ReadDir(mntPath)
+						Expect(err).ToNot(HaveOccurred())
+
+						Expect(len(mntFiles)).To(Equal(mntLayersAmt - 2)) // should have deleted the container layers, only
+
+					})
 				})
 			})
 
