@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
+	"os/exec"
 	"path"
 
 	"github.com/cloudfoundry-incubator/garden"
+	"github.com/cloudfoundry-incubator/garden-linux/integration/runner"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
@@ -221,112 +224,184 @@ var _ = Describe("Garden startup flags", func() {
 
 	Describe("--persistentImage", func() {
 		var (
-			layersPath string
-			diffPath   string
-			mntPath    string
+			layersPath       string
+			diffPath         string
+			mntPath          string
+			persistentImages []string
 		)
 
-		Context("when set", func() {
-			BeforeEach(func() {
-				client = startGarden(
-					"--persistentImage", "docker:///busybox",
-					"--persistentImage", "docker:///ubuntu",
-					"--persistentImage", "docker://banana/bananatest",
-					"--persistentImage", "docker:///cloudfoundry/with-volume",
-				)
-				layersPath = path.Join(client.GraphPath, "aufs", "layers")
-				diffPath = path.Join(client.GraphPath, "aufs", "diff")
-				mntPath = path.Join(client.GraphPath, "aufs", "mnt")
+		itDeletesTheRootFS := func() {
+			It("deletes the rootfs", func() {
+				layers, err := ioutil.ReadDir(layersPath)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(layers).To(HaveLen(0))
 
-				Eventually(client, "30s").Should(gbytes.Say("retain.retained"))
+				diffs, err := ioutil.ReadDir(diffPath)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(diffs).To(HaveLen(0))
+
+				mnts, err := ioutil.ReadDir(diffPath)
+				Expect(err).ToNot(HaveOccurred())
+				Expect(mnts).To(HaveLen(0))
 			})
+		}
 
-			Context("and destroying a container that uses a rootfs from the whitelist", func() {
-				var (
-					imageLayersAmt int
-					diffLayersAmt  int
-					mntLayersAmt   int
-				)
+		BeforeEach(func() {
+			persistentImages = []string{}
+		})
 
-				BeforeEach(func() {
-					container, err := client.Create(garden.ContainerSpec{
-						RootFSPath: "docker:///busybox",
-					})
-					Expect(err).ToNot(HaveOccurred())
+		JustBeforeEach(func() {
+			args := []string{}
+			for _, image := range persistentImages {
+				args = append(args, "--persistentImage", image)
+			}
+			client = startGarden(args...)
 
-					container2, err := client.Create(garden.ContainerSpec{
-						RootFSPath: "docker:///cloudfoundry/with-volume",
-					})
-					Expect(err).ToNot(HaveOccurred())
+			layersPath = path.Join(client.GraphPath, "aufs", "layers")
+			diffPath = path.Join(client.GraphPath, "aufs", "diff")
+			mntPath = path.Join(client.GraphPath, "aufs", "mnt")
+		})
 
-					layerFiles, err := ioutil.ReadDir(layersPath)
-					Expect(err).ToNot(HaveOccurred())
-					imageLayersAmt = len(layerFiles)
+		Context("when set", func() {
+			var (
+				imageLayersAmt int
+				diffLayersAmt  int
+				mntLayersAmt   int
+			)
 
-					diffFiles, err := ioutil.ReadDir(diffPath)
-					Expect(err).ToNot(HaveOccurred())
-					diffLayersAmt = len(diffFiles)
-
-					mntFiles, err := ioutil.ReadDir(mntPath)
-					Expect(err).ToNot(HaveOccurred())
-					mntLayersAmt = len(mntFiles)
-
-					Expect(client.Destroy(container.Handle())).To(Succeed())
-					Expect(client.Destroy(container2.Handle())).To(Succeed())
-				})
-
+			itKeepsTheRootFS := func(containersAmt int) {
 				It("keeps the rootfs", func() {
 					layerFiles, err := ioutil.ReadDir(layersPath)
 					Expect(err).ToNot(HaveOccurred())
 
-					Expect(len(layerFiles)).To(Equal(imageLayersAmt - 2)) // should have deleted the container layers, only
+					Expect(len(layerFiles)).To(Equal(imageLayersAmt - containersAmt)) // should have deleted the container layers, only
 
 					diffFiles, err := ioutil.ReadDir(diffPath)
 					Expect(err).ToNot(HaveOccurred())
 
-					Expect(len(diffFiles)).To(Equal(diffLayersAmt - 2)) // should have deleted the container layers, only
+					Expect(len(diffFiles)).To(Equal(diffLayersAmt - containersAmt)) // should have deleted the container layers, only
 
 					mntFiles, err := ioutil.ReadDir(mntPath)
 					Expect(err).ToNot(HaveOccurred())
 
-					Expect(len(mntFiles)).To(Equal(mntLayersAmt - 2)) // should have deleted the container layers, only
+					Expect(len(mntFiles)).To(Equal(mntLayersAmt - containersAmt)) // should have deleted the container layers, only
+				})
+			}
 
+			populateMetrics := func() {
+				layerFiles, err := ioutil.ReadDir(layersPath)
+				Expect(err).ToNot(HaveOccurred())
+				imageLayersAmt = len(layerFiles)
+
+				diffFiles, err := ioutil.ReadDir(diffPath)
+				Expect(err).ToNot(HaveOccurred())
+				diffLayersAmt = len(diffFiles)
+
+				mntFiles, err := ioutil.ReadDir(mntPath)
+				Expect(err).ToNot(HaveOccurred())
+				mntLayersAmt = len(mntFiles)
+			}
+
+			BeforeEach(func() {
+				imageLayersAmt = 0
+				diffLayersAmt = 0
+				mntLayersAmt = 0
+			})
+
+			JustBeforeEach(func() {
+				Eventually(client, "30s").Should(gbytes.Say("retain.retained"))
+			})
+
+			Context("and local images are used", func() {
+				BeforeEach(func() {
+					persistentImages = []string{runner.RootFSPath}
+				})
+
+				Context("and destroying a container that uses a rootfs from the whitelist", func() {
+					JustBeforeEach(func() {
+						container, err := client.Create(garden.ContainerSpec{
+							RootFSPath: persistentImages[0],
+						})
+						Expect(err).ToNot(HaveOccurred())
+
+						populateMetrics()
+
+						Expect(client.Destroy(container.Handle())).To(Succeed())
+					})
+
+					itKeepsTheRootFS(1)
+
+					Context("which is a symlink", func() {
+						BeforeEach(func() {
+							Expect(os.MkdirAll("/var/vcap/packages", 0755)).To(Succeed())
+							err := exec.Command("ln", "-s", runner.RootFSPath, "/var/vcap/packages/busybox").Run()
+							Expect(err).ToNot(HaveOccurred())
+
+							persistentImages = []string{"/var/vcap/packages/busybox"}
+						})
+
+						itKeepsTheRootFS(1)
+					})
 				})
 			})
 
-			Context("and destroying a container that uses a rootfs that is not in the whitelist", func() {
+			Context("and docker images are used", func() {
 				BeforeEach(func() {
-					container, err := client.Create(garden.ContainerSpec{
-						RootFSPath: "docker:///cloudfoundry/garden-busybox",
-					})
-					Expect(err).ToNot(HaveOccurred())
-
-					Expect(client.Destroy(container.Handle())).To(Succeed())
+					persistentImages = []string{
+						"docker:///busybox",
+						"docker:///ubuntu",
+						"docker://banana/bananatest",
+						"docker:///cloudfoundry/garden-busybox",
+					}
 				})
 
-				It("deletes the rootfs", func() {
-					layers, err := ioutil.ReadDir(layersPath)
-					Expect(err).ToNot(HaveOccurred())
-					Expect(layers).To(HaveLen(0))
+				Context("and destroying a container that uses a rootfs from the whitelist", func() {
+					JustBeforeEach(func() {
+						container, err := client.Create(garden.ContainerSpec{
+							RootFSPath: "docker:///busybox",
+						})
+						Expect(err).ToNot(HaveOccurred())
 
-					diffs, err := ioutil.ReadDir(diffPath)
-					Expect(err).ToNot(HaveOccurred())
-					Expect(diffs).To(HaveLen(0))
+						container2, err := client.Create(garden.ContainerSpec{
+							RootFSPath: "docker:///cloudfoundry/garden-busybox",
+						})
+						Expect(err).ToNot(HaveOccurred())
 
-					mnts, err := ioutil.ReadDir(diffPath)
-					Expect(err).ToNot(HaveOccurred())
-					Expect(mnts).To(HaveLen(0))
+						populateMetrics()
+
+						Expect(client.Destroy(container.Handle())).To(Succeed())
+						Expect(client.Destroy(container2.Handle())).To(Succeed())
+					})
+
+					itKeepsTheRootFS(2)
+				})
+
+				Context("and destroying a container that uses a rootfs that is not in the whitelist", func() {
+					BeforeEach(func() {
+						persistentImages = []string{
+							"docker:///busybox",
+							"docker:///ubuntu",
+							"docker://banana/bananatest",
+						}
+					})
+
+					JustBeforeEach(func() {
+						container, err := client.Create(garden.ContainerSpec{
+							RootFSPath: "docker:///cloudfoundry/garden-busybox",
+						})
+						Expect(err).ToNot(HaveOccurred())
+
+						Expect(client.Destroy(container.Handle())).To(Succeed())
+					})
+
+					itDeletesTheRootFS()
 				})
 			})
 		})
 
 		Context("when it is not set", func() {
-			BeforeEach(func() {
-				client = startGarden()
-			})
-
 			Context("and destroying a container", func() {
-				BeforeEach(func() {
+				JustBeforeEach(func() {
 					container, err := client.Create(garden.ContainerSpec{
 						RootFSPath: "docker:///busybox",
 					})
@@ -335,19 +410,7 @@ var _ = Describe("Garden startup flags", func() {
 					Expect(client.Destroy(container.Handle())).To(Succeed())
 				})
 
-				It("deletes the rootfs", func() {
-					layers, err := ioutil.ReadDir(layersPath)
-					Expect(err).ToNot(HaveOccurred())
-					Expect(layers).To(HaveLen(0))
-
-					diffs, err := ioutil.ReadDir(diffPath)
-					Expect(err).ToNot(HaveOccurred())
-					Expect(diffs).To(HaveLen(0))
-
-					mnts, err := ioutil.ReadDir(diffPath)
-					Expect(err).ToNot(HaveOccurred())
-					Expect(mnts).To(HaveLen(0))
-				})
+				itDeletesTheRootFS()
 			})
 		})
 	})
