@@ -21,11 +21,9 @@ func (name Duration) Send(duration time.Duration) {
 }
 
 const (
-	numCPUMetric        = Metric("NumCPU")
-	numGoroutinesMetric = Metric("NumGoRoutines")
-	loopDevices         = Metric("LoopDevices")
-	backingStores       = Metric("BackingStores")
-	depotDirs           = Metric("DepotDirs")
+	loopDevices   = Metric("LoopDevices")
+	backingStores = Metric("BackingStores")
+	depotDirs     = Metric("DepotDirs")
 
 	metricsReportingDuration = Duration("MetricsReporting")
 )
@@ -71,8 +69,6 @@ func (notifier PeriodicMetronNotifier) Start() {
 			case <-ticker.C():
 				startedAt := notifier.Clock.Now()
 
-				numCPUMetric.Send(notifier.metrics.NumCPU())
-				numGoroutinesMetric.Send(notifier.metrics.NumGoroutine())
 				loopDevices.Send(notifier.metrics.LoopDevices())
 				backingStores.Send(notifier.metrics.BackingStores())
 				depotDirs.Send(notifier.metrics.DepotDirs())

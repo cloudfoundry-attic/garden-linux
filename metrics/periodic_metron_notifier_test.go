@@ -29,8 +29,6 @@ var _ = Describe("PeriodicMetronNotifier", func() {
 		reportInterval = 100 * time.Millisecond
 
 		fakeMetrics = new(fakes.FakeMetrics)
-		fakeMetrics.NumCPUReturns(11)
-		fakeMetrics.NumGoroutineReturns(888)
 		fakeMetrics.LoopDevicesReturns(33)
 		fakeMetrics.BackingStoresReturns(12)
 		fakeMetrics.DepotDirsReturns(3)
@@ -58,20 +56,6 @@ var _ = Describe("PeriodicMetronNotifier", func() {
 	Context("when the report interval elapses", func() {
 		It("emits metrics", func() {
 			fakeClock.Increment(reportInterval)
-
-			Eventually(func() fake.Metric {
-				return sender.GetValue("NumCPU")
-			}).Should(Equal(fake.Metric{
-				Value: 11,
-				Unit:  "Metric",
-			}))
-
-			Eventually(func() fake.Metric {
-				return sender.GetValue("NumGoRoutines")
-			}).Should(Equal(fake.Metric{
-				Value: 888,
-				Unit:  "Metric",
-			}))
 
 			Eventually(func() fake.Metric {
 				return sender.GetValue("LoopDevices")
