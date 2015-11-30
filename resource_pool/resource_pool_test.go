@@ -147,8 +147,6 @@ var _ = Describe("Container pool", func() {
 
 	Describe("Setup", func() {
 		It("executes setup.sh with the correct environment", func() {
-			fakeQuotaManager.IsEnabledReturns(true)
-
 			err := pool.Setup()
 			Expect(err).ToNot(HaveOccurred())
 

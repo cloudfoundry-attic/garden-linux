@@ -1,13 +1,8 @@
-package debug
+package metrics
 
 import (
-	"bytes"
 	"expvar"
-	"fmt"
-	"io/ioutil"
 	"net/http"
-	"os/exec"
-	"runtime"
 	"strings"
 
 	"github.com/cloudfoundry-incubator/cf-debug-server"
@@ -16,39 +11,25 @@ import (
 	"github.com/tedsuo/ifrit/http_server"
 )
 
-func Run(address string, sink *lager.ReconfigurableSink, backingStoresPath, depotDirs string) (ifrit.Process, error) {
+func StartDebugServer(address string, sink *lager.ReconfigurableSink, metrics Metrics) (ifrit.Process, error) {
 	expvar.Publish("numCPUS", expvar.Func(func() interface{} {
-		return int64(runtime.NumCPU())
+		return metrics.NumCPU()
 	}))
 
 	expvar.Publish("numGoRoutines", expvar.Func(func() interface{} {
-		return int64(runtime.NumGoroutine())
+		return metrics.NumGoroutine()
 	}))
 
 	expvar.Publish("loopDevices", expvar.Func(func() interface{} {
-		devices, err := exec.Command("losetup", "-a").CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("%s, out: %s", err, string(devices))
-		}
-		return bytes.Count(devices, []byte("\n"))
+		return metrics.LoopDevices()
 	}))
 
 	expvar.Publish("backingStores", expvar.Func(func() interface{} {
-		entries, err := ioutil.ReadDir(backingStoresPath)
-		if err != nil {
-			return err
-		}
-
-		return len(entries)
+		return metrics.BackingStores()
 	}))
 
 	expvar.Publish("depotDirs", expvar.Func(func() interface{} {
-		entries, err := ioutil.ReadDir(depotDirs)
-		if err != nil {
-			return err
-		}
-
-		return len(entries)
+		return metrics.DepotDirs()
 	}))
 
 	server := http_server.New(address, handler(sink))

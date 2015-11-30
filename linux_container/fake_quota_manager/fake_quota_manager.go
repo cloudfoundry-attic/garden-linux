@@ -46,12 +46,6 @@ type FakeQuotaManager struct {
 	setupReturns     struct {
 		result1 error
 	}
-	IsEnabledStub        func() bool
-	isEnabledMutex       sync.RWMutex
-	isEnabledArgsForCall []struct{}
-	isEnabledReturns     struct {
-		result1 bool
-	}
 }
 
 func (fake *FakeQuotaManager) SetLimits(logger lager.Logger, containerRootFSPath string, limits garden.DiskLimits) error {
@@ -177,30 +171,6 @@ func (fake *FakeQuotaManager) SetupReturns(result1 error) {
 	fake.SetupStub = nil
 	fake.setupReturns = struct {
 		result1 error
-	}{result1}
-}
-
-func (fake *FakeQuotaManager) IsEnabled() bool {
-	fake.isEnabledMutex.Lock()
-	fake.isEnabledArgsForCall = append(fake.isEnabledArgsForCall, struct{}{})
-	fake.isEnabledMutex.Unlock()
-	if fake.IsEnabledStub != nil {
-		return fake.IsEnabledStub()
-	} else {
-		return fake.isEnabledReturns.result1
-	}
-}
-
-func (fake *FakeQuotaManager) IsEnabledCallCount() int {
-	fake.isEnabledMutex.RLock()
-	defer fake.isEnabledMutex.RUnlock()
-	return len(fake.isEnabledArgsForCall)
-}
-
-func (fake *FakeQuotaManager) IsEnabledReturns(result1 bool) {
-	fake.IsEnabledStub = nil
-	fake.isEnabledReturns = struct {
-		result1 bool
 	}{result1}
 }
 

@@ -56,7 +56,7 @@ var _ = Describe("OomNotifier", func() {
 		// Ensure lingering goroutines terminate so they do not pollute other tests.
 		Eventually(func() int {
 			return runtime.NumGoroutine()
-		}).Should(Equal(initialGoroutines))
+		}).Should(BeNumerically("<=", initialGoroutines))
 	})
 
 	Describe("Watch", func() {
@@ -135,7 +135,7 @@ var _ = Describe("OomNotifier", func() {
 
 					Eventually(func() int {
 						return runtime.NumGoroutine()
-					}).Should(Equal(initialGoroutines))
+					}).Should(BeNumerically("<=", initialGoroutines))
 				})
 			})
 		})
@@ -184,7 +184,7 @@ var _ = Describe("OomNotifier", func() {
 
 				Eventually(func() int {
 					return runtime.NumGoroutine()
-				}).Should(Equal(initialGoroutines))
+				}).Should(BeNumerically("<=", initialGoroutines))
 			})
 		})
 	})

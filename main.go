@@ -22,12 +22,12 @@ import (
 	"github.com/cloudfoundry-incubator/cf-debug-server"
 	"github.com/cloudfoundry-incubator/cf-lager"
 	"github.com/cloudfoundry-incubator/garden-linux/container_repository"
-	"github.com/cloudfoundry-incubator/garden-linux/debug"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/cgroups_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/iptables_manager"
+	"github.com/cloudfoundry-incubator/garden-linux/metrics"
 	"github.com/cloudfoundry-incubator/garden-linux/network"
 	"github.com/cloudfoundry-incubator/garden-linux/network/bridgemgr"
 	"github.com/cloudfoundry-incubator/garden-linux/network/devices"
@@ -173,6 +173,12 @@ var dropsondeDestination = flag.String(
 	"dropsondeDestination",
 	"localhost:3457",
 	"Destination for dropsonde-emitted metrics.",
+)
+
+var metricsEmissionInterval = flag.Duration(
+	"metricsEmissionInterval",
+	time.Minute,
+	"Interval in which to emit metrics to the metron agent",
 )
 
 var allowHostAccess = flag.Bool(
@@ -323,8 +329,10 @@ func main() {
 		Logger:   logger.Session("quotaed-driver"),
 	}
 
+	metricsProvider := metrics.NewMetrics(logger, backingStoresPath, *depotPath)
+
 	if dbgAddr := cf_debug_server.DebugAddress(flag.CommandLine); dbgAddr != "" {
-		debug.Run(dbgAddr, reconfigurableSink, backingStoresPath, *depotPath)
+		metrics.StartDebugServer(dbgAddr, reconfigurableSink, metricsProvider)
 	}
 
 	dockerGraph, err := graph.NewGraph(*graphRoot, quotaedGraphDriver)
@@ -486,6 +494,10 @@ func main() {
 		logger.Fatal("failed-to-start-server", err)
 	}
 
+	clock := clock.NewClock()
+	metronNotifier := metrics.NewPeriodicMetronNotifier(logger, metricsProvider, *metricsEmissionInterval, clock)
+	metronNotifier.Start()
+
 	signals := make(chan os.Signal, 1)
 
 	go func() {
@@ -495,6 +507,7 @@ func main() {
 		port_pool.SaveState(path.Join(*stateDirPath, "port_pool.json"), portPoolState)
 
 		gardenServer.Stop()
+		metronNotifier.Stop()
 
 		os.Exit(0)
 	}()

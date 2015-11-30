@@ -1,25 +1,24 @@
-package debug_test
+package metrics_test
 
 import (
-	"expvar"
 	"io/ioutil"
-	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 
-	"github.com/cloudfoundry-incubator/garden-linux/debug"
-	"github.com/pivotal-golang/lager"
-	"github.com/tedsuo/ifrit"
+	"github.com/cloudfoundry-incubator/garden-linux/metrics"
+	"github.com/pivotal-golang/lager/lagertest"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
 
-var _ = Describe("Debug", func() {
+var _ = Describe("Metrics", func() {
 	var (
 		backingStorePath string
 		depotPath        string
-		serverProc       ifrit.Process
+
+		m metrics.Metrics
 	)
 
 	BeforeEach(func() {
@@ -40,29 +39,21 @@ var _ = Describe("Debug", func() {
 		Expect(os.Mkdir(filepath.Join(depotPath, "depot-2"), 0660)).To(Succeed())
 		Expect(os.Mkdir(filepath.Join(depotPath, "depot-3"), 0660)).To(Succeed())
 
-		sink := lager.NewReconfigurableSink(lager.NewWriterSink(GinkgoWriter, lager.DEBUG), lager.DEBUG)
-		serverProc, err = debug.Run("127.0.0.1:5123", sink, backingStorePath, depotPath)
 		Expect(err).ToNot(HaveOccurred())
+		logger := lagertest.NewTestLogger("test")
+		m = metrics.NewMetrics(logger, backingStorePath, depotPath)
 	})
 
 	AfterEach(func() {
-		serverProc.Signal(os.Kill)
-
 		Expect(os.RemoveAll(depotPath)).To(Succeed())
 		Expect(os.RemoveAll(backingStorePath)).To(Succeed())
 	})
 
 	It("should report the number of loop devices, backing store files and depotDirs", func() {
-		resp, err := http.Get("http://127.0.0.1:5123/debug/vars")
-		Expect(err).ToNot(HaveOccurred())
-
-		defer resp.Body.Close()
-		Expect(resp.StatusCode).To(Equal(http.StatusOK))
-
-		Expect(expvar.Get("loopDevices")).NotTo(BeNil())
-		Expect(expvar.Get("backingStores")).NotTo(BeNil())
-		Expect(expvar.Get("backingStores").String()).To(Equal("2"))
-		Expect(expvar.Get("depotDirs")).NotTo(BeNil())
-		Expect(expvar.Get("depotDirs").String()).To(Equal("3"))
+		Expect(m.NumCPU()).To(Equal(runtime.NumCPU()))
+		Expect(m.NumGoroutine()).To(BeNumerically("~", runtime.NumGoroutine(), 2))
+		Expect(m.LoopDevices()).NotTo(BeNil())
+		Expect(m.BackingStores()).To(Equal(2))
+		Expect(m.DepotDirs()).To(Equal(3))
 	})
 })
