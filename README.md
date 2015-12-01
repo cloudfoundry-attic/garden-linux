@@ -2,12 +2,22 @@
 
 A Linux backend for [Garden](https://github.com/cloudfoundry-incubator/garden).
 
-You can deploy Garden-Linux using the [Garden-Linux BOSH Release](https://github.com/cloudfoundry-incubator/garden-linux-release), but if you're not using BOSH, follow the insructions below.
+You can deploy Garden-Linux using the [Garden-Linux BOSH Release](https://github.com/cloudfoundry-incubator/garden-linux-release).
+This is the only "supported" way to use Garden-Linux.
+If you're not using BOSH, and still want to have a play, follow the insructions below.
 
 ## Installing Garden-Linux
 
 **Note:** the rest of these instructions assume you arranged for the garden-linux code and dependencies to be
 present in your `$GOPATH` on a machine running Ubuntu 14.04 or later.
+The easiest way to achieve this is actually to check out the [Garden-Linux BOSH Release](https://github.com/cloudfoundry-incubator/garden-linux-release), since that's the only place that all the dependency version data is recorded.
+The steps are:
+
+```
+git clone --recursive git@github.com:cloudfoundry-incubator/garden-linux-release
+cd garden-linux-release
+export GOPATH=$PWD
+```
 
 ### Install and load aufs
 
