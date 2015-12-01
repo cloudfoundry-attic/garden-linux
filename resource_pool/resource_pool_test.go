@@ -25,7 +25,6 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_iptables_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/fake_quota_manager"
-	"github.com/cloudfoundry-incubator/garden-linux/network"
 	"github.com/cloudfoundry-incubator/garden-linux/network/bridgemgr/fake_bridge_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/network/fakes"
 	"github.com/cloudfoundry-incubator/garden-linux/network/iptables"
@@ -80,9 +79,7 @@ var _ = Describe("Container pool", func() {
 
 		fakeFilter = new(fakes.FakeFilter)
 		fakeFilterProvider = new(fake_filter_provider.FakeFilterProvider)
-		fakeFilterProvider.ProvideFilterStub = func(id string) network.Filter {
-			return fakeFilter
-		}
+		fakeFilterProvider.ProvideFilterReturns(fakeFilter)
 
 		fakeRunner = fake_command_runner.New()
 		fakeQuotaManager = new(fake_quota_manager.FakeQuotaManager)

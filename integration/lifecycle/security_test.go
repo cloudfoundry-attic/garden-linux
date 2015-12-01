@@ -125,7 +125,6 @@ var _ = Describe("Security", func() {
 
 	Describe("Network namespace", func() {
 		It("does not allow network configuration in the container to show in the host", func() {
-
 			client = startGarden()
 			container, err := client.Create(garden.ContainerSpec{Privileged: true})
 			Expect(err).ToNot(HaveOccurred())
