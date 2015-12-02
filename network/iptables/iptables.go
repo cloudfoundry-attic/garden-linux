@@ -39,7 +39,14 @@ func NewLoggingChain(name string, useKernelLogging bool, runner command_runner.C
 		"name":             name,
 		"useKernelLogging": useKernelLogging,
 	})
-	return &chain{name: name, logChainName: name + "-log", useKernelLogging: useKernelLogging, runner: &logging.Runner{runner, logger}, logger: logger}
+	return &chain{
+		name:             name,
+		logChainName:     name + "-log",
+		useKernelLogging: useKernelLogging,
+		loglessRunner:    runner,
+		runner:           &logging.Runner{runner, logger},
+		logger:           logger,
+	}
 }
 
 //go:generate counterfeiter . Chain
@@ -66,6 +73,7 @@ type chain struct {
 	logChainName     string
 	useKernelLogging bool
 	runner           command_runner.CommandRunner
+	loglessRunner    command_runner.CommandRunner
 	logger           lager.Logger
 }
 
@@ -123,9 +131,11 @@ func (ch *chain) TearDown() error {
 		panic("cannot tear down chains without associated log chains")
 	}
 
-	ch.runner.Run(exec.Command("/sbin/iptables", "-w", "-F", ch.logChainName))
+	// it's ok to skip logs here, we expect this to fail if this is a
+	// pre-creation teardown
+	ch.loglessRunner.Run(exec.Command("/sbin/iptables", "-w", "-F", ch.logChainName))
 	logger.Debug("flushed")
-	ch.runner.Run(exec.Command("/sbin/iptables", "-w", "-X", ch.logChainName))
+	ch.loglessRunner.Run(exec.Command("/sbin/iptables", "-w", "-X", ch.logChainName))
 	logger.Debug("ending")
 	return nil
 }
