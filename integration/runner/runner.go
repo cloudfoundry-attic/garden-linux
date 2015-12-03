@@ -209,22 +209,28 @@ func (r *RunningGarden) Cleanup() error {
 	}
 
 	err := retry.Retry(func() error {
-		//err := Unmount(path.Join(r.GraphPath, "aufs"))
 		err := syscall.Unmount(path.Join(r.GraphPath, "aufs"), 0)
 		r.logger.Error("failed-unmount-attempt", err)
 		return err
 	})
 
 	if err != nil {
-		r.logger.Error("failed to unmount", err)
+		r.logger.Error("failed-to-unmount", err)
 		return err
 	}
 
 	MustUnmountTmpfs(r.GraphPath)
-	if err := os.RemoveAll(r.GraphPath); err != nil {
-		r.logger.Error("remove graph", err)
-		return err
-	}
+
+	// In the kernel version 3.19.0-33-generic the code bellow results in
+	// hanging the running VM. We are not deleting the node-X directories. They
+	// are empty and the next test will re-use them. We will stick with that
+	// workaround until we can test on a newer kernel that will hopefully not
+	// have this bug.
+	//
+	// if err := os.RemoveAll(r.logger, r.GraphPath); err != nil {
+	// 	r.logger.Error("remove-graph", err)
+	// 	return err
+	// }
 
 	r.logger.Info("cleanup-tempdirs")
 	if err := os.RemoveAll(r.tmpdir); err != nil {

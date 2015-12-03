@@ -15,11 +15,26 @@ import (
 )
 
 var _ = Describe("RootfsLinux", func() {
-	It("pivots in to a given rootfs in a privileged container", func() {
-		rootfsDir, err := ioutil.TempDir("", "rootfs")
-		Expect(err).ToNot(HaveOccurred())
-		defer os.RemoveAll(rootfsDir)
+	var rootfsDir string
+	BeforeEach(func() {
+		rootfsDir = path.Join(tempDirPath, fmt.Sprintf("rootfs-%d", GinkgoParallelNode()))
+		if _, err := os.Stat(rootfsDir); os.IsNotExist(err) {
+			Expect(os.MkdirAll(rootfsDir, 0700)).To(Succeed())
+		}
+	})
 
+	AfterEach(func() {
+		entries, err := ioutil.ReadDir(rootfsDir)
+		Expect(err).NotTo(HaveOccurred())
+		for _, entry := range entries {
+			Expect(os.RemoveAll(entry.Name()))
+		}
+
+		// Cleaning up this directoy causes the VM to hang occasionally.
+		// Expect(os.RemoveAll(rootfsDir)).To(Succeed())
+	})
+
+	It("pivots in to a given rootfs in a privileged container", func() {
 		Expect(ioutil.WriteFile(path.Join(rootfsDir, "potato"), []byte{}, 0755)).To(Succeed())
 
 		stdout := gbytes.NewBuffer()
@@ -29,10 +44,6 @@ var _ = Describe("RootfsLinux", func() {
 	})
 
 	It("pivots in to a given rootfs in an unprivileged container", func() {
-		rootfsDir, err := ioutil.TempDir("", "rootfs")
-		Expect(err).ToNot(HaveOccurred())
-		defer os.RemoveAll(rootfsDir)
-
 		Expect(ioutil.WriteFile(path.Join(rootfsDir, "potato"), []byte{}, 0755)).To(Succeed())
 
 		stdout := gbytes.NewBuffer()
@@ -43,15 +54,12 @@ var _ = Describe("RootfsLinux", func() {
 
 	Context("when the rootfs contains bind mounts", func() {
 		var (
-			rootfsDir          string
 			targetBindMountDir string
 			sourceBindMountDir string
 		)
 
 		BeforeEach(func() {
 			var err error
-			rootfsDir, err = ioutil.TempDir("", "rootfs")
-			Expect(err).ToNot(HaveOccurred())
 
 			targetBindMountDir = filepath.Join(rootfsDir, "a-bind-mount")
 			Expect(os.Mkdir(targetBindMountDir, 0755)).To(Succeed())
@@ -64,9 +72,10 @@ var _ = Describe("RootfsLinux", func() {
 
 		AfterEach(func() {
 			Expect(syscall.Unmount(targetBindMountDir, 0)).To(Succeed())
-			os.RemoveAll(sourceBindMountDir)
-			os.RemoveAll(targetBindMountDir)
-			os.RemoveAll(rootfsDir)
+
+			// Cleaning up this directories causes the VM to hang occasionally.
+			// Expect(os.RemoveAll(sourceBindMountDir)).To(Succeed())
+			// Expect(os.RemoveAll(targetBindMountDir)).To(Succeed())
 		})
 
 		It("pivots in to the given rootfs", func() {
@@ -79,10 +88,6 @@ var _ = Describe("RootfsLinux", func() {
 	})
 
 	It("unmounts the old rootfs", func() {
-		rootfsDir, err := ioutil.TempDir("", "rootfs")
-		Expect(err).ToNot(HaveOccurred())
-		defer os.RemoveAll(rootfsDir)
-
 		stdout := gbytes.NewBuffer()
 		Expect(runInContainer(io.MultiWriter(stdout, GinkgoWriter), GinkgoWriter, false, "fake_container", rootfsDir)).To(Succeed())
 		Expect(stdout).ToNot(gbytes.Say("oldroot"))
@@ -99,7 +104,6 @@ var _ = Describe("RootfsLinux", func() {
 		tmpFile, err := ioutil.TempFile(os.TempDir(), "rootfs")
 		Expect(err).ToNot(HaveOccurred())
 		tmpFile.Close()
-
 		defer os.Remove(tmpFile.Name())
 
 		stderr := gbytes.NewBuffer()
