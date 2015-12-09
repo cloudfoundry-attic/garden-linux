@@ -7,13 +7,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strconv"
-	"strings"
 
 	"github.com/cloudfoundry-incubator/garden"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/onsi/gomega/gbytes"
 )
 
 var _ = Describe("Destroying a container", func() {
@@ -90,18 +87,6 @@ var _ = Describe("Destroying a container", func() {
 			return err
 		}
 
-		loopDevicesAmt := func() int {
-			buffer := gbytes.NewBuffer()
-			cmd := exec.Command("sh", "-c", "losetup -a | wc -l")
-			cmd.Stdout = buffer
-			Expect(cmd.Run()).To(Succeed())
-
-			amt, err := strconv.ParseInt(strings.TrimSpace(string(buffer.Contents())), 10, 32)
-			Expect(err).NotTo(HaveOccurred())
-
-			return int(amt)
-		}
-
 		entriesAmt := func(path string) int {
 			entries, err := ioutil.ReadDir(path)
 			Expect(err).NotTo(HaveOccurred())
@@ -121,7 +106,6 @@ var _ = Describe("Destroying a container", func() {
 
 			containersAmt := 5
 
-			beforeLoopAmt := loopDevicesAmt()
 			beforeBsAmt := entriesAmt(filepath.Join(client.GraphPath, "backing_stores"))
 
 			h := make(chan string, containersAmt)
@@ -164,10 +148,7 @@ var _ = Describe("Destroying a container", func() {
 				Expect(e).NotTo(HaveOccurred())
 			}
 
-			afterLoopAmt := loopDevicesAmt()
-			Expect(afterLoopAmt).To(Equal(beforeLoopAmt))
 			afterBsAmt := entriesAmt(filepath.Join(client.GraphPath, "backing_stores"))
-			fmt.Println("Checking backing store amount")
 			Expect(afterBsAmt).To(Equal(beforeBsAmt))
 			afterDiffAmt := entriesAmt(filepath.Join(client.GraphPath, "aufs", "diff"))
 			Expect(afterDiffAmt).To(Equal(0))
