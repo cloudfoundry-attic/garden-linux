@@ -6,10 +6,10 @@ all: nstar
 clean:
 	rm -f *.o nstar
 
-.PHONY: all clean
+.PHONY: all clean header
 
 nstar: nstar.o pwd.o
 	$(CC) -static -o $@ $^
 
 %.o: %.c
-	$(CC) -c -Wall $(OPTIMIZATION) $(DEBUG) $(CFLAGS) $<
+	$(CC) -c -Wall $(OPTIMIZATION) $(DEBUG) $<

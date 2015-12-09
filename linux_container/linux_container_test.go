@@ -342,6 +342,7 @@ var _ = Describe("Linux containers", func() {
 			cmdSpec := fake_command_runner.CommandSpec{
 				Path: containerDir + "/bin/nstar",
 				Args: []string{
+					containerDir + "/bin/tar",
 					"12345",
 					"bob",
 					"/some/directory/dst",
@@ -374,6 +375,7 @@ var _ = Describe("Linux containers", func() {
 				cmdSpec := fake_command_runner.CommandSpec{
 					Path: containerDir + "/bin/nstar",
 					Args: []string{
+						containerDir + "/bin/tar",
 						"12345",
 						"root",
 						"/some/directory/dst",
@@ -430,6 +432,7 @@ var _ = Describe("Linux containers", func() {
 			cmdSpec := fake_command_runner.CommandSpec{
 				Path: containerDir + "/bin/nstar",
 				Args: []string{
+					containerDir + "/bin/tar",
 					"12345",
 					"alice",
 					"/some/directory",
@@ -464,6 +467,7 @@ var _ = Describe("Linux containers", func() {
 				cmdSpec := fake_command_runner.CommandSpec{
 					Path: containerDir + "/bin/nstar",
 					Args: []string{
+						containerDir + "/bin/tar",
 						"12345",
 						"root",
 						"/some/directory",
@@ -500,6 +504,7 @@ var _ = Describe("Linux containers", func() {
 				fake_command_runner.CommandSpec{
 					Path: containerDir + "/bin/nstar",
 					Args: []string{
+						containerDir + "/bin/tar",
 						"12345",
 						"herbert",
 						"/some/directory",
@@ -536,6 +541,7 @@ var _ = Describe("Linux containers", func() {
 					fake_command_runner.CommandSpec{
 						Path: containerDir + "/bin/nstar",
 						Args: []string{
+							containerDir + "/bin/tar",
 							"12345",
 							"alice",
 							"/some/directory/dst/",

@@ -24,6 +24,7 @@ cp -r skeleton/* "${target}"/.
 ln -s `pwd`/bin/wshd "${target}"/bin/
 ln -s `pwd`/bin/iodaemon "${target}"/bin/
 ln -s `pwd`/bin/wsh "${target}"/bin/
+ln -s `pwd`/bin/tar "${target}"/bin/
 ln -s `pwd`/bin/nstar "${target}"/bin/
 
 unshare -m "${target}"/setup.sh

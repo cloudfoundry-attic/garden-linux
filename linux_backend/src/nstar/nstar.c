@@ -10,15 +10,16 @@
 
 #include <stdio.h>
 #include <errno.h>
-#include <fcntl.h>
-#include <linux/sched.h>
 #include <string.h>
 #include <sys/param.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/syscall.h>
 #include <unistd.h>
+#include <linux/sched.h>
+#include <linux/fcntl.h>
 
- #include "pwd.h"
+#include "pwd.h"
 
 /* create a directory; chown only if newly created */
 int mkdir_as(const char *dir, uid_t uid, gid_t gid) {
@@ -78,6 +79,18 @@ int mkdir_p_as(const char *dir, uid_t uid, gid_t gid) {
   return mkdir_as(tmp, uid, gid);
 }
 
+
+#ifndef execveat
+/**
+ * We need to define execveat here since glibc does not provide a wrapper
+ * for this syscall yet. This code will not run once glibc implements this.
+ */
+#define EXECVEAT_CODE 322
+int execveat(int fd, const char *path, char **argv, char **envp, int flags) {
+    return syscall(EXECVEAT_CODE, fd, path, argv, envp, flags);
+}
+#endif
+
 /* nothing seems to define this... */
 int setns(int fd, int nstype);
 
@@ -88,27 +101,30 @@ int main(int argc, char **argv) {
   char *user = NULL;
   char *destination = NULL;
   int tpid;
-  int hostrootfd;
   int containerworkdir;
+  char *tarpath;
+  int tarfd;
   char *compress = NULL;
   struct passwd *pw;
 
-  if(argc < 4) {
-    fprintf(stderr, "Usage: %s <wshd pid> <user> <destination> [files to compress]\n", argv[0]);
+  if(argc < 5) {
+    fprintf(stderr, "Usage: %s <tar path> <wshd pid> <user> <destination> [files to compress]\n", argv[0]);
     return 1;
   }
 
-  rv = sscanf(argv[1], "%d", &tpid);
+  tarpath = argv[1];
+
+  rv = sscanf(argv[2], "%d", &tpid);
   if(rv != 1) {
     fprintf(stderr, "invalid pid\n");
     return 1;
   }
 
-  user = argv[2];
-  destination = argv[3];
+  user = argv[3];
+  destination = argv[4];
 
-  if(argc > 4) {
-    compress = argv[4];
+  if(argc > 5) {
+    compress = argv[5];
   }
 
   char mntnspath[PATH_MAX];
@@ -124,9 +140,9 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  hostrootfd = open("/", O_RDONLY);
-  if(hostrootfd == -1) {
-    perror("open host rootfs");
+  tarfd = open(tarpath, O_RDONLY|O_CLOEXEC);
+  if(tarfd == -1) {
+    perror("open host rootfs tar");
     return 1;
   }
 
@@ -195,25 +211,6 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  /* switch to original host rootfs */
-  rv = fchdir(hostrootfd);
-  if(rv == -1) {
-    perror("fchdir to host rootfs");
-    return 1;
-  }
-
-  rv = chroot(".");
-  if(rv == -1) {
-    perror("failed to chroot to host rootfs");
-    return 1;
-  }
-
-  rv = close(hostrootfd);
-  if(rv == -1) {
-    perror("close host destination");
-    return 1;
-  }
-
   /* switch to container's destination directory, with host still as rootfs */
   rv = fchdir(containerworkdir);
   if(rv == -1) {
@@ -240,15 +237,15 @@ int main(int argc, char **argv) {
   }
 
   if(compress != NULL) {
-    rv = execl("/bin/tar", "tar", "cf", "-", compress, NULL);
+    rv = execveat(tarfd, "", (char*[5]){"tar", "cf", "-", compress, NULL}, (char*[0]){}, AT_EMPTY_PATH);
     if(rv == -1) {
-      perror("execl");
+      perror("execveat");
       return 1;
     }
   } else {
-    rv = execl("/bin/tar", "tar", "xf", "-", NULL);
+    rv = execveat(tarfd, "", (char*[4]){"tar", "xf", "-", NULL}, (char*[0]){}, AT_EMPTY_PATH);
     if(rv == -1) {
-      perror("execl");
+      perror("execveat");
       return 1;
     }
   }

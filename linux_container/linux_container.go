@@ -548,6 +548,7 @@ func (c *LinuxContainer) Info() (garden.ContainerInfo, error) {
 
 func (c *LinuxContainer) StreamIn(spec garden.StreamInSpec) error {
 	nsTarPath := path.Join(c.ContainerPath, "bin", "nstar")
+	tarPath := path.Join(c.ContainerPath, "bin", "tar")
 	pidPath := path.Join(c.ContainerPath, "run", "wshd.pid")
 
 	pidFile, err := os.Open(pidPath)
@@ -569,6 +570,7 @@ func (c *LinuxContainer) StreamIn(spec garden.StreamInSpec) error {
 	buf := new(bytes.Buffer)
 	tar := exec.Command(
 		nsTarPath,
+		tarPath,
 		strconv.Itoa(pid),
 		user,
 		spec.Path,
@@ -600,6 +602,7 @@ func (c *LinuxContainer) StreamOut(spec garden.StreamOutSpec) (io.ReadCloser, er
 	}
 
 	nsTarPath := path.Join(c.ContainerPath, "bin", "nstar")
+	tarPath := path.Join(c.ContainerPath, "bin", "tar")
 	pidPath := path.Join(c.ContainerPath, "run", "wshd.pid")
 
 	pidFile, err := os.Open(pidPath)
@@ -620,6 +623,7 @@ func (c *LinuxContainer) StreamOut(spec garden.StreamOutSpec) (io.ReadCloser, er
 
 	tar := exec.Command(
 		nsTarPath,
+		tarPath,
 		strconv.Itoa(pid),
 		user,
 		workingDir,
