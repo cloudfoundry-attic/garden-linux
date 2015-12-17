@@ -3,6 +3,11 @@
 Garden-Linux Packer is currently used to build Docker images / Vagrant boxes
 suitable for Garden-Linux development & testing.
 
+
+## Warning
+
+This now builds Go 1.5.2 by default
+
 ## Pre-requisites for Mac
 
 * docker-machine version 0.5.1 and higher
@@ -21,10 +26,20 @@ export TMPDIR=~/.packer_tmp
 mkdir -p $TMPDIR
 ```
 
+## Create a docker-machine
+
+The packer build requires a docker-machine to be up and running.  You can
+create & start one like so:
+
+```bash
+docker-machine create -d virtualbox --virtualbox-memory 4096 my-dev-box
+eval "$(docker-machine env my-dev-box)"
+```
+
 ### Build everything
 
-Run `make ubuntu`. This will commit a docker image to your Docker server named
-`garden-ci-ubuntu:packer`.
+Run `make`. This will commit a docker image to your Docker server named
+`cloudfoundry/garden-ci-ubuntu`.
 
 ## Releasing
 

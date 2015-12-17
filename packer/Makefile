@@ -5,9 +5,9 @@ ROOTFS_TARS = rootfs/busybox/busybox.tar \
 	rootfs/preexisting_users/preexisting_users.tar \
 	rootfs/ubuntu/ubuntu.tar
 
-.PHONY: all clean rootfses ubuntu ubuntu-docker ubuntu-vagrant release-docker release-vagrant
+.PHONY: all clean rootfses ubuntu release-docker
 
-all: ubuntu
+all: clean rootfses ubuntu
 
 clean:
 	rm -fr build
@@ -44,7 +44,7 @@ rootfses: ${ROOTFS_TARS}
 # Images
 #
 
-ubuntu-docker:
+ubuntu:
 	./rootfs/empty/scripts/compile_binary
 	packer build garden-ci/garden-ci.json
 

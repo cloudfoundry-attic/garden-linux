@@ -1,100 +1,68 @@
 {
-  "variables": {
-    "os_name": "ubuntu",
-    "os_version": "14.04.2",
-  },
   "builders": [
     {
-      "type": "docker",
+      "commit": true,
       "image": "{{user `os_name`}}:{{user `os_version`}}",
-      "commit": true
+      "type": "docker"
     }
   ],
+  "post-processors": [
+    {"repository": "garden-ci-ubuntu", "tag": "packer", "type": "docker-tag"}
+  ],
   "provisioners": [
+    {"scripts": ["garden-ci/scripts/passwordless_sudo.sh"], "type": "shell"},
+    {"scripts": ["garden-ci/scripts/provision.sh"], "type": "shell"},
     {
-      "type": "shell",
-      "scripts": [
-        "garden-ci/scripts/passwordless_sudo.sh"
-      ]
-    },
-    {
-      "type": "shell",
-      "scripts": [
-        "garden-ci/scripts/provision.sh"
-      ]
-    },
-    {
-      "type": "file",
+      "destination": "/opt/warden/rootfs.tar",
       "source": "rootfs/busybox/busybox.tar",
-      "destination": "/opt/warden/rootfs.tar"
+      "type": "file"
     },
     {
-      "type": "file",
+      "destination": "/opt/warden/nestable-rootfs.tar",
       "source": "rootfs/ubuntu/ubuntu.tar",
-      "destination": "/opt/warden/nestable-rootfs.tar"
+      "type": "file"
     },
     {
-      "type": "file",
+      "destination": "/opt/warden/fuse-rootfs.tar",
       "source": "rootfs/fuse/fuse.tar",
-      "destination": "/opt/warden/fuse-rootfs.tar"
+      "type": "file"
     },
     {
-      "type": "file",
+      "destination": "/opt/warden/docker-registry-rootfs.tar",
       "source": "rootfs/docker_registry/docker_registry.tar",
-      "destination": "/opt/warden/docker-registry-rootfs.tar"
+      "type": "file"
     },
     {
-      "type": "file",
+      "destination": "/opt/warden/docker-registry-v2-rootfs.tar",
       "source": "rootfs/docker_registry_v2/docker_registry_v2.tar",
-      "destination": "/opt/warden/docker-registry-v2-rootfs.tar"
+      "type": "file"
     },
     {
-      "type": "file",
+      "destination": "/opt/warden/preexisting-users-rootfs.tar",
       "source": "rootfs/preexisting_users/preexisting_users.tar",
-      "destination": "/opt/warden/preexisting-users-rootfs.tar"
+      "type": "file"
     },
+    {"inline": ["mkdir /opt/warden/empty"], "type": "shell"},
     {
-      "type": "shell",
-      "inline": ["mkdir /opt/warden/empty"]
-    },
-    {
-      "type": "file",
+      "destination": "/opt/warden/empty/hello",
       "source": "rootfs/empty/hello",
-      "destination": "/opt/warden/empty/hello"
+      "type": "file"
     },
     {
-      "type": "shell",
       "inline": [
         "chmod 0777 /opt/warden/empty/hello",
         "mkdir -p /opt/warden/empty/etc",
         "touch /opt/warden/empty/etc/passwd",
         "touch /opt/warden/empty/etc/group",
         "useradd -R /opt/warden/empty -U alice"
-      ]
+      ],
+      "type": "shell"
     },
-    {
-      "type": "shell",
-      "inline": ["useradd -R /opt/warden/empty -U alice"]
-    },
-    {
-      "type": "shell",
-      "script": "garden-ci/scripts/untar_rootfses.sh"
-    },
-    {
-      "type": "shell",
-      "script": "garden-ci/scripts/build_tar.sh"
-    },
-    {
-      "type": "shell",
-      "script": "garden-ci/scripts/cleanup.sh"
-    }
+    {"inline": ["useradd -R /opt/warden/empty -U alice"], "type": "shell"},
+    {"script": "garden-ci/scripts/untar_rootfses.sh", "type": "shell"},
+    {"script": "garden-ci/scripts/build_tar.sh", "type": "shell"},
+    {"script": "garden-ci/scripts/cleanup.sh", "type": "shell"}
   ],
-  "post-processors": [
-    {
-      "type": "docker-tag",
-      "repository": "garden-ci-ubuntu",
-      "tag": "packer",
-    }
-  ]
+  "variables": {"os_name": "ubuntu", "os_version": "14.04.2"}
 }
 
