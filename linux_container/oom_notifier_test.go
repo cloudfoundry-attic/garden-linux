@@ -4,33 +4,30 @@ import (
 	"errors"
 	"os/exec"
 	"path"
+	"runtime/pprof"
 
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/cgroups_manager/fake_cgroups_manager"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
 
-	"runtime"
-
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gbytes"
 )
 
 var _ = Describe("OomNotifier", func() {
 	var (
-		runner            *fake_command_runner.FakeCommandRunner
-		cgroupsPath       string
-		cgroupsManager    linux_container.CgroupsManager
-		oNoom             func()
-		oomChan           chan struct{}
-		containerPath     string
-		oomNotifier       *linux_container.OomNotifier
-		initialGoroutines int
+		runner         *fake_command_runner.FakeCommandRunner
+		cgroupsPath    string
+		cgroupsManager linux_container.CgroupsManager
+		oNoom          func()
+		oomChan        chan struct{}
+		containerPath  string
+		oomNotifier    *linux_container.OomNotifier
 	)
 
 	BeforeEach(func() {
-		initialGoroutines = runtime.NumGoroutine()
-
 		runner = fake_command_runner.New()
 
 		cgroupsPath = path.Join("path", "to", "cgroups")
@@ -50,13 +47,6 @@ var _ = Describe("OomNotifier", func() {
 			containerPath,
 			cgroupsManager,
 		)
-	})
-
-	AfterEach(func() {
-		// Ensure lingering goroutines terminate so they do not pollute other tests.
-		Eventually(func() int {
-			return runtime.NumGoroutine()
-		}).Should(BeNumerically("<=", initialGoroutines))
 	})
 
 	Describe("Watch", func() {
@@ -112,7 +102,7 @@ var _ = Describe("OomNotifier", func() {
 				})
 			})
 
-			Context("when the oom process exits with exit code 1", func() {
+			Context("when the oom process exits with a non-zero exit code", func() {
 				BeforeEach(func() {
 					runner.WhenWaitingFor(
 						fake_command_runner.CommandSpec{
@@ -133,9 +123,13 @@ var _ = Describe("OomNotifier", func() {
 				It("should not leak goroutines", func() {
 					Expect(oomNotifier.Watch(oNoom)).To(Succeed())
 
-					Eventually(func() int {
-						return runtime.NumGoroutine()
-					}).Should(BeNumerically("<=", initialGoroutines))
+					Eventually(func() []byte {
+						buffer := gbytes.NewBuffer()
+						defer buffer.Close()
+						Expect(pprof.Lookup("goroutine").WriteTo(buffer, 1)).To(Succeed())
+
+						return buffer.Contents()
+					}).ShouldNot(ContainSubstring("oom_notifier.go"))
 				})
 			})
 		})
@@ -175,16 +169,6 @@ var _ = Describe("OomNotifier", func() {
 
 				Expect(startedCommands).To(HaveLen(1))
 				Expect(startedCommands).To(Equal(killedCommands))
-			})
-
-			It("should not leak goroutines", func() {
-				Expect(oomNotifier.Watch(oNoom)).To(Succeed())
-
-				oomNotifier.Unwatch()
-
-				Eventually(func() int {
-					return runtime.NumGoroutine()
-				}).Should(BeNumerically("<=", initialGoroutines))
 			})
 		})
 	})
