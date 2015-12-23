@@ -119,16 +119,16 @@ var _ = Describe("Rootfs container create parameter", func() {
 				})
 			})
 
-			Context("when the -registry flag targets a v2 repository", func() {
+			Context("when the -registry flag targets a non-existing registry", func() {
 				BeforeEach(func() {
-					args = []string{"--registry", "https://registry-1.docker.io/v2/"}
+					args = []string{"--registry", "registry-12.banana-docker.io"}
 				})
 
-				It("still succesfully creates the container", func() {
+				It("should fail to create a container", func() {
 					var err error
 
 					container, err = client.Create(garden.ContainerSpec{RootFSPath: "docker:///busybox"})
-					Expect(err).ToNot(HaveOccurred())
+					Expect(err).To(HaveOccurred())
 				})
 			})
 		})

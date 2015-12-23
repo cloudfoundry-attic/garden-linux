@@ -367,7 +367,7 @@ func main() {
 		},
 		RemoteFetcher: repository_fetcher.NewRemote(
 			logger,
-			"registry-1.docker.io",
+			*dockerRegistry,
 			ovenCleanerCake,
 			distclient.NewDialer(insecureRegistries.List),
 			repository_fetcher.VerifyFunc(repository_fetcher.Verify),
