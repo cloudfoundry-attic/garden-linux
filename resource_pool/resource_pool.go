@@ -245,7 +245,7 @@ func (p *LinuxResourcePool) Acquire(spec garden.ContainerSpec) (linux_backend.Li
 	handle := getHandle(spec.Handle, id)
 	pLog := p.logger.Session("acquire", lager.Data{"handle": handle})
 
-	iptablesCh := make(chan error)
+	iptablesCh := make(chan error, 1)
 
 	go func(iptablesCh chan error) {
 		pLog.Debug("setup-iptables-starting")

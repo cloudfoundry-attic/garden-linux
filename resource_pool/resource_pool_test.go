@@ -13,11 +13,13 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"runtime/pprof"
 	"time"
 
 	"github.com/blang/semver"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
+	"github.com/onsi/gomega/gbytes"
 	"github.com/pivotal-golang/lager/lagertest"
 
 	"github.com/cloudfoundry-incubator/garden"
@@ -297,6 +299,16 @@ var _ = Describe("Container pool", func() {
 			It("tears down the IP table filters", func() {
 				Expect(fakeFilterProvider.ProvideFilterCallCount()).To(Equal(2)) // one to setup, one to teae down
 				Expect(fakeFilter.TearDownCallCount()).To(Equal(1))
+			})
+
+			It("does not leak the iptable setup goroutine", func() {
+				Eventually(func() []byte {
+					buffer := gbytes.NewBuffer()
+					defer buffer.Close()
+					Expect(pprof.Lookup("goroutine").WriteTo(buffer, 1)).To(Succeed())
+
+					return buffer.Contents()
+				}).ShouldNot(ContainSubstring("Acquire"))
 			})
 		}
 
