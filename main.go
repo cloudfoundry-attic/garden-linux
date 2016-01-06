@@ -13,6 +13,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/Sirupsen/logrus"
 	"github.com/blang/semver"
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/docker/docker/daemon/graphdriver"
@@ -50,6 +51,8 @@ import (
 	"github.com/cloudfoundry/dropsonde"
 	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
 	_ "github.com/docker/docker/daemon/graphdriver/aufs"
+	_ "github.com/docker/docker/daemon/graphdriver/overlay"
+	_ "github.com/docker/docker/daemon/graphdriver/vfs"
 	_ "github.com/docker/docker/pkg/chrootarchive" // allow reexec of docker-applyLayer
 	"github.com/docker/docker/pkg/reexec"
 	"github.com/pivotal-golang/clock"
@@ -196,17 +199,26 @@ var iptablesLogMethod = flag.String(
 var mtu = flag.Int(
 	"mtu",
 	DefaultMTUSize,
-	"MTU size for container network interfaces")
+	"MTU size for container network interfaces",
+)
 
 var externalIP = flag.String(
 	"externalIP",
 	"",
-	"IP address to use to reach container's mapped ports")
+	"IP address to use to reach container's mapped ports",
+)
 
 var maxContainers = flag.Uint(
 	"maxContainers",
 	0,
-	"Maximum number of containers that can be created")
+	"Maximum number of containers that can be created",
+)
+
+var graphDriverName = flag.String(
+	"graphDriver",
+	"auto",
+	"Docker graph driver to use. Only aufs is officially supported, but others may work.",
+)
 
 func main() {
 	if reexec.Init() {
@@ -297,7 +309,7 @@ func main() {
 		logger.Fatal("failed-to-create-graph-directory", err)
 	}
 
-	dockerGraphDriver, err := graphdriver.New(*graphRoot, nil)
+	dockerGraphDriver, err := selectGraphDriver(logger, *graphDriverName, *graphRoot)
 	if err != nil {
 		logger.Fatal("failed-to-construct-graph-driver", err)
 	}
@@ -582,4 +594,29 @@ func (p *provider) ProvideContainer(spec linux_backend.LinuxContainerSpec) linux
 		oomWatcher,
 		p.log.Session("container", lager.Data{"handle": spec.Handle}),
 	)
+}
+
+func selectGraphDriver(logger lager.Logger, name string, graphRoot string) (graphdriver.Driver, error) {
+	// silence docker graph debug logging; we'll do our own warning for non-aufs
+	// driver selection
+	logrus.SetLevel(logrus.WarnLevel)
+
+	var driver graphdriver.Driver
+	var err error
+	if name == "auto" {
+		driver, err = graphdriver.New(graphRoot, nil)
+	} else {
+		driver, err = graphdriver.GetDriver(name, graphRoot, nil)
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	driverName := driver.String()
+
+	if driverName != "aufs" {
+		logger.Info("unsupported-graph-driver", lager.Data{"name": driverName})
+	}
+
+	return driver, nil
 }
