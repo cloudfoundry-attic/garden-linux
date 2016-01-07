@@ -303,6 +303,42 @@ var _ = Describe("LinuxBackend", func() {
 			containerRepo.Add(container2)
 		})
 
+		Context("when container destructions are in progress", func() {
+			var releaseCh chan bool
+
+			BeforeEach(func() {
+				releaseCh = make(chan bool)
+
+				fakeResourcePool.ReleaseStub = func(spec linux_backend.LinuxContainerSpec) error {
+					releaseCh <- true
+					<-releaseCh
+					return nil
+				}
+			})
+
+			JustBeforeEach(func() {
+				go func() {
+					defer GinkgoRecover()
+
+					Expect(linuxBackend.Destroy("container-2")).To(Succeed())
+				}()
+
+				Eventually(releaseCh).Should(Receive())
+			})
+
+			It("should wait", func() {
+				stopCh := make(chan struct{})
+				go func() {
+					linuxBackend.Stop()
+					close(stopCh)
+				}()
+
+				Consistently(stopCh, "500ms").ShouldNot(BeClosed())
+				close(releaseCh)
+				Eventually(stopCh).Should(BeClosed())
+			})
+		})
+
 		Context("when no snapshot directory is passed", func() {
 			It("stops succesfully without saving snapshots", func() {
 				Expect(func() { linuxBackend.Stop() }).ToNot(Panic())
@@ -640,13 +676,12 @@ var _ = Describe("LinuxBackend", func() {
 				Expect(err).To(Equal(disaster))
 			})
 
-			It("does not unregister the container", func() {
+			It("does unregister the container", func() {
 				err := linuxBackend.Destroy("some-handle")
 				Expect(err).To(HaveOccurred())
 
-				foundContainer, err := linuxBackend.Lookup("some-handle")
-				Expect(err).ToNot(HaveOccurred())
-				Expect(foundContainer).To(Equal(container))
+				_, err = linuxBackend.Lookup("some-handle")
+				Expect(err).To(HaveOccurred())
 			})
 		})
 	})

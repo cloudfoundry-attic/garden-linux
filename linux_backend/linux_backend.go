@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"sync"
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
@@ -75,6 +76,8 @@ type LinuxBackend struct {
 
 	containerRepo     ContainerRepository
 	containerProvider ContainerProvider
+
+	destroyWg sync.WaitGroup
 }
 
 type HandleExistsError struct {
@@ -254,10 +257,14 @@ func (b *LinuxBackend) ApplyLimits(container Container, limits garden.Limits) er
 }
 
 func (b *LinuxBackend) Destroy(handle string) error {
+	b.destroyWg.Add(1)
+	defer b.destroyWg.Done()
+
 	container, err := b.containerRepo.FindByHandle(handle)
 	if err != nil {
 		return err
 	}
+	b.containerRepo.Delete(container)
 
 	err = container.Cleanup()
 	if err != nil {
@@ -268,8 +275,6 @@ func (b *LinuxBackend) Destroy(handle string) error {
 	if err != nil {
 		return err
 	}
-
-	b.containerRepo.Delete(container)
 
 	return nil
 }
@@ -339,6 +344,8 @@ func (b *LinuxBackend) GraceTime(container garden.Container) time.Duration {
 }
 
 func (b *LinuxBackend) Stop() {
+	b.destroyWg.Wait()
+
 	for _, container := range b.containerRepo.All() {
 		container.Cleanup()
 		err := b.saveSnapshot(container)
