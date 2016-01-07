@@ -249,6 +249,26 @@ var _ = Describe("Rootfs container create parameter", func() {
 							})
 							Expect(err).ToNot(HaveOccurred())
 						})
+
+						Context("and its specified as --registry", func() {
+							BeforeEach(func() {
+								args = append(args, "--registry", serverURL.Host)
+							})
+
+							It("still works when the host is specified", func() {
+								_, err := client.Create(garden.ContainerSpec{
+									RootFSPath: fmt.Sprintf("docker://%s/busybox", serverURL.Host),
+								})
+								Expect(err).ToNot(HaveOccurred())
+							})
+
+							It("still works using the default host", func() {
+								_, err := client.Create(garden.ContainerSpec{
+									RootFSPath: fmt.Sprintf("docker:///busybox"),
+								})
+								Expect(err).ToNot(HaveOccurred())
+							})
+						})
 					})
 				})
 
