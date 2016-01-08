@@ -209,6 +209,10 @@ func (r *RunningGarden) Cleanup() error {
 	}
 
 	err := retry.Retry(func() error {
+		if err := os.RemoveAll(path.Join(r.GraphPath, "aufs")); err == nil {
+			return nil // if we can remove it, it's already unmounted
+		}
+
 		err := syscall.Unmount(path.Join(r.GraphPath, "aufs"), 0)
 		r.logger.Error("failed-unmount-attempt", err)
 		return err
