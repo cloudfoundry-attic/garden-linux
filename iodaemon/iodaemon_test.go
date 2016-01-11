@@ -41,6 +41,8 @@ var _ = Describe("Iodaemon", func() {
 		exited chan struct{}
 	)
 
+	const DEFAULT_TIMEOUT = "3s"
+
 	BeforeEach(func() {
 		var err error
 		expectedExitCode = 0
@@ -65,7 +67,7 @@ var _ = Describe("Iodaemon", func() {
 	AfterEach(func() {
 		defer os.RemoveAll(tmpdir)
 
-		Eventually(exited).Should(BeClosed())
+		Eventually(exited, DEFAULT_TIMEOUT).Should(BeClosed())
 
 		By("tidying up the socket file")
 		if _, err := os.Stat(socketPath); !os.IsNotExist(err) {
@@ -84,7 +86,7 @@ var _ = Describe("Iodaemon", func() {
 		It("times out when no listeners connect", func() {
 			spawnProcess("echo", "hello")
 
-			Eventually(exited, "3s").Should(BeClosed())
+			Eventually(exited, DEFAULT_TIMEOUT).Should(BeClosed())
 		})
 
 		It("reports back stdout", func() {
