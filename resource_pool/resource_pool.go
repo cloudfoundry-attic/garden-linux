@@ -55,6 +55,11 @@ type Remover interface {
 	Remove(id layercake.ID) error
 }
 
+//go:generate counterfeiter -o fake_mkdir_chowner/FakeMkdirChowner.go . MkdirChowner
+type MkdirChowner interface {
+	MkdirChown(path string, uid, gid uint32, mode os.FileMode) error
+}
+
 type LinuxResourcePool struct {
 	logger lager.Logger
 
@@ -89,6 +94,8 @@ type LinuxResourcePool struct {
 	containerIDs chan string
 
 	currentContainerVersion semver.Version
+
+	mkdirChowner MkdirChowner
 }
 
 func New(
@@ -109,6 +116,7 @@ func New(
 	runner command_runner.CommandRunner,
 	quotaManager linux_container.QuotaManager,
 	currentContainerVersion semver.Version,
+	mkdirChowner MkdirChowner,
 ) *LinuxResourcePool {
 	pool := &LinuxResourcePool{
 		logger: logger.Session("pool"),
@@ -143,6 +151,8 @@ func New(
 
 		containerIDs:            make(chan string),
 		currentContainerVersion: currentContainerVersion,
+
+		mkdirChowner: mkdirChowner,
 	}
 
 	go pool.generateContainerIDs()
@@ -422,7 +432,8 @@ func (p *LinuxResourcePool) generateContainerIDs() {
 
 func (p *LinuxResourcePool) writeBindMounts(containerPath string,
 	rootFSPath string,
-	bindMounts []garden.BindMount) error {
+	bindMounts []garden.BindMount,
+	mkdirUID int) error {
 	hook := path.Join(containerPath, "lib", "hook-parent-before-clone.sh")
 
 	for _, bm := range bindMounts {
@@ -443,8 +454,7 @@ func (p *LinuxResourcePool) writeBindMounts(containerPath string,
 			return err
 		}
 
-		mkdir := exec.Command("bash", "-c", "echo mkdir -p "+dstMount+" >> "+hook)
-		if err := p.runner.Run(mkdir); err != nil {
+		if err := p.mkdirChowner.MkdirChown(dstMount, uint32(mkdirUID), uint32(mkdirUID), 0755); err != nil {
 			return err
 		}
 
@@ -595,7 +605,7 @@ func (p *LinuxResourcePool) acquireSystemResources(spec garden.ContainerSpec, id
 		return "", nil, err
 	}
 
-	err = p.writeBindMounts(containerPath, rootFSPath, spec.BindMounts)
+	err = p.writeBindMounts(containerPath, rootFSPath, spec.BindMounts, resources.RootUID)
 	if err != nil {
 		pLog.Error("bind-mounts-failed", err)
 		return "", nil, err

@@ -34,6 +34,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/port_pool/fake_port_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/resource_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/resource_pool/fake_filter_provider"
+	"github.com/cloudfoundry-incubator/garden-linux/resource_pool/fake_mkdir_chowner"
 	"github.com/cloudfoundry-incubator/garden-linux/resource_pool/fake_subnet_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/sysconfig"
 	"github.com/cloudfoundry-incubator/garden-shed/layercake"
@@ -61,6 +62,7 @@ var _ = Describe("Container pool", func() {
 		containerNetwork    *linux_backend.Network
 		defaultVersion      string
 		logger              *lagertest.TestLogger
+		fakeMkdirChowner    *fake_mkdir_chowner.FakeMkdirChowner
 	)
 
 	BeforeEach(func() {
@@ -99,6 +101,7 @@ var _ = Describe("Container pool", func() {
 
 		config = sysconfig.NewConfig("0", false)
 		logger = lagertest.NewTestLogger("test")
+		fakeMkdirChowner = new(fake_mkdir_chowner.FakeMkdirChowner)
 		pool = resource_pool.New(
 			logger,
 			"/root/path",
@@ -125,6 +128,7 @@ var _ = Describe("Container pool", func() {
 			fakeRunner,
 			fakeQuotaManager,
 			currentContainerVersion,
+			fakeMkdirChowner,
 		)
 	})
 
@@ -822,8 +826,13 @@ var _ = Describe("Container pool", func() {
 		})
 
 		Context("when bind mounts are specified", func() {
-			It("appends mount commands to hook-parent-before-clone.sh", func() {
-				container, err := pool.Acquire(garden.ContainerSpec{
+			var (
+				container linux_backend.LinuxContainerSpec
+			)
+
+			BeforeEach(func() {
+				var err error
+				container, err = pool.Acquire(garden.ContainerSpec{
 					BindMounts: []garden.BindMount{
 						{
 							SrcPath: "/src/path-ro",
@@ -845,7 +854,30 @@ var _ = Describe("Container pool", func() {
 				})
 
 				Expect(err).ToNot(HaveOccurred())
+			})
 
+			It("delegates creating the bind mount directories to the mkdirChowner", func() {
+				Expect(fakeMkdirChowner.MkdirChownCallCount()).To(Equal(3))
+				path, uid, gid, mode := fakeMkdirChowner.MkdirChownArgsForCall(0)
+				Expect(path).To(Equal("/provided/rootfs/path/dst/path-ro"))
+				Expect(uid).To(BeEquivalentTo(700000))
+				Expect(gid).To(BeEquivalentTo(700000))
+				Expect(mode).To(BeEquivalentTo(0755))
+			})
+
+			Context("when the mkdirChowner fails", func() {
+				It("propagates the error", func() {
+					myErr := fmt.Errorf("wow!")
+					fakeMkdirChowner.MkdirChownReturns(myErr)
+					_, err := pool.Acquire(garden.ContainerSpec{
+						BindMounts: []garden.BindMount{{}},
+					})
+
+					Expect(err).To(MatchError(ContainSubstring("wow")))
+				})
+			})
+
+			It("appends mount commands to hook-parent-before-clone.sh", func() {
 				containerPath := path.Join(depotPath, container.ID)
 				rootfsPath := "/provided/rootfs/path"
 
@@ -855,14 +887,6 @@ var _ = Describe("Container pool", func() {
 						Args: []string{
 							"-c",
 							"echo >> " + containerPath + "/lib/hook-parent-before-clone.sh",
-						},
-					},
-					fake_command_runner.CommandSpec{
-						Path: "bash",
-						Args: []string{
-							"-c",
-							"echo mkdir -p " + rootfsPath + "/dst/path-ro" +
-								" >> " + containerPath + "/lib/hook-parent-before-clone.sh",
 						},
 					},
 					fake_command_runner.CommandSpec{
@@ -892,14 +916,6 @@ var _ = Describe("Container pool", func() {
 						Path: "bash",
 						Args: []string{
 							"-c",
-							"echo mkdir -p " + rootfsPath + "/dst/path-rw" +
-								" >> " + containerPath + "/lib/hook-parent-before-clone.sh",
-						},
-					},
-					fake_command_runner.CommandSpec{
-						Path: "bash",
-						Args: []string{
-							"-c",
 							"echo mount -n --bind /src/path-rw " + rootfsPath + "/dst/path-rw" +
 								" >> " + containerPath + "/lib/hook-parent-before-clone.sh",
 						},
@@ -912,14 +928,7 @@ var _ = Describe("Container pool", func() {
 								" >> " + containerPath + "/lib/hook-parent-before-clone.sh",
 						},
 					},
-					fake_command_runner.CommandSpec{
-						Path: "bash",
-						Args: []string{
-							"-c",
-							"echo mkdir -p " + rootfsPath + "/dst/path-rw" +
-								" >> " + containerPath + "/lib/hook-parent-before-clone.sh",
-						},
-					},
+
 					fake_command_runner.CommandSpec{
 						Path: "bash",
 						Args: []string{
@@ -938,42 +947,42 @@ var _ = Describe("Container pool", func() {
 					},
 				))
 			})
+		})
 
-			Context("when appending to hook-parent-before-clone.sh", func() {
-				var err error
-				disaster := errors.New("oh no!")
+		Context("when appending to hook-parent-before-clone.sh fails", func() {
+			var err error
+			disaster := errors.New("oh no!")
 
-				BeforeEach(func() {
-					fakeRunner.WhenRunning(fake_command_runner.CommandSpec{
-						Path: "bash",
-					}, func(*exec.Cmd) error {
-						return disaster
-					})
+			BeforeEach(func() {
+				fakeRunner.WhenRunning(fake_command_runner.CommandSpec{
+					Path: "bash",
+				}, func(*exec.Cmd) error {
+					return disaster
+				})
 
-					_, err = pool.Acquire(garden.ContainerSpec{
-						BindMounts: []garden.BindMount{
-							{
-								SrcPath: "/src/path-ro",
-								DstPath: "/dst/path-ro",
-								Mode:    garden.BindMountModeRO,
-							},
-							{
-								SrcPath: "/src/path-rw",
-								DstPath: "/dst/path-rw",
-								Mode:    garden.BindMountModeRW,
-							},
+				_, err = pool.Acquire(garden.ContainerSpec{
+					BindMounts: []garden.BindMount{
+						{
+							SrcPath: "/src/path-ro",
+							DstPath: "/dst/path-ro",
+							Mode:    garden.BindMountModeRO,
 						},
-					})
+						{
+							SrcPath: "/src/path-rw",
+							DstPath: "/dst/path-rw",
+							Mode:    garden.BindMountModeRW,
+						},
+					},
 				})
-
-				It("returns the error", func() {
-					Expect(err).To(Equal(disaster))
-				})
-
-				itReleasesTheIPBlock()
-				itCleansUpTheRootfs()
-				itRunsTheDestroyScript()
 			})
+
+			It("returns the error", func() {
+				Expect(err).To(Equal(disaster))
+			})
+
+			itReleasesTheIPBlock()
+			itCleansUpTheRootfs()
+			itRunsTheDestroyScript()
 		})
 
 		Context("when executing create.sh fails", func() {

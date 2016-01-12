@@ -2,6 +2,7 @@ package bind_mount_test
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
@@ -120,6 +121,27 @@ var _ = Describe("A container", func() {
 
 				It("is successfully created with correct privileges for root in container", func() {
 					checkFileAccess(container, bindMountMode, bindMountOrigin, dstPath, testFileName, privilegedContainer, true)
+				})
+
+				Context("and the parents of the dstPath don't yet exist", func() {
+					BeforeEach(func() {
+						dstPath = "/home/alice/has/a/restaurant/readonly"
+					})
+
+					It("successfully creates the parents of the dstPath with correct ownership for root in the container", func() {
+						out := gbytes.NewBuffer()
+						proc, err := container.Run(garden.ProcessSpec{
+							User: "root",
+							Path: "ls",
+							Args: []string{"-l", "/home/alice/has"},
+						}, garden.ProcessIO{
+							Stdout: io.MultiWriter(out, GinkgoWriter),
+							Stderr: GinkgoWriter,
+						})
+						Expect(err).NotTo(HaveOccurred())
+						Expect(proc.Wait()).To(Equal(0))
+						Expect(out).To(gbytes.Say(`root`))
+					})
 				})
 			})
 		})

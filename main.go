@@ -40,6 +40,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/resource_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/sysconfig"
 	"github.com/cloudfoundry-incubator/garden-linux/sysinfo"
+	"github.com/cloudfoundry-incubator/garden-linux/system"
 	"github.com/cloudfoundry-incubator/garden-shed/distclient"
 	quotaed_aufs "github.com/cloudfoundry-incubator/garden-shed/docker_drivers/aufs"
 	"github.com/cloudfoundry-incubator/garden-shed/layercake"
@@ -486,6 +487,7 @@ func main() {
 		runner,
 		quotaManager,
 		currentContainerVersion,
+		system.MkdirChowner{},
 	)
 
 	systemInfo := sysinfo.NewProvider(*depotPath)
