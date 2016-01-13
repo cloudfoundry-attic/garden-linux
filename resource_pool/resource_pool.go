@@ -51,6 +51,12 @@ type SubnetPool interface {
 	Capacity() int
 }
 
+//go:generate counterfeiter -o fake_rootfs_provider/FakeRootFSProvider.go . RootFSProvider
+type RootFSProvider interface {
+	Create(log lager.Logger, id string, spec rootfs_provider.Spec) (mountpoint string, envvar []string, err error)
+	Destroy(log lager.Logger, id string) error
+}
+
 type Remover interface {
 	Remove(id layercake.ID) error
 }
@@ -71,7 +77,7 @@ type LinuxResourcePool struct {
 	denyNetworks  []string
 	allowNetworks []string
 
-	rootFSProvider rootfs_provider.RootFSProvider
+	rootFSProvider RootFSProvider
 	mappingList    rootfs_provider.MappingList
 
 	subnetPool SubnetPool
@@ -102,7 +108,7 @@ func New(
 	logger lager.Logger,
 	binPath, depotPath string,
 	sysconfig sysconfig.Config,
-	rootFSProvider rootfs_provider.RootFSProvider,
+	rootFSProvider RootFSProvider,
 	mappingList rootfs_provider.MappingList,
 	externalIP net.IP,
 	mtu int,
@@ -632,7 +638,7 @@ func (p *LinuxResourcePool) setupRootfs(spec garden.ContainerSpec, id string, re
 	}
 
 	pLog.Debug("provide-rootfs-starting")
-	rootFSPath, rootFSEnvVars, err := p.rootFSProvider.Create(id, rootFSSpec)
+	rootFSPath, rootFSEnvVars, err := p.rootFSProvider.Create(pLog, id, rootFSSpec)
 	if err != nil {
 		pLog.Error("provide-rootfs-failed", err)
 
@@ -658,7 +664,7 @@ func (p *LinuxResourcePool) setupContainerDirectories(spec garden.ContainerSpec,
 
 	pLog.Debug("setup-bridge-starting")
 	if err := p.setupBridge(pLog, id, resources); err != nil {
-		p.rootFSProvider.Remove(layercake.ContainerID(rootFSPath))
+		p.rootFSProvider.Destroy(pLog, id)
 		return "", nil, err
 	}
 	pLog.Debug("setup-bridge-ended")
@@ -727,7 +733,7 @@ func (p *LinuxResourcePool) releaseSystemResources(logger lager.Logger, id strin
 	}
 
 	if shouldCleanRootfs(string(rootFSProvider)) {
-		if err = p.rootFSProvider.Remove(layercake.ContainerID(id)); err != nil {
+		if err = p.rootFSProvider.Destroy(logger, id); err != nil {
 			return err
 		}
 	}
