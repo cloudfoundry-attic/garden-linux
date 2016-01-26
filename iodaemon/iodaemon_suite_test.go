@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -57,6 +58,7 @@ var _ = BeforeEach(func() {
 	Expect(err).ToNot(HaveOccurred())
 
 	socketPath = filepath.Join(tmpdir, "iodaemon.sock")
+	SetDefaultEventuallyTimeout(5 * time.Second)
 })
 
 var _ = AfterEach(func() {
