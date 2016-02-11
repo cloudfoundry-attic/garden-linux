@@ -110,9 +110,9 @@ var _ = Describe("Container pool", func() {
 			fakeRootFSProvider,
 			rootfs_provider.MappingList{
 				{
-					FromID: 0,
-					ToID:   700000,
-					Size:   65536,
+					ContainerID: 0,
+					HostID:      700000,
+					Size:        65536,
 				},
 			},
 			net.ParseIP("1.2.3.4"),
@@ -1778,6 +1778,18 @@ var _ = Describe("Container pool", func() {
 					pool.Release(container)
 					Expect(fakeFilter.TearDownCallCount()).To(Equal(0))
 				})
+			})
+		})
+
+		It("runs garbage collection", func() {
+			Expect(pool.Release(container)).To(Succeed())
+			Expect(fakeRootFSProvider.GCCallCount()).To(Equal(1))
+		})
+
+		Context("when garbage collection fails", func() {
+			It("does NOT return an error", func() {
+				fakeRootFSProvider.GCReturns(errors.New("potato"))
+				Expect(pool.Release(container)).To(Succeed())
 			})
 		})
 

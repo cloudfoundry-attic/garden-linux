@@ -31,6 +31,14 @@ type FakeRootFSProvider struct {
 	destroyReturns struct {
 		result1 error
 	}
+	GCStub        func(log lager.Logger) error
+	gCMutex       sync.RWMutex
+	gCArgsForCall []struct {
+		log lager.Logger
+	}
+	gCReturns struct {
+		result1 error
+	}
 }
 
 func (fake *FakeRootFSProvider) Create(log lager.Logger, id string, spec rootfs_provider.Spec) (mountpoint string, envvar []string, err error) {
@@ -98,6 +106,38 @@ func (fake *FakeRootFSProvider) DestroyArgsForCall(i int) (lager.Logger, string)
 func (fake *FakeRootFSProvider) DestroyReturns(result1 error) {
 	fake.DestroyStub = nil
 	fake.destroyReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeRootFSProvider) GC(log lager.Logger) error {
+	fake.gCMutex.Lock()
+	fake.gCArgsForCall = append(fake.gCArgsForCall, struct {
+		log lager.Logger
+	}{log})
+	fake.gCMutex.Unlock()
+	if fake.GCStub != nil {
+		return fake.GCStub(log)
+	} else {
+		return fake.gCReturns.result1
+	}
+}
+
+func (fake *FakeRootFSProvider) GCCallCount() int {
+	fake.gCMutex.RLock()
+	defer fake.gCMutex.RUnlock()
+	return len(fake.gCArgsForCall)
+}
+
+func (fake *FakeRootFSProvider) GCArgsForCall(i int) lager.Logger {
+	fake.gCMutex.RLock()
+	defer fake.gCMutex.RUnlock()
+	return fake.gCArgsForCall[i].log
+}
+
+func (fake *FakeRootFSProvider) GCReturns(result1 error) {
+	fake.GCStub = nil
+	fake.gCReturns = struct {
 		result1 error
 	}{result1}
 }

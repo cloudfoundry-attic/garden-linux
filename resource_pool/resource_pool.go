@@ -55,6 +55,7 @@ type SubnetPool interface {
 type RootFSProvider interface {
 	Create(log lager.Logger, id string, spec rootfs_provider.Spec) (mountpoint string, envvar []string, err error)
 	Destroy(log lager.Logger, id string) error
+	GC(log lager.Logger) error
 }
 
 type Remover interface {
@@ -726,7 +727,6 @@ func (p *LinuxResourcePool) releaseSystemResources(logger lager.Logger, id strin
 	}
 
 	destroy := exec.Command(path.Join(p.binPath, "destroy.sh"), path.Join(p.depotPath, id))
-
 	err = pRunner.Run(destroy)
 	if err != nil {
 		return err
@@ -735,6 +735,10 @@ func (p *LinuxResourcePool) releaseSystemResources(logger lager.Logger, id strin
 	if shouldCleanRootfs(string(rootFSProvider)) {
 		if err = p.rootFSProvider.Destroy(logger, id); err != nil {
 			return err
+		}
+
+		if err := p.rootFSProvider.GC(logger); err != nil {
+			logger.Error("gc-failed", err)
 		}
 	}
 

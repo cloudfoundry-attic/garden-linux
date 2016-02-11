@@ -166,6 +166,34 @@ var _ = Describe("Garden startup flags", func() {
 			mntPath    string
 		)
 
+		graphDirShouldBeEmpty := func() {
+			files, err := ioutil.ReadDir(layersPath)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(files).To(HaveLen(0))
+
+			files, err = ioutil.ReadDir(diffPath)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(files).To(HaveLen(0))
+
+			files, err = ioutil.ReadDir(mntPath)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(files).To(HaveLen(0))
+		}
+
+		graphDirShouldNotBeEmpty := func() {
+			files, err := ioutil.ReadDir(layersPath)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(files).NotTo(HaveLen(0))
+
+			files, err = ioutil.ReadDir(diffPath)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(files).NotTo(HaveLen(0))
+
+			files, err = ioutil.ReadDir(mntPath)
+			Expect(err).ToNot(HaveOccurred())
+			Expect(files).NotTo(HaveLen(0))
+		}
+
 		BeforeEach(func() {
 			args = []string{}
 		})
@@ -190,34 +218,50 @@ var _ = Describe("Garden startup flags", func() {
 			})
 
 			It("does NOT clean up the graph directory", func() {
-				files, err := ioutil.ReadDir(layersPath)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(files).ToNot(HaveLen(0))
-
-				files, err = ioutil.ReadDir(diffPath)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(files).ToNot(HaveLen(0))
-
-				files, err = ioutil.ReadDir(mntPath)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(files).ToNot(HaveLen(0))
+				graphDirShouldNotBeEmpty()
 			})
 		})
 
 		Context("when starting with the flag", func() {
+			BeforeEach(func() {
+				args = append(args, "-enableGraphCleanup=true")
+			})
+
 			It("cleans up the graph directory", func() {
-				files, err := ioutil.ReadDir(layersPath)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(files).To(HaveLen(0))
+				graphDirShouldBeEmpty()
+			})
 
-				files, err = ioutil.ReadDir(diffPath)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(files).To(HaveLen(0))
+			Context("when there are other rootfs layers in the graph dir", func() {
+				BeforeEach(func() {
+					args = append(args, "-persistentImage", "docker:///busybox")
+				})
 
-				files, err = ioutil.ReadDir(mntPath)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(files).To(HaveLen(0))
+				JustBeforeEach(func() {
+					restartGarden() // restart with persistent image list empty
+					graphDirShouldNotBeEmpty()
+				})
 
+				It("cleans up the graph directory", func() {
+					anotherContainer, err := client.Create(garden.ContainerSpec{})
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(client.Destroy(anotherContainer.Handle())).To(Succeed())
+					graphDirShouldBeEmpty()
+				})
+
+				It("does not clean up layers that are in use", func() {
+					c1, err := client.Create(garden.ContainerSpec{})
+					Expect(err).ToNot(HaveOccurred())
+
+					c2, err := client.Create(garden.ContainerSpec{})
+					Expect(err).ToNot(HaveOccurred())
+					Expect(client.Destroy(c2.Handle())).To(Succeed())
+
+					graphDirShouldNotBeEmpty()
+
+					Expect(client.Destroy(c1.Handle())).To(Succeed())
+					graphDirShouldBeEmpty()
+				})
 			})
 		})
 	})

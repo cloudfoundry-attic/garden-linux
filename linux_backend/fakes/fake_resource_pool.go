@@ -50,6 +50,12 @@ type FakeResourcePool struct {
 	pruneReturns struct {
 		result1 error
 	}
+	GCStub        func() error
+	gCMutex       sync.RWMutex
+	gCArgsForCall []struct{}
+	gCReturns     struct {
+		result1 error
+	}
 	MaxContainersStub        func() int
 	maxContainersMutex       sync.RWMutex
 	maxContainersArgsForCall []struct{}
@@ -208,6 +214,30 @@ func (fake *FakeResourcePool) PruneArgsForCall(i int) map[string]bool {
 func (fake *FakeResourcePool) PruneReturns(result1 error) {
 	fake.PruneStub = nil
 	fake.pruneReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeResourcePool) GC() error {
+	fake.gCMutex.Lock()
+	fake.gCArgsForCall = append(fake.gCArgsForCall, struct{}{})
+	fake.gCMutex.Unlock()
+	if fake.GCStub != nil {
+		return fake.GCStub()
+	} else {
+		return fake.gCReturns.result1
+	}
+}
+
+func (fake *FakeResourcePool) GCCallCount() int {
+	fake.gCMutex.RLock()
+	defer fake.gCMutex.RUnlock()
+	return len(fake.gCArgsForCall)
+}
+
+func (fake *FakeResourcePool) GCReturns(result1 error) {
+	fake.GCStub = nil
+	fake.gCReturns = struct {
 		result1 error
 	}{result1}
 }

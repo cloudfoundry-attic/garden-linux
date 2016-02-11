@@ -19,6 +19,7 @@ import (
 	"github.com/docker/docker/daemon/graphdriver"
 	"github.com/docker/docker/graph"
 	_ "github.com/docker/docker/pkg/chrootarchive" // allow reexec of docker-applyLayer
+	"github.com/eapache/go-resiliency/retrier"
 
 	"github.com/cloudfoundry-incubator/cf-debug-server"
 	"github.com/cloudfoundry-incubator/cf-lager"
@@ -44,7 +45,6 @@ import (
 	"github.com/cloudfoundry-incubator/garden-shed/distclient"
 	quotaed_aufs "github.com/cloudfoundry-incubator/garden-shed/docker_drivers/aufs"
 	"github.com/cloudfoundry-incubator/garden-shed/layercake"
-	"github.com/cloudfoundry-incubator/garden-shed/pkg/retrier"
 	"github.com/cloudfoundry-incubator/garden-shed/quota_manager"
 	"github.com/cloudfoundry-incubator/garden-shed/repository_fetcher"
 	"github.com/cloudfoundry-incubator/garden-shed/rootfs_provider"
@@ -320,12 +320,6 @@ func main() {
 		logger.Fatal("failed-to-mkdir-backing-stores", err)
 	}
 
-	graphRetrier := &retrier.Retrier{
-		Timeout:         100 * time.Second,
-		PollingInterval: 500 * time.Millisecond,
-		Clock:           clock.NewClock(),
-	}
-
 	quotaedGraphDriver := &quotaed_aufs.QuotaedDriver{
 		GraphDriver: dockerGraphDriver,
 		Unmount:     quotaed_aufs.Unmount,
@@ -334,10 +328,10 @@ func main() {
 			Logger:   logger.Session("backing-store-mgr"),
 		},
 		LoopMounter: &quotaed_aufs.Loop{
-			Retrier: graphRetrier,
+			Retrier: retrier.New(retrier.ConstantBackoff(200, 500*time.Millisecond), nil),
 			Logger:  logger.Session("loop-mounter"),
 		},
-		Retrier:  graphRetrier,
+		Retrier:  retrier.New(retrier.ConstantBackoff(200, 500*time.Millisecond), nil),
 		RootPath: *graphRoot,
 		Logger:   logger.Session("quotaed-driver"),
 	}
@@ -366,38 +360,35 @@ func main() {
 		}
 	}
 
-	ovenCleanerCake := &layercake.OvenCleaner{
-		Cake:               cake,
-		Logger:             logger.Session("oven-cleaner"),
-		EnableImageCleanup: *enableGraphCleanup,
-	}
+	repo := container_repository.New()
+	retainer := layercake.NewRetainer()
 
 	repoFetcher := &repository_fetcher.CompositeFetcher{
 		LocalFetcher: &repository_fetcher.Local{
-			Cake:              ovenCleanerCake,
+			Cake:              cake,
 			DefaultRootFSPath: *rootFSPath,
 			IDProvider:        repository_fetcher.LayerIDProvider{},
 		},
 		RemoteFetcher: repository_fetcher.NewRemote(
 			logger,
 			*dockerRegistry,
-			ovenCleanerCake,
+			cake,
 			distclient.NewDialer(insecureRegistries.List),
 			repository_fetcher.VerifyFunc(repository_fetcher.Verify),
 		),
 	}
 
-	maxId := sysinfo.Min(sysinfo.MustGetMaxValidUID(), sysinfo.MustGetMaxValidGID())
+	maxId := uint32(sysinfo.Min(sysinfo.MustGetMaxValidUID(), sysinfo.MustGetMaxValidGID()))
 	mappingList := rootfs_provider.MappingList{
 		{
-			FromID: 0,
-			ToID:   maxId,
-			Size:   1,
+			ContainerID: 0,
+			HostID:      maxId,
+			Size:        1,
 		},
 		{
-			FromID: 1,
-			ToID:   1,
-			Size:   maxId - 1,
+			ContainerID: 1,
+			HostID:      1,
+			Size:        maxId - 1,
 		},
 	}
 
@@ -409,13 +400,16 @@ func main() {
 		),
 	}
 
-	layerCreator := rootfs_provider.NewLayerCreator(
-		ovenCleanerCake, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer)
+	cleaner := layercake.NewOvenCleaner(
+		retainer,
+		*enableGraphCleanup,
+	)
 
-	cakeOrdinator := rootfs_provider.NewCakeOrdinator(ovenCleanerCake, repoFetcher, layerCreator, ovenCleanerCake)
+	layerCreator := rootfs_provider.NewLayerCreator(cake, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer)
+	cakeOrdinator := rootfs_provider.NewCakeOrdinator(cake, repoFetcher, layerCreator, cleaner)
 
 	imageRetainer := &repository_fetcher.ImageRetainer{
-		GraphRetainer:             cakeOrdinator,
+		GraphRetainer:             retainer,
 		DirectoryRootfsIDProvider: repository_fetcher.LayerIDProvider{},
 		DockerImageIDFetcher:      repoFetcher,
 
@@ -490,7 +484,7 @@ func main() {
 
 	systemInfo := sysinfo.NewProvider(*depotPath)
 
-	backend := linux_backend.New(logger, pool, container_repository.New(), injector, systemInfo, layercake.GraphPath(*graphRoot), *snapshotsPath, int(*maxContainers))
+	backend := linux_backend.New(logger, pool, repo, injector, systemInfo, layercake.GraphPath(*graphRoot), *snapshotsPath, int(*maxContainers))
 
 	err = backend.Setup()
 	if err != nil {
