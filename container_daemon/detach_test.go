@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -36,6 +37,8 @@ var _ = Describe("Detach", func() {
 		stderrRedirect = path.Join(containerDir, "stderr-redirect")
 		detachCmd = exec.Command(detacher, stdoutRedirect, stderrRedirect)
 		detachCmd.Dir = hostDir
+
+		SetDefaultEventuallyTimeout(5 * time.Second)
 	})
 
 	AfterEach(func() {
