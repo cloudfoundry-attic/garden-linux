@@ -287,6 +287,11 @@ func (p *LinuxResourcePool) Acquire(spec garden.ContainerSpec) (linux_backend.Li
 
 	pLog.Info("acquired-pool-resources")
 
+	pLog.Info("running-graph-cleanup")
+	if err := p.rootFSProvider.GC(pLog); err != nil {
+		pLog.Error("graph-cleanup-failed", err)
+	}
+
 	containerRootFSPath, rootFSEnv, err := p.acquireSystemResources(
 		spec, id, resources, pLog,
 	)
@@ -735,10 +740,6 @@ func (p *LinuxResourcePool) releaseSystemResources(logger lager.Logger, id strin
 	if shouldCleanRootfs(string(rootFSProvider)) {
 		if err = p.rootFSProvider.Destroy(logger, id); err != nil {
 			return err
-		}
-
-		if err := p.rootFSProvider.GC(logger); err != nil {
-			logger.Error("gc-failed", err)
 		}
 	}
 

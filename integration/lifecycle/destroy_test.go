@@ -50,7 +50,6 @@ var _ = Describe("Destroying a container", func() {
 
 		createContainer := func() (garden.Container, error) {
 			container, err := client.Create(garden.ContainerSpec{
-				RootFSPath: "docker:///busybox",
 				Limits: garden.Limits{
 					Disk: garden.DiskLimits{
 						ByteHard: 100 * 1024 * 1024,
@@ -94,6 +93,12 @@ var _ = Describe("Destroying a container", func() {
 			return len(entries)
 		}
 
+		preloadRootfsInToGraph := func() {
+			container, err := createContainer()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(destroy(container.Handle())).To(Succeed())
+		}
+
 		BeforeEach(func() {
 			tgzPath = os.Getenv("GARDEN_DORA_PATH")
 			if tgzPath == "" {
@@ -101,12 +106,16 @@ var _ = Describe("Destroying a container", func() {
 			}
 		})
 
-		It("should remove the AUFS directories", func() {
+		It("should remove the backing store for the container", func() {
 			client = startGarden()
 
-			containersAmt := 5
+			preloadRootfsInToGraph()
 
 			beforeBsAmt := entriesAmt(filepath.Join(client.GraphPath, "backing_stores"))
+			beforeDiffAmt := entriesAmt(filepath.Join(client.GraphPath, "aufs", "diff"))
+			beforeMntAmt := entriesAmt(filepath.Join(client.GraphPath, "aufs", "mnt"))
+
+			containersAmt := 5
 
 			h := make(chan string, containersAmt)
 			createErrs := make(chan error, containersAmt)
@@ -151,9 +160,9 @@ var _ = Describe("Destroying a container", func() {
 			afterBsAmt := entriesAmt(filepath.Join(client.GraphPath, "backing_stores"))
 			Expect(afterBsAmt).To(Equal(beforeBsAmt))
 			afterDiffAmt := entriesAmt(filepath.Join(client.GraphPath, "aufs", "diff"))
-			Expect(afterDiffAmt).To(Equal(0))
+			Expect(afterDiffAmt).To(Equal(beforeDiffAmt))
 			afterMntAmt := entriesAmt(filepath.Join(client.GraphPath, "aufs", "mnt"))
-			Expect(afterMntAmt).To(Equal(0))
+			Expect(afterMntAmt).To(Equal(beforeMntAmt))
 		})
 	})
 })

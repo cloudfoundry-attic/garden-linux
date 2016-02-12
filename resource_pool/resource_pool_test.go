@@ -670,6 +670,22 @@ var _ = Describe("Container pool", func() {
 			Expect(spec.Version).To(Equal(semver.MustParse(defaultVersion)))
 		})
 
+		It("runs garbage collection", func() {
+			_, err := pool.Acquire(garden.ContainerSpec{})
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(fakeRootFSProvider.GCCallCount()).To(Equal(1))
+		})
+
+		Context("when garbage collection fails", func() {
+			It("does NOT return an error", func() {
+				fakeRootFSProvider.GCReturns(errors.New("potato"))
+
+				_, err := pool.Acquire(garden.ContainerSpec{})
+				Expect(err).NotTo(HaveOccurred())
+			})
+		})
+
 		Context("when a rootfs is specified", func() {
 			It("is used to provide a rootfs", func() {
 				container, err := pool.Acquire(garden.ContainerSpec{
@@ -1778,18 +1794,6 @@ var _ = Describe("Container pool", func() {
 					pool.Release(container)
 					Expect(fakeFilter.TearDownCallCount()).To(Equal(0))
 				})
-			})
-		})
-
-		It("runs garbage collection", func() {
-			Expect(pool.Release(container)).To(Succeed())
-			Expect(fakeRootFSProvider.GCCallCount()).To(Equal(1))
-		})
-
-		Context("when garbage collection fails", func() {
-			It("does NOT return an error", func() {
-				fakeRootFSProvider.GCReturns(errors.New("potato"))
-				Expect(pool.Release(container)).To(Succeed())
 			})
 		})
 

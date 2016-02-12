@@ -158,144 +158,46 @@ var _ = Describe("Garden startup flags", func() {
 		})
 	})
 
-	Describe("--enableGraphCleanup", func() {
+	Describe("graph cleanup flags", func() {
 		var (
-			args       []string
-			layersPath string
-			diffPath   string
-			mntPath    string
+			layersPath           string
+			diffPath             string
+			mntPath              string
+			nonDefaultRootfsPath string
+			args                 []string
+			persistentImages     []string
 		)
 
-		graphDirShouldBeEmpty := func() {
-			files, err := ioutil.ReadDir(layersPath)
+		numLayersInGraph := func() int {
+			layerFiles, err := ioutil.ReadDir(layersPath)
 			Expect(err).ToNot(HaveOccurred())
-			Expect(files).To(HaveLen(0))
+			diffFiles, err := ioutil.ReadDir(diffPath)
+			Expect(err).ToNot(HaveOccurred())
+			mntFiles, err := ioutil.ReadDir(mntPath)
+			Expect(err).ToNot(HaveOccurred())
 
-			files, err = ioutil.ReadDir(diffPath)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(files).To(HaveLen(0))
-
-			files, err = ioutil.ReadDir(mntPath)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(files).To(HaveLen(0))
+			numLayerFiles := len(layerFiles)
+			Expect(numLayerFiles).To(Equal(len(diffFiles)))
+			Expect(numLayerFiles).To(Equal(len(mntFiles)))
+			return numLayerFiles
 		}
 
-		graphDirShouldNotBeEmpty := func() {
-			files, err := ioutil.ReadDir(layersPath)
+		expectLayerCountAfterGraphCleanupToBe := func(layerCount int) {
+			nonPersistantRootfsContainer, err := client.Create(garden.ContainerSpec{
+				RootFSPath: nonDefaultRootfsPath,
+			})
 			Expect(err).ToNot(HaveOccurred())
-			Expect(files).NotTo(HaveLen(0))
-
-			files, err = ioutil.ReadDir(diffPath)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(files).NotTo(HaveLen(0))
-
-			files, err = ioutil.ReadDir(mntPath)
-			Expect(err).ToNot(HaveOccurred())
-			Expect(files).NotTo(HaveLen(0))
+			Expect(client.Destroy(nonPersistantRootfsContainer.Handle())).To(Succeed())
+			Expect(numLayersInGraph()).To(Equal(layerCount + 2)) // +2 for the layers created for the nondefaultrootfs container
 		}
 
 		BeforeEach(func() {
-			args = []string{}
-		})
-
-		JustBeforeEach(func() {
-			client = startGarden(args...)
-
-			layersPath = path.Join(client.GraphPath, "aufs", "layers")
-			diffPath = path.Join(client.GraphPath, "aufs", "diff")
-			mntPath = path.Join(client.GraphPath, "aufs", "mnt")
-
-			container, err := client.Create(garden.ContainerSpec{
-				RootFSPath: "docker:///busybox",
-			})
+			var err error
+			nonDefaultRootfsPath, err = ioutil.TempDir("", "tmpRootfs")
 			Expect(err).ToNot(HaveOccurred())
-			Expect(client.Destroy(container.Handle())).To(Succeed())
-		})
-
-		Context("when starting without the flag", func() {
-			BeforeEach(func() {
-				args = append(args, "-enableGraphCleanup=false")
-			})
-
-			It("does NOT clean up the graph directory", func() {
-				graphDirShouldNotBeEmpty()
-			})
-		})
-
-		Context("when starting with the flag", func() {
-			BeforeEach(func() {
-				args = append(args, "-enableGraphCleanup=true")
-			})
-
-			It("cleans up the graph directory", func() {
-				graphDirShouldBeEmpty()
-			})
-
-			Context("when there are other rootfs layers in the graph dir", func() {
-				BeforeEach(func() {
-					args = append(args, "-persistentImage", "docker:///busybox")
-				})
-
-				JustBeforeEach(func() {
-					restartGarden() // restart with persistent image list empty
-					graphDirShouldNotBeEmpty()
-				})
-
-				It("cleans up the graph directory", func() {
-					anotherContainer, err := client.Create(garden.ContainerSpec{})
-					Expect(err).ToNot(HaveOccurred())
-
-					Expect(client.Destroy(anotherContainer.Handle())).To(Succeed())
-					graphDirShouldBeEmpty()
-				})
-
-				It("does not clean up layers that are in use", func() {
-					c1, err := client.Create(garden.ContainerSpec{})
-					Expect(err).ToNot(HaveOccurred())
-
-					c2, err := client.Create(garden.ContainerSpec{})
-					Expect(err).ToNot(HaveOccurred())
-					Expect(client.Destroy(c2.Handle())).To(Succeed())
-
-					graphDirShouldNotBeEmpty()
-
-					Expect(client.Destroy(c1.Handle())).To(Succeed())
-					graphDirShouldBeEmpty()
-				})
-			})
-		})
-	})
-
-	Describe("--persistentImage", func() {
-		var (
-			layersPath       string
-			diffPath         string
-			mntPath          string
-			persistentImages []string
-		)
-
-		itDeletesTheRootFS := func() {
-			It("deletes the rootfs", func() {
-				layers, err := ioutil.ReadDir(layersPath)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(layers).To(HaveLen(0))
-
-				diffs, err := ioutil.ReadDir(diffPath)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(diffs).To(HaveLen(0))
-
-				mnts, err := ioutil.ReadDir(diffPath)
-				Expect(err).ToNot(HaveOccurred())
-				Expect(mnts).To(HaveLen(0))
-			})
-		}
-
-		BeforeEach(func() {
-			persistentImages = []string{}
 		})
 
 		JustBeforeEach(func() {
-			args := []string{}
 			for _, image := range persistentImages {
 				args = append(args, "--persistentImage", image)
 			}
@@ -306,121 +208,121 @@ var _ = Describe("Garden startup flags", func() {
 			mntPath = path.Join(client.GraphPath, "aufs", "mnt")
 		})
 
-		Context("when set", func() {
-			var (
-				imageLayersAmt int
-				diffLayersAmt  int
-				mntLayersAmt   int
-			)
+		AfterEach(func() {
+			Expect(os.RemoveAll(nonDefaultRootfsPath)).To(Succeed())
+		})
 
-			itKeepsTheRootFS := func(containersAmt int) {
-				It("keeps the rootfs", func() {
-					layerFiles, err := ioutil.ReadDir(layersPath)
-					Expect(err).ToNot(HaveOccurred())
-
-					Expect(len(layerFiles)).To(Equal(imageLayersAmt - containersAmt)) // should have deleted the container layers, only
-
-					diffFiles, err := ioutil.ReadDir(diffPath)
-					Expect(err).ToNot(HaveOccurred())
-
-					Expect(len(diffFiles)).To(Equal(diffLayersAmt - containersAmt)) // should have deleted the container layers, only
-
-					mntFiles, err := ioutil.ReadDir(mntPath)
-					Expect(err).ToNot(HaveOccurred())
-
-					Expect(len(mntFiles)).To(Equal(mntLayersAmt - containersAmt)) // should have deleted the container layers, only
-				})
-			}
-
-			populateMetrics := func() {
-				layerFiles, err := ioutil.ReadDir(layersPath)
-				Expect(err).ToNot(HaveOccurred())
-				imageLayersAmt = len(layerFiles)
-
-				diffFiles, err := ioutil.ReadDir(diffPath)
-				Expect(err).ToNot(HaveOccurred())
-				diffLayersAmt = len(diffFiles)
-
-				mntFiles, err := ioutil.ReadDir(mntPath)
-				Expect(err).ToNot(HaveOccurred())
-				mntLayersAmt = len(mntFiles)
-			}
-
-			BeforeEach(func() {
-				imageLayersAmt = 0
-				diffLayersAmt = 0
-				mntLayersAmt = 0
-			})
+		Describe("--enableGraphCleanup", func() {
 
 			JustBeforeEach(func() {
-				Eventually(client, "30s").Should(gbytes.Say("retain.retained"))
+				container, err := client.Create(garden.ContainerSpec{
+					RootFSPath: "docker:///busybox",
+				})
+				Expect(err).ToNot(HaveOccurred())
+				Expect(client.Destroy(container.Handle())).To(Succeed())
 			})
 
-			Context("and local images are used", func() {
+			Context("when starting without the flag", func() {
 				BeforeEach(func() {
-					persistentImages = []string{runner.RootFSPath}
+					args = []string{"-enableGraphCleanup=false"}
 				})
 
-				Context("and destroying a container that uses a rootfs from the whitelist", func() {
-					JustBeforeEach(func() {
-						container, err := client.Create(garden.ContainerSpec{
-							RootFSPath: persistentImages[0],
-						})
-						Expect(err).ToNot(HaveOccurred())
+				It("does NOT clean up the graph directory on create", func() {
+					initialNumberOfLayers := numLayersInGraph()
+					anotherContainer, err := client.Create(garden.ContainerSpec{})
+					Expect(err).ToNot(HaveOccurred())
 
-						populateMetrics()
+					Expect(numLayersInGraph()).To(BeNumerically(">", initialNumberOfLayers), "after creation, should NOT have deleted anything")
+					Expect(client.Destroy(anotherContainer.Handle())).To(Succeed())
+				})
+			})
 
-						Expect(client.Destroy(container.Handle())).To(Succeed())
+			Context("when starting with the flag", func() {
+				BeforeEach(func() {
+					args = []string{"-enableGraphCleanup=true"}
+				})
+
+				Context("when there are other rootfs layers in the graph dir", func() {
+					BeforeEach(func() {
+						args = append(args, "-persistentImage", "docker:///busybox")
 					})
 
-					itKeepsTheRootFS(1)
+					It("cleans up the graph directory on container creation (and not on destruction)", func() {
+						restartGarden("-enableGraphCleanup=true") // restart with persistent image list empty
+						Expect(numLayersInGraph()).To(BeNumerically(">", 0))
 
-					Context("which is a symlink", func() {
-						BeforeEach(func() {
-							Expect(os.MkdirAll("/var/vcap/packages", 0755)).To(Succeed())
-							err := exec.Command("ln", "-s", runner.RootFSPath, "/var/vcap/packages/busybox").Run()
+						anotherContainer, err := client.Create(garden.ContainerSpec{})
+						Expect(err).ToNot(HaveOccurred())
+
+						Expect(numLayersInGraph()).To(Equal(3), "after creation, should have deleted everything other than the default rootfs, uid translation layer and container layer")
+						Expect(client.Destroy(anotherContainer.Handle())).To(Succeed())
+						Expect(numLayersInGraph()).To(Equal(2), "should not garbage collect parent layers on destroy")
+					})
+				})
+			})
+		})
+
+		Describe("--persistentImage", func() {
+			BeforeEach(func() {
+				args = []string{"-enableGraphCleanup=true"}
+			})
+
+			Context("when set", func() {
+				JustBeforeEach(func() {
+					Eventually(client, "30s").Should(gbytes.Say("retain.retained"))
+				})
+
+				Context("and local images are used", func() {
+					BeforeEach(func() {
+						persistentImages = []string{runner.RootFSPath}
+					})
+
+					Describe("graph cleanup for a rootfs on the whitelist", func() {
+						It("keeps the rootfs in the graph", func() {
+							container, err := client.Create(garden.ContainerSpec{
+								RootFSPath: persistentImages[0],
+							})
 							Expect(err).ToNot(HaveOccurred())
+							Expect(client.Destroy(container.Handle())).To(Succeed())
 
-							persistentImages = []string{"/var/vcap/packages/busybox"}
+							expectLayerCountAfterGraphCleanupToBe(2)
 						})
 
-						itKeepsTheRootFS(1)
-					})
-				})
-			})
+						Context("which is a symlink", func() {
+							BeforeEach(func() {
+								Expect(os.MkdirAll("/var/vcap/packages", 0755)).To(Succeed())
+								err := exec.Command("ln", "-s", runner.RootFSPath, "/var/vcap/packages/busybox").Run()
+								Expect(err).ToNot(HaveOccurred())
 
-			Context("and docker images are used", func() {
-				BeforeEach(func() {
-					persistentImages = []string{
-						"docker:///busybox",
-						"docker:///ubuntu",
-						"docker://banana/bananatest",
-						"docker:///cloudfoundry/garden-busybox",
-					}
-				})
+								persistentImages = []string{"/var/vcap/packages/busybox"}
+							})
 
-				Context("and destroying a container that uses a rootfs from the whitelist", func() {
-					JustBeforeEach(func() {
-						container, err := client.Create(garden.ContainerSpec{
-							RootFSPath: "docker:///busybox",
+							It("keeps the rootfs in the graph", func() {
+								container, err := client.Create(garden.ContainerSpec{
+									RootFSPath: persistentImages[0],
+								})
+								Expect(err).ToNot(HaveOccurred())
+								Expect(client.Destroy(container.Handle())).To(Succeed())
+
+								expectLayerCountAfterGraphCleanupToBe(2)
+							})
 						})
-						Expect(err).ToNot(HaveOccurred())
-
-						container2, err := client.Create(garden.ContainerSpec{
-							RootFSPath: "docker:///cloudfoundry/garden-busybox",
-						})
-						Expect(err).ToNot(HaveOccurred())
-
-						populateMetrics()
-
-						Expect(client.Destroy(container.Handle())).To(Succeed())
-						Expect(client.Destroy(container2.Handle())).To(Succeed())
 					})
 
-					itKeepsTheRootFS(2)
+					Describe("graph cleanup for a rootfs not on the whitelist", func() {
+						It("cleans up all unused images from the graph", func() {
+							container, err := client.Create(garden.ContainerSpec{
+								RootFSPath: nonDefaultRootfsPath,
+							})
+							Expect(err).ToNot(HaveOccurred())
+							Expect(client.Destroy(container.Handle())).To(Succeed())
+
+							expectLayerCountAfterGraphCleanupToBe(0)
+						})
+					})
 				})
 
-				Context("and destroying a container that uses a rootfs that is not in the whitelist", func() {
+				Context("and docker images are used", func() {
 					BeforeEach(func() {
 						persistentImages = []string{
 							"docker:///busybox",
@@ -429,32 +331,53 @@ var _ = Describe("Garden startup flags", func() {
 						}
 					})
 
-					JustBeforeEach(func() {
-						container, err := client.Create(garden.ContainerSpec{
-							RootFSPath: "docker:///cloudfoundry/garden-busybox",
-						})
-						Expect(err).ToNot(HaveOccurred())
+					Describe("graph cleanup for a rootfs on the whitelist", func() {
+						It("keeps the rootfs in the graph", func() {
+							numLayersBeforeDockerPull := numLayersInGraph()
+							container, err := client.Create(garden.ContainerSpec{
+								RootFSPath: persistentImages[0],
+							})
+							Expect(err).ToNot(HaveOccurred())
+							Expect(client.Destroy(container.Handle())).To(Succeed())
+							numLayersInImage := numLayersInGraph() - numLayersBeforeDockerPull
 
-						Expect(client.Destroy(container.Handle())).To(Succeed())
+							expectLayerCountAfterGraphCleanupToBe(numLayersInImage)
+						})
 					})
 
-					itDeletesTheRootFS()
+					Describe("graph cleanup for a rootfs not on the whitelist", func() {
+						It("cleans up all unused images from the graph", func() {
+							container, err := client.Create(garden.ContainerSpec{
+								RootFSPath: "docker:///cloudfoundry/garden-busybox",
+							})
+							Expect(err).ToNot(HaveOccurred())
+							Expect(client.Destroy(container.Handle())).To(Succeed())
+
+							expectLayerCountAfterGraphCleanupToBe(0)
+						})
+					})
 				})
 			})
-		})
 
-		Context("when it is not set", func() {
-			Context("and destroying a container", func() {
-				JustBeforeEach(func() {
-					container, err := client.Create(garden.ContainerSpec{
-						RootFSPath: "docker:///busybox",
+			Context("when it is not set", func() {
+				BeforeEach(func() {
+					persistentImages = []string{}
+				})
+
+				It("cleans up all unused images from the graph", func() {
+					defaultRootfsContainer, err := client.Create(garden.ContainerSpec{})
+					Expect(err).ToNot(HaveOccurred())
+
+					nonDefaultRootfsContainer, err := client.Create(garden.ContainerSpec{
+						RootFSPath: nonDefaultRootfsPath,
 					})
 					Expect(err).ToNot(HaveOccurred())
 
-					Expect(client.Destroy(container.Handle())).To(Succeed())
-				})
+					Expect(client.Destroy(defaultRootfsContainer.Handle())).To(Succeed())
+					Expect(client.Destroy(nonDefaultRootfsContainer.Handle())).To(Succeed())
 
-				itDeletesTheRootFS()
+					expectLayerCountAfterGraphCleanupToBe(0)
+				})
 			})
 		})
 	})
