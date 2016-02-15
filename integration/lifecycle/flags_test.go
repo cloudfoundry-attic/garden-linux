@@ -212,8 +212,7 @@ var _ = Describe("Garden startup flags", func() {
 			Expect(os.RemoveAll(nonDefaultRootfsPath)).To(Succeed())
 		})
 
-		Describe("--enableGraphCleanup", func() {
-
+		Describe("--graphCleanupThresholdMB", func() {
 			JustBeforeEach(func() {
 				container, err := client.Create(garden.ContainerSpec{
 					RootFSPath: "docker:///busybox",
@@ -222,9 +221,9 @@ var _ = Describe("Garden startup flags", func() {
 				Expect(client.Destroy(container.Handle())).To(Succeed())
 			})
 
-			Context("when starting without the flag", func() {
+			Context("when the graph cleanup threshold is set to -1", func() {
 				BeforeEach(func() {
-					args = []string{"-enableGraphCleanup=false"}
+					args = []string{"--graphCleanupThresholdMB", "-1"}
 				})
 
 				It("does NOT clean up the graph directory on create", func() {
@@ -237,18 +236,18 @@ var _ = Describe("Garden startup flags", func() {
 				})
 			})
 
-			Context("when starting with the flag", func() {
+			Context("when the graph cleanup threshold is exceeded", func() {
 				BeforeEach(func() {
-					args = []string{"-enableGraphCleanup=true"}
+					args = []string{"--graphCleanupThresholdMB", "0"}
 				})
 
 				Context("when there are other rootfs layers in the graph dir", func() {
 					BeforeEach(func() {
-						args = append(args, "-persistentImage", "docker:///busybox")
+						args = append(args, "--persistentImage", "docker:///busybox")
 					})
 
 					It("cleans up the graph directory on container creation (and not on destruction)", func() {
-						restartGarden("-enableGraphCleanup=true") // restart with persistent image list empty
+						restartGarden("--graphCleanupThresholdMB=1") // restart with persistent image list empty
 						Expect(numLayersInGraph()).To(BeNumerically(">", 0))
 
 						anotherContainer, err := client.Create(garden.ContainerSpec{})
@@ -258,6 +257,23 @@ var _ = Describe("Garden startup flags", func() {
 						Expect(client.Destroy(anotherContainer.Handle())).To(Succeed())
 						Expect(numLayersInGraph()).To(Equal(2), "should not garbage collect parent layers on destroy")
 					})
+				})
+			})
+
+			Context("when the graph cleanup threshold is not exceeded", func() {
+				BeforeEach(func() {
+					args = []string{"--graphCleanupThresholdMB", "1024"}
+				})
+
+				It("does not cleanup", func() {
+					// threshold is not yet exceeded
+					Expect(numLayersInGraph()).To(Equal(3))
+
+					anotherContainer, err := client.Create(garden.ContainerSpec{})
+					Expect(err).ToNot(HaveOccurred())
+
+					Expect(numLayersInGraph()).To(Equal(6))
+					Expect(client.Destroy(anotherContainer.Handle())).To(Succeed())
 				})
 			})
 		})

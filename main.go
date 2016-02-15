@@ -45,6 +45,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-shed/distclient"
 	quotaed_aufs "github.com/cloudfoundry-incubator/garden-shed/docker_drivers/aufs"
 	"github.com/cloudfoundry-incubator/garden-shed/layercake"
+	"github.com/cloudfoundry-incubator/garden-shed/layercake/cleaner"
 	"github.com/cloudfoundry-incubator/garden-shed/quota_manager"
 	"github.com/cloudfoundry-incubator/garden-shed/repository_fetcher"
 	"github.com/cloudfoundry-incubator/garden-shed/rootfs_provider"
@@ -109,10 +110,10 @@ var rootFSPath = flag.String(
 	"directory of the rootfs for the containers",
 )
 
-var enableGraphCleanup = flag.Bool(
-	"enableGraphCleanup",
-	false,
-	"enables graph garbage collection",
+var graphCleanupThreshold = flag.Int(
+	"graphCleanupThresholdMB",
+	-1,
+	"sets the threshold for triggering graph cleanup",
 )
 
 var containerGraceTime = flag.Duration(
@@ -361,7 +362,7 @@ func main() {
 	}
 
 	repo := container_repository.New()
-	retainer := layercake.NewRetainer()
+	retainer := cleaner.NewRetainer()
 
 	repoFetcher := &repository_fetcher.CompositeFetcher{
 		LocalFetcher: &repository_fetcher.Local{
@@ -400,9 +401,9 @@ func main() {
 		),
 	}
 
-	cleaner := layercake.NewOvenCleaner(
+	cleaner := cleaner.NewOvenCleaner(
 		retainer,
-		*enableGraphCleanup,
+		cleaner.NewThreshold(int64(*graphCleanupThreshold)*1024*1024),
 	)
 
 	layerCreator := rootfs_provider.NewLayerCreator(cake, rootfs_provider.SimpleVolumeCreator{}, rootFSNamespacer)
