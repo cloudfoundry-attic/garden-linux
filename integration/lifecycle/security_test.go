@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -470,6 +471,87 @@ tmp
 				fmt.Sprintf("echo hello | nc -w 1 %s 12345", allowedListenerIP),
 			)
 			Expect(process.Wait()).To(Equal(0))
+		})
+	})
+
+	Describe("Rootfs with symlinks", func() {
+		var rootfsPath string
+
+		BeforeEach(func() {
+			client = startGarden()
+
+			var err error
+			rootfsPath, err = ioutil.TempDir("", "")
+			Expect(err).NotTo(HaveOccurred())
+		})
+
+		AfterEach(func() {
+			Expect(os.RemoveAll(rootfsPath)).To(Succeed())
+		})
+
+		Context("when symlinking /etc/hosts to a file in the host", func() {
+			var (
+				hostFilePath string
+			)
+
+			BeforeEach(func() {
+				srcPath := filepath.Join(rootfsPath, "/etc/hosts")
+				Expect(os.MkdirAll(filepath.Dir(srcPath), 0777)).To(Succeed())
+
+				hostFile, err := ioutil.TempFile("", "")
+				Expect(err).NotTo(HaveOccurred())
+				defer hostFile.Close()
+				hostFilePath = hostFile.Name()
+
+				Expect(os.Symlink(hostFilePath, srcPath)).To(Succeed())
+			})
+
+			AfterEach(func() {
+				Expect(os.Remove(hostFilePath)).To(Succeed())
+			})
+
+			It("should not write in the host file", func() {
+				_, err := client.Create(garden.ContainerSpec{
+					RootFSPath: rootfsPath,
+				})
+				Expect(err).NotTo(HaveOccurred())
+
+				fi, err := os.Stat(hostFilePath)
+				Expect(err).NotTo(HaveOccurred())
+
+				Expect(fi.Size()).To(BeZero())
+			})
+		})
+
+		Context("when symlinking /sys to a directory in the host", func() {
+			var (
+				hostDirPath string
+			)
+
+			BeforeEach(func() {
+				srcPath := filepath.Join(rootfsPath, "proc")
+
+				var err error
+				hostDirPath, err = ioutil.TempDir("", "")
+				Expect(err).NotTo(HaveOccurred())
+
+				Expect(os.Symlink(hostDirPath, srcPath)).To(Succeed())
+			})
+
+			AfterEach(func() {
+				Expect(os.RemoveAll(hostDirPath)).To(Succeed())
+			})
+
+			It("should not change the ownership of the host directory", func() {
+				client.Create(garden.ContainerSpec{
+					RootFSPath: rootfsPath,
+				})
+
+				fi, err := os.Stat(hostDirPath)
+				Expect(err).NotTo(HaveOccurred())
+
+				Expect(fi.Sys().(*syscall.Stat_t).Uid).To(BeNumerically("==", os.Getuid()))
+			})
 		})
 	})
 })

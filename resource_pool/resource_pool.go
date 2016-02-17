@@ -58,6 +58,11 @@ type RootFSProvider interface {
 	GC(log lager.Logger) error
 }
 
+//go:generate counterfeiter -o fake_rootfs_cleaner/FakeRootFSCleaner.go . RootFSCleaner
+type RootFSCleaner interface {
+	Clean(log lager.Logger, path string) error
+}
+
 type Remover interface {
 	Remove(id layercake.ID) error
 }
@@ -79,6 +84,7 @@ type LinuxResourcePool struct {
 	allowNetworks []string
 
 	rootFSProvider RootFSProvider
+	rootFSCleaner  RootFSCleaner
 	mappingList    rootfs_provider.MappingList
 
 	subnetPool SubnetPool
@@ -110,6 +116,7 @@ func New(
 	binPath, depotPath string,
 	sysconfig sysconfig.Config,
 	rootFSProvider RootFSProvider,
+	rootFSCleaner RootFSCleaner,
 	mappingList rootfs_provider.MappingList,
 	externalIP net.IP,
 	mtu int,
@@ -134,6 +141,7 @@ func New(
 		sysconfig: sysconfig,
 
 		rootFSProvider: rootFSProvider,
+		rootFSCleaner:  rootFSCleaner,
 		mappingList:    mappingList,
 
 		allowNetworks: allowNetworks,
@@ -651,6 +659,12 @@ func (p *LinuxResourcePool) setupRootfs(spec garden.ContainerSpec, id string, re
 		return "", nil, err
 	}
 	pLog.Debug("provide-rootfs-ended")
+
+	pLog.Debug("clean-rootfs-starting")
+	if err := p.rootFSCleaner.Clean(pLog, rootFSPath); err != nil {
+		return "", nil, err
+	}
+	pLog.Debug("clean-rootfs-ended")
 
 	rootFSProcessEnv, err := process.NewEnv(rootFSEnvVars)
 	if err != nil {

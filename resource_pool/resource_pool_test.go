@@ -35,6 +35,7 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/resource_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/resource_pool/fake_filter_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/resource_pool/fake_mkdir_chowner"
+	"github.com/cloudfoundry-incubator/garden-linux/resource_pool/fake_rootfs_cleaner"
 	"github.com/cloudfoundry-incubator/garden-linux/resource_pool/fake_rootfs_provider"
 	"github.com/cloudfoundry-incubator/garden-linux/resource_pool/fake_subnet_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/sysconfig"
@@ -53,6 +54,7 @@ var _ = Describe("Container pool", func() {
 		fakeQuotaManager    *fake_quota_manager.FakeQuotaManager
 		fakePortPool        *fake_port_pool.FakePortPool
 		fakeRootFSProvider  *fake_rootfs_provider.FakeRootFSProvider
+		fakeRootFSCleaner   *fake_rootfs_cleaner.FakeRootFSCleaner
 		fakeBridges         *fake_bridge_manager.FakeBridgeManager
 		fakeIPTablesManager *fake_iptables_manager.FakeIPTablesManager
 		fakeFilterProvider  *fake_filter_provider.FakeFilterProvider
@@ -89,6 +91,7 @@ var _ = Describe("Container pool", func() {
 		fakeQuotaManager = new(fake_quota_manager.FakeQuotaManager)
 		fakePortPool = fake_port_pool.New(1000)
 		fakeRootFSProvider = new(fake_rootfs_provider.FakeRootFSProvider)
+		fakeRootFSCleaner = new(fake_rootfs_cleaner.FakeRootFSCleaner)
 
 		defaultVersion = "1.0.0"
 		fakeRootFSProvider.CreateReturns("/provided/rootfs/path", nil, nil)
@@ -108,6 +111,7 @@ var _ = Describe("Container pool", func() {
 			depotPath,
 			config,
 			fakeRootFSProvider,
+			fakeRootFSCleaner,
 			rootfs_provider.MappingList{
 				{
 					ContainerID: 0,
@@ -702,6 +706,22 @@ var _ = Describe("Container pool", func() {
 				}))
 			})
 
+			It("should clean the rootfs", func() {
+				fakeRootFSProvider.CreateReturns("/path/to/rootfs", []string{}, nil)
+
+				_, err := pool.Acquire(garden.ContainerSpec{
+					RootFSPath: "fake:///path/to/custom-rootfs",
+				})
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(fakeRootFSCleaner.CleanCallCount()).To(Equal(1))
+				_, path := fakeRootFSCleaner.CleanArgsForCall(0)
+				Expect(path).To(Equal("/path/to/rootfs"))
+			})
+
+			Context("when cleaning the rootfs fails", func() {
+			})
+
 			It("passes the provided rootfs as $rootfs_path to create.sh", func() {
 				fakeRootFSProvider.CreateReturns("/var/some/mount/point", nil, nil)
 
@@ -782,6 +802,39 @@ var _ = Describe("Container pool", func() {
 
 				BeforeEach(func() {
 					fakeRootFSProvider.CreateReturns("", nil, providerErr)
+
+					_, err = pool.Acquire(garden.ContainerSpec{
+						RootFSPath: "fake:///path/to/custom-rootfs",
+					})
+				})
+
+				It("returns the error", func() {
+					Expect(err).To(Equal(providerErr))
+				})
+
+				itReleasesTheIPBlock()
+
+				itShouldNotLeakContainerDirectory()
+
+				It("does not acquire a bridge", func() {
+					Expect(fakeBridges.ReserveCallCount()).To(Equal(0))
+				})
+
+				It("does not execute create.sh", func() {
+					Expect(fakeRunner).ToNot(HaveExecutedSerially(
+						fake_command_runner.CommandSpec{
+							Path: "/root/path/create.sh",
+						},
+					))
+				})
+			})
+
+			Context("when cleaning the rootfs fails", func() {
+				var err error
+				providerErr := errors.New("oh no!")
+
+				BeforeEach(func() {
+					fakeRootFSCleaner.CleanReturns(providerErr)
 
 					_, err = pool.Acquire(garden.ContainerSpec{
 						RootFSPath: "fake:///path/to/custom-rootfs",

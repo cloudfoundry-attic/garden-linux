@@ -423,6 +423,13 @@ func main() {
 	// is an OK trade-off for not having garden startup block on dockerhub.
 	go imageRetainer.Retain(persistentImages.List)
 
+	rootfsCleaner := &linux_backend.RootFSCleaner{
+		FilePaths: []string{
+			"/tmp", "/proc", "/sys", "/dev", "/etc", "/etc/config", "/etc/hostname",
+			"/etc/hosts", "/etc/resolv.conf",
+		},
+	}
+
 	if *externalIP == "" {
 		ip, err := localip.LocalIP()
 		if err != nil {
@@ -465,6 +472,7 @@ func main() {
 		*depotPath,
 		config,
 		cakeOrdinator,
+		rootfsCleaner,
 		mappingList,
 		parsedExternalIP,
 		*mtu,
