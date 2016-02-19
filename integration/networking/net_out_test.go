@@ -3,7 +3,12 @@ package networking_test
 import (
 	"fmt"
 	"io"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"strings"
+	"sync"
 
 	"github.com/cloudfoundry-incubator/garden"
 	. "github.com/onsi/ginkgo"
@@ -21,6 +26,7 @@ var _ = Describe("Net Out", func() {
 		containerNetwork string
 		denyRange        string
 		allowRange       string
+		allowHostAccess  bool
 	)
 
 	const containerHandle = "6e4ea858-6b31-4243-5dcc-093cfb83952d"
@@ -28,6 +34,7 @@ var _ = Describe("Net Out", func() {
 	BeforeEach(func() {
 		denyRange = ""
 		allowRange = ""
+		allowHostAccess = false
 		gardenArgs = []string{}
 	})
 
@@ -40,6 +47,11 @@ var _ = Describe("Net Out", func() {
 			"-allowNetworks", allowRange,
 			"-iptablesLogMethod", "nflog", // so that we can read logs when running in fly
 		}
+
+		if allowHostAccess {
+			gardenArgs = append(gardenArgs, "-allowHostAccess")
+		}
+
 		client = startGarden(gardenArgs...)
 
 		var err error
@@ -182,6 +194,11 @@ var _ = Describe("Net Out", func() {
 		}
 
 		Context("containers in the same subnet", func() {
+			BeforeEach(func() {
+				containerNetwork = fmt.Sprintf("10.1%d.0.0/24", GinkgoParallelNode())
+				allowHostAccess = true
+			})
+
 			JustBeforeEach(func() {
 				var err error
 				otherContainer, err = client.Create(garden.ContainerSpec{Network: containerNetwork})
@@ -194,12 +211,70 @@ var _ = Describe("Net Out", func() {
 				BeforeEach(func() {
 					denyRange = "0.0.0.0/8"
 					allowRange = ""
-					containerNetwork = fmt.Sprintf("10.1%d.0.0/24", GinkgoParallelNode())
 				})
 
 				It("can route to each other", func() {
 					ByAllowingTCP()
 				})
+			})
+
+			It("can still be contacted while the other one is being destroyed", func() {
+				// this test was introduced to cover a bug where the kernel can change
+				// the bridge mac address when devices are added/removed from it,
+				// causing the networking stack to become confused and drop tcp
+				// connections. It's inherently flakey because the kernel doesn't
+				// always change the mac address, and even if it does tcp is pretty
+				// resilient. Empirically, 10 retries seems to be enough to fairly
+				// consistently fail with the old behaviour.
+				for i := 0; i < 10; i++ {
+					handles := []string{}
+					for j := 0; j < 12; j++ {
+						ctn, err := client.Create(garden.ContainerSpec{Network: containerNetwork})
+						Expect(err).ToNot(HaveOccurred())
+						handles = append(handles, ctn.Handle())
+					}
+
+					respond := make(chan struct{})
+					server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						<-respond
+						fmt.Fprintln(w, "hello")
+					}))
+
+					info, err := container.Info()
+					Expect(err).NotTo(HaveOccurred())
+					server.Listener, err = net.Listen("tcp", info.ExternalIP+":0")
+					Expect(err).NotTo(HaveOccurred())
+
+					server.Start()
+					defer server.Close()
+
+					url, err := url.Parse(server.URL)
+					Expect(err).NotTo(HaveOccurred())
+					port := strings.Split(url.Host, ":")[1]
+
+					stdout := gbytes.NewBuffer()
+					_, err = container.Run(garden.ProcessSpec{
+						User: "root",
+						Path: "sh",
+						Args: []string{"-c", fmt.Sprintf(`(echo "GET / HTTP/1.1"; echo "Host: foo.com"; echo) | nc %s %s`, info.ExternalIP, port)},
+					}, garden.ProcessIO{Stdout: stdout, Stderr: stdout})
+					Expect(err).NotTo(HaveOccurred())
+
+					var wg sync.WaitGroup
+					for _, handle := range handles {
+						wg.Add(1)
+						go func(handle string) {
+							defer GinkgoRecover()
+							defer wg.Done()
+							Expect(client.Destroy(handle)).To(Succeed())
+						}(handle)
+					}
+
+					wg.Wait()
+
+					close(respond)
+					Eventually(stdout).Should(gbytes.Say("hello"))
+				}
 			})
 		})
 

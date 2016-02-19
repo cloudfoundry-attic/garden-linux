@@ -19,7 +19,7 @@ func (Bridge) Create(name string, ip net.IP, subnet *net.IPNet) (intf *net.Inter
 	netlinkMu.Lock()
 	defer netlinkMu.Unlock()
 
-	if err := netlink.NetworkLinkAdd(name, "bridge"); err != nil && err.Error() != "file exists" {
+	if err := netlink.CreateBridge(name, true); err != nil && err.Error() != "file exists" {
 		return nil, fmt.Errorf("devices: create bridge: %v", err)
 	}
 
