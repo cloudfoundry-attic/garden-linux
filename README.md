@@ -9,7 +9,7 @@ If you're not using BOSH, and still want to have a play, follow the insructions 
 ## Installing Garden-Linux
 
 **Note:** the rest of these instructions assume you arranged for the garden-linux code and dependencies to be
-present in your `$GOPATH` on a machine running Ubuntu 14.04 or later.
+present in your `$GOPATH` on a machine running Ubuntu 14.04 or later with Go 1.4.3 installed.
 The easiest way to achieve this is actually to check out the [Garden-Linux BOSH Release](https://github.com/cloudfoundry-incubator/garden-linux-release), since that's the only place that all the dependency version data is recorded.
 The steps are:
 
