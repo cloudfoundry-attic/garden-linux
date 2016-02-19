@@ -377,7 +377,7 @@ var _ = Describe("Container pool", func() {
 				Expect(fakeRootFSProvider.CreateCallCount()).To(Equal(1))
 				_, _, spec := fakeRootFSProvider.CreateArgsForCall(0)
 				Expect(spec.QuotaSize).To(Equal(int64(98765)))
-				Expect(spec.QuotaScope).To(Equal(rootfs_provider.QuotaScopeExclusive))
+				Expect(spec.QuotaScope).To(Equal(garden.DiskLimitScopeExclusive))
 			})
 		})
 

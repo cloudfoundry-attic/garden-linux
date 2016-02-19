@@ -280,7 +280,7 @@ var _ = Describe("Garden startup flags", func() {
 
 		Describe("--persistentImage", func() {
 			BeforeEach(func() {
-				args = []string{"-enableGraphCleanup=true"}
+				args = []string{"--graphCleanupThresholdMB", "0"}
 			})
 
 			Context("when set", func() {

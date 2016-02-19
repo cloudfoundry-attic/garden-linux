@@ -648,7 +648,7 @@ func (p *LinuxResourcePool) setupRootfs(spec garden.ContainerSpec, id string, re
 		RootFS:     rootFSURL,
 		Namespaced: resources.RootUID != 0,
 		QuotaSize:  int64(spec.Limits.Disk.ByteHard),
-		QuotaScope: rootfs_provider.QuotaScope(spec.Limits.Disk.Scope),
+		QuotaScope: spec.Limits.Disk.Scope,
 	}
 
 	pLog.Debug("provide-rootfs-starting")
