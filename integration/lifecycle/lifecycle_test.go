@@ -88,11 +88,9 @@ var _ = Describe("Creating a container", func() {
 				go func() {
 					defer GinkgoRecover()
 
-					container, err := client.Create(garden.ContainerSpec{})
+					_, err := client.Create(garden.ContainerSpec{})
 					if err != nil {
 						errors <- err
-					} else {
-						client.Destroy(container.Handle())
 					}
 
 					wg.Done()
