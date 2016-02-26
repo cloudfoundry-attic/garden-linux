@@ -241,6 +241,13 @@ func main() {
 		"Image which should never be garbage collected. (Can be specified multiple times)",
 	)
 
+    var dnsServers vars.StringList
+    flag.Var(
+        &dnsServers,
+        "dnsServer",
+        "DNS server IP address to use instead of automatically determined servers. (Can be specified multiple times)",
+    )
+
 	cf_debug_server.AddFlags(flag.CommandLine)
 	cf_lager.AddFlags(flag.CommandLine)
 	flag.Parse()
@@ -303,7 +310,7 @@ func main() {
 		return
 	}
 
-	config := sysconfig.NewConfig(*tag, *allowHostAccess)
+	config := sysconfig.NewConfig(*tag, *allowHostAccess, dnsServers.List)
 
 	runner := sysconfig.NewRunner(config, linux_command_runner.New())
 

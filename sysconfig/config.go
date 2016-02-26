@@ -3,6 +3,7 @@ package sysconfig
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/cloudfoundry-incubator/garden-linux/process"
 )
@@ -13,6 +14,7 @@ type Config struct {
 	NetworkInterfacePrefix string
 	IPTables               IPTablesConfig
 	Tag                    string
+	DNSServers             []string
 }
 
 type IPTablesConfig struct {
@@ -34,10 +36,11 @@ type IPTablesNATConfig struct {
 	InstancePrefix   string
 }
 
-func NewConfig(tag string, allowHostAccess bool) Config {
+func NewConfig(tag string, allowHostAccess bool, dnsServers []string) Config {
 	return Config{
 		NetworkInterfacePrefix: fmt.Sprintf("w%s", tag),
-		Tag: tag,
+		Tag:        tag,
+		DNSServers: dnsServers,
 
 		CgroupPath:         fmt.Sprintf("/tmp/garden-%s/cgroup", tag),
 		CgroupNodeFilePath: "/proc/self/cgroup",
@@ -65,6 +68,7 @@ func (config Config) Environ() process.Env {
 
 		"GARDEN_NETWORK_INTERFACE_PREFIX": config.NetworkInterfacePrefix,
 		"GARDEN_TAG":                      config.Tag,
+		"GARDEN_DNS_SERVERS":              strings.Join(config.DNSServers, "\n"),
 
 		"GARDEN_IPTABLES_ALLOW_HOST_ACCESS":  strconv.FormatBool(config.IPTables.Filter.AllowHostAccess),
 		"GARDEN_IPTABLES_FILTER_INPUT_CHAIN": config.IPTables.Filter.InputChain,
