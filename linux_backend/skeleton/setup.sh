@@ -122,13 +122,22 @@ cat > $rootfs_path/etc/hosts <<-EOS
 $network_container_ip $id
 EOS
 
+if [[ -n "${GARDEN_DNS_SERVERS}" ]]
+then
+  # A custom DNS server list was given; use that
+  rm -f $rootfs_path/etc/resolv.conf
+
+  for server in ${GARDEN_DNS_SERVERS}
+  do
+    echo "nameserver ${server}" >> $rootfs_path/etc/resolv.conf
+  done
+elif [[ "$(cat /etc/resolv.conf)" == "nameserver 127.0.0.1" ]]
 # By default, inherit the nameserver from the host container.
 #
 # Exception: When the host's nameserver is set to localhost (127.0.0.1), it is
 # assumed to be running its own DNS server and listening on all interfaces.
 # In this case, the container must use the network_host_ip address
 # as the nameserver.
-if [[ "$(cat /etc/resolv.conf)" == "nameserver 127.0.0.1" ]]
 then
   cat > $rootfs_path/etc/resolv.conf <<-EOS
 nameserver $network_host_ip

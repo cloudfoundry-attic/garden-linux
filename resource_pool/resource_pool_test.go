@@ -102,7 +102,7 @@ var _ = Describe("Container pool", func() {
 		currentContainerVersion, err := semver.Make("1.0.0")
 		Expect(err).ToNot(HaveOccurred())
 
-		config = sysconfig.NewConfig("0", false)
+		config = sysconfig.NewConfig("0", false, nil)
 		logger = lagertest.NewTestLogger("test")
 		fakeMkdirChowner = new(fake_mkdir_chowner.FakeMkdirChowner)
 		pool = resource_pool.New(
