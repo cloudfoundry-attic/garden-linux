@@ -23,10 +23,14 @@ function mount_flat_cgroup() {
 
   # bind-mount cgroup subsystems to make file tree consistent
   for subsystem in $(tail -n +2 /proc/cgroups | awk '{print $1}'); do
-    mkdir -p ${1}/$subsystem
+    grouping=$(cat /proc/self/cgroup | cut -d: -f2 | grep "\\<$subsystem\\>")
+    mkdir -p ${1}/$grouping
 
-    if ! mountpoint -q ${1}/$subsystem; then
-      mount --bind $1 ${1}/$subsystem
+    if ! mountpoint -q ${1}/$grouping; then
+      mount --bind $1 ${1}/$grouping
+    fi
+    if [ "$grouping" != "$subsystem" ]; then
+      ln -sf "${1}/$grouping" "${1}/$subsystem"
     fi
   done
 }
@@ -39,10 +43,14 @@ function mount_nested_cgroup() {
   fi
 
   for subsystem in $(tail -n +2 /proc/cgroups | awk '{print $1}'); do
-    mkdir -p ${1}/$subsystem
+    grouping=$(cat /proc/self/cgroup | cut -d: -f2 | grep "\\<$subsystem\\>")
+    mkdir -p ${1}/$grouping
 
-    if ! mountpoint -q ${1}/$subsystem; then
-      mount -n -t cgroup -o $subsystem cgroup ${1}/$subsystem
+    if ! mountpoint -q ${1}/$grouping; then
+      mount -n -t cgroup -o $grouping cgroup ${1}/$grouping
+    fi
+    if [ "$grouping" != "$subsystem" ]; then
+      ln -sf "${1}/$grouping" "${1}/$subsystem"
     fi
   done
 }
