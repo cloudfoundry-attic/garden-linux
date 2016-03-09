@@ -4,12 +4,16 @@ import (
 	"fmt"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/docker/libcontainer/netlink"
+	"github.com/eapache/go-resiliency/retrier"
 )
 
 // netlink is not thread-safe, all calls to netlink should be guarded by this mutex
 var netlinkMu *sync.Mutex = new(sync.Mutex)
+
+var retry = retrier.New(retrier.ExponentialBackoff(6, 10*time.Millisecond), nil)
 
 type Bridge struct{}
 
@@ -31,8 +35,6 @@ func (Bridge) Create(name string, ip net.IP, subnet *net.IPNet) (intf *net.Inter
 }
 
 func idempotentlyCreateBridge(name string) (intf *net.Interface, err error) {
-	createErr := netlink.CreateBridge(name, true)
-
 	intfs, listErr := net.Interfaces()
 	if listErr != nil {
 		return nil, fmt.Errorf("devices: list bridges: %s", listErr)
@@ -42,7 +44,13 @@ func idempotentlyCreateBridge(name string) (intf *net.Interface, err error) {
 		return intf, nil
 	}
 
-	return nil, fmt.Errorf("devices: create bridge: ", createErr)
+	if err := retry.Run(func() error {
+		return netlink.CreateBridge(name, true)
+	}); err != nil {
+		return nil, err
+	}
+
+	return net.InterfaceByName(name)
 }
 
 func findBridgeIntf(intfs []net.Interface, name string) (intf *net.Interface, found bool) {
