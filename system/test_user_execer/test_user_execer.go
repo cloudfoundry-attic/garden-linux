@@ -15,7 +15,7 @@ func main() {
 	flag.Parse()
 
 	execer := system.UserExecer{}
-	if err := execer.ExecAsUser(*uid, *gid, *workDir, "bash", "-c", "id -u && id -g"); err != nil {
+	if err := execer.ExecAsUser(*uid, *gid, *workDir, "bash", "-c", "id -u && id -G"); err != nil {
 		fmt.Fprintf(os.Stderr, "%s", err)
 		os.Exit(2)
 	}

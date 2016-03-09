@@ -19,6 +19,11 @@ func (UserExecer) ExecAsUser(uid, gid int, workDir, programName string, args ...
 	if _, _, errNo := syscall.RawSyscall(syscall.SYS_SETGID, uintptr(gid), 0, 0); errNo != 0 {
 		return fmt.Errorf("system: setgid: %s", errNo.Error())
 	}
+
+	if err := syscall.Setgroups([]int{}); err != nil {
+		return fmt.Errorf("system: setgroups: %s", err)
+	}
+
 	if _, _, errNo := syscall.RawSyscall(syscall.SYS_SETUID, uintptr(uid), 0, 0); errNo != 0 {
 		return fmt.Errorf("system: setuid: %s", errNo.Error())
 	}
