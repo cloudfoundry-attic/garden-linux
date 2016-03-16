@@ -44,7 +44,7 @@ rootfses: ${ROOTFS_TARS}
 # Images
 #
 
-ubuntu-docker:
+ubuntu-docker: rootfses
 	./rootfs/empty/scripts/compile_binary
 	packer build garden-ci/garden-ci.json
 

@@ -23,7 +23,7 @@ mkdir -p $TMPDIR
 
 ### Build everything
 
-Run `make ubuntu`. This will commit a docker image to your Docker server named
+Run `make ubuntu-docker`. This will commit a docker image to your Docker server named
 `garden-ci-ubuntu:packer`.
 
 ## Releasing
