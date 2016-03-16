@@ -21,8 +21,8 @@ apt-get -y install \
   quota \
   ulogd
 
-# install go1.4
-wget -qO- https://storage.googleapis.com/golang/go1.4.2.linux-amd64.tar.gz | tar -C /usr/local -xzf -
+# install go1.6
+wget -qO- https://storage.googleapis.com/golang/go1.6.linux-amd64.tar.gz | tar -C /usr/local -xzf -
 
 #Set up $GOPATH and add go executables to $PATH
 cat > /etc/profile.d/go_env.sh <<\EOF
@@ -40,11 +40,6 @@ wget -qO- http://mercurial.selenic.com/release/mercurial-2.9.2.tar.gz | tar -C /
   sudo python setup.py install && \
   rm -rf /tmp/mercurial-2.9.2
 cd -
-
-# install common CI dependencies
-go get \
-  github.com/dustin/goveralls \
-  golang.org/x/tools/cmd/cover
 
 # create dir for rootfses to upload to
 mkdir -p /opt/warden

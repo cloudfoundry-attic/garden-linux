@@ -1,7 +1,7 @@
 {
   "variables": {
     "os_name": "ubuntu",
-    "os_version": "14.04.2",
+    "os_version": "14.04.2"
   },
   "builders": [
     {
@@ -93,7 +93,7 @@
     {
       "type": "docker-tag",
       "repository": "garden-ci-ubuntu",
-      "tag": "packer",
+      "tag": "packer"
     }
   ]
 }
