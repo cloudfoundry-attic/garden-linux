@@ -98,7 +98,12 @@ func (p *ProcessReaper) reap() {
 
 		p.log.Info("reaped", lager.Data{"pid": wpid, "status": status, "rusage": rusage})
 
-		if ch, ok := p.waitChan(wpid); p.monitoredPids[wpid] && ok {
+		p.mu.Lock()
+		waitPid := p.monitoredPids[wpid]
+		p.mu.Unlock()
+
+		ch, isWaiting := p.waitChan(wpid)
+		if waitPid && isWaiting {
 			ch <- status.ExitStatus()
 			p.unmonitorPid(wpid)
 
