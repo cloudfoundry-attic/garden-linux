@@ -40,6 +40,7 @@ func (e *NamespacingExecer) Exec(binPath string, args ...string) (int, error) {
 		}
 		cmd.SysProcAttr.UidMappings = mapping
 		cmd.SysProcAttr.GidMappings = mapping
+		cmd.SysProcAttr.GidMappingsEnableSetgroups = true
 
 		cmd.SysProcAttr.Credential = &syscall.Credential{
 			Uid: 0,

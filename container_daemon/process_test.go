@@ -3,6 +3,7 @@ package container_daemon_test
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"syscall"
@@ -205,7 +206,7 @@ var _ = Describe("Process", func() {
 
 				sigwinchCh <- syscall.SIGWINCH
 
-				Eventually(fakeTerm.SetWinsizeCallCount(), 10*time.Second, 500*time.Millisecond).Should(Equal(2))
+				Eventually(fakeTerm.SetWinsizeCallCount, 10*time.Second, 500*time.Millisecond).Should(Equal(2))
 				fd, size := fakeTerm.SetWinsizeArgsForCall(1)
 				Expect(fd).To(Equal(uintptr(123)))
 				Expect(size).To(Equal(&term.Winsize{
@@ -411,12 +412,22 @@ var _ = Describe("Process", func() {
 })
 
 type fakefd struct {
-	fd     uintptr
-	buffer *gbytes.Buffer
+	fd         uintptr
+	buff       *gbytes.Buffer
+	pipeReader *io.PipeReader
+	pipeWriter *io.PipeWriter
 }
 
 func FakeFd(fd uintptr) *fakefd {
-	return &fakefd{fd, gbytes.NewBuffer()}
+	pipeReader, pipeWriter := io.Pipe()
+	buff := gbytes.NewBuffer()
+
+	return &fakefd{
+		fd,
+		buff,
+		pipeReader,
+		pipeWriter,
+	}
 }
 
 func (f *fakefd) Fd() uintptr {
@@ -424,17 +435,36 @@ func (f *fakefd) Fd() uintptr {
 }
 
 func (f *fakefd) Buffer() *gbytes.Buffer {
-	return f.buffer
+	return f.buff
 }
 
 func (f *fakefd) Read(b []byte) (int, error) {
-	return f.buffer.Read(b)
+	return f.pipeReader.Read(b)
 }
 
 func (f *fakefd) Write(b []byte) (int, error) {
-	return f.buffer.Write(b)
+	return io.MultiWriter(f.buff, f.pipeWriter).Write(b)
 }
 
 func (f *fakefd) Close() error {
-	return f.buffer.Close()
+	err := f.pipeReader.Close()
+
+	var errorStr string
+
+	if err != nil {
+		errorStr += fmt.Sprintf("PipeReaderClose Error: %s\n", err.Error())
+	}
+	err = f.pipeWriter.Close()
+	if err != nil {
+		errorStr += fmt.Sprintf("PipeWriterClose Error: %s\n", err.Error())
+	}
+	err = f.buff.Close()
+	if err != nil {
+		errorStr += fmt.Sprintf("BufferClose Error: %s\n", err.Error())
+	}
+
+	if errorStr == "" {
+		return nil
+	}
+	return errors.New(errorStr)
 }
