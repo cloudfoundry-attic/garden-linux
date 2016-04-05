@@ -21,9 +21,6 @@ func New() *InMemoryContainerRepository {
 }
 
 func (cr *InMemoryContainerRepository) All() []linux_backend.Container {
-	cr.mutex.RLock()
-	defer cr.mutex.RUnlock()
-
 	return cr.Query(func(c linux_backend.Container) bool {
 		return true
 	}, nil)
