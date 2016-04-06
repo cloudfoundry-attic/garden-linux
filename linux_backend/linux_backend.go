@@ -27,7 +27,10 @@ type Container interface {
 	Restore(LinuxContainerSpec) error
 	Cleanup() error
 
-	LimitDisk(limits garden.DiskLimits) error
+	LimitCPU(garden.CPULimits) error
+	LimitDisk(garden.DiskLimits) error
+	LimitMemory(garden.MemoryLimits) error
+	LimitBandwidth(garden.BandwidthLimits) error
 
 	garden.Container
 }
@@ -215,7 +218,7 @@ func (b *LinuxBackend) Create(spec garden.ContainerSpec) (garden.Container, erro
 		return nil, err
 	}
 
-	if err := b.ApplyLimits(container, spec.Limits); err != nil {
+	if err := b.applyLimits(container, spec.Limits); err != nil {
 		b.resourcePool.Release(containerSpec)
 		return nil, err
 	}
@@ -225,7 +228,7 @@ func (b *LinuxBackend) Create(spec garden.ContainerSpec) (garden.Container, erro
 	return container, nil
 }
 
-func (b *LinuxBackend) ApplyLimits(container Container, limits garden.Limits) error {
+func (b *LinuxBackend) applyLimits(container Container, limits garden.Limits) error {
 	if limits.CPU != (garden.CPULimits{}) {
 		if err := container.LimitCPU(limits.CPU); err != nil {
 			return err

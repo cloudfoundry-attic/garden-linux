@@ -270,12 +270,14 @@ var _ = Describe("Through a restart", func() {
 
 	Describe("a memory limit", func() {
 		It("is still enforced", func() {
-			err := container.LimitMemory(garden.MemoryLimits{4 * 1024 * 1024})
+			containerWithMemoryLimit, err := client.Create(garden.ContainerSpec{
+				Limits: garden.Limits{Memory: garden.MemoryLimits{4 * 1024 * 1024}},
+			})
 			Expect(err).ToNot(HaveOccurred())
 
 			restartGarden(gardenArgs...)
 
-			process, err := container.Run(garden.ProcessSpec{
+			process, err := containerWithMemoryLimit.Run(garden.ProcessSpec{
 				User: "alice",
 				Path: "sh",
 				Args: []string{"-c", "echo $(yes | head -c 67108864); echo goodbye; exit 42"},
@@ -310,11 +312,13 @@ var _ = Describe("Through a restart", func() {
 
 	Describe("a container's list of events", func() {
 		It("is still reported", func() {
-			err := container.LimitMemory(garden.MemoryLimits{4 * 1024 * 1024})
+			containerWithMemoryLimit, err := client.Create(garden.ContainerSpec{
+				Limits: garden.Limits{Memory: garden.MemoryLimits{4 * 1024 * 1024}},
+			})
 			Expect(err).ToNot(HaveOccurred())
 
 			// trigger 'out of memory' event
-			process, err := container.Run(garden.ProcessSpec{
+			process, err := containerWithMemoryLimit.Run(garden.ProcessSpec{
 				User: "alice",
 				Path: "sh",
 				Args: []string{"-c", "echo $(yes | head -c 67108864); echo goodbye; exit 42"},
@@ -324,7 +328,7 @@ var _ = Describe("Through a restart", func() {
 			Expect(process.Wait()).ToNot(Equal(42), "process did not get OOM killed")
 
 			Eventually(func() []string {
-				info, err := container.Info()
+				info, err := containerWithMemoryLimit.Info()
 				Expect(err).ToNot(HaveOccurred())
 
 				return info.Events
@@ -332,7 +336,7 @@ var _ = Describe("Through a restart", func() {
 
 			restartGarden(gardenArgs...)
 
-			info, err := container.Info()
+			info, err := containerWithMemoryLimit.Info()
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(info.Events).To(ContainElement("out of memory"))
