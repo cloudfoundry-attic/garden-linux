@@ -21,8 +21,8 @@ apt-get -y install \
   quota \
   ulogd
 
-# install go1.6
-wget -qO- https://storage.googleapis.com/golang/go1.6.linux-amd64.tar.gz | tar -C /usr/local -xzf -
+# install go1.6.1
+wget -qO- https://storage.googleapis.com/golang/go1.6.1.linux-amd64.tar.gz | tar -C /usr/local -xzf -
 
 #Set up $GOPATH and add go executables to $PATH
 cat > /etc/profile.d/go_env.sh <<\EOF
