@@ -53,7 +53,7 @@ var _ = Describe("Rootfs container create parameter", func() {
 			container, err = client.Create(garden.ContainerSpec{RootFSPath: ""})
 			Ω(err).Should(HaveOccurred())
 			Ω(err).Should(MatchError(ContainSubstring(
-				"RootFSPath: is a required parameter, since no default rootfs was provided to the server. To provide a default rootfs, use the --rootfs flag on startup.",
+				"RootFSPath: is a required parameter, since no default rootfs was provided to the server.",
 			)))
 		})
 
