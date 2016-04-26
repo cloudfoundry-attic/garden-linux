@@ -241,12 +241,12 @@ func main() {
 		"Image which should never be garbage collected. (Can be specified multiple times)",
 	)
 
-    var dnsServers vars.StringList
-    flag.Var(
-        &dnsServers,
-        "dnsServer",
-        "DNS server IP address to use instead of automatically determined servers. (Can be specified multiple times)",
-    )
+	var dnsServers vars.StringList
+	flag.Var(
+		&dnsServers,
+		"dnsServer",
+		"DNS server IP address to use instead of automatically determined servers. (Can be specified multiple times)",
+	)
 
 	cf_debug_server.AddFlags(flag.CommandLine)
 	cf_lager.AddFlags(flag.CommandLine)
@@ -371,19 +371,22 @@ func main() {
 	repo := container_repository.New()
 	retainer := cleaner.NewRetainer()
 
-	repoFetcher := &repository_fetcher.CompositeFetcher{
-		LocalFetcher: &repository_fetcher.Local{
-			Cake:              cake,
-			DefaultRootFSPath: *rootFSPath,
-			IDProvider:        repository_fetcher.LayerIDProvider{},
+	repoFetcher := &repository_fetcher.Retryable{
+		RepositoryFetcher: &repository_fetcher.CompositeFetcher{
+			LocalFetcher: &repository_fetcher.Local{
+				Cake:              cake,
+				DefaultRootFSPath: *rootFSPath,
+				IDProvider:        repository_fetcher.LayerIDProvider{},
+			},
+			RemoteFetcher: repository_fetcher.NewRemote(
+				logger,
+				*dockerRegistry,
+				cake,
+				distclient.NewDialer(insecureRegistries.List),
+				repository_fetcher.VerifyFunc(repository_fetcher.Verify),
+			),
 		},
-		RemoteFetcher: repository_fetcher.NewRemote(
-			logger,
-			*dockerRegistry,
-			cake,
-			distclient.NewDialer(insecureRegistries.List),
-			repository_fetcher.VerifyFunc(repository_fetcher.Verify),
-		),
+		Logger: logger,
 	}
 
 	maxId := uint32(sysinfo.Min(sysinfo.MustGetMaxValidUID(), sysinfo.MustGetMaxValidGID()))
