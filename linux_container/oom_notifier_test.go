@@ -151,10 +151,14 @@ var _ = Describe("OomNotifier", func() {
 		})
 
 		Context("when oom has not already occurred", func() {
+			ensureWaitCalled := make(chan bool)
+			ensureUnwatchCalled := make(chan bool)
 			BeforeEach(func() {
 				runner.WhenWaitingFor(
 					fake_command_runner.CommandSpec{},
 					func(cmd *exec.Cmd) error {
+						ensureWaitCalled <- true
+						<-ensureUnwatchCalled
 						return errors.New("Command got killed")
 					})
 			})
@@ -162,7 +166,10 @@ var _ = Describe("OomNotifier", func() {
 			It("kills the oom process", func() {
 				Expect(oomNotifier.Watch(oNoom)).To(Succeed())
 
+				// We want to ensure kill occurs while OOM monitor is Waiting
+				<-ensureWaitCalled
 				oomNotifier.Unwatch()
+				ensureUnwatchCalled <- true
 
 				startedCommands := runner.StartedCommands()
 				killedCommands := runner.KilledCommands()
