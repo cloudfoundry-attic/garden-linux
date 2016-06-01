@@ -8,6 +8,7 @@ shopt -s nullglob
 filter_input_chain="${GARDEN_IPTABLES_FILTER_INPUT_CHAIN}"
 filter_forward_chain="${GARDEN_IPTABLES_FILTER_FORWARD_CHAIN}"
 filter_default_chain="${GARDEN_IPTABLES_FILTER_DEFAULT_CHAIN}"
+filter_neverallow_chain="${GARDEN_IPTABLES_FILTER_NEVERALLOW_CHAIN}"
 filter_instance_prefix="${GARDEN_IPTABLES_FILTER_INSTANCE_PREFIX}"
 nat_prerouting_chain="${GARDEN_IPTABLES_NAT_PREROUTING_CHAIN}"
 nat_postrouting_chain="${GARDEN_IPTABLES_NAT_POSTROUTING_CHAIN}"
@@ -63,6 +64,7 @@ function teardown_filter() {
 
   iptables -w -F ${filter_forward_chain} 2> /dev/null || true
   iptables -w -F ${filter_default_chain} 2> /dev/null || true
+  iptables -w -F ${filter_neverallow_chain} 2> /dev/null || true
 
   # Remove jump to filter input chain from INPUT
   iptables -w -S INPUT 2> /dev/null |
@@ -109,6 +111,9 @@ function setup_filter() {
 
   # Always allow established connections to containers
   iptables -w -A ${filter_default_chain} -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+
+  # Create or flush neverallow chain
+  iptables -w -N ${filter_neverallow_chain} 2> /dev/null || iptables -w -F ${filter_neverallow_chain}
 
   # Forward outbound traffic via ${filter_forward_chain}
   iptables -w -A FORWARD -i ${GARDEN_NETWORK_INTERFACE_PREFIX}+ --jump ${filter_forward_chain}

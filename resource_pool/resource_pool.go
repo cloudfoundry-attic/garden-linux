@@ -80,8 +80,9 @@ type LinuxResourcePool struct {
 
 	sysconfig sysconfig.Config
 
-	denyNetworks  []string
-	allowNetworks []string
+	neverAllowNetworks []string
+	denyNetworks       []string
+	allowNetworks      []string
 
 	rootFSProvider RootFSProvider
 	rootFSCleaner  RootFSCleaner
@@ -97,8 +98,9 @@ type LinuxResourcePool struct {
 	bridges     bridgemgr.BridgeManager
 	iptablesMgr linux_container.IPTablesManager
 
-	filterProvider FilterProvider
-	defaultChain   iptables.Chain
+	filterProvider  FilterProvider
+	defaultChain    iptables.Chain
+	neverAllowChain iptables.Chain
 
 	runner command_runner.CommandRunner
 
@@ -124,9 +126,9 @@ func New(
 	bridges bridgemgr.BridgeManager,
 	iptablesMgr linux_container.IPTablesManager,
 	filterProvider FilterProvider,
-	defaultChain iptables.Chain,
+	defaultChain, neverAllowChain iptables.Chain,
 	portPool linux_container.PortPool,
-	denyNetworks, allowNetworks []string,
+	neverAllowNetworks, denyNetworks, allowNetworks []string,
 	runner command_runner.CommandRunner,
 	quotaManager linux_container.QuotaManager,
 	currentContainerVersion semver.Version,
@@ -144,8 +146,9 @@ func New(
 		rootFSCleaner:  rootFSCleaner,
 		mappingList:    mappingList,
 
-		allowNetworks: allowNetworks,
-		denyNetworks:  denyNetworks,
+		neverAllowNetworks: neverAllowNetworks,
+		denyNetworks:       denyNetworks,
+		allowNetworks:      allowNetworks,
 
 		externalIP: externalIP,
 		mtu:        mtu,
@@ -155,8 +158,9 @@ func New(
 		bridges:     bridges,
 		iptablesMgr: iptablesMgr,
 
-		filterProvider: filterProvider,
-		defaultChain:   defaultChain,
+		filterProvider:  filterProvider,
+		defaultChain:    defaultChain,
+		neverAllowChain: neverAllowChain,
 
 		portPool: portPool,
 
@@ -199,6 +203,19 @@ func (p *LinuxResourcePool) Setup() error {
 }
 
 func (p *LinuxResourcePool) setupIPTables() error {
+	for _, n := range p.neverAllowNetworks {
+		if n == "" {
+			continue
+		}
+
+		if err := p.neverAllowChain.AppendRule("", n, iptables.Reject); err != nil {
+			return fmt.Errorf("resource_pool: setting up never allow rules in iptables: %v", err)
+		}
+	}
+	if err := p.neverAllowChain.AppendRule("", "", iptables.Return); err != nil {
+		return fmt.Errorf("resource_pool: setting up never allow return rule in iptables: %v", err)
+	}
+
 	for _, n := range p.allowNetworks {
 		if n == "" {
 			continue
@@ -209,6 +226,7 @@ func (p *LinuxResourcePool) setupIPTables() error {
 		}
 	}
 
+	// denyNetworks := append(p.denyNetworks, p.neverAllowNetworks...)
 	for _, n := range p.denyNetworks {
 		if n == "" {
 			continue

@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
 	. "github.com/onsi/ginkgo"
@@ -26,6 +27,7 @@ var _ = Describe("Net Out", func() {
 		containerNetwork string
 		denyRange        string
 		allowRange       string
+		neverAllowRange  string
 		allowHostAccess  bool
 	)
 
@@ -34,6 +36,7 @@ var _ = Describe("Net Out", func() {
 	BeforeEach(func() {
 		denyRange = ""
 		allowRange = ""
+		neverAllowRange = ""
 		allowHostAccess = false
 		gardenArgs = []string{}
 	})
@@ -45,6 +48,7 @@ var _ = Describe("Net Out", func() {
 				allowRange, // so that it can be overridden by allowNetworks below
 			}, ","),
 			"-allowNetworks", allowRange,
+			"-neverAllowNetworks", neverAllowRange,
 			"-iptablesLogMethod", "nflog", // so that we can read logs when running in fly
 		}
 
@@ -93,7 +97,7 @@ var _ = Describe("Net Out", func() {
 
 			ByRejectingTCP = func() {
 				By("rejecting outbound tcp traffic", func() {
-					Expect(checkInternet(container)).To(HaveOccurred())
+					Expect(checkInternet(container)).NotTo(Succeed())
 				})
 			}
 		})
@@ -122,6 +126,34 @@ var _ = Describe("Net Out", func() {
 
 				It("allows TCP traffic to the target", func() {
 					ByAllowingTCP()
+				})
+			})
+		})
+
+		Context("when the target address is inside NEVER_ALLOW_NETWORKS", func() {
+			//The target address is the ip addr of www.example.com in these tests
+			BeforeEach(func() {
+				neverAllowRange = "0.0.0.0/0"
+				containerNetwork = fmt.Sprintf("10.1%d.0.0/24", GinkgoParallelNode())
+			})
+
+			It("disallows TCP connections", func() {
+				ByRejectingTCP()
+			})
+
+			Context("when a rule that tries to allow all traffic to the target is added", func() {
+				JustBeforeEach(func() {
+					err := container.NetOut(garden.NetOutRule{
+						Networks: []garden.IPRange{
+							garden.IPRangeFromIP(externalIP),
+						},
+					})
+					Expect(err).ToNot(HaveOccurred())
+				})
+
+				FIt("still rejects TCP traffic to the target", func() {
+					time.Sleep(time.Hour)
+					ByRejectingTCP()
 				})
 			})
 		})

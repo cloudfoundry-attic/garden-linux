@@ -201,6 +201,17 @@ var _ = Describe("Iptables", func() {
 
 		})
 
+		Describe("PrependRule", func() {
+			It("runs iptables to create the rule with the correct parameters", func() {
+				subject.PrependRule("", "2.0.0.0/11", Return)
+
+				Expect(fakeRunner).To(HaveExecutedSerially(fake_command_runner.CommandSpec{
+					Path: "/sbin/iptables",
+					Args: []string{"-w", "-I", "foo-bar-baz", "--destination", "2.0.0.0/11", "--jump", "RETURN"},
+				}))
+			})
+		})
+
 		Describe("AppendRule", func() {
 			It("runs iptables to create the rule with the correct parameters", func() {
 				subject.AppendRule("", "2.0.0.0/11", Return)

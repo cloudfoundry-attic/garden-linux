@@ -34,10 +34,11 @@ var _ = Describe("filterChain", func() {
 
 		fakeRunner = fake_command_runner.New()
 		testCfg = &sysconfig.IPTablesFilterConfig{
-			InputChain:     "filter-input-chain",
-			ForwardChain:   "filter-forward-chain",
-			DefaultChain:   "filter-default-chain",
-			InstancePrefix: "filter-instance-prefix",
+			InputChain:      "filter-input-chain",
+			ForwardChain:    "filter-forward-chain",
+			DefaultChain:    "filter-default-chain",
+			NeverAllowChain: "filter-neverallow-chain",
+			InstancePrefix:  "filter-instance-prefix",
 		}
 
 		containerID = "some-ctr-id"
@@ -62,6 +63,11 @@ var _ = Describe("filterChain", func() {
 					Path: "iptables",
 					Args: []string{"--wait", "-A", expectedFilterInstanceChain,
 						"-s", network.String(), "-d", network.String(), "-j", "ACCEPT"},
+				},
+				fake_command_runner.CommandSpec{
+					Path: "iptables",
+					Args: []string{"--wait", "-A", expectedFilterInstanceChain,
+						"-j", testCfg.NeverAllowChain},
 				},
 				fake_command_runner.CommandSpec{
 					Path: "iptables",
@@ -93,7 +99,8 @@ var _ = Describe("filterChain", func() {
 			Entry("create filter instance chain", 0, "iptables_manager: filter: iptables failed"),
 			Entry("allow intra-subnet traffic", 1, "iptables_manager: filter: iptables failed"),
 			Entry("use the default filter chain otherwise", 2, "iptables_manager: filter: iptables failed"),
-			Entry("bind filter instance chain to filter forward chain", 3, "iptables_manager: filter: iptables failed"),
+			Entry("use the never allow filter chain", 3, "iptables_manager: filter: iptables failed"),
+			Entry("bind filter instance chain to filter forward chain", 4, "iptables_manager: filter: iptables failed"),
 		)
 	})
 

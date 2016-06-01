@@ -27,6 +27,7 @@ type IPTablesFilterConfig struct {
 	InputChain      string
 	ForwardChain    string
 	DefaultChain    string
+	NeverAllowChain string
 	InstancePrefix  string
 }
 
@@ -51,6 +52,7 @@ func NewConfig(tag string, allowHostAccess bool, dnsServers []string) Config {
 				InputChain:      fmt.Sprintf("w-%s-input", tag),
 				ForwardChain:    fmt.Sprintf("w-%s-forward", tag),
 				DefaultChain:    fmt.Sprintf("w-%s-default", tag),
+				NeverAllowChain: fmt.Sprintf("w-%s-neverallow", tag),
 				InstancePrefix:  fmt.Sprintf("w-%s-instance-", tag),
 			},
 			NAT: IPTablesNATConfig{
@@ -73,9 +75,10 @@ func (config Config) Environ() process.Env {
 		"GARDEN_IPTABLES_ALLOW_HOST_ACCESS":  strconv.FormatBool(config.IPTables.Filter.AllowHostAccess),
 		"GARDEN_IPTABLES_FILTER_INPUT_CHAIN": config.IPTables.Filter.InputChain,
 
-		"GARDEN_IPTABLES_FILTER_FORWARD_CHAIN":   config.IPTables.Filter.ForwardChain,
-		"GARDEN_IPTABLES_FILTER_DEFAULT_CHAIN":   config.IPTables.Filter.DefaultChain,
-		"GARDEN_IPTABLES_FILTER_INSTANCE_PREFIX": config.IPTables.Filter.InstancePrefix,
+		"GARDEN_IPTABLES_FILTER_FORWARD_CHAIN":    config.IPTables.Filter.ForwardChain,
+		"GARDEN_IPTABLES_FILTER_DEFAULT_CHAIN":    config.IPTables.Filter.DefaultChain,
+		"GARDEN_IPTABLES_FILTER_NEVERALLOW_CHAIN": config.IPTables.Filter.NeverAllowChain,
+		"GARDEN_IPTABLES_FILTER_INSTANCE_PREFIX":  config.IPTables.Filter.InstancePrefix,
 
 		"GARDEN_IPTABLES_NAT_PREROUTING_CHAIN":  config.IPTables.NAT.PreroutingChain,
 		"GARDEN_IPTABLES_NAT_POSTROUTING_CHAIN": config.IPTables.NAT.PostroutingChain,

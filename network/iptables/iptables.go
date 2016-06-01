@@ -59,6 +59,7 @@ type Chain interface {
 	TearDown() error
 
 	AppendRule(source string, destination string, jump Action) error
+	PrependRule(source string, destination string, jump Action) error
 	DeleteRule(source string, destination string, jump Action) error
 
 	AppendNatRule(source string, destination string, jump Action, to net.IP) error
@@ -148,6 +149,14 @@ func (ch *chain) AppendRule(source string, destination string, jump Action) erro
 	})
 }
 
+func (ch *chain) PrependRule(source string, destination string, jump Action) error {
+	return ch.Prepend(&rule{
+		source:      source,
+		destination: destination,
+		jump:        jump,
+	})
+}
+
 func (ch *chain) DeleteRule(source string, destination string, jump Action) error {
 	return ch.Destroy(&rule{
 		source:      source,
@@ -226,7 +235,7 @@ func allowsPort(p garden.Protocol) bool {
 }
 
 func (ch *chain) prependSingleRule(r singleRule) error {
-	params := []string{"-w", "-I", ch.name, "1"}
+	params := []string{"-w", "-I", ch.name, "3"}
 
 	protocolString, ok := protocols[r.Protocol]
 
@@ -296,6 +305,10 @@ func (n *rule) create(chain string, runner command_runner.CommandRunner) error {
 	return runner.Run(exec.Command("/sbin/iptables", flags("-A", chain, n)...))
 }
 
+func (n *rule) prepend(chain string, runner command_runner.CommandRunner) error {
+	return runner.Run(exec.Command("/sbin/iptables", flags("-I", chain, n)...))
+}
+
 func (n *rule) destroy(chain string, runner command_runner.CommandRunner) error {
 	return runner.Run(exec.Command("/sbin/iptables", flags("-D", chain, n)...))
 }
@@ -334,12 +347,20 @@ type creater interface {
 	create(chain string, runner command_runner.CommandRunner) error
 }
 
+type prepender interface {
+	prepend(chain string, runner command_runner.CommandRunner) error
+}
+
 type destroyer interface {
 	destroy(chain string, runner command_runner.CommandRunner) error
 }
 
 func (c *chain) Create(rule creater) error {
 	return rule.create(c.name, c.runner)
+}
+
+func (c *chain) Prepend(rule prepender) error {
+	return rule.prepend(c.name, c.runner)
 }
 
 func (c *chain) Destroy(rule destroyer) error {

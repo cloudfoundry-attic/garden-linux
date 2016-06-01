@@ -138,6 +138,12 @@ var networkPool = flag.String("networkPool",
 	DefaultNetworkPool,
 	"Pool of dynamically allocated container subnets")
 
+var neverAllowNetworks = flag.String(
+	"neverAllowNetworks",
+	"",
+	"CIDR blocks representing IPs to blacklist (that cannot be overriden)",
+)
+
 var denyNetworks = flag.String(
 	"denyNetworks",
 	"",
@@ -492,7 +498,9 @@ func main() {
 		ipTablesMgr,
 		injector,
 		iptables.NewGlobalChain(config.IPTables.Filter.DefaultChain, runner, logger.Session("global-chain")),
+		iptables.NewGlobalChain(config.IPTables.Filter.NeverAllowChain, runner, logger.Session("global-chain")),
 		portPool,
+		strings.Split(*neverAllowNetworks, ","),
 		strings.Split(*denyNetworks, ","),
 		strings.Split(*allowNetworks, ","),
 		runner,
