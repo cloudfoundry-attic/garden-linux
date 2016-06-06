@@ -263,7 +263,7 @@ var _ = Describe("IP settings", func() {
 
 	Describe("concurrently creating multiple containers", func() {
 		FIt("each container should have its own distinct IP address", func() {
-			containersAmt := 5
+			containersAmt := 50
 
 			h := make(chan string, containersAmt)
 			createErrs := make(chan error, containersAmt)
@@ -271,7 +271,7 @@ var _ = Describe("IP settings", func() {
 			containersIP := make(map[string]string)
 
 			for i := 0; i < containersAmt; i++ {
-				go func() {
+				go func(i int) {
 					defer GinkgoRecover()
 
 					cont, err := client.Create(garden.ContainerSpec{})
@@ -280,27 +280,27 @@ var _ = Describe("IP settings", func() {
 						return
 					}
 
-					h <- cont.Handle()
-					fmt.Printf("Created container %s\n", cont.Handle())
+					fmt.Printf("Created container #%d with handle %s\n", i, cont.Handle())
 
 					info, err := cont.Info()
 					Expect(err).NotTo(HaveOccurred())
 
 					Expect(containersIP).NotTo(ContainElement(info.ContainerIP))
 					containersIP[info.ContainerIP] = ""
-				}()
+					h <- cont.Handle()
+				}(i)
 			}
 
 			for i := 0; i < containersAmt; i++ {
 				select {
 				case handle := <-h:
-					go func() {
+					go func(i int) {
 						defer GinkgoRecover()
 
 						destroyErrs <- client.Destroy(handle)
 
-						fmt.Printf("Destroyed container %s\n", handle)
-					}()
+						fmt.Printf("Destroyed container #%d with handle %s\n", i, handle)
+					}(i)
 
 				case err := <-createErrs:
 					Fail(err.Error())
