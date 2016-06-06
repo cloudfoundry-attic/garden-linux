@@ -260,6 +260,59 @@ var _ = Describe("IP settings", func() {
 			Expect(localIP).To(Equal(info1.ExternalIP))
 		})
 	})
+
+	Describe("concurrently creating multiple containers", func() {
+		FIt("each container should have its own distinct IP address", func() {
+			containersAmt := 5
+
+			h := make(chan string, containersAmt)
+			createErrs := make(chan error, containersAmt)
+			destroyErrs := make(chan error, containersAmt)
+			containersIP := make(map[string]string)
+
+			for i := 0; i < containersAmt; i++ {
+				go func() {
+					defer GinkgoRecover()
+
+					cont, err := client.Create(garden.ContainerSpec{})
+					if err != nil {
+						createErrs <- err
+						return
+					}
+
+					h <- cont.Handle()
+					fmt.Printf("Created container %s\n", cont.Handle())
+
+					info, err := cont.Info()
+					Expect(err).NotTo(HaveOccurred())
+
+					Expect(containersIP).NotTo(ContainElement(info.ContainerIP))
+					containersIP[info.ContainerIP] = ""
+				}()
+			}
+
+			for i := 0; i < containersAmt; i++ {
+				select {
+				case handle := <-h:
+					go func() {
+						defer GinkgoRecover()
+
+						destroyErrs <- client.Destroy(handle)
+
+						fmt.Printf("Destroyed container %s\n", handle)
+					}()
+
+				case err := <-createErrs:
+					Fail(err.Error())
+				}
+			}
+
+			for i := 0; i < containersAmt; i++ {
+				e := <-destroyErrs
+				Expect(e).NotTo(HaveOccurred())
+			}
+		})
+	})
 })
 
 func checkHostAccess(container garden.Container, permitted bool) {
