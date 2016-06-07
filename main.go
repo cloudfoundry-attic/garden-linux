@@ -25,6 +25,7 @@ import (
 	"github.com/cloudfoundry-incubator/cf-lager"
 	"github.com/cloudfoundry-incubator/garden-linux/container_repository"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/healthchecker"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/bandwidth_manager"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_container/cgroups_manager"
@@ -503,7 +504,14 @@ func main() {
 
 	systemInfo := sysinfo.NewProvider(*depotPath)
 
-	backend := linux_backend.New(logger, pool, repo, injector, systemInfo, layercake.GraphPath(*graphRoot), *snapshotsPath, int(*maxContainers))
+	nahc := &healthchecker.NetworkAllocationHealthChecker{}
+	ahc := healthchecker.AggregateHealthChecker{
+		HealthCheckers: []healthchecker.HealthChecker{
+			layercake.GraphPath(*graphRoot),
+			nahc,
+		},
+	}
+	backend := linux_backend.New(logger, pool, repo, injector, systemInfo, ahc, nahc, *snapshotsPath, int(*maxContainers))
 
 	err = backend.Setup()
 	if err != nil {

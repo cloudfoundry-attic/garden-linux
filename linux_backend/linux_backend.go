@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/cloudfoundry-incubator/garden"
+	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/healthchecker"
 	"github.com/cloudfoundry-incubator/garden-linux/sysinfo"
 	"github.com/pivotal-golang/lager"
 )
@@ -69,9 +70,10 @@ type HealthChecker interface {
 type LinuxBackend struct {
 	logger lager.Logger
 
-	resourcePool ResourcePool
-	systemInfo   sysinfo.Provider
-	healthCheck  HealthChecker
+	resourcePool                   ResourcePool
+	systemInfo                     sysinfo.Provider
+	healthCheck                    HealthChecker
+	networkAllocationHealthChecker *healthchecker.NetworkAllocationHealthChecker
 
 	snapshotsPath string
 	maxContainers int
@@ -111,17 +113,19 @@ func New(
 	containerProvider ContainerProvider,
 	systemInfo sysinfo.Provider,
 	healthCheck HealthChecker,
+	nahc *healthchecker.NetworkAllocationHealthChecker,
 	snapshotsPath string,
 	maxContainers int,
 ) *LinuxBackend {
 	return &LinuxBackend{
 		logger: logger.Session("backend"),
 
-		resourcePool:  resourcePool,
-		systemInfo:    systemInfo,
-		healthCheck:   healthCheck,
-		snapshotsPath: snapshotsPath,
-		maxContainers: maxContainers,
+		resourcePool:                   resourcePool,
+		systemInfo:                     systemInfo,
+		healthCheck:                    healthCheck,
+		networkAllocationHealthChecker: nahc,
+		snapshotsPath:                  snapshotsPath,
+		maxContainers:                  maxContainers,
 
 		containerRepo:     containerRepo,
 		containerProvider: containerProvider,
@@ -213,6 +217,7 @@ func (b *LinuxBackend) Create(spec garden.ContainerSpec) (garden.Container, erro
 
 	if err = b.assertIPNotAlreadyAllocated(containerSpec); err != nil {
 		b.resourcePool.Release(containerSpec)
+		b.networkAllocationHealthChecker.ConflictDetected(err)
 		return nil, err
 	}
 
