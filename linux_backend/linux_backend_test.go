@@ -532,7 +532,7 @@ var _ = Describe("LinuxBackend", func() {
 
 			It("returns an error", func() {
 				_, err := linuxBackend.Create(garden.ContainerSpec{})
-				Expect(err).To(MatchError("IP address 192.0.2.1 has already been acquired - garden-linux may be in an unexpected state"))
+				Expect(err).To(MatchError("IP address 192.0.2.1 has already been acquired by container 'foo' - garden-linux may be in an unexpected state"))
 			})
 
 			It("does not start the container", func() {

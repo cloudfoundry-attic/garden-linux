@@ -211,21 +211,12 @@ func (b *LinuxBackend) Create(spec garden.ContainerSpec) (garden.Container, erro
 		return nil, err
 	}
 
-	container := b.containerProvider.ProvideContainer(containerSpec)
-
-	for _, container := range b.containerRepo.All() {
-		info, err := container.Info()
-		if err != nil {
-			b.resourcePool.Release(containerSpec)
-			return nil, err
-		}
-		ip := info.ContainerIP
-
-		if containerSpec.Resources.Network.IP.String() == ip {
-			b.resourcePool.Release(containerSpec)
-			return nil, fmt.Errorf("IP address %s has already been acquired - garden-linux may be in an unexpected state", ip)
-		}
+	if err = b.assertIPNotAlreadyAllocated(containerSpec); err != nil {
+		b.resourcePool.Release(containerSpec)
+		return nil, err
 	}
+
+	container := b.containerProvider.ProvideContainer(containerSpec)
 
 	if err := container.Start(); err != nil {
 		b.resourcePool.Release(containerSpec)
@@ -443,6 +434,21 @@ func withHandles(handles []string) func(Container) bool {
 		}
 		return false
 	}
+}
+
+func (b *LinuxBackend) assertIPNotAlreadyAllocated(containerSpec LinuxContainerSpec) error {
+	for _, container := range b.containerRepo.All() {
+		info, err := container.Info()
+		if err != nil {
+			return err
+		}
+		ip := info.ContainerIP
+
+		if containerSpec.Resources.Network.IP.String() == ip {
+			return fmt.Errorf("IP address %s has already been acquired by container '%s' - garden-linux may be in an unexpected state", ip, container.Handle())
+		}
+	}
+	return nil
 }
 
 func withProperties(props garden.Properties) func(Container) bool {
