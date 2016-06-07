@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"net"
 	"os"
 	"path"
 	"time"
@@ -98,6 +99,17 @@ var _ = Describe("LinuxBackend", func() {
 			}
 
 			return newTestContainer(spec)
+		}
+
+		fakeResourcePool.AcquireStub = func(spec garden.ContainerSpec) (linux_backend.LinuxContainerSpec, error) {
+			return linux_backend.LinuxContainerSpec{
+				ContainerSpec: spec,
+				Resources: &linux_backend.Resources{
+					Network: &linux_backend.Network{
+						IP: net.ParseIP("192.0.2.1"),
+					},
+				},
+			}, nil
 		}
 	})
 
@@ -480,11 +492,60 @@ var _ = Describe("LinuxBackend", func() {
 
 		Context("when a container with the given handle already exists", func() {
 			It("returns a HandleExistsError", func() {
-				container, err := linuxBackend.Create(garden.ContainerSpec{})
+				_, err := linuxBackend.Create(garden.ContainerSpec{Handle: "foo-handle"})
 				Expect(err).ToNot(HaveOccurred())
 
-				_, err = linuxBackend.Create(garden.ContainerSpec{Handle: container.Handle()})
-				Expect(err).To(Equal(linux_backend.HandleExistsError{container.Handle()}))
+				_, err = linuxBackend.Create(garden.ContainerSpec{Handle: "foo-handle"})
+				Expect(err).To(Equal(linux_backend.HandleExistsError{"foo-handle"}))
+			})
+		})
+
+		Context("when a container acquires the same IP address as an existing container", func() {
+			var fakeContainer *fakes.FakeContainer
+
+			JustBeforeEach(func() {
+				fakeContainer = registerTestContainer(newTestContainer(linux_backend.LinuxContainerSpec{
+					ContainerSpec: garden.ContainerSpec{Handle: "foo"},
+				}))
+				containerRepo.Add(fakeContainer)
+				fakeContainer.InfoReturns(garden.ContainerInfo{
+					ContainerIP: "192.0.2.1",
+				}, nil)
+			})
+
+			Context("when a container in the repo returns an error from Info", func() {
+				JustBeforeEach(func() {
+					fakeContainer.InfoReturns(garden.ContainerInfo{}, errors.New("info-errored"))
+				})
+
+				It("returns an error", func() {
+					_, err := linuxBackend.Create(garden.ContainerSpec{})
+					Expect(err).To(HaveOccurred())
+				})
+
+				It("releases resources", func() {
+					_, err := linuxBackend.Create(garden.ContainerSpec{})
+					Expect(err).To(HaveOccurred())
+					Expect(fakeResourcePool.ReleaseCallCount()).To(Equal(1))
+				})
+			})
+
+			It("returns an error", func() {
+				_, err := linuxBackend.Create(garden.ContainerSpec{})
+				Expect(err).To(MatchError("IP address 192.0.2.1 has already been acquired - garden-linux may be in an unexpected state"))
+			})
+
+			It("does not start the container", func() {
+				_, err := linuxBackend.Create(garden.ContainerSpec{Handle: "foo"})
+				Expect(err).To(HaveOccurred())
+
+				Expect(fakeContainer.StartCallCount()).To(Equal(0))
+			})
+
+			It("releases resources", func() {
+				_, err := linuxBackend.Create(garden.ContainerSpec{})
+				Expect(err).To(HaveOccurred())
+				Expect(fakeResourcePool.ReleaseCallCount()).To(Equal(1))
 			})
 		})
 
@@ -522,13 +583,13 @@ var _ = Describe("LinuxBackend", func() {
 			})
 
 			It("obeys the limit", func() {
-				_, err := linuxBackend.Create(garden.ContainerSpec{})
+				_, err := linuxBackend.Create(garden.ContainerSpec{Handle: "container1"})
 				Expect(err).ToNot(HaveOccurred())
 
-				_, err = linuxBackend.Create(garden.ContainerSpec{})
+				_, err = linuxBackend.Create(garden.ContainerSpec{Handle: "container2"})
 				Expect(err).ToNot(HaveOccurred())
 
-				_, err = linuxBackend.Create(garden.ContainerSpec{})
+				_, err = linuxBackend.Create(garden.ContainerSpec{Handle: "container3"})
 				Expect(err).To(MatchError("cannot create more than 2 containers"))
 			})
 		})

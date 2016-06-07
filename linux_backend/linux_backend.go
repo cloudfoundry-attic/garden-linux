@@ -213,6 +213,20 @@ func (b *LinuxBackend) Create(spec garden.ContainerSpec) (garden.Container, erro
 
 	container := b.containerProvider.ProvideContainer(containerSpec)
 
+	for _, container := range b.containerRepo.All() {
+		info, err := container.Info()
+		if err != nil {
+			b.resourcePool.Release(containerSpec)
+			return nil, err
+		}
+		ip := info.ContainerIP
+
+		if containerSpec.Resources.Network.IP.String() == ip {
+			b.resourcePool.Release(containerSpec)
+			return nil, fmt.Errorf("IP address %s has already been acquired - garden-linux may be in an unexpected state", ip)
+		}
+	}
+
 	if err := container.Start(); err != nil {
 		b.resourcePool.Release(containerSpec)
 		return nil, err
