@@ -268,7 +268,7 @@ func (p *LinuxResourcePool) Acquire(spec garden.ContainerSpec) (linux_backend.Li
 	id := <-p.containerIDs
 	containerPath := path.Join(p.depotPath, id)
 	handle := getHandle(spec.Handle, id)
-	pLog := p.logger.Session("acquire", lager.Data{"handle": handle})
+	pLog := p.logger.Session("acquire", lager.Data{"handle": handle, "id": id})
 
 	iptablesCh := make(chan error, 1)
 
@@ -347,7 +347,8 @@ func (p *LinuxResourcePool) Restore(snapshot io.Reader) (linux_backend.LinuxCont
 
 	id := containerSnapshot.ID
 	rLog := p.logger.Session("restore", lager.Data{
-		"id": id,
+		"handle": containerSnapshot.Handle,
+		"id":     id,
 	})
 
 	rLog.Debug("restoring")
@@ -415,7 +416,8 @@ func (p *LinuxResourcePool) Restore(snapshot io.Reader) (linux_backend.LinuxCont
 
 func (p *LinuxResourcePool) Release(container linux_backend.LinuxContainerSpec) error {
 	pLog := p.logger.Session("release", lager.Data{
-		"id": container.ID,
+		"handle": container.Handle,
+		"id":     container.ID,
 	})
 
 	pLog.Info("releasing")
