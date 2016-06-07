@@ -81,7 +81,7 @@ func (p *pool) Acquire(sn SubnetSelector, i IPSelector, logger lager.Logger) (ne
 		logger.Error("subnet-selecting-failed", err)
 		return nil, err
 	}
-	logger.Info("subnet-selected", lager.Data{"subnet": network.Subnet.String()})
+	logger.Info("subnet-selected", lager.Data{"subnet": network.Subnet.String(), "allocated-subnets": subnetsStr(allocatedSubnets)})
 
 	ips := p.allocated[network.Subnet.String()]
 	logger.Info("ip-selecting", lager.Data{"allocated-ips": ipsStr(ips)})
@@ -104,7 +104,9 @@ func (p *pool) Remove(network *linux_backend.Network, logger lager.Logger) error
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
-	logger = logger.Session("release")
+	logger = logger.Session("remove")
+
+	logger.Info("allocating-ips", lager.Data{"allocated-subnets": subnetsStr(subnets(p.allocated)), "allocated-ips": ipsStr(p.allocated[network.Subnet.String()])})
 
 	if network.IP == nil {
 		return ErrIpCannotBeNil
@@ -117,7 +119,7 @@ func (p *pool) Remove(network *linux_backend.Network, logger lager.Logger) error
 	}
 
 	p.allocated[network.Subnet.String()] = append(p.allocated[network.Subnet.String()], network.IP)
-	logger.Info("new-allocated", lager.Data{"allocated-ips": ipsStr(p.allocated[network.Subnet.String()]), "subnet": network.Subnet.String()})
+	logger.Info("allocated-ips", lager.Data{"allocated-subnets": subnetsStr(subnets(p.allocated)), "allocated-ips": ipsStr(p.allocated[network.Subnet.String()])})
 
 	return nil
 }
@@ -131,13 +133,15 @@ func (p *pool) Release(network *linux_backend.Network, logger lager.Logger) erro
 	subnetString := network.Subnet.String()
 	ips := p.allocated[subnetString]
 
+	logger.Info("changing-allocated-subnets-or-ips", lager.Data{"allocated-subnets": subnetsStr(subnets(p.allocated)), "allocated-ips": ipsStr(ips)})
+
 	if i, found := indexOf(ips, network.IP); found {
 		if reducedIps, empty := removeIPAtIndex(ips, i); empty {
 			delete(p.allocated, subnetString)
-			logger.Info("changing-allocated-subnets", lager.Data{"allocated-subnets": subnetsStr(subnets(p.allocated))})
+			logger.Info("changed-allocated-subnets-and-ips", lager.Data{"allocated-subnets": subnetsStr(subnets(p.allocated)), "allocated-ips": ipsStr(ips)})
 		} else {
 			p.allocated[subnetString] = reducedIps
-			logger.Info("changing-allocated-ips", lager.Data{"allocated-ips": ipsStr(reducedIps)})
+			logger.Info("changed-allocated-ips", lager.Data{"allocated-ips": ipsStr(reducedIps)})
 		}
 
 		return nil
