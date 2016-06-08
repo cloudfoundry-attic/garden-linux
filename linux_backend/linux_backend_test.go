@@ -18,7 +18,6 @@ import (
 	"github.com/cloudfoundry-incubator/garden-linux/container_repository"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
 	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/fakes"
-	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/healthchecker"
 	"github.com/cloudfoundry-incubator/garden-linux/sysinfo/fake_sysinfo"
 )
 
@@ -29,7 +28,6 @@ var _ = Describe("LinuxBackend", func() {
 	var fakeSystemInfo *fake_sysinfo.FakeProvider
 	var fakeContainerProvider *fakes.FakeContainerProvider
 	var fakeHealthCheck *fakes.FakeHealthChecker
-	var networkAllocationHealthCheck *healthchecker.NetworkAllocationHealthChecker
 	var containerRepo linux_backend.ContainerRepository
 	var linuxBackend *linux_backend.LinuxBackend
 	var snapshotsPath string
@@ -71,7 +69,6 @@ var _ = Describe("LinuxBackend", func() {
 		containerRepo = container_repository.New()
 		fakeSystemInfo = new(fake_sysinfo.FakeProvider)
 		fakeHealthCheck = new(fakes.FakeHealthChecker)
-		networkAllocationHealthCheck = &healthchecker.NetworkAllocationHealthChecker{}
 
 		snapshotsPath = ""
 		maxContainers = 0
@@ -124,7 +121,6 @@ var _ = Describe("LinuxBackend", func() {
 			fakeContainerProvider,
 			fakeSystemInfo,
 			fakeHealthCheck,
-			networkAllocationHealthCheck,
 			snapshotsPath,
 			maxContainers,
 		)
@@ -550,12 +546,6 @@ var _ = Describe("LinuxBackend", func() {
 				_, err := linuxBackend.Create(garden.ContainerSpec{})
 				Expect(err).To(HaveOccurred())
 				Expect(fakeResourcePool.ReleaseCallCount()).To(Equal(1))
-			})
-
-			It("sets the network allocation health check conflict", func() {
-				_, err := linuxBackend.Create(garden.ContainerSpec{})
-				Expect(err).To(HaveOccurred())
-				Expect(networkAllocationHealthCheck.Conflict).NotTo(BeNil())
 			})
 		})
 
