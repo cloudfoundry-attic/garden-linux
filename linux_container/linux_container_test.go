@@ -30,7 +30,7 @@ import (
 	networkFakes "github.com/cloudfoundry-incubator/garden-linux/network/fakes"
 	"github.com/cloudfoundry-incubator/garden-linux/port_pool/fake_port_pool"
 	"github.com/cloudfoundry-incubator/garden-linux/process_tracker/fake_process_tracker"
-	wfakes "github.com/cloudfoundry-incubator/garden/fakes"
+	wfakes "github.com/cloudfoundry-incubator/garden/gardenfakes"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
 	"github.com/onsi/gomega/format"
