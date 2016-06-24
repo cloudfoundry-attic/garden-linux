@@ -51,7 +51,7 @@ var _ = Describe("Logging", func() {
 
 		Context("from a docker url", func() {
 			BeforeEach(func() {
-				containerSpec.RootFSPath = "docker:///cloudfoundry/with-volume"
+				containerSpec.RootFSPath = "docker:///cfgarden/with-volume"
 			})
 
 			It("should not log any environment variables", func() {

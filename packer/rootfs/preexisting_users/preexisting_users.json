@@ -2,7 +2,7 @@
  "builders": [
    {
       "type": "docker",
-      "image": "cloudfoundry/preexisting_users:latest",
+      "image": "cfgarden/preexisting_users:latest",
       "export_path": "rootfs/preexisting_users/preexisting_users.tar",
       "run_command": ["-d", "-i", "-t", "{{.Image}}", "/bin/sh"]
     }

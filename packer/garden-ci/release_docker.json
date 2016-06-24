@@ -16,14 +16,14 @@
   "post-processors": [
     {
         "type": "docker-tag",
-        "repository": "cloudfoundry/garden-ci-ubuntu",
+        "repository": "cfgarden/garden-ci-ubuntu",
         "tag": "latest",
         "force": true
     },
     [
       {
         "type": "docker-tag",
-        "repository": "cloudfoundry/garden-ci-ubuntu",
+        "repository": "cfgarden/garden-ci-ubuntu",
         "tag": "{{user `version`}}"
       },
       {
