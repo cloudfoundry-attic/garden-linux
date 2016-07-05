@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-
-DOCKER_IMAGE=${DOCKER_IMAGE:-cfgarden/garden-ci-ubuntu}
-
-docker run -it \
-           --rm \
-           -v $GOPATH:/root/go \
-           $DOCKER_IMAGE \
-           /bin/bash -l -c "cd /root/go/src/github.com/cloudfoundry-incubator/garden-linux/packer/rootfs/empty && go build hello.go"
