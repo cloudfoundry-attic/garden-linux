@@ -5,8 +5,8 @@ import (
 	"os/exec"
 	osuser "os/user"
 
-	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/process"
+	"code.cloudfoundry.org/garden"
+	"code.cloudfoundry.org/garden-linux/process"
 )
 
 //go:generate counterfeiter -o fake_rlimits_env_encoder/fake_rlimits_env_encoder.go . RlimitsEnvEncoder

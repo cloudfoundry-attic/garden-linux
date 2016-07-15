@@ -6,7 +6,7 @@ import (
 	"sync"
 
 	"github.com/blang/semver"
-	"github.com/cloudfoundry-incubator/garden"
+	"code.cloudfoundry.org/garden"
 )
 
 type LinuxContainerSpec struct {

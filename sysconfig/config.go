@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/cloudfoundry-incubator/garden-linux/process"
+	"code.cloudfoundry.org/garden-linux/process"
 )
 
 type Config struct {

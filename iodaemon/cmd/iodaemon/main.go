@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/cloudfoundry-incubator/garden-linux/iodaemon"
+	"code.cloudfoundry.org/garden-linux/iodaemon"
 )
 
 const USAGE = `usage:

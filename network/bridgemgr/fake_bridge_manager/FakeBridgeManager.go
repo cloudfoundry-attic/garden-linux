@@ -5,7 +5,7 @@ import (
 	"net"
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden-linux/network/bridgemgr"
+	"code.cloudfoundry.org/garden-linux/network/bridgemgr"
 )
 
 type FakeBridgeManager struct {

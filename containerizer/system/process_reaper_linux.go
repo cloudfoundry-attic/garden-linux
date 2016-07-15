@@ -7,7 +7,7 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/pivotal-golang/lager"
+	"code.cloudfoundry.org/lager"
 )
 
 type ProcessReaper struct {

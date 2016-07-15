@@ -10,8 +10,8 @@ import (
 	"strings"
 	"syscall"
 
-	linkpkg "github.com/cloudfoundry-incubator/garden-linux/iodaemon/link"
-	"github.com/cloudfoundry-incubator/garden-linux/iodaemon/link/fake_unix_server"
+	linkpkg "code.cloudfoundry.org/garden-linux/iodaemon/link"
+	"code.cloudfoundry.org/garden-linux/iodaemon/link/fake_unix_server"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"

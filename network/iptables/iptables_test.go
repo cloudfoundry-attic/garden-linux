@@ -5,11 +5,11 @@ import (
 	"net"
 	"os/exec"
 
-	"github.com/cloudfoundry-incubator/garden"
-	. "github.com/cloudfoundry-incubator/garden-linux/network/iptables"
+	"code.cloudfoundry.org/garden"
+	. "code.cloudfoundry.org/garden-linux/network/iptables"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
-	"github.com/pivotal-golang/lager/lagertest"
+	"code.cloudfoundry.org/lager/lagertest"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

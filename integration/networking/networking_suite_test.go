@@ -5,7 +5,7 @@ import (
 	"net"
 	"os"
 
-	"github.com/cloudfoundry-incubator/garden-linux/integration/runner"
+	"code.cloudfoundry.org/garden-linux/integration/runner"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 

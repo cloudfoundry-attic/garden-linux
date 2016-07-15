@@ -3,12 +3,12 @@ package metrics_test
 import (
 	"time"
 
-	"github.com/cloudfoundry-incubator/garden-linux/metrics"
-	"github.com/cloudfoundry-incubator/garden-linux/metrics/fakes"
+	"code.cloudfoundry.org/garden-linux/metrics"
+	"code.cloudfoundry.org/garden-linux/metrics/fakes"
 	"github.com/cloudfoundry/dropsonde/metric_sender/fake"
 	dropsonde_metrics "github.com/cloudfoundry/dropsonde/metrics"
 	"github.com/pivotal-golang/clock/fakeclock"
-	"github.com/pivotal-golang/lager/lagertest"
+	"code.cloudfoundry.org/lager/lagertest"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

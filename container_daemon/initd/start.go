@@ -7,15 +7,15 @@ import (
 	"os/exec"
 	"syscall"
 
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
-	"github.com/cloudfoundry-incubator/garden-linux/containerizer"
-	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
+	"code.cloudfoundry.org/garden-linux/container_daemon"
+	"code.cloudfoundry.org/garden-linux/container_daemon/unix_socket"
+	"code.cloudfoundry.org/garden-linux/containerizer"
+	"code.cloudfoundry.org/garden-linux/containerizer/system"
 	"github.com/docker/docker/pkg/reexec"
-	"github.com/pivotal-golang/lager"
+	"code.cloudfoundry.org/lager"
 
 	// for rexec.Register("proc_starter")
-	_ "github.com/cloudfoundry-incubator/garden-linux/container_daemon/proc_starter"
+	_ "code.cloudfoundry.org/garden-linux/container_daemon/proc_starter"
 )
 
 func init() {

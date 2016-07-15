@@ -4,8 +4,8 @@ package fake_rlimits_env_encoder
 import (
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
+	"code.cloudfoundry.org/garden"
+	"code.cloudfoundry.org/garden-linux/container_daemon"
 )
 
 type FakeRlimitsEnvEncoder struct {

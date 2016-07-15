@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/cloudfoundry-incubator/garden-linux/system"
+	"code.cloudfoundry.org/garden-linux/system"
 )
 
 func main() {

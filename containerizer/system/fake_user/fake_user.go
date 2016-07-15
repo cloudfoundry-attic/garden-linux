@@ -5,7 +5,7 @@ import (
 	osuser "os/user"
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
+	"code.cloudfoundry.org/garden-linux/containerizer/system"
 )
 
 type FakeUser struct {

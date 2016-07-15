@@ -1,7 +1,7 @@
 package bridgemgr_test
 
 import (
-	"github.com/cloudfoundry-incubator/garden-linux/network/bridgemgr"
+	"code.cloudfoundry.org/garden-linux/network/bridgemgr"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )

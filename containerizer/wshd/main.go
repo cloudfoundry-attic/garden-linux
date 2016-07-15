@@ -8,11 +8,11 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
-	"github.com/cloudfoundry-incubator/garden-linux/containerizer"
-	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
-	"github.com/cloudfoundry-incubator/garden-linux/sysinfo"
+	"code.cloudfoundry.org/garden-linux/container_daemon"
+	"code.cloudfoundry.org/garden-linux/container_daemon/unix_socket"
+	"code.cloudfoundry.org/garden-linux/containerizer"
+	"code.cloudfoundry.org/garden-linux/containerizer/system"
+	"code.cloudfoundry.org/garden-linux/sysinfo"
 	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
 )
 

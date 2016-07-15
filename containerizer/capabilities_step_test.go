@@ -3,8 +3,8 @@ package containerizer_test
 import (
 	"errors"
 
-	"github.com/cloudfoundry-incubator/garden-linux/containerizer"
-	"github.com/cloudfoundry-incubator/garden-linux/containerizer/fake_capabilities"
+	"code.cloudfoundry.org/garden-linux/containerizer"
+	"code.cloudfoundry.org/garden-linux/containerizer/fake_capabilities"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

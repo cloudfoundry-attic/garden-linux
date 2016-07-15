@@ -4,8 +4,8 @@ package fake_network_statisticser
 import (
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
+	"code.cloudfoundry.org/garden"
+	"code.cloudfoundry.org/garden-linux/linux_container"
 )
 
 type FakeNetworkStatisticser struct {

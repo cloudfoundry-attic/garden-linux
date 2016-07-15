@@ -7,7 +7,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/cloudfoundry-incubator/garden"
+	"code.cloudfoundry.org/garden"
 )
 
 const (

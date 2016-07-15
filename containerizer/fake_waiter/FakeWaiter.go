@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cloudfoundry-incubator/garden-linux/containerizer"
+	"code.cloudfoundry.org/garden-linux/containerizer"
 )
 
 type FakeWaiter struct {

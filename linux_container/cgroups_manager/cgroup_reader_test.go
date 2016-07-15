@@ -3,7 +3,7 @@ package cgroups_manager_test
 import (
 	"path/filepath"
 
-	"github.com/cloudfoundry-incubator/garden-linux/linux_container/cgroups_manager"
+	"code.cloudfoundry.org/garden-linux/linux_container/cgroups_manager"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

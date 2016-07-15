@@ -9,12 +9,12 @@ import (
 	"os/exec"
 	"syscall"
 
-	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_cmdpreparer"
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_listener"
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_signaller"
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_spawner"
+	"code.cloudfoundry.org/garden"
+	"code.cloudfoundry.org/garden-linux/container_daemon"
+	"code.cloudfoundry.org/garden-linux/container_daemon/fake_cmdpreparer"
+	"code.cloudfoundry.org/garden-linux/container_daemon/fake_listener"
+	"code.cloudfoundry.org/garden-linux/container_daemon/fake_signaller"
+	"code.cloudfoundry.org/garden-linux/container_daemon/fake_spawner"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )

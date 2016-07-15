@@ -4,16 +4,16 @@ import (
 	"errors"
 	"os/exec"
 
-	"github.com/cloudfoundry-incubator/garden-linux/hook"
-	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
+	"code.cloudfoundry.org/garden-linux/hook"
+	"code.cloudfoundry.org/garden-linux/linux_backend"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 
 	"os"
 
 	"net"
 
-	networkFakes "github.com/cloudfoundry-incubator/garden-linux/network/fakes"
-	"github.com/cloudfoundry-incubator/garden-linux/process"
+	networkFakes "code.cloudfoundry.org/garden-linux/network/fakes"
+	"code.cloudfoundry.org/garden-linux/process"
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

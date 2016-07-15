@@ -3,9 +3,9 @@ package container_repository
 import (
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
-	"github.com/pivotal-golang/lager"
+	"code.cloudfoundry.org/garden"
+	"code.cloudfoundry.org/garden-linux/linux_backend"
+	"code.cloudfoundry.org/lager"
 )
 
 type InMemoryContainerRepository struct {

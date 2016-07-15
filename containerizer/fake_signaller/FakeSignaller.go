@@ -4,7 +4,7 @@ package fake_signaller
 import (
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden-linux/containerizer"
+	"code.cloudfoundry.org/garden-linux/containerizer"
 )
 
 type FakeSignaller struct {

@@ -6,11 +6,11 @@ import (
 	"os/exec"
 	"syscall"
 
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
+	"code.cloudfoundry.org/garden-linux/container_daemon"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
-	"github.com/pivotal-golang/lager/lagertest"
+	"code.cloudfoundry.org/lager/lagertest"
 )
 
 var _ = Describe("Signalling a running process", func() {

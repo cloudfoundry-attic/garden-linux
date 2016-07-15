@@ -4,9 +4,9 @@ package fake_rootfs_provider
 import (
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden-linux/resource_pool"
-	"github.com/cloudfoundry-incubator/garden-shed/rootfs_provider"
-	"github.com/pivotal-golang/lager"
+	"code.cloudfoundry.org/garden-linux/resource_pool"
+	"code.cloudfoundry.org/garden-shed/rootfs_provider"
+	"code.cloudfoundry.org/lager"
 )
 
 type FakeRootFSProvider struct {

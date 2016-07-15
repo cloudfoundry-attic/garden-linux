@@ -16,14 +16,14 @@ import (
 	"time"
 
 	"github.com/blang/semver"
-	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
-	"github.com/cloudfoundry-incubator/garden-linux/logging"
-	"github.com/cloudfoundry-incubator/garden-linux/network"
-	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
-	"github.com/cloudfoundry-incubator/garden-linux/process_tracker"
+	"code.cloudfoundry.org/garden"
+	"code.cloudfoundry.org/garden-linux/linux_backend"
+	"code.cloudfoundry.org/garden-linux/logging"
+	"code.cloudfoundry.org/garden-linux/network"
+	"code.cloudfoundry.org/garden-linux/network/subnets"
+	"code.cloudfoundry.org/garden-linux/process_tracker"
 	"github.com/cloudfoundry/gunk/command_runner"
-	"github.com/pivotal-golang/lager"
+	"code.cloudfoundry.org/lager"
 )
 
 var MissingVersion = semver.Version{}

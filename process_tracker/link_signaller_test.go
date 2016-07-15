@@ -5,9 +5,9 @@ import (
 	"errors"
 	"syscall"
 
-	"github.com/cloudfoundry-incubator/garden-linux/iodaemon/link"
-	"github.com/cloudfoundry-incubator/garden-linux/process_tracker"
-	"github.com/cloudfoundry-incubator/garden-linux/process_tracker/fake_msg_sender"
+	"code.cloudfoundry.org/garden-linux/iodaemon/link"
+	"code.cloudfoundry.org/garden-linux/process_tracker"
+	"code.cloudfoundry.org/garden-linux/process_tracker/fake_msg_sender"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )

@@ -5,7 +5,7 @@ import (
 	"net"
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
+	"code.cloudfoundry.org/garden-linux/linux_container"
 )
 
 type FakeIPTablesManager struct {

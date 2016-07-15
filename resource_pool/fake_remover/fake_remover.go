@@ -4,8 +4,8 @@ package fake_remover
 import (
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden-linux/resource_pool"
-	"github.com/cloudfoundry-incubator/garden-shed/layercake"
+	"code.cloudfoundry.org/garden-linux/resource_pool"
+	"code.cloudfoundry.org/garden-shed/layercake"
 )
 
 type FakeRemover struct {

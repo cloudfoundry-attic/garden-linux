@@ -27,7 +27,7 @@ var _ = Describe("Detach", func() {
 		hostDir, err = ioutil.TempDir("", "hostdir")
 		Expect(err).NotTo(HaveOccurred())
 
-		detacher, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/container_daemon/detach_test")
+		detacher, err := gexec.Build("code.cloudfoundry.org/garden-linux/container_daemon/detach_test")
 		Expect(err).NotTo(HaveOccurred())
 
 		containerDir, err := ioutil.TempDir("", "containerdir")

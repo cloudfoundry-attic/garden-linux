@@ -4,10 +4,10 @@ import (
 	"errors"
 	"net"
 
-	"github.com/cloudfoundry-incubator/garden-linux/network"
-	"github.com/cloudfoundry-incubator/garden-linux/network/devices/fakedevices"
-	"github.com/cloudfoundry-incubator/garden-linux/network/fakes"
-	"github.com/pivotal-golang/lager/lagertest"
+	"code.cloudfoundry.org/garden-linux/network"
+	"code.cloudfoundry.org/garden-linux/network/devices/fakedevices"
+	"code.cloudfoundry.org/garden-linux/network/fakes"
+	"code.cloudfoundry.org/lager/lagertest"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

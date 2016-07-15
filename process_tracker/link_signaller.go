@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/cloudfoundry-incubator/garden-linux/iodaemon/link"
+	"code.cloudfoundry.org/garden-linux/iodaemon/link"
 )
 
 type LinkSignaller struct {

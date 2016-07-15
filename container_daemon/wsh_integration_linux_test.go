@@ -10,21 +10,21 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
-	"github.com/cloudfoundry-incubator/garden-linux/iodaemon/link"
+	"code.cloudfoundry.org/garden-linux/container_daemon"
+	"code.cloudfoundry.org/garden-linux/iodaemon/link"
 	"github.com/docker/docker/pkg/reexec"
 
 	"io/ioutil"
 
 	"path"
 
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
+	"code.cloudfoundry.org/garden-linux/container_daemon/unix_socket"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
 	"github.com/onsi/gomega/gexec"
 
-	_ "github.com/cloudfoundry-incubator/garden-linux/container_daemon/proc_starter"
+	_ "code.cloudfoundry.org/garden-linux/container_daemon/proc_starter"
 )
 
 func init() {
@@ -59,7 +59,7 @@ var _ = Describe("wsh and daemon integration", func() {
 
 	BeforeEach(func() {
 		var err error
-		wsh, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/container_daemon/wsh")
+		wsh, err = gexec.Build("code.cloudfoundry.org/garden-linux/container_daemon/wsh")
 		Expect(err).ToNot(HaveOccurred())
 
 		tempDir, err = ioutil.TempDir("", "")

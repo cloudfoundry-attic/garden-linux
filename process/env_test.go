@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/cloudfoundry-incubator/garden-linux/process"
+	"code.cloudfoundry.org/garden-linux/process"
 )
 
 var _ = Describe("Environment", func() {

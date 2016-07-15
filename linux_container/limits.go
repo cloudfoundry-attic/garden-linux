@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/cloudfoundry-incubator/garden"
+	"code.cloudfoundry.org/garden"
 )
 
 func (c *LinuxContainer) LimitBandwidth(limits garden.BandwidthLimits) error {

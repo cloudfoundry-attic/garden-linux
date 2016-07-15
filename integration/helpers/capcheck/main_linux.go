@@ -6,7 +6,7 @@ import (
 
 	"strings"
 
-	"github.com/cloudfoundry-incubator/garden-linux/integration/helpers/capcheck/commands"
+	"code.cloudfoundry.org/garden-linux/integration/helpers/capcheck/commands"
 )
 
 const HELP_SUBCOMMAND = "help"

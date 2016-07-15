@@ -4,7 +4,7 @@ package fakes
 import (
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden-linux/metrics"
+	"code.cloudfoundry.org/garden-linux/metrics"
 )
 
 type FakeMetrics struct {

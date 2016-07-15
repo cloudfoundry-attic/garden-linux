@@ -4,7 +4,7 @@ package fakes
 import (
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden-linux/network"
+	"code.cloudfoundry.org/garden-linux/network"
 )
 
 type FakeHostname struct {

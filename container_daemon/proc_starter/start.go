@@ -10,8 +10,8 @@ import (
 
 	"flag"
 
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
-	"github.com/cloudfoundry-incubator/garden-linux/system"
+	"code.cloudfoundry.org/garden-linux/container_daemon"
+	"code.cloudfoundry.org/garden-linux/system"
 	"github.com/docker/docker/pkg/reexec"
 )
 

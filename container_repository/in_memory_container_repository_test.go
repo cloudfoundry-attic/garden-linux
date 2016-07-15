@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden-linux/container_repository"
-	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
-	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/fakes"
+	"code.cloudfoundry.org/garden-linux/container_repository"
+	"code.cloudfoundry.org/garden-linux/linux_backend"
+	"code.cloudfoundry.org/garden-linux/linux_backend/fakes"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )

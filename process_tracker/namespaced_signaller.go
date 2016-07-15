@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/cloudfoundry/gunk/command_runner"
-	"github.com/pivotal-golang/lager"
+	"code.cloudfoundry.org/lager"
 )
 
 // Kills a process by invoking ./bin/wsh in the given container path using

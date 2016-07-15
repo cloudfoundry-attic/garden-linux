@@ -5,7 +5,7 @@ import (
 	"io"
 	"os/exec"
 
-	"github.com/cloudfoundry-incubator/garden-linux/system"
+	"code.cloudfoundry.org/garden-linux/system"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"

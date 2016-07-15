@@ -5,7 +5,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden-linux/resource_pool"
+	"code.cloudfoundry.org/garden-linux/resource_pool"
 )
 
 type FakeMkdirChowner struct {

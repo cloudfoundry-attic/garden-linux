@@ -6,7 +6,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
+	"code.cloudfoundry.org/garden-linux/containerizer/system"
 )
 
 func main() {

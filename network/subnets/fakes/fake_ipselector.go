@@ -5,7 +5,7 @@ import (
 	"net"
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
+	"code.cloudfoundry.org/garden-linux/network/subnets"
 )
 
 type FakeIPSelector struct {

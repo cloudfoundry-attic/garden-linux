@@ -4,7 +4,7 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/cloudfoundry-incubator/garden-linux/process"
+	"code.cloudfoundry.org/garden-linux/process"
 	"github.com/cloudfoundry/gunk/command_runner"
 )
 

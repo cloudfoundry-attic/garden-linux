@@ -2,7 +2,7 @@
 
 package network
 
-import "github.com/pivotal-golang/lager"
+import "code.cloudfoundry.org/lager"
 
 func NewConfigurer(log lager.Logger) Configurer {
 	panic("not supported on this OS")

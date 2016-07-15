@@ -8,10 +8,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/unix_socket"
-	"github.com/cloudfoundry-incubator/garden-linux/pkg/vars"
+	"code.cloudfoundry.org/garden"
+	"code.cloudfoundry.org/garden-linux/container_daemon"
+	"code.cloudfoundry.org/garden-linux/container_daemon/unix_socket"
+	"code.cloudfoundry.org/garden-linux/pkg/vars"
 	"golang.org/x/crypto/ssh/terminal"
 )
 

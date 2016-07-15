@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
+	"code.cloudfoundry.org/garden"
+	"code.cloudfoundry.org/garden-linux/linux_backend"
 )
 
 type FakeContainer struct {

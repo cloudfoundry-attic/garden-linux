@@ -4,7 +4,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/cloudfoundry-incubator/garden-linux/port_pool"
+	"code.cloudfoundry.org/garden-linux/port_pool"
 )
 
 var _ = Describe("Port pool", func() {

@@ -6,19 +6,19 @@ import (
 	"os"
 	"path"
 
-	"github.com/cloudfoundry-incubator/cf-lager"
-	"github.com/cloudfoundry-incubator/garden-linux/hook"
-	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
-	"github.com/cloudfoundry-incubator/garden-linux/logging"
-	"github.com/cloudfoundry-incubator/garden-linux/network"
-	"github.com/cloudfoundry-incubator/garden-linux/process"
+	"code.cloudfoundry.org/cflager"
+	"code.cloudfoundry.org/garden-linux/hook"
+	"code.cloudfoundry.org/garden-linux/linux_backend"
+	"code.cloudfoundry.org/garden-linux/logging"
+	"code.cloudfoundry.org/garden-linux/network"
+	"code.cloudfoundry.org/garden-linux/process"
 	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
 )
 
 func main() {
-	cf_lager.AddFlags(flag.CommandLine)
+	cflager.AddFlags(flag.CommandLine)
 	flag.Parse()
-	logger, _ := cf_lager.New("hook")
+	logger, _ := cflager.New("hook")
 
 	oldWd, err := os.Getwd()
 	if err != nil {

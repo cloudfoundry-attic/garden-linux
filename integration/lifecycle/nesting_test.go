@@ -15,10 +15,10 @@ import (
 
 	"io/ioutil"
 
-	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/integration/runner"
-	gclient "github.com/cloudfoundry-incubator/garden/client"
-	gconn "github.com/cloudfoundry-incubator/garden/client/connection"
+	"code.cloudfoundry.org/garden"
+	"code.cloudfoundry.org/garden-linux/integration/runner"
+	gclient "code.cloudfoundry.org/garden/client"
+	gconn "code.cloudfoundry.org/garden/client/connection"
 )
 
 var _ = Describe("When nested", func() {

@@ -7,9 +7,9 @@ import (
 	"os"
 	"os/exec"
 
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_ptyopener"
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_runner"
+	"code.cloudfoundry.org/garden-linux/container_daemon"
+	"code.cloudfoundry.org/garden-linux/container_daemon/fake_ptyopener"
+	"code.cloudfoundry.org/garden-linux/container_daemon/fake_runner"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )

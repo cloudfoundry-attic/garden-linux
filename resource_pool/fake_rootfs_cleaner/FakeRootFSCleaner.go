@@ -4,8 +4,8 @@ package fake_rootfs_cleaner
 import (
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden-linux/resource_pool"
-	"github.com/pivotal-golang/lager"
+	"code.cloudfoundry.org/garden-linux/resource_pool"
+	"code.cloudfoundry.org/lager"
 )
 
 type FakeRootFSCleaner struct {

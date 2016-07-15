@@ -17,7 +17,7 @@ func TestCapability(t *testing.T) {
 	SynchronizedBeforeSuite(func() []byte {
 		os.Setenv("CGO_ENABLED", "0")
 		defer os.Unsetenv("CGO_ENABLED")
-		capabilityPath, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/integration/helpers/capcheck", "-a", "-installsuffix", "static")
+		capabilityPath, err := gexec.Build("code.cloudfoundry.org/garden-linux/integration/helpers/capcheck", "-a", "-installsuffix", "static")
 		Expect(err).ToNot(HaveOccurred())
 
 		os.Chmod(capabilityPath, 777)

@@ -4,7 +4,7 @@ package fakes
 import (
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
+	"code.cloudfoundry.org/garden-linux/linux_backend"
 )
 
 type FakeContainerProvider struct {

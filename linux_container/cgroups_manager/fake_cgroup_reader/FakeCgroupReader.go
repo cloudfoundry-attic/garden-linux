@@ -4,7 +4,7 @@ package fake_cgroup_reader
 import (
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden-linux/linux_container/cgroups_manager"
+	"code.cloudfoundry.org/garden-linux/linux_container/cgroups_manager"
 )
 
 type FakeCgroupReader struct {

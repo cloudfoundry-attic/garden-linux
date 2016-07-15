@@ -5,7 +5,7 @@ import (
 	"net"
 	"os"
 
-	"github.com/cloudfoundry-incubator/garden-linux/network/devices"
+	"code.cloudfoundry.org/garden-linux/network/devices"
 )
 
 func main() {

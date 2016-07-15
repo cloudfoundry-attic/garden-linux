@@ -8,11 +8,11 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/cloudfoundry-incubator/garden"
+	"code.cloudfoundry.org/garden"
 	"github.com/cloudfoundry/gunk/command_runner"
 
-	"github.com/cloudfoundry-incubator/garden-linux/iodaemon/link"
-	"github.com/cloudfoundry-incubator/garden-linux/process_tracker/writer"
+	"code.cloudfoundry.org/garden-linux/iodaemon/link"
+	"code.cloudfoundry.org/garden-linux/process_tracker/writer"
 )
 
 //go:generate counterfeiter -o fake_signaller/fake_signaller.go . Signaller

@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/cloudfoundry-incubator/garden-linux/containerizer"
+	"code.cloudfoundry.org/garden-linux/containerizer"
 
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"

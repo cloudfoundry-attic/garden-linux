@@ -5,7 +5,7 @@ import (
 	"os"
 	"path"
 
-	"github.com/cloudfoundry-incubator/garden-linux/port_pool"
+	"code.cloudfoundry.org/garden-linux/port_pool"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )

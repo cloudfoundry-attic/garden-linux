@@ -3,9 +3,9 @@ package network_test
 import (
 	"errors"
 
-	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/network"
-	"github.com/cloudfoundry-incubator/garden-linux/network/iptables/fakes"
+	"code.cloudfoundry.org/garden"
+	"code.cloudfoundry.org/garden-linux/network"
+	"code.cloudfoundry.org/garden-linux/network/iptables/fakes"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )

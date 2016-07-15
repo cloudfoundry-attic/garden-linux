@@ -3,8 +3,8 @@ package network
 import (
 	"fmt"
 
-	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/network/iptables"
+	"code.cloudfoundry.org/garden"
+	"code.cloudfoundry.org/garden-linux/network/iptables"
 )
 
 //go:generate counterfeiter . Filter

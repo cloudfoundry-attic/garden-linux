@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/cloudfoundry-incubator/garden-linux/metrics"
-	"github.com/cloudfoundry-incubator/garden-linux/metrics/fakes"
-	"github.com/pivotal-golang/lager"
+	"code.cloudfoundry.org/garden-linux/metrics"
+	"code.cloudfoundry.org/garden-linux/metrics/fakes"
+	"code.cloudfoundry.org/lager"
 	"github.com/tedsuo/ifrit"
 
 	. "github.com/onsi/ginkgo"

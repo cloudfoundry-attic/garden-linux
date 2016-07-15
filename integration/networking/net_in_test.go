@@ -6,8 +6,8 @@ import (
 	"os/exec"
 	"time"
 
-	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/integration/runner"
+	"code.cloudfoundry.org/garden"
+	"code.cloudfoundry.org/garden-linux/integration/runner"
 	"github.com/onsi/gomega/gbytes"
 
 	. "github.com/onsi/ginkgo"

@@ -8,7 +8,7 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
+	"code.cloudfoundry.org/garden-linux/container_daemon"
 )
 
 type Listener struct {

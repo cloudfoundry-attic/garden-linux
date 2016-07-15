@@ -4,9 +4,9 @@ package fake_quota_manager
 import (
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
-	"github.com/pivotal-golang/lager"
+	"code.cloudfoundry.org/garden"
+	"code.cloudfoundry.org/garden-linux/linux_container"
+	"code.cloudfoundry.org/lager"
 )
 
 type FakeQuotaManager struct {

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/cloudfoundry-incubator/garden-linux/network/devices"
+	"code.cloudfoundry.org/garden-linux/network/devices"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )

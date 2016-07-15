@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"runtime"
 
-	"github.com/cloudfoundry-incubator/garden-linux/metrics"
-	"github.com/pivotal-golang/lager/lagertest"
+	"code.cloudfoundry.org/garden-linux/metrics"
+	"code.cloudfoundry.org/lager/lagertest"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

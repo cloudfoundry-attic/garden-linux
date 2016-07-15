@@ -1,8 +1,8 @@
 package network
 
-import "github.com/pivotal-golang/lager"
+import "code.cloudfoundry.org/lager"
 
-import "github.com/cloudfoundry-incubator/garden-linux/network/devices"
+import "code.cloudfoundry.org/garden-linux/network/devices"
 
 func NewConfigurer(log lager.Logger) Configurer {
 	return &NetworkConfigurer{

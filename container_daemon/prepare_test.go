@@ -3,15 +3,15 @@ package container_daemon_test
 import (
 	"fmt"
 
-	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_commander"
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_rlimits_env_encoder"
+	"code.cloudfoundry.org/garden"
+	"code.cloudfoundry.org/garden-linux/container_daemon"
+	"code.cloudfoundry.org/garden-linux/container_daemon/fake_commander"
+	"code.cloudfoundry.org/garden-linux/container_daemon/fake_rlimits_env_encoder"
 
 	"os/exec"
 	"os/user"
 
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon/fake_user"
+	"code.cloudfoundry.org/garden-linux/container_daemon/fake_user"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )

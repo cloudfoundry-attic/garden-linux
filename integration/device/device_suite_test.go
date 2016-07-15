@@ -8,7 +8,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/cloudfoundry-incubator/garden-linux/integration/runner"
+	"code.cloudfoundry.org/garden-linux/integration/runner"
 )
 
 var fuseRootFSPath = os.Getenv("GARDEN_FUSE_TEST_ROOTFS")

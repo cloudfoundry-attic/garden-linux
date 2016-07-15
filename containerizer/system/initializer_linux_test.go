@@ -3,8 +3,8 @@ package system_test
 import (
 	"errors"
 
-	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
-	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system/fake_step_runner"
+	"code.cloudfoundry.org/garden-linux/containerizer/system"
+	"code.cloudfoundry.org/garden-linux/containerizer/system/fake_step_runner"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

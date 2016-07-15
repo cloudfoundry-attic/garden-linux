@@ -1,7 +1,7 @@
 package sysinfo_test
 
 import (
-	"github.com/cloudfoundry-incubator/garden-linux/sysinfo"
+	"code.cloudfoundry.org/garden-linux/sysinfo"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

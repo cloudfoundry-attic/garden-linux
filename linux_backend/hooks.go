@@ -9,9 +9,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/cloudfoundry-incubator/garden-linux/hook"
-	"github.com/cloudfoundry-incubator/garden-linux/network"
-	"github.com/cloudfoundry-incubator/garden-linux/process"
+	"code.cloudfoundry.org/garden-linux/hook"
+	"code.cloudfoundry.org/garden-linux/network"
+	"code.cloudfoundry.org/garden-linux/process"
 )
 
 type Config struct {

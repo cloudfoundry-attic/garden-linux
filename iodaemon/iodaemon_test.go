@@ -12,8 +12,8 @@ import (
 	"bytes"
 	"io"
 
-	"github.com/cloudfoundry-incubator/garden-linux/iodaemon"
-	linkpkg "github.com/cloudfoundry-incubator/garden-linux/iodaemon/link"
+	"code.cloudfoundry.org/garden-linux/iodaemon"
+	linkpkg "code.cloudfoundry.org/garden-linux/iodaemon/link"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"

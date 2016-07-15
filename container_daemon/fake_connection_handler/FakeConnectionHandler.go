@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
+	"code.cloudfoundry.org/garden-linux/container_daemon"
 )
 
 type FakeConnectionHandler struct {

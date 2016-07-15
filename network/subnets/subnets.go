@@ -8,8 +8,8 @@ import (
 	"net"
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
-	"github.com/pivotal-golang/lager"
+	"code.cloudfoundry.org/garden-linux/linux_backend"
+	"code.cloudfoundry.org/lager"
 )
 
 // Subnets provides a means of allocating subnets and associated IP addresses.

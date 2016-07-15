@@ -4,8 +4,8 @@ package fake_filter_provider
 import (
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden-linux/network"
-	"github.com/cloudfoundry-incubator/garden-linux/resource_pool"
+	"code.cloudfoundry.org/garden-linux/network"
+	"code.cloudfoundry.org/garden-linux/resource_pool"
 )
 
 type FakeFilterProvider struct {

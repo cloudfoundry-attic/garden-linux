@@ -9,13 +9,13 @@ import (
 
 	"net"
 
-	"github.com/cloudfoundry-incubator/garden-linux/linux_container/iptables_manager"
-	"github.com/cloudfoundry-incubator/garden-linux/sysconfig"
+	"code.cloudfoundry.org/garden-linux/linux_container/iptables_manager"
+	"code.cloudfoundry.org/garden-linux/sysconfig"
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
-	"github.com/pivotal-golang/lager/lagertest"
+	"code.cloudfoundry.org/lager/lagertest"
 )
 
 var _ = Describe("natChain", func() {

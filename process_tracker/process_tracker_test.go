@@ -13,8 +13,8 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
 
-	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/process_tracker"
+	"code.cloudfoundry.org/garden"
+	"code.cloudfoundry.org/garden-linux/process_tracker"
 	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
 )
 

@@ -9,10 +9,10 @@ import (
 
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/logging"
+	"code.cloudfoundry.org/garden"
+	"code.cloudfoundry.org/garden-linux/logging"
 	"github.com/cloudfoundry/gunk/command_runner"
-	"github.com/pivotal-golang/lager"
+	"code.cloudfoundry.org/lager"
 )
 
 var protocols = map[garden.Protocol]string{

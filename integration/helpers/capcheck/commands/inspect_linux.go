@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/cloudfoundry-incubator/garden-linux/integration/helpers/capcheck/inspector"
+	"code.cloudfoundry.org/garden-linux/integration/helpers/capcheck/inspector"
 )
 
 func Inspect(caps map[string]bool) {

@@ -4,7 +4,7 @@ package fake_term
 import (
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
+	"code.cloudfoundry.org/garden-linux/container_daemon"
 	"github.com/docker/docker/pkg/term"
 )
 

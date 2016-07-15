@@ -1,8 +1,8 @@
 package fake_bandwidth_manager
 
 import (
-	"github.com/cloudfoundry-incubator/garden"
-	"github.com/pivotal-golang/lager"
+	"code.cloudfoundry.org/garden"
+	"code.cloudfoundry.org/lager"
 )
 
 type FakeBandwidthManager struct {

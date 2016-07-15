@@ -27,10 +27,10 @@ func TestSystem(t *testing.T) {
 
 	SynchronizedBeforeSuite(func() []byte {
 		var err error
-		beforeSuite.FakeMounterPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/containerizer/system/fake_mounter", "-race")
+		beforeSuite.FakeMounterPath, err = gexec.Build("code.cloudfoundry.org/garden-linux/containerizer/system/fake_mounter", "-race")
 		Expect(err).ToNot(HaveOccurred())
 
-		beforeSuite.FakeContainerPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/containerizer/system/fake_container", "-race")
+		beforeSuite.FakeContainerPath, err = gexec.Build("code.cloudfoundry.org/garden-linux/containerizer/system/fake_container", "-race")
 		Expect(err).ToNot(HaveOccurred())
 
 		beforeSuite.TempDirPath, err = ioutil.TempDir("", "system-tempdir")

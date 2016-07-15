@@ -10,8 +10,8 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 
-	"github.com/cloudfoundry-incubator/garden-linux/linux_container/cgroups_manager"
-	"github.com/cloudfoundry-incubator/garden-linux/linux_container/cgroups_manager/fake_cgroup_reader"
+	"code.cloudfoundry.org/garden-linux/linux_container/cgroups_manager"
+	"code.cloudfoundry.org/garden-linux/linux_container/cgroups_manager/fake_cgroup_reader"
 )
 
 var _ = Describe("Container cgroups", func() {

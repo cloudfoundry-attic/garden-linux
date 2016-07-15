@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/integration/runner"
+	"code.cloudfoundry.org/garden"
+	"code.cloudfoundry.org/garden-linux/integration/runner"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
@@ -47,7 +47,7 @@ var _ = Describe("Creating a container", func() {
 
 			createContainer := func(ch chan<- garden.Container) {
 				defer GinkgoRecover()
-				c, err := client.Create(garden.ContainerSpec{RootFSPath: "docker:///cloudfoundry/large_layers", Privileged: false})
+				c, err := client.Create(garden.ContainerSpec{RootFSPath: "docker:///cfgarden/large_layers", Privileged: false})
 				Expect(err).ToNot(HaveOccurred())
 				ch <- c
 			}

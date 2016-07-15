@@ -1,7 +1,7 @@
 package vars_test
 
 import (
-	"github.com/cloudfoundry-incubator/garden-linux/pkg/vars"
+	"code.cloudfoundry.org/garden-linux/pkg/vars"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )

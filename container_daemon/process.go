@@ -9,8 +9,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/iodaemon/link"
+	"code.cloudfoundry.org/garden"
+	"code.cloudfoundry.org/garden-linux/iodaemon/link"
 	"github.com/docker/docker/pkg/term"
 )
 

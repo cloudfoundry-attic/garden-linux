@@ -4,9 +4,9 @@ import (
 	"runtime"
 	"strconv"
 
-	"github.com/cloudfoundry-incubator/garden"
-	gclient "github.com/cloudfoundry-incubator/garden/client"
-	"github.com/cloudfoundry-incubator/garden/client/connection"
+	"code.cloudfoundry.org/garden"
+	gclient "code.cloudfoundry.org/garden/client"
+	"code.cloudfoundry.org/garden/client/connection"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )

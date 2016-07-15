@@ -4,10 +4,10 @@ import (
 	"net"
 	"runtime"
 
-	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
-	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
-	"github.com/pivotal-golang/lager"
-	"github.com/pivotal-golang/lager/lagertest"
+	"code.cloudfoundry.org/garden-linux/linux_backend"
+	"code.cloudfoundry.org/garden-linux/network/subnets"
+	"code.cloudfoundry.org/lager"
+	"code.cloudfoundry.org/lager/lagertest"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

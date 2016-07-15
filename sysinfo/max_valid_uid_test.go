@@ -4,7 +4,7 @@ import (
 	"io/ioutil"
 	"os"
 
-	"github.com/cloudfoundry-incubator/garden-linux/sysinfo"
+	"code.cloudfoundry.org/garden-linux/sysinfo"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )

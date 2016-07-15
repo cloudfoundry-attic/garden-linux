@@ -10,16 +10,16 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/cloudfoundry-incubator/cf-lager"
-	"github.com/cloudfoundry-incubator/garden-linux/containerizer"
-	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
-	"github.com/cloudfoundry-incubator/garden-linux/network"
-	"github.com/cloudfoundry-incubator/garden-linux/process"
-	sys "github.com/cloudfoundry-incubator/garden-linux/system"
+	"code.cloudfoundry.org/cflager"
+	"code.cloudfoundry.org/garden-linux/containerizer"
+	"code.cloudfoundry.org/garden-linux/containerizer/system"
+	"code.cloudfoundry.org/garden-linux/network"
+	"code.cloudfoundry.org/garden-linux/process"
+	sys "code.cloudfoundry.org/garden-linux/system"
 	"github.com/docker/docker/pkg/reexec"
 
 	// for rexec.Register("initd")
-	_ "github.com/cloudfoundry-incubator/garden-linux/container_daemon/initd"
+	_ "code.cloudfoundry.org/garden-linux/container_daemon/initd"
 )
 
 func init() {
@@ -43,7 +43,7 @@ func main() {
 	rootFsPath := flag.String("root", "", "Path for the root file system directory")
 	configFilePath := flag.String("config", "./etc/config", "Path for the configuration file")
 	title := flag.String("title", "", "")
-	cf_lager.AddFlags(flag.CommandLine)
+	cflager.AddFlags(flag.CommandLine)
 	flag.Parse()
 
 	if *rootFsPath == "" {
@@ -154,7 +154,7 @@ func setupNetwork(env process.Env) error {
 		return fmt.Errorf("initc: failed to parse container interface MTU: %s", err)
 	}
 
-	logger, _ := cf_lager.New("hook")
+	logger, _ := cflager.New("hook")
 	configurer := network.NewConfigurer(logger.Session("initc: hook.CHILD_AFTER_PIVOT"))
 	err = configurer.ConfigureContainer(&network.ContainerConfig{
 		Hostname:      env["id"],

@@ -9,9 +9,9 @@ import (
 
 	"fmt"
 
-	"github.com/cloudfoundry-incubator/garden-linux/sysconfig"
+	"code.cloudfoundry.org/garden-linux/sysconfig"
 	"github.com/cloudfoundry/gunk/command_runner"
-	"github.com/pivotal-golang/lager"
+	"code.cloudfoundry.org/lager"
 )
 
 type natChain struct {

@@ -4,7 +4,7 @@ package fake_watcher
 import (
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
+	"code.cloudfoundry.org/garden-linux/linux_container"
 )
 
 type FakeWatcher struct {

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net"
 
-	"github.com/pivotal-golang/lager"
+	"code.cloudfoundry.org/lager"
 )
 
 //go:generate counterfeiter . Configurer

@@ -1,8 +1,8 @@
 # Garden Linux
 
-A Linux backend for [Garden](https://github.com/cloudfoundry-incubator/garden).
+A Linux backend for [Garden](https://github.com/cloudfoundry/garden).
 
-You can deploy Garden-Linux using the [Garden-Linux BOSH Release](https://github.com/cloudfoundry-incubator/garden-linux-release).
+You can deploy Garden-Linux using the [Garden-Linux BOSH Release](https://github.com/cloudfoundry/garden-linux-release).
 This is the only "supported" way to use Garden-Linux.
 If you're not using BOSH, and still want to have a play, follow the insructions below.
 
@@ -10,11 +10,11 @@ If you're not using BOSH, and still want to have a play, follow the insructions 
 
 **Note:** the rest of these instructions assume you arranged for the garden-linux code and dependencies to be
 present in your `$GOPATH` on a machine running Ubuntu 14.04 or later with Go 1.6 installed.
-The easiest way to achieve this is actually to check out the [Garden-Linux BOSH Release](https://github.com/cloudfoundry-incubator/garden-linux-release), since that's the only place that all the dependency version data is recorded.
+The easiest way to achieve this is actually to check out the [Garden-Linux BOSH Release](https://github.com/cloudfoundry/garden-linux-release), since that's the only place that all the dependency version data is recorded.
 The steps are:
 
 ```
-git clone --recursive git@github.com:cloudfoundry-incubator/garden-linux-release
+git clone --recursive git@github.com:cloudfoundry/garden-linux-release
 cd garden-linux-release
 export GOPATH=$PWD
 ```
@@ -29,7 +29,7 @@ sudo modprobe aufs
 ### Build garden-linux
 
 ```
-cd $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux # assuming your $GOPATH has only one entry
+cd $GOPATH/src/code.cloudfoundry.org/garden-linux # assuming your $GOPATH has only one entry
 make
 ```
 
@@ -55,7 +55,7 @@ sudo tar -xzpf cflinuxfs2-1.19.0.tar.gz -C /opt/garden/rootfs
 Note that if you opted not to download a rootfs in the previous step, you can remove the `-rootfs=/opt/garden/rootfs` parameter from the command.
 
 ```
-cd $GOPATH/src/github.com/cloudfoundry-incubator/garden-linux # assuming your $GOPATH has only one entry
+cd $GOPATH/src/code.cloudfoundry.org/garden-linux # assuming your $GOPATH has only one entry
 sudo ./out/garden-linux \
        -depot=/opt/garden/depot \
        -graph=/opt/garden/graph \
@@ -69,10 +69,10 @@ sudo ./out/garden-linux \
 ### Kick the tyres
 
 The easiest way to start creating containers is using the unofficial [`gaol`](https://github.com/contraband/gaol) command line client.
-For more advanced use cases, you'll want to use the [Garden](https://github.com/cloudfoundry-incubator/garden) client package.
+For more advanced use cases, you'll want to use the [Garden](https://github.com/cloudfoundry/garden) client package.
 
 ## Development
 
 See the [Developer's Guide](docs/DEVELOPING.md) to get started.
 
-Many integration tests are in another repository, [Garden Integration Tests](https://github.com/cloudfoundry-incubator/garden-integration-tests).
+Many integration tests are in another repository, [Garden Integration Tests](https://github.com/cloudfoundry/garden-integration-tests).

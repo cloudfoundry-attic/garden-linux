@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/cloudfoundry-incubator/garden"
+	"code.cloudfoundry.org/garden"
 
 	"os/exec"
 
@@ -332,7 +332,7 @@ var _ = Describe("Security", func() {
 				Expect(cmd.Run()).To(Succeed())
 				rootFSPath = tempRootFSPath
 
-				lsPath, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/integration/test-images/empty_ls")
+				lsPath, err := gexec.Build("code.cloudfoundry.org/garden-linux/integration/test-images/empty_ls")
 				Expect(err).ToNot(HaveOccurred())
 				cmd = exec.Command("cp", lsPath, path.Join(rootFSPath, "ls"))
 				Expect(cmd.Run()).To(Succeed())

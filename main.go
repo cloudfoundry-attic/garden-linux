@@ -21,35 +21,36 @@ import (
 	_ "github.com/docker/docker/pkg/chrootarchive" // allow reexec of docker-applyLayer
 	"github.com/eapache/go-resiliency/retrier"
 
-	"github.com/cloudfoundry-incubator/cf-debug-server"
-	"github.com/cloudfoundry-incubator/cf-lager"
-	"github.com/cloudfoundry-incubator/garden-linux/container_repository"
-	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
-	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
-	"github.com/cloudfoundry-incubator/garden-linux/linux_container/bandwidth_manager"
-	"github.com/cloudfoundry-incubator/garden-linux/linux_container/cgroups_manager"
-	"github.com/cloudfoundry-incubator/garden-linux/linux_container/iptables_manager"
-	"github.com/cloudfoundry-incubator/garden-linux/metrics"
-	"github.com/cloudfoundry-incubator/garden-linux/network"
-	"github.com/cloudfoundry-incubator/garden-linux/network/bridgemgr"
-	"github.com/cloudfoundry-incubator/garden-linux/network/devices"
-	"github.com/cloudfoundry-incubator/garden-linux/network/iptables"
-	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
-	"github.com/cloudfoundry-incubator/garden-linux/pkg/vars"
-	"github.com/cloudfoundry-incubator/garden-linux/port_pool"
-	"github.com/cloudfoundry-incubator/garden-linux/process_tracker"
-	"github.com/cloudfoundry-incubator/garden-linux/resource_pool"
-	"github.com/cloudfoundry-incubator/garden-linux/sysconfig"
-	"github.com/cloudfoundry-incubator/garden-linux/sysinfo"
-	"github.com/cloudfoundry-incubator/garden-linux/system"
-	"github.com/cloudfoundry-incubator/garden-shed/distclient"
-	quotaed_aufs "github.com/cloudfoundry-incubator/garden-shed/docker_drivers/aufs"
-	"github.com/cloudfoundry-incubator/garden-shed/layercake"
-	"github.com/cloudfoundry-incubator/garden-shed/layercake/cleaner"
-	"github.com/cloudfoundry-incubator/garden-shed/quota_manager"
-	"github.com/cloudfoundry-incubator/garden-shed/repository_fetcher"
-	"github.com/cloudfoundry-incubator/garden-shed/rootfs_provider"
-	"github.com/cloudfoundry-incubator/garden/server"
+	"code.cloudfoundry.org/cflager"
+	"code.cloudfoundry.org/debugserver"
+	"code.cloudfoundry.org/garden-linux/container_repository"
+	"code.cloudfoundry.org/garden-linux/linux_backend"
+	"code.cloudfoundry.org/garden-linux/linux_container"
+	"code.cloudfoundry.org/garden-linux/linux_container/bandwidth_manager"
+	"code.cloudfoundry.org/garden-linux/linux_container/cgroups_manager"
+	"code.cloudfoundry.org/garden-linux/linux_container/iptables_manager"
+	"code.cloudfoundry.org/garden-linux/metrics"
+	"code.cloudfoundry.org/garden-linux/network"
+	"code.cloudfoundry.org/garden-linux/network/bridgemgr"
+	"code.cloudfoundry.org/garden-linux/network/devices"
+	"code.cloudfoundry.org/garden-linux/network/iptables"
+	"code.cloudfoundry.org/garden-linux/network/subnets"
+	"code.cloudfoundry.org/garden-linux/pkg/vars"
+	"code.cloudfoundry.org/garden-linux/port_pool"
+	"code.cloudfoundry.org/garden-linux/process_tracker"
+	"code.cloudfoundry.org/garden-linux/resource_pool"
+	"code.cloudfoundry.org/garden-linux/sysconfig"
+	"code.cloudfoundry.org/garden-linux/sysinfo"
+	"code.cloudfoundry.org/garden-linux/system"
+	"code.cloudfoundry.org/garden-shed/distclient"
+	quotaed_aufs "code.cloudfoundry.org/garden-shed/docker_drivers/aufs"
+	"code.cloudfoundry.org/garden-shed/layercake"
+	"code.cloudfoundry.org/garden-shed/layercake/cleaner"
+	"code.cloudfoundry.org/garden-shed/quota_manager"
+	"code.cloudfoundry.org/garden-shed/repository_fetcher"
+	"code.cloudfoundry.org/garden-shed/rootfs_provider"
+	"code.cloudfoundry.org/garden/server"
+	"code.cloudfoundry.org/lager"
 	"github.com/cloudfoundry/dropsonde"
 	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
 	_ "github.com/docker/docker/daemon/graphdriver/aufs"
@@ -58,7 +59,6 @@ import (
 	_ "github.com/docker/docker/pkg/chrootarchive" // allow reexec of docker-applyLayer
 	"github.com/docker/docker/pkg/reexec"
 	"github.com/pivotal-golang/clock"
-	"github.com/pivotal-golang/lager"
 	"github.com/pivotal-golang/localip"
 )
 
@@ -248,13 +248,13 @@ func main() {
 		"DNS server IP address to use instead of automatically determined servers. (Can be specified multiple times)",
 	)
 
-	cf_debug_server.AddFlags(flag.CommandLine)
-	cf_lager.AddFlags(flag.CommandLine)
+	debugserver.AddFlags(flag.CommandLine)
+	cflager.AddFlags(flag.CommandLine)
 	flag.Parse()
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	logger, reconfigurableSink := cf_lager.New("garden-linux")
+	logger, reconfigurableSink := cflager.New("garden-linux")
 	initializeDropsonde(logger)
 
 	if *binPath == "" {
@@ -346,7 +346,7 @@ func main() {
 
 	metricsProvider := metrics.NewMetrics(logger, backingStoresPath, *depotPath)
 
-	if dbgAddr := cf_debug_server.DebugAddress(flag.CommandLine); dbgAddr != "" {
+	if dbgAddr := debugserver.DebugAddress(flag.CommandLine); dbgAddr != "" {
 		metrics.StartDebugServer(dbgAddr, reconfigurableSink, metricsProvider)
 	}
 
@@ -404,7 +404,6 @@ func main() {
 	}
 
 	rootFSNamespacer := &rootfs_provider.UidNamespacer{
-		Logger: logger,
 		Translator: rootfs_provider.NewUidTranslator(
 			mappingList, // uid
 			mappingList, // gid

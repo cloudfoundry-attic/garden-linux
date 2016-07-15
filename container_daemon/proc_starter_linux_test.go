@@ -7,7 +7,7 @@ import (
 
 	"io"
 
-	_ "github.com/cloudfoundry-incubator/garden-linux/container_daemon/proc_starter"
+	_ "code.cloudfoundry.org/garden-linux/container_daemon/proc_starter"
 	"github.com/docker/docker/pkg/reexec"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

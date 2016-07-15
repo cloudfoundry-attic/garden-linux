@@ -8,9 +8,9 @@ import (
 	"path"
 	"time"
 
-	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/sysinfo"
-	"github.com/pivotal-golang/lager"
+	"code.cloudfoundry.org/garden"
+	"code.cloudfoundry.org/garden-linux/sysinfo"
+	"code.cloudfoundry.org/lager"
 )
 
 //go:generate counterfeiter . Container

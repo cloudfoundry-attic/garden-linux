@@ -5,7 +5,7 @@ import (
 	"os"
 	"os/exec"
 
-	linkpkg "github.com/cloudfoundry-incubator/garden-linux/iodaemon/link"
+	linkpkg "code.cloudfoundry.org/garden-linux/iodaemon/link"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"

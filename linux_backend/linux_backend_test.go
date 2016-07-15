@@ -12,13 +12,13 @@ import (
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
-	"github.com/pivotal-golang/lager/lagertest"
+	"code.cloudfoundry.org/lager/lagertest"
 
-	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/container_repository"
-	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
-	"github.com/cloudfoundry-incubator/garden-linux/linux_backend/fakes"
-	"github.com/cloudfoundry-incubator/garden-linux/sysinfo/fake_sysinfo"
+	"code.cloudfoundry.org/garden"
+	"code.cloudfoundry.org/garden-linux/container_repository"
+	"code.cloudfoundry.org/garden-linux/linux_backend"
+	"code.cloudfoundry.org/garden-linux/linux_backend/fakes"
+	"code.cloudfoundry.org/garden-linux/sysinfo/fake_sysinfo"
 )
 
 var _ = Describe("LinuxBackend", func() {

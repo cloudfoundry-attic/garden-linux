@@ -4,7 +4,7 @@ package fake_sysinfo
 import (
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden-linux/sysinfo"
+	"code.cloudfoundry.org/garden-linux/sysinfo"
 )
 
 type FakeProvider struct {

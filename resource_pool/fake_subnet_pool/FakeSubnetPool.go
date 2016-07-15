@@ -4,10 +4,10 @@ package fake_subnet_pool
 import (
 	"sync"
 
-	"github.com/cloudfoundry-incubator/garden-linux/linux_backend"
-	"github.com/cloudfoundry-incubator/garden-linux/network/subnets"
-	"github.com/cloudfoundry-incubator/garden-linux/resource_pool"
-	"github.com/pivotal-golang/lager"
+	"code.cloudfoundry.org/garden-linux/linux_backend"
+	"code.cloudfoundry.org/garden-linux/network/subnets"
+	"code.cloudfoundry.org/garden-linux/resource_pool"
+	"code.cloudfoundry.org/lager"
 )
 
 type FakeSubnetPool struct {

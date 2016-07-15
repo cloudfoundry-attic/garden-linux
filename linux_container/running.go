@@ -6,9 +6,9 @@ import (
 	"os/exec"
 	"path"
 
-	"github.com/cloudfoundry-incubator/garden"
-	"github.com/cloudfoundry-incubator/garden-linux/process"
-	"github.com/pivotal-golang/lager"
+	"code.cloudfoundry.org/garden"
+	"code.cloudfoundry.org/garden-linux/process"
+	"code.cloudfoundry.org/lager"
 )
 
 func (c *LinuxContainer) Run(spec garden.ProcessSpec, processIO garden.ProcessIO) (garden.Process, error) {

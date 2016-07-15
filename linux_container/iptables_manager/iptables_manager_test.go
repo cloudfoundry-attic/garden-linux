@@ -4,8 +4,8 @@ import (
 	"errors"
 	"net"
 
-	"github.com/cloudfoundry-incubator/garden-linux/linux_container/iptables_manager"
-	"github.com/cloudfoundry-incubator/garden-linux/linux_container/iptables_manager/fake_chain"
+	"code.cloudfoundry.org/garden-linux/linux_container/iptables_manager"
+	"code.cloudfoundry.org/garden-linux/linux_container/iptables_manager/fake_chain"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )

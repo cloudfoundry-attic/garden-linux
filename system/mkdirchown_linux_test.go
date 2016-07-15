@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"syscall"
 
-	"github.com/cloudfoundry-incubator/garden-linux/system"
+	"code.cloudfoundry.org/garden-linux/system"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

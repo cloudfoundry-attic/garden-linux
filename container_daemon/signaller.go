@@ -5,7 +5,7 @@ import (
 	"os"
 	"syscall"
 
-	"github.com/pivotal-golang/lager"
+	"code.cloudfoundry.org/lager"
 )
 
 type ProcessSignaller struct {

@@ -5,12 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cloudfoundry-incubator/garden"
+	"code.cloudfoundry.org/garden"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gexec"
 
-	"github.com/cloudfoundry-incubator/garden-linux/integration/runner"
+	"code.cloudfoundry.org/garden-linux/integration/runner"
 )
 
 var shmTestBin string
@@ -29,7 +29,7 @@ func restartGarden(argv ...string) {
 
 func TestLifecycle(t *testing.T) {
 	SynchronizedBeforeSuite(func() []byte {
-		shmPath, err := gexec.Build("github.com/cloudfoundry-incubator/garden-linux/integration/lifecycle/shm_test")
+		shmPath, err := gexec.Build("code.cloudfoundry.org/garden-linux/integration/lifecycle/shm_test")
 		Expect(err).ToNot(HaveOccurred())
 		return []byte(shmPath)
 	}, func(path []byte) {

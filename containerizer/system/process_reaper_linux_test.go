@@ -6,8 +6,8 @@ import (
 	"os/exec"
 	"syscall"
 
-	"github.com/cloudfoundry-incubator/garden-linux/containerizer/system"
-	"github.com/pivotal-golang/lager"
+	"code.cloudfoundry.org/garden-linux/containerizer/system"
+	"code.cloudfoundry.org/lager"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

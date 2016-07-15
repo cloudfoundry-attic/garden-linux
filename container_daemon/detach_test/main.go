@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/cloudfoundry-incubator/garden-linux/container_daemon"
+	"code.cloudfoundry.org/garden-linux/container_daemon"
 )
 
 func main() {

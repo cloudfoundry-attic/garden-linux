@@ -23,10 +23,10 @@ type CompiledAssets struct {
 var _ = SynchronizedBeforeSuite(func() []byte {
 	var err error
 	assets := CompiledAssets{}
-	assets.TestCapabilitiesPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/system/test_capabilities")
+	assets.TestCapabilitiesPath, err = gexec.Build("code.cloudfoundry.org/garden-linux/system/test_capabilities")
 	Expect(err).ToNot(HaveOccurred())
 
-	assets.TestUserExecerPath, err = gexec.Build("github.com/cloudfoundry-incubator/garden-linux/system/test_user_execer")
+	assets.TestUserExecerPath, err = gexec.Build("code.cloudfoundry.org/garden-linux/system/test_user_execer")
 	Expect(err).ToNot(HaveOccurred())
 
 	marshalledAssets, err := json.Marshal(assets)

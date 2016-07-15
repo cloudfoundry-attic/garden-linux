@@ -6,8 +6,8 @@ import (
 	"path"
 	"runtime/pprof"
 
-	"github.com/cloudfoundry-incubator/garden-linux/linux_container"
-	"github.com/cloudfoundry-incubator/garden-linux/linux_container/cgroups_manager/fake_cgroups_manager"
+	"code.cloudfoundry.org/garden-linux/linux_container"
+	"code.cloudfoundry.org/garden-linux/linux_container/cgroups_manager/fake_cgroups_manager"
 	"github.com/cloudfoundry/gunk/command_runner/fake_command_runner"
 	. "github.com/cloudfoundry/gunk/command_runner/fake_command_runner/matchers"
 
