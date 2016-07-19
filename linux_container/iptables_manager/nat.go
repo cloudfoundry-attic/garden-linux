@@ -38,9 +38,9 @@ func (mgr *natChain) Setup(containerID, bridgeName string, ip net.IP, network *n
 		exec.Command("iptables", "--wait", "--table", "nat", "-A", mgr.cfg.PreroutingChain, "--jump", instanceChain),
 		// Enable NAT for traffic coming from containers
 		exec.Command("sh", "-c", fmt.Sprintf(
-			`(iptables --wait --table nat -S %s | grep "\-j MASQUERADE\b" | grep -q -F -- "-s %s") || iptables --wait --table nat -A %s --source %s ! --destination %s --jump MASQUERADE`,
+			`(iptables --wait --table nat -S %s | grep "\-j MASQUERADE\b" | grep -q -F -- "-s %s") || iptables --wait --table nat -A %s --source %s --jump MASQUERADE`,
 			mgr.cfg.PostroutingChain, network.String(), mgr.cfg.PostroutingChain,
-			network.String(), network.String(),
+			network.String(),
 		)),
 	}
 
