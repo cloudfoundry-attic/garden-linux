@@ -2,6 +2,8 @@ package iodaemon_test
 
 import (
 	"encoding/json"
+	"fmt"
+	"path"
 	"syscall"
 	"time"
 
@@ -80,6 +82,32 @@ var _ = Describe("Iodaemon", func() {
 				close(exited)
 			}()
 		}
+
+		It("errors if spawned binary doesn't exist", func() {
+			err := iodaemon.Spawn(socketPath, []string{"/bin/not-found"}, time.Second, fakeOut, wirer, daemon)
+			defer close(exited)
+			Expect(err).To(MatchError(ContainSubstring("executable /bin/not-found not found")))
+		})
+
+		It("errors if spawned binary is corrupted", func() {
+			tmpDir, err := ioutil.TempDir("", "")
+			Expect(err).NotTo(HaveOccurred())
+			defer os.RemoveAll(tmpDir)
+
+			corruptedBinary := path.Join(tmpDir, "corrupted")
+			Expect(ioutil.WriteFile(corruptedBinary, []byte("not-an-executable"), 0755)).To(Succeed())
+
+			go func() {
+				defer GinkgoRecover()
+
+				err := iodaemon.Spawn(socketPath, []string{corruptedBinary}, time.Second, fakeOut, wirer, daemon)
+				defer close(exited)
+				Expect(err).To(MatchError(ContainSubstring(fmt.Sprintf("executable %s failed to start", corruptedBinary))))
+			}()
+
+			_, _, _, err = createLink(socketPath)
+			Expect(err).ToNot(HaveOccurred())
+		})
 
 		It("times out when no listeners connect", func() {
 			spawnProcess("echo", "hello")
