@@ -1,5 +1,7 @@
 # Garden Linux
 
+**Note**: This repository should be imported as `code.cloudfoundry.org/garden-linux`.
+
 A Linux backend for [Garden](https://github.com/cloudfoundry/garden).
 
 You can deploy Garden-Linux using the [Garden-Linux BOSH Release](https://github.com/cloudfoundry/garden-linux-release).
