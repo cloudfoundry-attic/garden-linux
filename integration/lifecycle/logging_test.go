@@ -2,6 +2,7 @@ package lifecycle_test
 
 import (
 	"io/ioutil"
+	"os"
 	"path"
 
 	"github.com/cloudfoundry-incubator/garden"
@@ -91,6 +92,7 @@ var _ = Describe("Logging", func() {
 			info, err := container.Info()
 			Expect(err).NotTo(HaveOccurred())
 
+			Expect(os.Remove(path.Join(info.ContainerPath, "bin", "wsh"))).To(Succeed())
 			Expect(ioutil.WriteFile(path.Join(info.ContainerPath, "bin", "wsh"), []byte("fail-to-exec"), 0755)).To(Succeed())
 		})
 
