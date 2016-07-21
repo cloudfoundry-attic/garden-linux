@@ -109,6 +109,13 @@ var _ = Describe("Iodaemon", func() {
 			Expect(err).ToNot(HaveOccurred())
 		})
 
+		It("errors if no connection can be made to garden", func() {
+			// no createLink called so no connection can be established in Spawn
+			err := iodaemon.Spawn(socketPath, []string{"echo", "hello"}, time.Second, fakeOut, wirer, daemon)
+			close(exited)
+			Expect(err).To(MatchError(ContainSubstring("expected client to connect within")))
+		})
+
 		It("times out when no listeners connect", func() {
 			spawnProcess("echo", "hello")
 
