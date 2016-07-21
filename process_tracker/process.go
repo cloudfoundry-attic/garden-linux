@@ -3,6 +3,7 @@ package process_tracker
 import (
 	"bufio"
 	"fmt"
+	"io/ioutil"
 	"os/exec"
 	"path"
 	"sync"
@@ -149,8 +150,14 @@ func (p *Process) Spawn(cmd *exec.Cmd, tty *garden.TTYSpec) (ready, active chan 
 		ready <- err
 		return
 	}
-
 	spawnOut := bufio.NewReader(spawnR)
+
+	spawnErrR, err := spawn.StderrPipe()
+	if err != nil {
+		ready <- err
+		return
+	}
+	spawnErr := bufio.NewReader(spawnErrR)
 
 	err = p.runner.Start(spawn)
 	if err != nil {
@@ -161,7 +168,13 @@ func (p *Process) Spawn(cmd *exec.Cmd, tty *garden.TTYSpec) (ready, active chan 
 	go func() {
 		_, err := spawnOut.ReadBytes('\n')
 		if err != nil {
-			ready <- fmt.Errorf("failed to read ready: %s", err)
+			stderrContents, readErr := ioutil.ReadAll(spawnErr)
+			if readErr != nil {
+				ready <- fmt.Errorf("failed to read ready (%s), and failed to read the stderr: %s", err, readErr)
+				return
+			}
+
+			ready <- fmt.Errorf("failed to read ready (%s): %s", err, string(stderrContents))
 			return
 		}
 
@@ -169,7 +182,13 @@ func (p *Process) Spawn(cmd *exec.Cmd, tty *garden.TTYSpec) (ready, active chan 
 
 		_, err = spawnOut.ReadBytes('\n')
 		if err != nil {
-			active <- fmt.Errorf("failed to read active: %s", err)
+			stderrContents, readErr := ioutil.ReadAll(spawnErr)
+			if readErr != nil {
+				active <- fmt.Errorf("failed to read active (%s), and failed to read the stderr: %s", err, readErr)
+				return
+			}
+
+			active <- fmt.Errorf("failed to read active (%s): %s", err, string(stderrContents))
 			return
 		}
 

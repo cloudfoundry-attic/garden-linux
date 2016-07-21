@@ -1,8 +1,10 @@
 package lifecycle_test
 
 import (
-	"github.com/cloudfoundry-incubator/garden"
+	"io/ioutil"
+	"path"
 
+	"github.com/cloudfoundry-incubator/garden"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
@@ -58,6 +60,7 @@ var _ = Describe("Logging", func() {
 				Consistently(client).ShouldNot(gbytes.Say("test-from-dockerfile"))
 			})
 		})
+
 	})
 
 	Context("when container spawn a new process", func() {
@@ -80,6 +83,25 @@ var _ = Describe("Logging", func() {
 			Consistently(client).ShouldNot(gbytes.Say("MY_SECRET"))
 			Consistently(client).ShouldNot(gbytes.Say("-username"))
 			Consistently(client).ShouldNot(gbytes.Say("banana"))
+		})
+	})
+
+	Context("and iodaemon fails to start wsh", func() {
+		JustBeforeEach(func() {
+			info, err := container.Info()
+			Expect(err).NotTo(HaveOccurred())
+
+			Expect(ioutil.WriteFile(path.Join(info.ContainerPath, "bin", "wsh"), []byte("fail-to-exec"), 0755)).To(Succeed())
+		})
+
+		It("logs iodaemon's error", func() {
+			_, err := container.Run(garden.ProcessSpec{
+				Path: "echo",
+				Args: []string{"hello world"},
+				User: "root",
+			}, garden.ProcessIO{})
+			Expect(err).To(HaveOccurred())
+			Eventually(client).Should(gbytes.Say("wsh failed to start"))
 		})
 	})
 

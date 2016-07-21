@@ -24,8 +24,6 @@ func Spawn(
 	wirer *Wirer,
 	daemon *Daemon,
 ) error {
-	var listener net.Listener
-
 	listener, err := listen(socketPath)
 	if err != nil {
 		return err
@@ -35,7 +33,7 @@ func Spawn(
 
 	executablePath, err := exec.LookPath(argv[0])
 	if err != nil {
-		return err
+		return fmt.Errorf("executable %s not found: %s", argv[0], err)
 	}
 
 	cmd := child(executablePath, argv)
@@ -51,7 +49,7 @@ func Spawn(
 	}
 
 	launched := make(chan bool)
-
+	errChan := make(chan error)
 	go func() {
 		var once sync.Once
 
@@ -59,13 +57,15 @@ func Spawn(
 			fmt.Fprintln(notifyStream, "ready")
 			conn, err := acceptConnection(listener, stdoutR, stderrR, statusR)
 			if err != nil {
+				errChan <- err
 				return // in general this means the listener has been closed
 			}
 
 			once.Do(func() {
 				err := cmd.Start()
 				if err != nil {
-					panic(err)
+					errChan <- fmt.Errorf("executable %s failed to start: %s", executablePath, err)
+					return
 				}
 
 				fmt.Fprintln(notifyStream, "active")
@@ -78,6 +78,8 @@ func Spawn(
 	}()
 
 	select {
+	case err := <-errChan:
+		return err
 	case <-launched:
 		var exit byte = 0
 		if err := cmd.Wait(); err != nil {

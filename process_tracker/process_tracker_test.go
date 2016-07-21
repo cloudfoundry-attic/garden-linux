@@ -3,10 +3,12 @@ package process_tracker_test
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 
 	. "github.com/onsi/ginkgo"
@@ -267,9 +269,36 @@ var _ = Describe("Process tracker", func() {
 		})
 
 		Context("when spawning fails", func() {
-			It("returns the error", func() {
-				_, err := processTracker.Run("200", exec.Command("/bin/does-not-exist"), garden.ProcessIO{}, nil, signaller)
-				Expect(err).To(HaveOccurred())
+			Context("because the binary doesn't exist", func() {
+				It("returns the error", func() {
+					_, err := processTracker.Run("200", exec.Command("/bin/does-not-exist"), garden.ProcessIO{}, nil, signaller)
+					Expect(err).To(MatchError(ContainSubstring("executable /bin/does-not-exist not found")))
+				})
+			})
+
+			Context("because the binary is corrupted", func() {
+				var (
+					corruptedBinary string
+					tmpDir          string
+				)
+
+				BeforeEach(func() {
+					var err error
+					tmpDir, err = ioutil.TempDir("", "")
+					Expect(err).NotTo(HaveOccurred())
+
+					corruptedBinary = path.Join(tmpDir, "corrupted")
+					Expect(ioutil.WriteFile(corruptedBinary, []byte("fail-to-exec"), 0755)).To(Succeed())
+				})
+
+				AfterEach(func() {
+					Expect(os.RemoveAll(tmpDir)).To(Succeed())
+				})
+
+				It("returns the error", func() {
+					_, err := processTracker.Run("200", exec.Command(corruptedBinary), garden.ProcessIO{}, nil, signaller)
+					Expect(err).To(MatchError(ContainSubstring(fmt.Sprintf("executable %s failed to start", corruptedBinary))))
+				})
 			})
 		})
 	})
