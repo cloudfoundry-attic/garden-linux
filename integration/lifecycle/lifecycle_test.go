@@ -47,7 +47,7 @@ var _ = Describe("Creating a container", func() {
 
 			createContainer := func(ch chan<- garden.Container) {
 				defer GinkgoRecover()
-				c, err := client.Create(garden.ContainerSpec{RootFSPath: "docker:///cloudfoundry/large_layers", Privileged: false})
+				c, err := client.Create(garden.ContainerSpec{RootFSPath: "docker:///cfgarden/large_layers", Privileged: false})
 				Expect(err).ToNot(HaveOccurred())
 				ch <- c
 			}

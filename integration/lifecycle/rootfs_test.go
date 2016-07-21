@@ -87,7 +87,7 @@ var _ = Describe("Rootfs container create parameter", func() {
 				It("should not leak the depot directory", func() {
 					_, err := client.Create(
 						garden.ContainerSpec{
-							RootFSPath: "docker:///cloudfoundry/doesnotexist",
+							RootFSPath: "docker:///cfgarden/doesnotexist",
 						},
 					)
 					Expect(err).To(HaveOccurred())
