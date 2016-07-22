@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"code.cloudfoundry.org/garden-linux/iodaemon"
+	"code.cloudfoundry.org/lager"
 )
 
 const USAGE = `usage:
@@ -59,10 +60,15 @@ func main() {
 }
 
 func spawn(args []string) {
+	logger := lager.NewLogger("iodaemon")
+	sink := lager.NewReconfigurableSink(lager.NewWriterSink(os.Stderr, lager.DEBUG), lager.DEBUG)
+	logger.RegisterSink(sink)
+
 	wirer := &iodaemon.Wirer{WithTty: *tty, WindowColumns: *windowColumns, WindowRows: *windowRows}
 	daemon := &iodaemon.Daemon{WithTty: *tty}
 
-	if err := iodaemon.Spawn(args[1], args[2:], *timeout, os.Stdout, wirer, daemon); err != nil {
+	if err := iodaemon.Spawn(logger, args[1], args[2:], *timeout, os.Stdout, wirer, daemon); err != nil {
+		logger.Info("failed", lager.Data{"error": err.Error()})
 		fmt.Fprintf(os.Stderr, "failed: %s", err)
 		os.Exit(2)
 	}

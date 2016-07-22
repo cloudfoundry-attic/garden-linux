@@ -6,10 +6,12 @@ import (
 	"io/ioutil"
 	"os/exec"
 	"path"
+	"strings"
 	"sync"
 	"syscall"
 
 	"code.cloudfoundry.org/garden"
+	"code.cloudfoundry.org/lager"
 	"github.com/cloudfoundry/gunk/command_runner"
 
 	"code.cloudfoundry.org/garden-linux/iodaemon/link"
@@ -33,6 +35,8 @@ type SignalRequest struct {
 }
 
 type Process struct {
+	logger lager.Logger
+
 	id string
 
 	containerPath string
@@ -54,13 +58,15 @@ type Process struct {
 }
 
 func NewProcess(
+	logger lager.Logger,
 	id string,
 	containerPath string,
 	runner command_runner.CommandRunner,
 	signaller Signaller,
 ) *Process {
 	return &Process{
-		id: id,
+		logger: logger,
+		id:     id,
 
 		containerPath: containerPath,
 		runner:        runner,
@@ -165,6 +171,11 @@ func (p *Process) Spawn(cmd *exec.Cmd, tty *garden.TTYSpec) (ready, active chan 
 		return
 	}
 
+	// TODO
+	// Get logger here and log all the iodaemon log file bits
+	// get last log line somehow
+	// cheeky refactor
+
 	go func() {
 		_, err := spawnOut.ReadBytes('\n')
 		if err != nil {
@@ -174,7 +185,8 @@ func (p *Process) Spawn(cmd *exec.Cmd, tty *garden.TTYSpec) (ready, active chan 
 				return
 			}
 
-			ready <- fmt.Errorf("failed to read ready (%s): %s", err, string(stderrContents))
+			logLines := strings.Split(string(stderrContents), "\n")
+			ready <- fmt.Errorf("failed to read ready (%s): %s", err, logLines[len(logLines)-1])
 			return
 		}
 
@@ -188,7 +200,8 @@ func (p *Process) Spawn(cmd *exec.Cmd, tty *garden.TTYSpec) (ready, active chan 
 				return
 			}
 
-			active <- fmt.Errorf("failed to read active (%s): %s", err, string(stderrContents))
+			logLines := strings.Split(string(stderrContents), "\n")
+			active <- fmt.Errorf("failed to read active (%s): %s", err, logLines[len(logLines)-1])
 			return
 		}
 

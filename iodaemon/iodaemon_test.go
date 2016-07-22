@@ -16,6 +16,7 @@ import (
 
 	"code.cloudfoundry.org/garden-linux/iodaemon"
 	linkpkg "code.cloudfoundry.org/garden-linux/iodaemon/link"
+	"code.cloudfoundry.org/lager/lagertest"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
@@ -31,6 +32,7 @@ func (b wc) Close() error {
 
 var _ = Describe("Iodaemon", func() {
 	var (
+		logger           *lagertest.TestLogger
 		socketPath       string
 		tmpdir           string
 		fakeOut          wc
@@ -62,6 +64,7 @@ var _ = Describe("Iodaemon", func() {
 
 		wirer = &iodaemon.Wirer{}
 		daemon = &iodaemon.Daemon{}
+		logger = lagertest.NewTestLogger("iodaemon-test")
 	})
 
 	AfterEach(func() {
@@ -78,13 +81,13 @@ var _ = Describe("Iodaemon", func() {
 	Context("spawning a process", func() {
 		spawnProcess := func(args ...string) {
 			go func() {
-				iodaemon.Spawn(socketPath, args, time.Second, fakeOut, wirer, daemon)
+				iodaemon.Spawn(logger, socketPath, args, time.Second, fakeOut, wirer, daemon)
 				close(exited)
 			}()
 		}
 
 		It("errors if spawned binary doesn't exist", func() {
-			err := iodaemon.Spawn(socketPath, []string{"/bin/not-found"}, time.Second, fakeOut, wirer, daemon)
+			err := iodaemon.Spawn(logger, socketPath, []string{"/bin/not-found"}, time.Second, fakeOut, wirer, daemon)
 			defer close(exited)
 			Expect(err).To(MatchError(ContainSubstring("executable /bin/not-found not found")))
 		})
@@ -100,7 +103,7 @@ var _ = Describe("Iodaemon", func() {
 			go func() {
 				defer GinkgoRecover()
 
-				err := iodaemon.Spawn(socketPath, []string{corruptedBinary}, time.Second, fakeOut, wirer, daemon)
+				err := iodaemon.Spawn(logger, socketPath, []string{corruptedBinary}, time.Second, fakeOut, wirer, daemon)
 				defer close(exited)
 				Expect(err).To(MatchError(ContainSubstring(fmt.Sprintf("executable %s failed to start", corruptedBinary))))
 			}()
@@ -111,7 +114,7 @@ var _ = Describe("Iodaemon", func() {
 
 		It("errors if no connection can be made to garden", func() {
 			// no createLink called so no connection can be established in Spawn
-			err := iodaemon.Spawn(socketPath, []string{"echo", "hello"}, time.Second, fakeOut, wirer, daemon)
+			err := iodaemon.Spawn(logger, socketPath, []string{"echo", "hello"}, time.Second, fakeOut, wirer, daemon)
 			close(exited)
 			Expect(err).To(MatchError(ContainSubstring("expected client to connect within")))
 		})
@@ -254,7 +257,7 @@ var _ = Describe("Iodaemon", func() {
 	Context("spawning a tty", func() {
 		spawnTty := func(args ...string) {
 			go func() {
-				iodaemon.Spawn(socketPath, args, time.Second, fakeOut, wirer, daemon)
+				iodaemon.Spawn(logger, socketPath, args, time.Second, fakeOut, wirer, daemon)
 				close(exited)
 			}()
 		}

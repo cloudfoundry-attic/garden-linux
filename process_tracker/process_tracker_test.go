@@ -17,10 +17,11 @@ import (
 
 	"code.cloudfoundry.org/garden"
 	"code.cloudfoundry.org/garden-linux/process_tracker"
+	"code.cloudfoundry.org/lager/lagertest"
 	"github.com/cloudfoundry/gunk/command_runner/linux_command_runner"
 )
 
-var _ = Describe("Process tracker", func() {
+var _ = FDescribe("Process tracker", func() {
 	var (
 		processTracker process_tracker.ProcessTracker
 		tmpdir         string
@@ -29,6 +30,8 @@ var _ = Describe("Process tracker", func() {
 
 	BeforeEach(func() {
 		var err error
+
+		logger := lagertest.NewTestLogger("process-tracker-test")
 
 		tmpdir, err = ioutil.TempDir("", "process-tracker-tests")
 		Expect(err).ToNot(HaveOccurred())
@@ -41,7 +44,7 @@ var _ = Describe("Process tracker", func() {
 
 		signaller = &process_tracker.LinkSignaller{}
 
-		processTracker = process_tracker.New(tmpdir, linux_command_runner.New())
+		processTracker = process_tracker.New(logger, tmpdir, linux_command_runner.New())
 	})
 
 	AfterEach(func() {

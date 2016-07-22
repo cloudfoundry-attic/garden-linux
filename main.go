@@ -599,7 +599,7 @@ func (p *provider) ProvideContainer(spec linux_backend.LinuxContainerSpec) linux
 		cgroupsManager,
 		p.quotaManager,
 		bandwidth_manager.New(spec.ContainerPath, spec.ID, p.runner),
-		process_tracker.New(spec.ContainerPath, p.runner),
+		process_tracker.New(p.log.Session("process-tracker"), spec.ContainerPath, p.runner),
 		p.ProvideFilter(spec.ID),
 		p.ipTablesMgr,
 		devices.Link{Name: p.sysconfig.NetworkInterfacePrefix + spec.ID + "-0"},

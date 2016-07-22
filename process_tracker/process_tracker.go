@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"code.cloudfoundry.org/garden"
+	"code.cloudfoundry.org/lager"
 	"github.com/cloudfoundry/gunk/command_runner"
 )
 
@@ -18,6 +19,7 @@ type ProcessTracker interface {
 }
 
 type processTracker struct {
+	logger        lager.Logger
 	containerPath string
 	runner        command_runner.CommandRunner
 
@@ -33,8 +35,9 @@ func (e UnknownProcessError) Error() string {
 	return fmt.Sprintf("process_tracker: unknown process: %s", e.ProcessID)
 }
 
-func New(containerPath string, runner command_runner.CommandRunner) ProcessTracker {
+func New(logger lager.Logger, containerPath string, runner command_runner.CommandRunner) ProcessTracker {
 	return &processTracker{
+		logger:        logger,
 		containerPath: containerPath,
 		runner:        runner,
 
@@ -45,7 +48,7 @@ func New(containerPath string, runner command_runner.CommandRunner) ProcessTrack
 
 func (t *processTracker) Run(processID string, cmd *exec.Cmd, processIO garden.ProcessIO, tty *garden.TTYSpec, signaller Signaller) (garden.Process, error) {
 	t.processesMutex.Lock()
-	process := NewProcess(processID, t.containerPath, t.runner, signaller)
+	process := NewProcess(t.logger.Session("process"), processID, t.containerPath, t.runner, signaller)
 	t.processes[processID] = process
 	t.processesMutex.Unlock()
 
@@ -87,7 +90,7 @@ func (t *processTracker) Attach(processID string, processIO garden.ProcessIO) (g
 func (t *processTracker) Restore(processID string, signaller Signaller) {
 	t.processesMutex.Lock()
 
-	process := NewProcess(processID, t.containerPath, t.runner, signaller)
+	process := NewProcess(t.logger.Session("process"), processID, t.containerPath, t.runner, signaller)
 
 	t.processes[processID] = process
 

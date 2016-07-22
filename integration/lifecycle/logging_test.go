@@ -106,6 +106,16 @@ var _ = Describe("Logging", func() {
 			Expect(err).To(HaveOccurred())
 			Eventually(client).Should(gbytes.Say("wsh failed to start"))
 		})
+
+		FIt("hoovers up iodaemon logs", func() {
+			_, err := container.Run(garden.ProcessSpec{
+				Path: "echo",
+				Args: []string{"hello world"},
+				User: "root",
+			}, garden.ProcessIO{})
+			Expect(err).To(HaveOccurred())
+			Eventually(client).Should(gbytes.Say("looking-up-executable-pathjdf"))
+		})
 	})
 
 	Context("when working with properties", func() {
