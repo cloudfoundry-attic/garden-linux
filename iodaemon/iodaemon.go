@@ -55,14 +55,17 @@ func Spawn(
 
 		for {
 			fmt.Fprintln(notifyStream, "ready")
-			conn, err := acceptConnection(listener, stdoutR, stderrR, statusR)
+			conn, err := acceptConnection(notifyStream, listener, stdoutR, stderrR, statusR)
+			fmt.Fprintln(notifyStream, "accepted-connection")
 			if err != nil {
 				errChan <- err
 				return // in general this means the listener has been closed
 			}
 
 			once.Do(func() {
+				fmt.Fprintln(notifyStream, "cmd-start")
 				err := cmd.Start()
+				fmt.Fprintln(notifyStream, "cmd-started")
 				if err != nil {
 					errChan <- fmt.Errorf("executable %s failed to start: %s", executablePath, err)
 					return
@@ -110,18 +113,21 @@ func listen(socketPath string) (net.Listener, error) {
 	return net.Listen("unix", socketPath)
 }
 
-func acceptConnection(listener net.Listener, stdoutR, stderrR, statusR *os.File) (net.Conn, error) {
+func acceptConnection(notifyStream io.WriteCloser, listener net.Listener, stdoutR, stderrR, statusR *os.File) (net.Conn, error) {
 	conn, err := listener.Accept()
+	fmt.Fprintln(notifyStream, "listener-accepted")
 	if err != nil {
 		return nil, err
 	}
 
+	fmt.Fprintln(notifyStream, "unix-rights")
 	rights := syscall.UnixRights(
 		int(stdoutR.Fd()),
 		int(stderrR.Fd()),
 		int(statusR.Fd()),
 	)
 
+	fmt.Fprintln(notifyStream, "write-msg-unix")
 	_, _, err = conn.(*net.UnixConn).WriteMsgUnix([]byte{}, rights, nil)
 	if err != nil {
 		return nil, err

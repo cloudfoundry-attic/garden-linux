@@ -2,6 +2,7 @@ package process_tracker
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os/exec"
@@ -11,6 +12,7 @@ import (
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry/gunk/command_runner"
+	"github.com/pivotal-golang/lager"
 
 	"github.com/cloudfoundry-incubator/garden-linux/iodaemon/link"
 	"github.com/cloudfoundry-incubator/garden-linux/process_tracker/writer"
@@ -33,6 +35,8 @@ type SignalRequest struct {
 }
 
 type Process struct {
+	logger lager.Logger
+
 	id string
 
 	containerPath string
@@ -54,12 +58,15 @@ type Process struct {
 }
 
 func NewProcess(
+	logger lager.Logger,
 	id string,
 	containerPath string,
 	runner command_runner.CommandRunner,
 	signaller Signaller,
 ) *Process {
 	return &Process{
+		logger: logger,
+
 		id: id,
 
 		containerPath: containerPath,
@@ -180,6 +187,41 @@ func (p *Process) Spawn(cmd *exec.Cmd, tty *garden.TTYSpec) (ready, active chan 
 
 		ready <- nil
 
+		waitFor := func(expectedLog string) error {
+			p.logger.Info("waiting for " + expectedLog)
+			log, err := spawnOut.ReadBytes('\n')
+			if err != nil {
+				p.logger.Error("errored waiting for "+expectedLog, err, lager.Data{"log": string(log)})
+				return err
+			}
+
+			if string(log) != expectedLog+"\n" {
+				p.logger.Error("errored waiting for "+expectedLog+" got "+string(log), err)
+				return errors.New("mismatched log from iodaemon")
+			}
+
+			return nil
+		}
+
+		if waitFor("listener-accepted") != nil {
+			return
+		}
+		if waitFor("unix-rights") != nil {
+			return
+		}
+		if waitFor("write-msg-unix") != nil {
+			return
+		}
+		if waitFor("accepted-connection") != nil {
+			return
+		}
+		if waitFor("cmd-start") != nil {
+			return
+		}
+		if waitFor("cmd-started") != nil {
+			return
+		}
+
 		_, err = spawnOut.ReadBytes('\n')
 		if err != nil {
 			stderrContents, readErr := ioutil.ReadAll(spawnErr)
@@ -222,11 +264,14 @@ func (p *Process) Attach(processIO garden.ProcessIO) {
 func (p *Process) runLinker() {
 	processSock := path.Join(p.containerPath, "processes", fmt.Sprintf("%s.sock", p.ID()))
 
-	link, err := link.Create(processSock, p.stdout, p.stderr)
+	p.logger.Info("creating-link-to-iodaemon", lager.Data{"socket-path": processSock})
+	link, err := link.Create(p.logger.Session("link-create"), processSock, p.stdout, p.stderr)
 	if err != nil {
+		p.logger.Error("creating-link-failed", err, lager.Data{"socket-path": processSock})
 		p.completed(-1, err)
 		return
 	}
+	p.logger.Info("created-link-to-iodaemon", lager.Data{"socket-path": processSock, "err": err})
 
 	p.stdin.AddSink(link)
 

@@ -7,6 +7,8 @@ import (
 	"os"
 	"sync"
 	"syscall"
+
+	"github.com/pivotal-golang/lager"
 )
 
 type SignalMsg struct {
@@ -20,8 +22,10 @@ type Link struct {
 	done       <-chan struct{}
 }
 
-func Create(socketPath string, stdout io.Writer, stderr io.Writer) (*Link, error) {
+func Create(logger lager.Logger, socketPath string, stdout io.Writer, stderr io.Writer) (*Link, error) {
+	logger.Info("link-dialing-socket", lager.Data{"socket-path": socketPath})
 	conn, err := net.Dial("unix", socketPath)
+	logger.Info("link-dialed-socket", lager.Data{"socket-path": socketPath})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to i/o daemon: %s", err)
 	}
@@ -29,11 +33,13 @@ func Create(socketPath string, stdout io.Writer, stderr io.Writer) (*Link, error
 	var b [2048]byte
 	var oob [2048]byte
 
+	logger.Info("read-msg-unix", lager.Data{"socket-path": socketPath})
 	n, oobn, _, _, err := conn.(*net.UnixConn).ReadMsgUnix(b[:], oob[:])
 	if err != nil {
 		return nil, fmt.Errorf("failed to read unix msg: %s (read: %d, %d)", err, n, oobn)
 	}
 
+	logger.Info("parse-socket-ctl-message", lager.Data{"socket-path": socketPath})
 	scms, err := syscall.ParseSocketControlMessage(oob[:oobn])
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse socket control message: %s", err)
@@ -45,6 +51,7 @@ func Create(socketPath string, stdout io.Writer, stderr io.Writer) (*Link, error
 
 	scm := scms[0]
 
+	logger.Info("parse-unix-rights", lager.Data{"socket-path": socketPath})
 	fds, err := syscall.ParseUnixRights(&scm)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse unix rights: %s", err)
@@ -54,10 +61,13 @@ func Create(socketPath string, stdout io.Writer, stderr io.Writer) (*Link, error
 		return nil, fmt.Errorf("invalid number of fds; need 3, got %d", len(fds))
 	}
 
+	logger.Info("close-fds", lager.Data{"socket-path": socketPath})
 	for _, fd := range fds {
+		logger.Info("close-fd", lager.Data{"socket-path": socketPath, "fd": fd})
 		syscall.CloseOnExec(fd)
 	}
 
+	logger.Info("create-fds", lager.Data{"socket-path": socketPath})
 	lstdout := os.NewFile(uintptr(fds[0]), "stdout")
 	lstderr := os.NewFile(uintptr(fds[1]), "stderr")
 	lstatus := os.NewFile(uintptr(fds[2]), "status")
@@ -66,6 +76,7 @@ func Create(socketPath string, stdout io.Writer, stderr io.Writer) (*Link, error
 
 	linkWriter := NewWriter(conn)
 
+	logger.Info("copying-stdout", lager.Data{"socket-path": socketPath})
 	streaming.Add(1)
 	go func() {
 		io.Copy(stdout, lstdout)
@@ -73,6 +84,7 @@ func Create(socketPath string, stdout io.Writer, stderr io.Writer) (*Link, error
 		streaming.Done()
 	}()
 
+	logger.Info("copying-stderr", lager.Data{"socket-path": socketPath})
 	streaming.Add(1)
 	go func() {
 		io.Copy(stderr, lstderr)
@@ -80,6 +92,7 @@ func Create(socketPath string, stdout io.Writer, stderr io.Writer) (*Link, error
 		streaming.Done()
 	}()
 
+	logger.Info("wait-on-streaming", lager.Data{"socket-path": socketPath})
 	done := make(chan struct{})
 	go func() {
 		streaming.Wait()

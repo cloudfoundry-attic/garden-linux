@@ -15,10 +15,12 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
+	"github.com/pivotal-golang/lager/lagertest"
 )
 
 var _ = Describe("Link", func() {
 	var (
+		testLogger                *lagertest.TestLogger
 		unixSockerPath            string
 		fakeServer                *fake_unix_server.FakeUnixServer
 		stdout, stderr            *gbytes.Buffer
@@ -26,6 +28,8 @@ var _ = Describe("Link", func() {
 	)
 
 	BeforeEach(func() {
+		testLogger = lagertest.NewTestLogger("link-tests")
+
 		tmpDir, err := ioutil.TempDir("", "")
 		Expect(err).ToNot(HaveOccurred())
 
@@ -78,7 +82,7 @@ var _ = Describe("Link", func() {
 			})
 
 			It("returns an error", func() {
-				_, err := linkpkg.Create(unixSockerPath, stdout, stderr)
+				_, err := linkpkg.Create(testLogger, unixSockerPath, stdout, stderr)
 				Expect(err).To(HaveOccurred())
 			})
 		})
@@ -91,12 +95,12 @@ var _ = Describe("Link", func() {
 			})
 
 			It("succeeds", func() {
-				_, err := linkpkg.Create(unixSockerPath, stdout, stderr)
+				_, err := linkpkg.Create(testLogger, unixSockerPath, stdout, stderr)
 				Expect(err).ToNot(HaveOccurred())
 			})
 
 			It("streams stdout", func() {
-				_, err := linkpkg.Create(unixSockerPath, stdout, stderr)
+				_, err := linkpkg.Create(testLogger, unixSockerPath, stdout, stderr)
 				Expect(err).ToNot(HaveOccurred())
 
 				stdoutW.Write([]byte("Hello stdout banana"))
@@ -104,7 +108,7 @@ var _ = Describe("Link", func() {
 			})
 
 			It("streams stderr", func() {
-				_, err := linkpkg.Create(unixSockerPath, stdout, stderr)
+				_, err := linkpkg.Create(testLogger, unixSockerPath, stdout, stderr)
 				Expect(err).ToNot(HaveOccurred())
 
 				stderrW.Write([]byte("Hello stderr banana"))
@@ -113,7 +117,7 @@ var _ = Describe("Link", func() {
 
 			It("should set close on exec for all new file descriptors", func() {
 				initialNumFdsWithoutCloseOnExec := numFdsWithoutCloseOnExec()
-				_, err := linkpkg.Create(unixSockerPath, stdout, stderr)
+				_, err := linkpkg.Create(testLogger, unixSockerPath, stdout, stderr)
 				Expect(err).ToNot(HaveOccurred())
 
 				finalNumFdsWithoutCloseOnExec := numFdsWithoutCloseOnExec()

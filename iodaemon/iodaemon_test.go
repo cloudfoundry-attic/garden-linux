@@ -19,6 +19,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
+	"github.com/pivotal-golang/lager/lagertest"
 )
 
 type wc struct {
@@ -31,6 +32,7 @@ func (b wc) Close() error {
 
 var _ = Describe("Iodaemon", func() {
 	var (
+		testLogger       *lagertest.TestLogger
 		socketPath       string
 		tmpdir           string
 		fakeOut          wc
@@ -44,6 +46,8 @@ var _ = Describe("Iodaemon", func() {
 	)
 
 	BeforeEach(func() {
+		testLogger = lagertest.NewTestLogger("iodaemon-tests")
+
 		var err error
 		expectedExitCode = 0
 		tmpdir, err = ioutil.TempDir("", "socket-dir")
@@ -105,7 +109,7 @@ var _ = Describe("Iodaemon", func() {
 				Expect(err).To(MatchError(ContainSubstring(fmt.Sprintf("executable %s failed to start", corruptedBinary))))
 			}()
 
-			_, _, _, err = createLink(socketPath)
+			_, _, _, err = createLink(testLogger, socketPath)
 			Expect(err).ToNot(HaveOccurred())
 		})
 
@@ -125,7 +129,7 @@ var _ = Describe("Iodaemon", func() {
 		It("reports back stdout", func() {
 			spawnProcess("echo", "hello")
 
-			_, linkStdout, _, err := createLink(socketPath)
+			_, linkStdout, _, err := createLink(testLogger, socketPath)
 			Expect(err).ToNot(HaveOccurred())
 			Eventually(linkStdout).Should(gbytes.Say("hello\n"))
 		})
@@ -133,12 +137,12 @@ var _ = Describe("Iodaemon", func() {
 		It("supports re-linking to an iodaemon instance", func() {
 			spawnProcess("bash")
 
-			l, _, _, err := createLink(socketPath)
+			l, _, _, err := createLink(testLogger, socketPath)
 			Expect(err).ToNot(HaveOccurred())
 			err = l.Writer.TerminateConnection()
 			Expect(err).ToNot(HaveOccurred())
 
-			m, _, _, err := createLink(socketPath)
+			m, _, _, err := createLink(testLogger, socketPath)
 			Expect(err).ToNot(HaveOccurred())
 
 			m.Write([]byte("exit\n"))
@@ -147,7 +151,7 @@ var _ = Describe("Iodaemon", func() {
 		It("reports back stderr", func() {
 			spawnProcess("bash", "-c", "echo error 1>&2")
 
-			_, _, linkStderr, err := createLink(socketPath)
+			_, _, linkStderr, err := createLink(testLogger, socketPath)
 			Expect(err).ToNot(HaveOccurred())
 			Eventually(linkStderr).Should(gbytes.Say("error\n"))
 		})
@@ -155,7 +159,7 @@ var _ = Describe("Iodaemon", func() {
 		It("sends stdin to child", func() {
 			spawnProcess("env", "-i", "bash", "--noprofile", "--norc")
 
-			l, linkStdout, _, err := createLink(socketPath)
+			l, linkStdout, _, err := createLink(testLogger, socketPath)
 			Expect(err).ToNot(HaveOccurred())
 
 			l.Write([]byte("echo hello\n"))
@@ -167,7 +171,7 @@ var _ = Describe("Iodaemon", func() {
 		It("exits when the child exits", func() {
 			spawnProcess("bash")
 
-			l, _, _, err := createLink(socketPath)
+			l, _, _, err := createLink(testLogger, socketPath)
 			Expect(err).ToNot(HaveOccurred())
 
 			l.Write([]byte("exit\n"))
@@ -176,7 +180,7 @@ var _ = Describe("Iodaemon", func() {
 		It("closes stdin when the link is closed", func() {
 			spawnProcess("bash")
 
-			l, _, _, err := createLink(socketPath)
+			l, _, _, err := createLink(testLogger, socketPath)
 			Expect(err).ToNot(HaveOccurred())
 
 			l.Close() //bash will normally terminate when it receives EOF on stdin
@@ -198,7 +202,7 @@ var _ = Describe("Iodaemon", func() {
 
 				spawnProcess(testPrintSignalBinPath)
 
-				l, linkStdout, _, err = createLink(socketPath)
+				l, linkStdout, _, err = createLink(testLogger, socketPath)
 				Expect(err).ToNot(HaveOccurred())
 
 				Eventually(linkStdout).Should(gbytes.Say("pid"))
@@ -244,7 +248,7 @@ var _ = Describe("Iodaemon", func() {
 			It("still creates the process", func() {
 				spawnProcess("echo", "hello")
 
-				_, linkStdout, _, err := createLink(socketPath)
+				_, linkStdout, _, err := createLink(testLogger, socketPath)
 				Expect(err).ToNot(HaveOccurred())
 				Eventually(linkStdout).Should(gbytes.Say("hello\n"))
 			})
@@ -269,7 +273,7 @@ var _ = Describe("Iodaemon", func() {
 		It("reports back stdout", func() {
 			spawnTty("echo", "hello")
 
-			_, linkStdout, _, err := createLink(socketPath)
+			_, linkStdout, _, err := createLink(testLogger, socketPath)
 			Expect(err).ToNot(HaveOccurred())
 			Eventually(linkStdout).Should(gbytes.Say("hello"))
 		})
@@ -277,7 +281,7 @@ var _ = Describe("Iodaemon", func() {
 		It("reports back stderr to stdout", func() {
 			spawnTty("bash", "-c", "echo error 1>&2")
 
-			_, linkStdout, _, err := createLink(socketPath)
+			_, linkStdout, _, err := createLink(testLogger, socketPath)
 			Expect(err).ToNot(HaveOccurred())
 			Eventually(linkStdout).Should(gbytes.Say("error"))
 		})
@@ -285,7 +289,7 @@ var _ = Describe("Iodaemon", func() {
 		It("exits when the child exits", func() {
 			spawnTty("bash")
 
-			l, _, _, err := createLink(socketPath)
+			l, _, _, err := createLink(testLogger, socketPath)
 			Expect(err).ToNot(HaveOccurred())
 
 			l.Write([]byte("exit\n"))
@@ -294,7 +298,7 @@ var _ = Describe("Iodaemon", func() {
 		It("closes stdin when the link is closed", func() {
 			spawnTty("bash")
 
-			l, _, _, err := createLink(socketPath)
+			l, _, _, err := createLink(testLogger, socketPath)
 			Expect(err).ToNot(HaveOccurred())
 
 			l.Close() //bash will normally terminate when it receives EOF on stdin
@@ -303,7 +307,7 @@ var _ = Describe("Iodaemon", func() {
 		It("sends stdin to child", func() {
 			spawnTty("env", "-i", "bash", "--noprofile", "--norc")
 
-			l, linkStdout, _, err := createLink(socketPath)
+			l, linkStdout, _, err := createLink(testLogger, socketPath)
 			Expect(err).ToNot(HaveOccurred())
 
 			l.Write([]byte("echo hello\n"))
@@ -315,7 +319,7 @@ var _ = Describe("Iodaemon", func() {
 		It("correctly sets the window size", func() {
 			spawnTty("env", "-i", "bash", "--noprofile", "--norc")
 
-			l, linkStdout, _, err := createLink(socketPath)
+			l, linkStdout, _, err := createLink(testLogger, socketPath)
 			Expect(err).ToNot(HaveOccurred())
 
 			l.Write([]byte("echo $COLUMNS $LINES\n"))
@@ -332,14 +336,14 @@ var _ = Describe("Iodaemon", func() {
 
 })
 
-func createLink(socketPath string) (*linkpkg.Link, io.WriteCloser, io.WriteCloser, error) {
+func createLink(testLogger *lagertest.TestLogger, socketPath string) (*linkpkg.Link, io.WriteCloser, io.WriteCloser, error) {
 	linkStdout := gbytes.NewBuffer()
 	linkStderr := gbytes.NewBuffer()
 	var l *linkpkg.Link
 	var err error
 	for i := 0; i < 100; i++ {
 		time.Sleep(10 * time.Millisecond)
-		l, err = linkpkg.Create(socketPath, linkStdout, linkStderr)
+		l, err = linkpkg.Create(testLogger, socketPath, linkStdout, linkStderr)
 		if err == nil {
 			break
 		}

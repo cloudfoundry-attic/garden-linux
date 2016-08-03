@@ -14,6 +14,7 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
+	"github.com/pivotal-golang/lager/lagertest"
 
 	"github.com/cloudfoundry-incubator/garden"
 	"github.com/cloudfoundry-incubator/garden-linux/process_tracker"
@@ -22,6 +23,7 @@ import (
 
 var _ = Describe("Process tracker", func() {
 	var (
+		testLogger     *lagertest.TestLogger
 		processTracker process_tracker.ProcessTracker
 		tmpdir         string
 		signaller      process_tracker.Signaller
@@ -29,6 +31,8 @@ var _ = Describe("Process tracker", func() {
 
 	BeforeEach(func() {
 		var err error
+
+		testLogger = lagertest.NewTestLogger("process-tracker-tests")
 
 		tmpdir, err = ioutil.TempDir("", "process-tracker-tests")
 		Expect(err).ToNot(HaveOccurred())
@@ -41,7 +45,7 @@ var _ = Describe("Process tracker", func() {
 
 		signaller = &process_tracker.LinkSignaller{}
 
-		processTracker = process_tracker.New(tmpdir, linux_command_runner.New())
+		processTracker = process_tracker.New(testLogger, tmpdir, linux_command_runner.New())
 	})
 
 	AfterEach(func() {
@@ -58,6 +62,21 @@ var _ = Describe("Process tracker", func() {
 			status, err := process.Wait()
 			Expect(err).ToNot(HaveOccurred())
 			Expect(status).To(Equal(42))
+		})
+
+		It("logs its progress to the given logger", func() {
+
+			cmd := exec.Command("bash", "-c", "exit 42")
+
+			process, err := processTracker.Run("555", cmd, garden.ProcessIO{}, nil, signaller)
+			Expect(err).NotTo(HaveOccurred())
+
+			Eventually(testLogger).Should(gbytes.Say("run-spawning"))
+
+			status, err := process.Wait()
+			Expect(err).ToNot(HaveOccurred())
+			Expect(status).To(Equal(42))
+
 		})
 
 		Describe("signalling a running process", func() {

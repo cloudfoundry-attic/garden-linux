@@ -10,9 +10,17 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
 	"github.com/onsi/gomega/gexec"
+	"github.com/pivotal-golang/lager/lagertest"
 )
 
 var _ = Describe("Iodaemon integration tests", func() {
+
+	var testLogger *lagertest.TestLogger
+
+	BeforeEach(func() {
+		testLogger = lagertest.NewTestLogger("iodaemon-integration-tests")
+	})
+
 	It("can read stdin", func() {
 		spawnS, err := gexec.Start(exec.Command(
 			iodaemonBinPath,
@@ -28,12 +36,13 @@ var _ = Describe("Iodaemon integration tests", func() {
 		Consistently(spawnS).ShouldNot(gbytes.Say("active\n"))
 
 		linkStdout := gbytes.NewBuffer()
-		link, err := linkpkg.Create(socketPath, linkStdout, os.Stderr)
+		link, err := linkpkg.Create(testLogger, socketPath, linkStdout, os.Stderr)
 		Expect(err).ToNot(HaveOccurred())
 
 		link.Write([]byte("hello\ngoodbye"))
 		link.Close()
 
+		Eventually(spawnS).Should(gbytes.Say("accepted-connection\n"))
 		Eventually(spawnS).Should(gbytes.Say("active\n"))
 		Eventually(linkStdout).Should(gbytes.Say("hello\ngoodbye"))
 
@@ -56,7 +65,7 @@ var _ = Describe("Iodaemon integration tests", func() {
 		Consistently(spawnS).ShouldNot(gbytes.Say("active\n"))
 
 		linkStdout := gbytes.NewBuffer()
-		link, err := linkpkg.Create(socketPath, linkStdout, os.Stderr)
+		link, err := linkpkg.Create(testLogger, socketPath, linkStdout, os.Stderr)
 		Expect(err).ToNot(HaveOccurred())
 
 		link.Write([]byte("hello\ngoodbye"))
@@ -80,7 +89,7 @@ var _ = Describe("Iodaemon integration tests", func() {
 
 			Eventually(spawnS).Should(gbytes.Say("ready\n"))
 
-			lk, err := linkpkg.Create(socketPath, GinkgoWriter, GinkgoWriter)
+			lk, err := linkpkg.Create(testLogger, socketPath, GinkgoWriter, GinkgoWriter)
 			Expect(err).ToNot(HaveOccurred())
 			lk.Close()
 
@@ -114,7 +123,7 @@ var _ = Describe("Iodaemon integration tests", func() {
 		Eventually(spawnS).Should(gbytes.Say("ready\n"))
 
 		linkStdout := gbytes.NewBuffer()
-		link, err := linkpkg.Create(socketPath, linkStdout, os.Stderr)
+		link, err := linkpkg.Create(testLogger, socketPath, linkStdout, os.Stderr)
 		Expect(err).ToNot(HaveOccurred())
 
 		Eventually(linkStdout).Should(gbytes.Say("hello"))
@@ -160,7 +169,7 @@ var _ = Describe("Iodaemon integration tests", func() {
 			})
 
 			It("returns the exit code of the process", func(done Done) {
-				link, err := linkpkg.Create(socketPath, GinkgoWriter, GinkgoWriter)
+				link, err := linkpkg.Create(testLogger, socketPath, GinkgoWriter, GinkgoWriter)
 				Expect(err).ToNot(HaveOccurred())
 
 				status, err := link.Wait()
@@ -178,7 +187,7 @@ var _ = Describe("Iodaemon integration tests", func() {
 			})
 
 			It("returns the exit code of the process", func(done Done) {
-				link, err := linkpkg.Create(socketPath, GinkgoWriter, GinkgoWriter)
+				link, err := linkpkg.Create(testLogger, socketPath, GinkgoWriter, GinkgoWriter)
 				Expect(err).ToNot(HaveOccurred())
 
 				status, err := link.Wait()
