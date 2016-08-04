@@ -23,7 +23,7 @@ var _ = Describe("capcheck", func() {
 		Describe("probe "+cap, func() {
 			Context("when a process does have "+cap, func() { // assumes tests are run as root
 				It("succeeds", func() {
-					session, err := gexec.Start(exec.Command("capsh", "--", "-c", fmt.Sprintf("%s %s", capabilityTestBin, cap)), GinkgoWriter, GinkgoWriter)
+					session, err := gexec.Start(exec.Command("capsh", "--inh="+cap, "--", "-c", fmt.Sprintf("%s %s", capabilityTestBin, cap)), GinkgoWriter, GinkgoWriter)
 					Expect(err).NotTo(HaveOccurred())
 					Eventually(session).Should(gexec.Exit(0))
 				})
@@ -31,7 +31,7 @@ var _ = Describe("capcheck", func() {
 
 			Context("when a process does not have "+cap, func() {
 				It("logs an error and returns a bad exit status code", func() {
-					session, err := gexec.Start(exec.Command("capsh", "--drop="+cap, "--", "-c", fmt.Sprintf("%s %s", capabilityTestBin, cap)), GinkgoWriter, GinkgoWriter)
+					session, err := gexec.Start(exec.Command("capsh", "--inh=", "--drop="+cap, "--", "-c", fmt.Sprintf("%s %s", capabilityTestBin, cap)), GinkgoWriter, GinkgoWriter)
 					Expect(err).NotTo(HaveOccurred())
 					Eventually(session).Should(gbytes.Say(expectedError))
 					Eventually(session).Should(gexec.Exit(1))
