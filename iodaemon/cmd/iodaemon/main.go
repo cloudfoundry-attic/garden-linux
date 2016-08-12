@@ -18,8 +18,8 @@ const USAGE = `usage:
 
 var timeout = flag.Duration(
 	"timeout",
-	10*time.Second,
-	"time duration to wait on an initial link before giving up",
+	100*time.Second,
+	"time duration to wait on an initial link and given command to start before giving up",
 )
 
 var tty = flag.Bool(
