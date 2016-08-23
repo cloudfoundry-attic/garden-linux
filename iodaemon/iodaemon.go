@@ -2,6 +2,7 @@ package iodaemon
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net"
 	"os"
 	"os/exec"
@@ -106,6 +107,21 @@ func Spawn(
 
 		fmt.Fprintf(statusW, "%d\n", exit)
 	case <-time.After(timeout):
+		contents, err := ioutil.ReadFile("/proc/net/unix")
+		if err != nil {
+			fmt.Fprintf(multiWriter, "Failed to open /proc/net/unix: %s\n", err)
+		} else {
+			fmt.Fprintf(logFile, "/proc/net/unix = `%s`\n", string(contents))
+		}
+
+		fmt.Fprintf(logFile, "output of netstat -xap: \n")
+		cmd := exec.Command("netstat", "-xap")
+		cmd.Stdout = logFile
+		cmd.Stderr = logFile
+		if err := cmd.Run(); err != nil {
+			fmt.Fprintf(multiWriter, "Failed to run netstat: %s\n", err)
+		}
+
 		return fmt.Errorf("expected client to connect within %s", timeout)
 	}
 

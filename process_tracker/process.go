@@ -231,11 +231,11 @@ func (p *Process) Spawn(cmd *exec.Cmd, tty *garden.TTYSpec) (ready, active chan 
 		if err != nil {
 			stderrContents, readErr := ioutil.ReadAll(spawnErr)
 			if readErr != nil {
-				active <- fmt.Errorf("failed to read active (%s), and failed to read the stderr: %s", err, readErr)
+				p.logger.Error("failed to read active, and failed to read the stderr", err, lager.Data{"stderr": readErr})
 				return
 			}
 
-			active <- fmt.Errorf("failed to read active (%s): %s", err, string(stderrContents))
+			p.logger.Error("failed to read active", err, lager.Data{"stderr": string(stderrContents)})
 			return
 		}
 
