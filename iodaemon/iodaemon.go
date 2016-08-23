@@ -69,7 +69,7 @@ func Spawn(
 		var once sync.Once
 
 		for {
-			fmt.Fprintln(multiWriter, "ready")
+			fmt.Fprintf(multiWriter, "ready pid: %d, process-pid: %s, socket path: %s\n", os.Getpid(), pid, socketPath)
 			conn, err := acceptConnection(multiWriter, listener, stdoutR, stderrR, statusR)
 			fmt.Fprintln(multiWriter, "accepted-connection")
 			if err != nil {

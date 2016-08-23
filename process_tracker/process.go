@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 
@@ -196,12 +197,24 @@ func (p *Process) Spawn(cmd *exec.Cmd, tty *garden.TTYSpec) (ready, active chan 
 			p.logger.Info("waiting for " + expectedLog)
 			log, err := spawnOut.ReadBytes('\n')
 			if err != nil {
-				p.logger.Error("errored waiting for "+expectedLog, err, lager.Data{"log": string(log)})
+				stderrContents, readErr := ioutil.ReadAll(spawnErr)
+				if readErr != nil {
+					p.logger.Error("errored waiting for "+expectedLog, err, lager.Data{"log": string(log), "readErr": readErr})
+					return err
+				}
+
+				p.logger.Error("errored waiting for "+expectedLog, err, lager.Data{"log": string(log), "stderr": string(stderrContents)})
 				return err
 			}
 
-			if string(log) != expectedLog+"\n" {
-				p.logger.Error("errored waiting for "+expectedLog+" got "+string(log), err)
+			if !strings.HasPrefix(string(log), expectedLog) {
+				stderrContents, readErr := ioutil.ReadAll(spawnErr)
+				if readErr != nil {
+					p.logger.Error("errored waiting for "+expectedLog, err, lager.Data{"log": string(log), "readErr": readErr})
+					return err
+				}
+
+				p.logger.Error("errored waiting for "+expectedLog, err, lager.Data{"stderr": string(stderrContents), "log": string(log)})
 				return errors.New("mismatched log from iodaemon")
 			}
 
@@ -227,15 +240,7 @@ func (p *Process) Spawn(cmd *exec.Cmd, tty *garden.TTYSpec) (ready, active chan 
 			return
 		}
 
-		_, err = spawnOut.ReadBytes('\n')
-		if err != nil {
-			stderrContents, readErr := ioutil.ReadAll(spawnErr)
-			if readErr != nil {
-				p.logger.Error("failed to read active, and failed to read the stderr", err, lager.Data{"stderr": readErr})
-				return
-			}
-
-			p.logger.Error("failed to read active", err, lager.Data{"stderr": string(stderrContents)})
+		if waitFor("active") != nil {
 			return
 		}
 
