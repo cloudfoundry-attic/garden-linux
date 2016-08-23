@@ -6,11 +6,17 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
 
 	"io"
+)
+
+var (
+	logFile     *os.File
+	multiWriter io.Writer
 )
 
 // spawn listens on a unix socket at the given socketPath and when the first connection
@@ -28,6 +34,14 @@ func Spawn(
 	if err != nil {
 		return err
 	}
+
+	pid := strings.Split(filepath.Base(socketPath), ".")[0]
+	logFile, err = os.OpenFile(filepath.Join(filepath.Dir(socketPath), fmt.Sprintf(pid+".iodaemon")), os.O_CREATE|os.O_APPEND|os.O_RDWR, 0644)
+	if err != nil {
+		panic(err)
+	}
+
+	multiWriter = io.MultiWriter(logFile, notifyStream)
 
 	defer listener.Close()
 
@@ -54,25 +68,25 @@ func Spawn(
 		var once sync.Once
 
 		for {
-			fmt.Fprintln(notifyStream, "ready")
-			conn, err := acceptConnection(notifyStream, listener, stdoutR, stderrR, statusR)
-			fmt.Fprintln(notifyStream, "accepted-connection")
+			fmt.Fprintln(multiWriter, "ready")
+			conn, err := acceptConnection(multiWriter, listener, stdoutR, stderrR, statusR)
+			fmt.Fprintln(multiWriter, "accepted-connection")
 			if err != nil {
 				errChan <- err
 				return // in general this means the listener has been closed
 			}
 
 			once.Do(func() {
-				fmt.Fprintln(notifyStream, "cmd-start")
+				fmt.Fprintln(multiWriter, "cmd-start")
 				err := cmd.Start()
-				fmt.Fprintln(notifyStream, "cmd-started")
+				fmt.Fprintln(multiWriter, "cmd-started")
 				if err != nil {
 					errChan <- fmt.Errorf("executable %s failed to start: %s", executablePath, err)
 					return
 				}
 
-				fmt.Fprintln(notifyStream, "active")
-				notifyStream.Close()
+				fmt.Fprintln(multiWriter, "active")
+				// multiWriter.Close()
 				launched <- true
 			})
 
@@ -113,21 +127,21 @@ func listen(socketPath string) (net.Listener, error) {
 	return net.Listen("unix", socketPath)
 }
 
-func acceptConnection(notifyStream io.WriteCloser, listener net.Listener, stdoutR, stderrR, statusR *os.File) (net.Conn, error) {
+func acceptConnection(multiWriter io.Writer, listener net.Listener, stdoutR, stderrR, statusR *os.File) (net.Conn, error) {
 	conn, err := listener.Accept()
-	fmt.Fprintln(notifyStream, "listener-accepted")
+	fmt.Fprintln(multiWriter, "listener-accepted")
 	if err != nil {
 		return nil, err
 	}
 
-	fmt.Fprintln(notifyStream, "unix-rights")
+	fmt.Fprintln(multiWriter, "unix-rights")
 	rights := syscall.UnixRights(
 		int(stdoutR.Fd()),
 		int(stderrR.Fd()),
 		int(statusR.Fd()),
 	)
 
-	fmt.Fprintln(notifyStream, "write-msg-unix")
+	fmt.Fprintln(multiWriter, "write-msg-unix")
 	_, _, err = conn.(*net.UnixConn).WriteMsgUnix([]byte{}, rights, nil)
 	if err != nil {
 		return nil, err
