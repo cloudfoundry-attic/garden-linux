@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"sync"
 	"syscall"
 
@@ -127,11 +129,14 @@ func (p *Process) Spawn(cmd *exec.Cmd, tty *garden.TTYSpec) (ready, active chan 
 
 	spawnPath := path.Join(p.containerPath, "bin", "iodaemon")
 	processSock := path.Join(p.containerPath, "processes", fmt.Sprintf("%s.sock", p.ID()))
+	straceOutput := path.Join(p.containerPath, "processes", fmt.Sprintf("%s.strace", p.ID()))
+
+	os.MkdirAll(filepath.Dir(processSock), 0755)
 
 	bashFlags := []string{
 		"-c",
 		// spawn but not as a child process (fork off in the bash subprocess).
-		spawnPath + ` "$@" &`,
+		`strace -f -tt -T -o ` + straceOutput + " " + spawnPath + ` "$@" &`,
 		spawnPath,
 	}
 
