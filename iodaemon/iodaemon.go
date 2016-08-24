@@ -128,6 +128,14 @@ func Spawn(
 			fmt.Fprintf(debugLog, "%s: Failed to run netstat: %s\n", time.Now().UTC(), err)
 		}
 
+		fmt.Fprintf(debugLog, "%s: output of ss -xa: \n", time.Now().UTC())
+		cmd = exec.Command("/bin/ss", "-xa")
+		cmd.Stdout = debugLog
+		cmd.Stderr = debugLog
+		if err := cmd.Run(); err != nil {
+			fmt.Fprintf(debugLog, "%s: Failed to run ss: %s\n", time.Now().UTC(), err)
+		}
+
 		return fmt.Errorf("expected client to connect within %s", timeout)
 	}
 
