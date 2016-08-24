@@ -185,22 +185,22 @@ func (p *Process) Spawn(cmd *exec.Cmd, tty *garden.TTYSpec) (ready, active chan 
 			if err != nil {
 				stderrContents, readErr := ioutil.ReadAll(spawnErr)
 				if readErr != nil {
-					p.logger.Error("errored waiting for "+expectedLog, err, lager.Data{"log": string(log), "readErr": readErr})
+					p.logger.Error("errored waiting for "+expectedLog, err, lager.Data{"log": string(log), "readErr": readErr, "socket": processSock})
 					return err
 				}
 
-				p.logger.Error("errored waiting for "+expectedLog, err, lager.Data{"log": string(log), "stderr": string(stderrContents)})
+				p.logger.Error("errored waiting for "+expectedLog, err, lager.Data{"log": string(log), "stderr": string(stderrContents), "socket": processSock})
 				return err
 			}
 
 			if !strings.HasPrefix(string(log), expectedLog) {
 				stderrContents, readErr := ioutil.ReadAll(spawnErr)
 				if readErr != nil {
-					p.logger.Error("errored waiting for "+expectedLog, err, lager.Data{"log": string(log), "readErr": readErr})
+					p.logger.Error("errored waiting for "+expectedLog, err, lager.Data{"log": string(log), "readErr": readErr, "socket": processSock})
 					return err
 				}
 
-				p.logger.Error("errored waiting for "+expectedLog, err, lager.Data{"stderr": string(stderrContents), "log": string(log)})
+				p.logger.Error("errored waiting for "+expectedLog, err, lager.Data{"stderr": string(stderrContents), "log": string(log), "socket": processSock})
 				return errors.New("mismatched log from iodaemon")
 			}
 
