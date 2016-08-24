@@ -36,8 +36,10 @@ func Spawn(
 		return err
 	}
 
+	currentPid := os.Getpid()
 	pid := strings.Split(filepath.Base(socketPath), ".")[0]
-	logFile, err = os.OpenFile(filepath.Join(filepath.Dir(socketPath), fmt.Sprintf(pid+".iodaemon")), os.O_CREATE|os.O_APPEND|os.O_RDWR, 0644)
+	logFilePath := filepath.Join(filepath.Dir(socketPath), fmt.Sprintf("%s.%d.iodaemon", pid, currentPid))
+	logFile, err = os.OpenFile(logFilePath, os.O_CREATE|os.O_APPEND|os.O_RDWR, 0644)
 	if err != nil {
 		panic(err)
 	}
@@ -105,6 +107,8 @@ func Spawn(
 			exit = byte(ws.ExitStatus())
 		}
 
+		logFile.Close()
+		os.Remove(logFilePath)
 		fmt.Fprintf(statusW, "%d\n", exit)
 	case <-time.After(timeout):
 		contents, err := ioutil.ReadFile("/proc/net/unix")
@@ -115,7 +119,7 @@ func Spawn(
 		}
 
 		fmt.Fprintf(logFile, "output of netstat -xap: \n")
-		cmd := exec.Command("netstat", "-xap")
+		cmd := exec.Command("/bin/netstat", "-xap")
 		cmd.Stdout = logFile
 		cmd.Stderr = logFile
 		if err := cmd.Run(); err != nil {

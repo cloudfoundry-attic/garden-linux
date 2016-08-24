@@ -179,20 +179,6 @@ func (p *Process) Spawn(cmd *exec.Cmd, tty *garden.TTYSpec) (ready, active chan 
 	}
 
 	go func() {
-		_, err := spawnOut.ReadBytes('\n')
-		if err != nil {
-			stderrContents, readErr := ioutil.ReadAll(spawnErr)
-			if readErr != nil {
-				ready <- fmt.Errorf("failed to read ready (%s), and failed to read the stderr: %s", err, readErr)
-				return
-			}
-
-			ready <- fmt.Errorf("failed to read ready (%s): %s", err, string(stderrContents))
-			return
-		}
-
-		ready <- nil
-
 		waitFor := func(expectedLog string) error {
 			p.logger.Info("waiting for " + expectedLog)
 			log, err := spawnOut.ReadBytes('\n')
@@ -221,6 +207,12 @@ func (p *Process) Spawn(cmd *exec.Cmd, tty *garden.TTYSpec) (ready, active chan 
 			return nil
 		}
 
+		if waitFor("ready") != nil {
+			return
+		}
+
+		ready <- nil
+
 		if waitFor("listener-accepted") != nil {
 			return
 		}
@@ -247,6 +239,8 @@ func (p *Process) Spawn(cmd *exec.Cmd, tty *garden.TTYSpec) (ready, active chan 
 		active <- nil
 
 		spawn.Wait()
+
+		os.Remove(straceOutput)
 	}()
 
 	return
