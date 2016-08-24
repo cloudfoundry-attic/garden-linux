@@ -111,19 +111,21 @@ func Spawn(
 		os.Remove(logFilePath)
 		fmt.Fprintf(statusW, "%d\n", exit)
 	case <-time.After(timeout):
+		debugLogPath := strings.Replace(logFilePath, "iodaemon", "debug_unix", -1)
+		debugLog, err := os.OpenFile(debugLogPath, os.O_CREATE|os.O_APPEND|os.O_RDWR, 644)
 		contents, err := ioutil.ReadFile("/proc/net/unix")
 		if err != nil {
-			fmt.Fprintf(logFile, "%s: Failed to open /proc/net/unix: %s\n", time.Now().UTC(), err)
+			fmt.Fprintf(debugLog, "%s: Failed to open /proc/net/unix: %s\n", time.Now().UTC(), err)
 		} else {
-			fmt.Fprintf(logFile, "%s: /proc/net/unix = `%s`\n", time.Now().UTC(), string(contents))
+			fmt.Fprintf(debugLog, "%s: /proc/net/unix = `%s`\n", time.Now().UTC(), string(contents))
 		}
 
-		fmt.Fprintf(logFile, "%s: output of netstat -xap: \n", time.Now().UTC())
+		fmt.Fprintf(debugLog, "%s: output of netstat -xap: \n", time.Now().UTC())
 		cmd := exec.Command("/bin/netstat", "-xap")
-		cmd.Stdout = logFile
-		cmd.Stderr = logFile
+		cmd.Stdout = debugLog
+		cmd.Stderr = debugLog
 		if err := cmd.Run(); err != nil {
-			fmt.Fprintf(logFile, "%s: Failed to run netstat: %s\n", time.Now().UTC(), err)
+			fmt.Fprintf(debugLog, "%s: Failed to run netstat: %s\n", time.Now().UTC(), err)
 		}
 
 		return fmt.Errorf("expected client to connect within %s", timeout)
