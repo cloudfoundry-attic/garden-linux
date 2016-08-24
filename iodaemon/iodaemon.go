@@ -71,24 +71,24 @@ func Spawn(
 		var once sync.Once
 
 		for {
-			fmt.Fprintf(multiWriter, "ready pid: %d, process-pid: %s, socket path: %s\n", os.Getpid(), pid, socketPath)
+			fmt.Fprintf(multiWriter, "%s: ready pid: %d, process-pid: %s, socket path: %s\n", time.Now().UTC(), os.Getpid(), pid, socketPath)
 			conn, err := acceptConnection(multiWriter, listener, stdoutR, stderrR, statusR)
-			fmt.Fprintln(multiWriter, "accepted-connection")
+			fmt.Fprintf(multiWriter, "%s: accepted-connection\n", time.Now().UTC())
 			if err != nil {
 				errChan <- err
 				return // in general this means the listener has been closed
 			}
 
 			once.Do(func() {
-				fmt.Fprintln(multiWriter, "cmd-start")
+				fmt.Fprintf(multiWriter, "%s: cmd-start\n", time.Now().UTC())
 				err := cmd.Start()
-				fmt.Fprintln(multiWriter, "cmd-started")
+				fmt.Fprintf(multiWriter, "%s: cmd-started\n", time.Now().UTC())
 				if err != nil {
 					errChan <- fmt.Errorf("executable %s failed to start: %s", executablePath, err)
 					return
 				}
 
-				fmt.Fprintln(multiWriter, "active")
+				fmt.Fprintf(multiWriter, "%s: active\n", time.Now().UTC())
 				// multiWriter.Close()
 				launched <- true
 			})
@@ -113,17 +113,17 @@ func Spawn(
 	case <-time.After(timeout):
 		contents, err := ioutil.ReadFile("/proc/net/unix")
 		if err != nil {
-			fmt.Fprintf(multiWriter, "Failed to open /proc/net/unix: %s\n", err)
+			fmt.Fprintf(logFile, "%s: Failed to open /proc/net/unix: %s\n", time.Now().UTC(), err)
 		} else {
-			fmt.Fprintf(logFile, "/proc/net/unix = `%s`\n", string(contents))
+			fmt.Fprintf(logFile, "%s: /proc/net/unix = `%s`\n", time.Now().UTC(), string(contents))
 		}
 
-		fmt.Fprintf(logFile, "output of netstat -xap: \n")
+		fmt.Fprintf(logFile, "%s: output of netstat -xap: \n", time.Now().UTC())
 		cmd := exec.Command("/bin/netstat", "-xap")
 		cmd.Stdout = logFile
 		cmd.Stderr = logFile
 		if err := cmd.Run(); err != nil {
-			fmt.Fprintf(multiWriter, "Failed to run netstat: %s\n", err)
+			fmt.Fprintf(logFile, "%s: Failed to run netstat: %s\n", time.Now().UTC(), err)
 		}
 
 		return fmt.Errorf("expected client to connect within %s", timeout)
@@ -149,19 +149,19 @@ func listen(socketPath string) (net.Listener, error) {
 
 func acceptConnection(multiWriter io.Writer, listener net.Listener, stdoutR, stderrR, statusR *os.File) (net.Conn, error) {
 	conn, err := listener.Accept()
-	fmt.Fprintln(multiWriter, "listener-accepted")
+	fmt.Fprintf(multiWriter, "%s: listener-accepted\n", time.Now().UTC())
 	if err != nil {
 		return nil, err
 	}
 
-	fmt.Fprintln(multiWriter, "unix-rights")
+	fmt.Fprintf(multiWriter, "%s: unix-rights\n", time.Now().UTC())
 	rights := syscall.UnixRights(
 		int(stdoutR.Fd()),
 		int(stderrR.Fd()),
 		int(statusR.Fd()),
 	)
 
-	fmt.Fprintln(multiWriter, "write-msg-unix")
+	fmt.Fprintf(multiWriter, "%s: write-msg-unix\n", time.Now().UTC())
 	_, _, err = conn.(*net.UnixConn).WriteMsgUnix([]byte{}, rights, nil)
 	if err != nil {
 		return nil, err

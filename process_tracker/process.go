@@ -193,7 +193,7 @@ func (p *Process) Spawn(cmd *exec.Cmd, tty *garden.TTYSpec) (ready, active chan 
 				return err
 			}
 
-			if !strings.HasPrefix(string(log), expectedLog) {
+			if !strings.Contains(string(log), expectedLog) {
 				stderrContents, readErr := ioutil.ReadAll(spawnErr)
 				if readErr != nil {
 					p.logger.Error("errored waiting for "+expectedLog, err, lager.Data{"log": string(log), "readErr": readErr, "socket": processSock})
