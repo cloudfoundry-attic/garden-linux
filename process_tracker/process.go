@@ -134,28 +134,30 @@ func (p *Process) Spawn(cmd *exec.Cmd, tty *garden.TTYSpec) (ready, active chan 
 
 	os.MkdirAll(filepath.Dir(processSock), 0755)
 
-	bashFlags := []string{
-		"-c",
-		// spawn but not as a child process (fork off in the bash subprocess).
-		`strace -f -tt -T -o ` + straceOutput + " " + spawnPath + ` "$@" &`,
+	flags := []string{
+		"-f",
+		"-tt",
+		"-T",
+		"-o",
+		straceOutput,
 		spawnPath,
 	}
 
 	if tty != nil {
-		bashFlags = append(bashFlags, "-tty")
+		flags = append(flags, "-tty")
 
 		if tty.WindowSize != nil {
-			bashFlags = append(
-				bashFlags,
+			flags = append(
+				flags,
 				fmt.Sprintf("-windowColumns=%d", tty.WindowSize.Columns),
 				fmt.Sprintf("-windowRows=%d", tty.WindowSize.Rows),
 			)
 		}
 	}
 
-	bashFlags = append(bashFlags, "spawn", processSock)
+	flags = append(flags, "spawn", processSock)
 
-	spawn := exec.Command("bash", append(bashFlags, cmd.Args...)...)
+	spawn := exec.Command("strace", append(flags, cmd.Args...)...)
 	spawn.Env = cmd.Env
 
 	spawnR, err := spawn.StdoutPipe()
@@ -184,23 +186,25 @@ func (p *Process) Spawn(cmd *exec.Cmd, tty *garden.TTYSpec) (ready, active chan 
 			log, err := spawnOut.ReadBytes('\n')
 			if err != nil {
 				stderrContents, readErr := ioutil.ReadAll(spawnErr)
+				cmdErr := spawn.Wait()
 				if readErr != nil {
-					p.logger.Error("errored waiting for "+expectedLog, err, lager.Data{"log": string(log), "readErr": readErr, "socket": processSock})
+					p.logger.Error("errored waiting for "+expectedLog, err, lager.Data{"log": string(log), "readErr": readErr, "socket": processSock, "cmdErr": cmdErr})
 					return err
 				}
 
-				p.logger.Error("errored waiting for "+expectedLog, err, lager.Data{"log": string(log), "stderr": string(stderrContents), "socket": processSock})
+				p.logger.Error("errored waiting for "+expectedLog, err, lager.Data{"log": string(log), "stderr": string(stderrContents), "socket": processSock, "cmdErr": cmdErr})
 				return err
 			}
 
 			if !strings.Contains(string(log), expectedLog) {
 				stderrContents, readErr := ioutil.ReadAll(spawnErr)
+				cmdErr := spawn.Wait()
 				if readErr != nil {
-					p.logger.Error("errored waiting for "+expectedLog, err, lager.Data{"log": string(log), "readErr": readErr, "socket": processSock})
+					p.logger.Error("errored waiting for "+expectedLog, err, lager.Data{"log": string(log), "readErr": readErr, "socket": processSock, "cmdErr": cmdErr})
 					return err
 				}
 
-				p.logger.Error("errored waiting for "+expectedLog, err, lager.Data{"stderr": string(stderrContents), "log": string(log), "socket": processSock})
+				p.logger.Error("errored waiting for "+expectedLog, err, lager.Data{"stderr": string(stderrContents), "log": string(log), "socket": processSock, "cmdErr": cmdErr})
 				return errors.New("mismatched log from iodaemon")
 			}
 
@@ -238,7 +242,8 @@ func (p *Process) Spawn(cmd *exec.Cmd, tty *garden.TTYSpec) (ready, active chan 
 
 		active <- nil
 
-		spawn.Wait()
+		err = spawn.Wait()
+		p.logger.Info("iodaemon-exitted", lager.Data{"err": err, "pid": spawn.Process.Pid})
 
 		os.Remove(straceOutput)
 	}()
