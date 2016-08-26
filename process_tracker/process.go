@@ -243,7 +243,11 @@ func (p *Process) Spawn(cmd *exec.Cmd, tty *garden.TTYSpec) (ready, active chan 
 		active <- nil
 
 		err = spawn.Wait()
-		p.logger.Info("iodaemon-exitted", lager.Data{"err": err, "pid": spawn.Process.Pid})
+		// delete strace only on clean exit
+		if err != nil {
+			p.logger.Error("iodaemon-failed", err, lager.Data{"pid": spawn.Process.Pid})
+			return
+		}
 
 		os.Remove(straceOutput)
 	}()
