@@ -53,8 +53,3 @@ if ! mountpoint -q $cgroup_path; then
 fi
 
 ./net.sh setup
-
-# Disable AppArmor if possible
-if [ -x /etc/init.d/apparmor ]; then
-  /etc/init.d/apparmor teardown
-fi
