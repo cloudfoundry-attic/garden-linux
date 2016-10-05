@@ -17,7 +17,9 @@ import (
 	"github.com/blang/semver"
 	"github.com/cloudfoundry/gunk/command_runner"
 	"github.com/docker/docker/daemon/graphdriver"
-	"github.com/docker/docker/graph"
+	"github.com/docker/docker/distribution/metadata"
+	"github.com/docker/docker/image"
+	"github.com/docker/docker/layer"
 	_ "github.com/docker/docker/pkg/chrootarchive" // allow reexec of docker-applyLayer
 	"github.com/eapache/go-resiliency/retrier"
 
@@ -328,6 +330,26 @@ func main() {
 		logger.Fatal("failed-to-mkdir-backing-stores", err)
 	}
 
+	metadataStore, err := metadata.NewFSMetadataStore(filepath.Join(*graphRoot, "metadata"))
+	if err != nil {
+		logger.Fatal("failed-to-initialize-metadata-store", err)
+	}
+
+	layerStore, err := layer.NewStoreFromGraphDriver(metadataStore, dockerGraphDriver)
+	if err != nil {
+		logger.Fatal("failed-to-initialize-layer-store", err)
+	}
+
+	ifs, err := image.NewFSStoreBackend(filepath.Join(*graphRoot, "imagedb"))
+	if err != nil {
+		logger.Fatal("failed-to-initialize-ifs-store", err)
+	}
+
+	imageStore, err := image.NewImageStore(ifs, layerStore)
+	if err != nil {
+		logger.Fatal("failed-to-initialize-image-store", err)
+	}
+
 	quotaedGraphDriver := &quotaed_aufs.QuotaedDriver{
 		GraphDriver: dockerGraphDriver,
 		Unmount:     quotaed_aufs.Unmount,
@@ -350,14 +372,9 @@ func main() {
 		metrics.StartDebugServer(dbgAddr, reconfigurableSink, metricsProvider)
 	}
 
-	dockerGraph, err := graph.NewGraph(*graphRoot, quotaedGraphDriver)
-	if err != nil {
-		logger.Fatal("failed-to-construct-graph", err)
-	}
-
 	var cake layercake.Cake = &layercake.Docker{
-		Graph:  dockerGraph,
-		Driver: quotaedGraphDriver,
+		ImageStore: imageStore,
+		Driver:     quotaedGraphDriver,
 	}
 
 	if cake.DriverName() == "aufs" {
