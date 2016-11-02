@@ -1,5 +1,7 @@
 # Garden Linux
 
+**Garden-Linux is not actively developed anymore. We are currently focusing on the OCI Garden backend: [garden-runc](https://github.com/cloudfoundry/garden-runc-release).**
+
 **Note**: This repository should be imported as `code.cloudfoundry.org/garden-linux`.
 
 A Linux backend for [Garden](https://github.com/cloudfoundry/garden).
